@@ -13,6 +13,7 @@ declare module 'next-auth' {
       name: string
       image?: string
       plan: string
+      githubAccessToken?: string
     }
   }
 }
@@ -21,6 +22,7 @@ declare module 'next-auth/jwt' {
   interface JWT {
     id: string
     plan: string
+    githubAccessToken?: string
   }
 }
 
@@ -108,12 +110,17 @@ export const authOptions: NextAuthOptions = {
         token.id = dbUser?._id.toString() || user.id
         token.plan = dbUser?.plan || 'free'
       }
+      // Store GitHub access token when signing in with GitHub
+      if (account?.provider === 'github' && account.access_token) {
+        token.githubAccessToken = account.access_token
+      }
       return token
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id
         session.user.plan = token.plan
+        session.user.githubAccessToken = token.githubAccessToken
       }
       return session
     },

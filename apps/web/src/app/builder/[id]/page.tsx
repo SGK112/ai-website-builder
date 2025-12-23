@@ -16,9 +16,13 @@ import {
   Monitor,
   Tablet,
   Smartphone,
-  RefreshCw
+  RefreshCw,
+  MessageSquare
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { BuilderChat } from '@/components/builder/BuilderChat'
+import { IntegrationsPanel } from '@/components/builder/IntegrationsPanel'
+import { DeploymentPanel } from '@/components/builder/DeploymentPanel'
 
 interface ProjectFile {
   path: string
@@ -40,6 +44,34 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
   const [deviceMode, setDeviceMode] = useState<DeviceMode>('desktop')
   const [selectedFile, setSelectedFile] = useState<ProjectFile | null>(null)
   const [previewKey, setPreviewKey] = useState(0)
+  const [showChat, setShowChat] = useState(true)
+  const [userKeys, setUserKeys] = useState<Record<string, string>>({})
+  const [showDeployPanel, setShowDeployPanel] = useState(false)
+
+  // Handle saving user API keys
+  async function handleSaveKeys(keys: Record<string, string>) {
+    setUserKeys(keys)
+    // In a real app, save to backend encrypted
+    console.log('Saving API keys:', Object.keys(keys))
+  }
+
+  // Handle file changes from Claude chat
+  function handleApplyChanges(changes: { path: string; content: string }[]) {
+    setFiles(prevFiles => {
+      const newFiles = [...prevFiles]
+      for (const change of changes) {
+        const existingIndex = newFiles.findIndex(f => f.path === change.path)
+        if (existingIndex >= 0) {
+          newFiles[existingIndex] = { path: change.path, content: change.content }
+        } else {
+          newFiles.push({ path: change.path, content: change.content })
+        }
+      }
+      return newFiles
+    })
+    // Refresh preview
+    setPreviewKey(k => k + 1)
+  }
 
   // Load project files
   useEffect(() => {
@@ -130,11 +162,18 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     ${globalCss?.content || ''}
-    body { font-family: system-ui, -apple-system, sans-serif; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f8fafc;
+      color: #1e293b;
+    }
   </style>
 </head>
-<body>
-  <div id="preview-root">
+<body class="bg-slate-50 text-slate-900">
+  <div id="preview-root" class="min-h-screen">
     ${convertJSXToHTML(content)}
   </div>
 </body>
@@ -178,10 +217,10 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-slate-100">
+      <div className="h-screen flex items-center justify-center bg-slate-900">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 animate-spin text-slate-600" />
-          <span className="text-slate-600">Loading project...</span>
+          <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+          <span className="text-slate-300">Loading project...</span>
         </div>
       </div>
     )
@@ -189,43 +228,43 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
 
   if (error) {
     return (
-      <div className="h-screen flex items-center justify-center bg-slate-100">
+      <div className="h-screen flex items-center justify-center bg-slate-900">
         <div className="text-center">
-          <p className="text-red-500 text-xl mb-2">Failed to load project</p>
-          <p className="text-slate-500">{error}</p>
+          <p className="text-red-400 text-xl mb-2">Failed to load project</p>
+          <p className="text-slate-400">{error}</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="h-screen flex flex-col bg-slate-100">
+    <div className="h-screen flex flex-col bg-slate-800">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 bg-white border-b shadow-sm">
+      <header className="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-700">
         <div className="flex items-center gap-4">
           <div>
-            <h1 className="font-semibold text-slate-900">{projectName}</h1>
-            <p className="text-xs text-slate-500 capitalize">{projectType?.replace('-', ' ')} Website</p>
+            <h1 className="font-semibold text-white">{projectName}</h1>
+            <p className="text-xs text-slate-400 capitalize">{projectType?.replace('-', ' ')} Website</p>
           </div>
         </div>
 
         {/* Device Toggle */}
-        <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+        <div className="flex items-center gap-1 bg-slate-700 rounded-lg p-1">
           <button
             onClick={() => setDeviceMode('desktop')}
-            className={`p-2 rounded ${deviceMode === 'desktop' ? 'bg-white shadow-sm' : 'hover:bg-slate-200'}`}
+            className={`p-2 rounded text-slate-300 ${deviceMode === 'desktop' ? 'bg-slate-600 text-white' : 'hover:bg-slate-600'}`}
           >
             <Monitor className="w-4 h-4" />
           </button>
           <button
             onClick={() => setDeviceMode('tablet')}
-            className={`p-2 rounded ${deviceMode === 'tablet' ? 'bg-white shadow-sm' : 'hover:bg-slate-200'}`}
+            className={`p-2 rounded text-slate-300 ${deviceMode === 'tablet' ? 'bg-slate-600 text-white' : 'hover:bg-slate-600'}`}
           >
             <Tablet className="w-4 h-4" />
           </button>
           <button
             onClick={() => setDeviceMode('mobile')}
-            className={`p-2 rounded ${deviceMode === 'mobile' ? 'bg-white shadow-sm' : 'hover:bg-slate-200'}`}
+            className={`p-2 rounded text-slate-300 ${deviceMode === 'mobile' ? 'bg-slate-600 text-white' : 'hover:bg-slate-600'}`}
           >
             <Smartphone className="w-4 h-4" />
           </button>
@@ -235,8 +274,17 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setShowChat(!showChat)}
+            className={`gap-2 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white ${showChat ? 'bg-purple-900/50 border-purple-500 text-purple-300' : ''}`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            AI Chat
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setPreviewKey(k => k + 1)}
-            className="gap-2"
+            className="gap-2 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
@@ -245,7 +293,7 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
             variant="outline"
             size="sm"
             onClick={() => setViewMode(viewMode === 'preview' ? 'code' : 'preview')}
-            className="gap-2"
+            className="gap-2 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
           >
             {viewMode === 'preview' ? <Code className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             {viewMode === 'preview' ? 'View Code' : 'Preview'}
@@ -254,23 +302,18 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
             variant="outline"
             size="sm"
             onClick={handleDownload}
-            className="gap-2"
+            className="gap-2 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
           >
             <Download className="w-4 h-4" />
             Download
           </Button>
           <Button
             size="sm"
-            onClick={handleDeploy}
-            disabled={deploying}
-            className="gap-2 bg-green-600 hover:bg-green-700"
+            onClick={() => setShowDeployPanel(true)}
+            className="gap-2 bg-green-600 hover:bg-green-700 text-white"
           >
-            {deploying ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Rocket className="w-4 h-4" />
-            )}
-            Create Webservice
+            <Rocket className="w-4 h-4" />
+            Deploy
           </Button>
         </div>
       </header>
@@ -291,21 +334,21 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Quick Actions */}
-        <div className="w-16 bg-white border-r flex flex-col items-center py-4 gap-2">
-          <button className="p-3 rounded-lg hover:bg-slate-100 text-slate-600" title="Layout">
+        <div className="w-16 bg-slate-900 border-r border-slate-700 flex flex-col items-center py-4 gap-2">
+          <button className="p-3 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white" title="Layout">
             <Layout className="w-5 h-5" />
           </button>
-          <button className="p-3 rounded-lg hover:bg-slate-100 text-slate-600" title="Colors">
+          <button className="p-3 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white" title="Colors">
             <Palette className="w-5 h-5" />
           </button>
-          <button className="p-3 rounded-lg hover:bg-slate-100 text-slate-600" title="Text">
+          <button className="p-3 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white" title="Text">
             <Type className="w-5 h-5" />
           </button>
-          <button className="p-3 rounded-lg hover:bg-slate-100 text-slate-600" title="Images">
+          <button className="p-3 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white" title="Images">
             <Image className="w-5 h-5" />
           </button>
           <div className="flex-1" />
-          <button className="p-3 rounded-lg hover:bg-slate-100 text-slate-600" title="Settings">
+          <button className="p-3 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white" title="Settings">
             <Settings className="w-5 h-5" />
           </button>
         </div>
@@ -328,17 +371,17 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
                 title="Preview"
               />
             ) : (
-              <div className="h-full">
+              <div className="h-full bg-slate-950">
                 {/* File Tabs */}
-                <div className="flex border-b bg-slate-50 overflow-x-auto">
+                <div className="flex border-b border-slate-700 bg-slate-900 overflow-x-auto">
                   {files.slice(0, 6).map((file) => (
                     <button
                       key={file.path}
                       onClick={() => setSelectedFile(file)}
-                      className={`px-4 py-2 text-sm whitespace-nowrap border-r ${
+                      className={`px-4 py-2 text-sm whitespace-nowrap border-r border-slate-700 ${
                         selectedFile?.path === file.path
-                          ? 'bg-white text-slate-900 font-medium'
-                          : 'text-slate-600 hover:bg-slate-100'
+                          ? 'bg-slate-800 text-white font-medium'
+                          : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                       }`}
                     >
                       {file.path.split('/').pop()}
@@ -346,7 +389,7 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
                   ))}
                 </div>
                 {/* Code View */}
-                <pre className="p-4 text-sm overflow-auto h-[calc(100%-40px)] bg-slate-900 text-slate-100">
+                <pre className="p-4 text-sm overflow-auto h-[calc(100%-40px)] bg-slate-950 text-green-400 font-mono">
                   <code>{selectedFile?.content || 'Select a file'}</code>
                 </pre>
               </div>
@@ -355,35 +398,35 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
         </div>
 
         {/* Right Sidebar - Properties */}
-        <div className="w-72 bg-white border-l overflow-y-auto">
-          <div className="p-4 border-b">
-            <h3 className="font-semibold text-slate-900">Project Details</h3>
+        <div className="w-72 bg-slate-900 border-l border-slate-700 overflow-y-auto">
+          <div className="p-4 border-b border-slate-700">
+            <h3 className="font-semibold text-white">Project Details</h3>
           </div>
 
           <div className="p-4 space-y-4">
             <div>
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+              <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">
                 Project Name
               </label>
-              <p className="mt-1 text-slate-900">{projectName}</p>
+              <p className="mt-1 text-white">{projectName}</p>
             </div>
 
             <div>
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+              <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">
                 Type
               </label>
-              <p className="mt-1 text-slate-900 capitalize">{projectType?.replace('-', ' ')}</p>
+              <p className="mt-1 text-white capitalize">{projectType?.replace('-', ' ')}</p>
             </div>
 
             <div>
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+              <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">
                 Files
               </label>
-              <p className="mt-1 text-slate-900">{files.length} files</p>
+              <p className="mt-1 text-white">{files.length} files</p>
             </div>
 
-            <div className="pt-4 border-t">
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+            <div className="pt-4 border-t border-slate-700">
+              <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">
                 Project Files
               </label>
               <div className="mt-2 space-y-1">
@@ -394,9 +437,9 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
                       setSelectedFile(file)
                       setViewMode('code')
                     }}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 text-sm text-left hover:bg-slate-100 rounded"
+                    className="w-full flex items-center gap-2 px-2 py-1.5 text-sm text-left text-slate-300 hover:bg-slate-800 hover:text-white rounded"
                   >
-                    <Code className="w-3.5 h-3.5 text-slate-400" />
+                    <Code className="w-3.5 h-3.5 text-slate-500" />
                     <span className="truncate">{file.path}</span>
                   </button>
                 ))}
@@ -404,7 +447,33 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
             </div>
           </div>
         </div>
+
+        {/* AI Chat Panel */}
+        {showChat && (
+          <BuilderChat
+            files={files}
+            projectName={projectName}
+            onApplyChanges={handleApplyChanges}
+          />
+        )}
       </div>
+
+      {/* Integrations Panel */}
+      <IntegrationsPanel
+        projectId={params.id}
+        savedKeys={userKeys}
+        onSaveKeys={handleSaveKeys}
+      />
+
+      {/* Deployment Panel */}
+      {showDeployPanel && (
+        <DeploymentPanel
+          projectId={params.id}
+          projectName={projectName}
+          files={files}
+          onClose={() => setShowDeployPanel(false)}
+        />
+      )}
     </div>
   )
 }
