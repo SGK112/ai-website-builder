@@ -60,10 +60,9 @@ export default function HomePage() {
       if (!response.ok) throw new Error('Generation failed')
 
       const data = await response.json()
-      const projectResponse = await fetch(`/api/projects/${data.project._id}`)
-      const projectData = await projectResponse.json()
 
-      setGeneratedFiles(projectData.project.files || [])
+      // Files are now included directly in the POST response
+      setGeneratedFiles(data.project.files || [])
       setStatus('success')
     } catch (err) {
       setError('Failed to generate project. Please make sure your API keys are configured.')

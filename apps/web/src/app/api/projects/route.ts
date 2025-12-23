@@ -123,6 +123,7 @@ export async function POST(req: NextRequest) {
           type: project.type,
           status: project.status,
           filesCount: files.length,
+          files: files,
         },
       })
     } catch (genError: any) {
@@ -156,6 +157,7 @@ export async function POST(req: NextRequest) {
             type: project.type,
             status: project.status,
             filesCount: fallbackFiles.length,
+            files: fallbackFiles,
             note: 'Generated with fallback templates. Configure AI API keys for AI-powered generation.',
           },
         })
