@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Sparkles, Loader2, CheckCircle, Download } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Sparkles, Loader2, CheckCircle, Download, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -23,12 +24,14 @@ const featureList = [
 ]
 
 export default function HomePage() {
+  const router = useRouter()
   const [projectType, setProjectType] = useState<ProjectType>('business-portfolio')
   const [projectName, setProjectName] = useState('')
   const [description, setDescription] = useState('')
   const [status, setStatus] = useState<GenerationStatus>('idle')
   const [generatedFiles, setGeneratedFiles] = useState<any[]>([])
   const [error, setError] = useState('')
+  const [projectId, setProjectId] = useState<string | null>(null)
 
   const handleGenerate = async () => {
     if (!projectName) {
@@ -63,6 +66,7 @@ export default function HomePage() {
 
       // Files are now included directly in the POST response
       setGeneratedFiles(data.project.files || [])
+      setProjectId(data.project._id)
       setStatus('success')
     } catch (err) {
       setError('Failed to generate project. Please make sure your API keys are configured.')
@@ -217,13 +221,22 @@ export default function HomePage() {
               ))}
             </div>
 
-            <Button
-              onClick={handleDownload}
-              className="mt-6 flex h-14 items-center justify-center gap-3 rounded-2xl border border-slate-900 bg-white px-6 text-sm font-semibold uppercase tracking-[0.3em] text-slate-900 shadow-sm"
-            >
-              <Download className="h-4 w-4" />
-              Download files
-            </Button>
+            <div className="mt-6 flex gap-4">
+              <Button
+                onClick={() => router.push(`/builder/${projectId}`)}
+                className="flex h-14 flex-1 items-center justify-center gap-3 rounded-2xl border border-slate-900 bg-slate-900 px-6 text-sm font-semibold uppercase tracking-[0.3em] text-white"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Open in Builder
+              </Button>
+              <Button
+                onClick={handleDownload}
+                className="flex h-14 items-center justify-center gap-3 rounded-2xl border border-slate-900 bg-white px-6 text-sm font-semibold uppercase tracking-[0.3em] text-slate-900 shadow-sm"
+              >
+                <Download className="h-4 w-4" />
+                Download
+              </Button>
+            </div>
           </section>
         )}
 

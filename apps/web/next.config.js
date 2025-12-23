@@ -16,6 +16,24 @@ const nextConfig = {
     config.resolve.alias['@'] = path.resolve(__dirname, 'src')
     return config
   },
+  // Required headers for WebContainer to work
+  async headers() {
+    return [
+      {
+        source: '/builder/:path*',
+        headers: [
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
+          },
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
+          },
+        ],
+      },
+    ]
+  },
 }
 
 module.exports = nextConfig
