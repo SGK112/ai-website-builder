@@ -1,15 +1,31 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import {
-  SandpackProvider,
-  SandpackLayout,
-  SandpackCodeEditor,
-  SandpackPreview,
-  SandpackFileExplorer,
-} from '@codesandbox/sandpack-react'
+import dynamic from 'next/dynamic'
 import { Rocket, Loader2, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+
+// Dynamically import Sandpack to avoid SSR issues
+const SandpackProvider = dynamic(
+  () => import('@codesandbox/sandpack-react').then(mod => mod.SandpackProvider),
+  { ssr: false }
+)
+const SandpackLayout = dynamic(
+  () => import('@codesandbox/sandpack-react').then(mod => mod.SandpackLayout),
+  { ssr: false }
+)
+const SandpackCodeEditor = dynamic(
+  () => import('@codesandbox/sandpack-react').then(mod => mod.SandpackCodeEditor),
+  { ssr: false }
+)
+const SandpackPreview = dynamic(
+  () => import('@codesandbox/sandpack-react').then(mod => mod.SandpackPreview),
+  { ssr: false }
+)
+const SandpackFileExplorer = dynamic(
+  () => import('@codesandbox/sandpack-react').then(mod => mod.SandpackFileExplorer),
+  { ssr: false }
+)
 
 interface ProjectFile {
   path: string
@@ -23,6 +39,11 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
   const [projectName, setProjectName] = useState('')
   const [deploying, setDeploying] = useState(false)
   const [deployUrl, setDeployUrl] = useState('')
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Load project files
   useEffect(() => {
@@ -55,9 +76,8 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
           }, null, 2)
         }
 
-        // Convert app/page.tsx to pages format for Sandpack if needed
+        // Convert app/page.tsx to App.tsx format for Sandpack
         if (sandpackFiles['/app/page.tsx'] && !sandpackFiles['/App.tsx']) {
-          // Create an App.tsx that imports the page component
           const pageContent = sandpackFiles['/app/page.tsx']
           sandpackFiles['/App.tsx'] = pageContent
             .replace(/export default function \w+/, 'export default function App')
@@ -101,7 +121,6 @@ root.render(<App />);`
     setDeploying(true)
 
     try {
-      // Convert Sandpack files back to project format
       const projectFiles = Object.entries(files).map(([path, content]) => ({
         path: path.startsWith('/') ? path.slice(1) : path,
         content,
@@ -145,7 +164,7 @@ root.render(<App />);`
     URL.revokeObjectURL(url)
   }
 
-  if (loading) {
+  if (loading || !mounted) {
     return (
       <div className="h-screen flex items-center justify-center bg-slate-900 text-white">
         <div className="flex flex-col items-center gap-3">
@@ -210,31 +229,33 @@ root.render(<App />);`
       )}
 
       {/* Sandpack Editor */}
-      <div className="flex-1">
-        <SandpackProvider
-          files={files}
-          theme="dark"
-          template="react-ts"
-          options={{
-            visibleFiles: Object.keys(files).slice(0, 5),
-            activeFile: Object.keys(files).find(f => f.includes('App') || f.includes('page')) || Object.keys(files)[0],
-          }}
-        >
-          <SandpackLayout style={{ height: '100%', border: 'none' }}>
-            <SandpackFileExplorer style={{ height: '100%' }} />
-            <SandpackCodeEditor
-              style={{ height: '100%' }}
-              showLineNumbers
-              showTabs
-              closableTabs
-            />
-            <SandpackPreview
-              style={{ height: '100%' }}
-              showOpenInCodeSandbox={false}
-              showRefreshButton
-            />
-          </SandpackLayout>
-        </SandpackProvider>
+      <div className="flex-1 overflow-hidden">
+        {Object.keys(files).length > 0 && (
+          <SandpackProvider
+            files={files}
+            theme="dark"
+            template="react-ts"
+            options={{
+              visibleFiles: Object.keys(files).slice(0, 5),
+              activeFile: Object.keys(files).find(f => f.includes('App') || f.includes('page')) || Object.keys(files)[0],
+            }}
+          >
+            <SandpackLayout style={{ height: 'calc(100vh - 52px)', border: 'none' }}>
+              <SandpackFileExplorer style={{ height: '100%' }} />
+              <SandpackCodeEditor
+                style={{ height: '100%' }}
+                showLineNumbers
+                showTabs
+                closableTabs
+              />
+              <SandpackPreview
+                style={{ height: '100%' }}
+                showOpenInCodeSandbox={false}
+                showRefreshButton
+              />
+            </SandpackLayout>
+          </SandpackProvider>
+        )}
       </div>
     </div>
   )
