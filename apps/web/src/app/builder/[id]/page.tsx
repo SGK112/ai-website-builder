@@ -77,20 +77,34 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
         addLog('Mounting files...')
         await mountFiles(webcontainer, files)
 
-        addLog('Installing dependencies...')
+        addLog('Installing dependencies (this may take 1-2 minutes)...')
         setStatus('installing')
 
-        const installProcess = await webcontainer.spawn('npm', ['install'])
+        const installProcess = await webcontainer.spawn('npm', ['install', '--prefer-offline', '--no-audit', '--progress=false'])
+
+        // Stream output
         installProcess.output.pipeTo(new WritableStream({
           write(data) {
-            addLog(data)
+            // Only log important lines to reduce noise
+            if (data.includes('added') || data.includes('error') || data.includes('warn')) {
+              addLog(data)
+            }
           }
         }))
-        const installExitCode = await installProcess.exit
+
+        // Add timeout for install (3 minutes)
+        const installExitCode = await Promise.race([
+          installProcess.exit,
+          new Promise<number>((_, reject) =>
+            setTimeout(() => reject(new Error('npm install timed out after 3 minutes')), 180000)
+          )
+        ])
 
         if (installExitCode !== 0) {
-          throw new Error('npm install failed')
+          throw new Error('npm install failed with code ' + installExitCode)
         }
+
+        addLog('Dependencies installed successfully!')
 
         addLog('Starting dev server...')
         setStatus('running')
@@ -128,8 +142,13 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
   }, [])
 
   async function mountFiles(webcontainer: WebContainer, projectFiles: ProjectFile[]) {
-    const fileSystem: Record<string, any> = {
-      'package.json': {
+    const fileSystem: Record<string, any> = {}
+
+    // Check if project has package.json, if not create minimal one
+    const hasPackageJson = projectFiles.some(f => f.path === 'package.json')
+
+    if (!hasPackageJson) {
+      fileSystem['package.json'] = {
         file: {
           contents: JSON.stringify({
             name: 'preview-app',
@@ -146,8 +165,13 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
             }
           }, null, 2)
         }
-      },
-      'next.config.js': {
+      }
+    }
+
+    // Check if project has next.config.js
+    const hasNextConfig = projectFiles.some(f => f.path === 'next.config.js')
+    if (!hasNextConfig) {
+      fileSystem['next.config.js'] = {
         file: {
           contents: 'module.exports = { reactStrictMode: true }'
         }
