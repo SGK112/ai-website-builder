@@ -1,0 +1,138 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 20% 5%;
+    --foreground: 210 15% 98%;
+    --card: 210 18% 8%;
+    --card-foreground: 210 15% 98%;
+    --popover: 212 18% 10%;
+    --popover-foreground: 210 15% 98%;
+    --primary: 14 94% 63%;
+    --primary-foreground: 220 15% 98%;
+    --secondary: 210 100% 57%;
+    --secondary-foreground: 210 15% 15%;
+    --muted: 214 15% 24%;
+    --muted-foreground: 217 30% 73%;
+    --accent: 15 100% 62%;
+    --accent-foreground: 220 18% 98%;
+    --destructive: 4 95% 60%;
+    --destructive-foreground: 210 15% 98%;
+    --border: 216 27% 19%;
+    --input: 218 18% 20%;
+    --ring: 13 88% 65%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-[#01030b] text-white;
+  }
+}
+
+@layer utilities {
+  .gradient-orange {
+    background: linear-gradient(135deg, #CC5500 0%, #FF6B35 100%);
+  }
+  .gradient-blue {
+    background: linear-gradient(135deg, #0080FF 0%, #4DA6FF 100%);
+  }
+}
+
+@layer utilities {
+  .liquid-panel {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 30px 60px rgba(5, 8, 25, 0.8);
+    backdrop-filter: blur(40px);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .liquid-panel::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at top right, rgba(255, 172, 72, 0.35), transparent 55%);
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .liquid-panel > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .glass-ring {
+    background: linear-gradient(135deg, rgba(255, 138, 65, 0.3), rgba(0, 128, 255, 0.4));
+    border-radius: 999px;
+    padding: 0.35rem 1.1rem;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(24px);
+  }
+
+  .orbital-glow {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-muted;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/30 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/50;
+}
+
+/* Typing animation for chat */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.typing-cursor::after {
+  content: '|';
+  animation: blink 1s infinite;
+}
