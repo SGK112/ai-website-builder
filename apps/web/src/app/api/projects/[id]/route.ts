@@ -12,6 +12,9 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
     if (!mongoose.Types.ObjectId.isValid(params.id)) {
       return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 })
@@ -19,15 +22,10 @@ export async function GET(
 
     await connectDB()
 
-    // Build query based on auth status
-    const query: any = { _id: params.id }
-    if (session?.user?.id) {
-      query.userId = session.user.id
-    }
-    // For anonymous/demo users, allow fetching any project by ID
-    // In production, you'd want to add a "public" flag or similar
-
-    const project = await Project.findOne(query).lean()
+    const project = await Project.findOne({
+      _id: params.id,
+      userId: session.user.id,
+    }).lean()
 
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
