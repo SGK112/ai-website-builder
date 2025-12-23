@@ -193,7 +193,7 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
 
   async function handleDeploy() {
     setDeploying(true)
-    addLog('Starting deployment to Render...')
+    addLog('Creating webservice...')
 
     try {
       const res = await fetch('/api/deploy', {
@@ -267,7 +267,7 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
             ) : (
               <Rocket className="w-4 h-4 mr-2" />
             )}
-            Deploy to Render
+            Create Webservice
           </Button>
         </div>
       </header>

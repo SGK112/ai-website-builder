@@ -6,26 +6,21 @@ import { Project } from '@ai-website-builder/database'
 import mongoose from 'mongoose'
 
 // GET /api/projects/[id] - Get a specific project
+// Note: For demo purposes, allows unauthenticated access by project ID
+// In production, implement proper access control (ownership, sharing tokens, etc.)
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     if (!mongoose.Types.ObjectId.isValid(params.id)) {
       return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 })
     }
 
     await connectDB()
 
-    const project = await Project.findOne({
-      _id: params.id,
-      userId: session.user.id,
-    }).lean()
+    // Allow access by ID for demo - in production, add proper access control
+    const project = await Project.findById(params.id).lean()
 
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
