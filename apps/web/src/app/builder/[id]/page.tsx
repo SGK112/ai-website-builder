@@ -7,32 +7,35 @@ import {
   Download,
   Eye,
   Code,
-  Palette,
-  Type,
-  Image,
-  Layout,
-  Settings,
-  ChevronRight,
   Monitor,
   Tablet,
   Smartphone,
   RefreshCw,
   MessageSquare,
+  Layers,
+  Plus,
+  Settings,
+  Plug,
+  Zap,
+  LayoutTemplate,
+  ChevronLeft,
+  ChevronRight,
+  Palette,
+  FileCode,
   PanelLeftClose,
   PanelLeftOpen,
-  Layers,
-  MousePointer,
-  Plus,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { BuilderChat } from '@/components/builder/BuilderChat'
-import { IntegrationsPanel } from '@/components/builder/IntegrationsPanel'
 import { DeploymentPanel } from '@/components/builder/DeploymentPanel'
 import { ComponentLibrary } from '@/components/builder/ComponentLibrary'
 import { PropertiesPanel } from '@/components/builder/PropertiesPanel'
 import { DraggableComponentList, parseComponentTree } from '@/components/builder/DraggableComponentList'
 import type { ComponentNode } from '@/components/builder/DraggableComponentList'
 import { CodeHighlighter } from '@/components/builder/CodeHighlighter'
+import { EmbedWidgets } from '@/components/builder/EmbedWidgets'
+import { STATIC_TEMPLATES, applyTemplateVariables } from '@/lib/templates'
+import { cn } from '@/lib/utils'
 
 interface ProjectFile {
   path: string
@@ -41,7 +44,7 @@ interface ProjectFile {
 
 type ViewMode = 'preview' | 'code'
 type DeviceMode = 'desktop' | 'tablet' | 'mobile'
-type LeftPanelMode = 'components' | 'layers' | 'collapsed'
+type SidebarTab = 'components' | 'layers' | 'integrations' | 'embeds' | 'templates' | 'settings'
 
 interface SelectedElement {
   id: string
@@ -53,13 +56,22 @@ interface SelectedElement {
   attributes: Record<string, string>
 }
 
+// Sidebar panel data
+const SIDEBAR_TABS = [
+  { id: 'components' as const, icon: Plus, label: 'Components', color: 'text-blue-400' },
+  { id: 'layers' as const, icon: Layers, label: 'Layers', color: 'text-purple-400' },
+  { id: 'embeds' as const, icon: Zap, label: 'Widgets', color: 'text-orange-400' },
+  { id: 'integrations' as const, icon: Plug, label: 'Integrations', color: 'text-green-400' },
+  { id: 'templates' as const, icon: LayoutTemplate, label: 'Templates', color: 'text-pink-400' },
+  { id: 'settings' as const, icon: Settings, label: 'Settings', color: 'text-slate-400' },
+]
+
 export default function BuilderPage({ params }: { params: { id: string } }) {
   const [files, setFiles] = useState<ProjectFile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [projectName, setProjectName] = useState('')
   const [projectType, setProjectType] = useState('')
-  const [deploying, setDeploying] = useState(false)
   const [deployUrl, setDeployUrl] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('preview')
   const [deviceMode, setDeviceMode] = useState<DeviceMode>('desktop')
@@ -68,17 +80,35 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
   const [showChat, setShowChat] = useState(true)
   const [userKeys, setUserKeys] = useState<Record<string, string>>({})
   const [showDeployPanel, setShowDeployPanel] = useState(false)
-  const [leftPanelMode, setLeftPanelMode] = useState<LeftPanelMode>('components')
+
+  // Sidebar state
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [activeTab, setActiveTab] = useState<SidebarTab>('components')
+
+  // Properties panel
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null)
   const [showPropertiesPanel, setShowPropertiesPanel] = useState(false)
+
+  // Component tree
   const [componentTree, setComponentTree] = useState<ComponentNode[]>([])
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null)
+
+  // Use static template for preview
+  const [useStaticTemplate, setUseStaticTemplate] = useState(true)
+  const [selectedTemplateId, setSelectedTemplateId] = useState('modern-saas')
 
   // Handle saving user API keys
   async function handleSaveKeys(keys: Record<string, string>) {
     setUserKeys(keys)
-    // In a real app, save to backend encrypted
-    console.log('Saving API keys:', Object.keys(keys))
+    try {
+      await fetch('/api/credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credentials: keys, projectId: params.id }),
+      })
+    } catch (err) {
+      console.error('Failed to save keys:', err)
+    }
   }
 
   // Handle file changes from Claude chat
@@ -95,62 +125,64 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
       }
       return newFiles
     })
-    // Refresh preview
     setPreviewKey(k => k + 1)
   }
 
-  // Handle inserting a component from the library
-  const handleInsertComponent = useCallback((code: string) => {
-    // Find the main page file
+  // Handle inserting code (from components or embeds)
+  const handleInsertCode = useCallback((code: string) => {
     const pageFileIndex = files.findIndex(f =>
-      f.path.includes('page.tsx') || f.path.includes('App.tsx')
+      f.path.includes('page.tsx') || f.path.includes('App.tsx') || f.path.includes('index.html')
     )
 
-    if (pageFileIndex === -1) return
+    if (pageFileIndex === -1) {
+      // Create a new HTML file with the code
+      const newFile: ProjectFile = {
+        path: 'index.html',
+        content: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${projectName}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+  ${code}
+</body>
+</html>`
+      }
+      setFiles(prev => [...prev, newFile])
+    } else {
+      const pageFile = files[pageFileIndex]
+      const content = pageFile.content
 
-    const pageFile = files[pageFileIndex]
+      // Find insertion point before closing body/main tag
+      let insertPoint = content.lastIndexOf('</main>')
+      if (insertPoint === -1) insertPoint = content.lastIndexOf('</body>')
+      if (insertPoint === -1) insertPoint = content.lastIndexOf('</div>')
 
-    // Find the return statement and insert before the closing tag
-    const returnMatch = pageFile.content.match(/return\s*\(\s*([\s\S]*)\s*\)\s*;?\s*\}/)
-    if (!returnMatch) return
-
-    // Find a good insertion point (before the last closing div/section)
-    const content = pageFile.content
-    const lastMainDivEnd = content.lastIndexOf('</main>')
-    const lastDivEnd = content.lastIndexOf('</div>')
-    const insertPoint = lastMainDivEnd > 0 ? lastMainDivEnd : lastDivEnd
-
-    if (insertPoint > 0) {
-      const newContent =
-        content.slice(0, insertPoint) +
-        '\n\n      {/* New Component */}\n      ' +
-        code +
-        '\n\n      ' +
-        content.slice(insertPoint)
-
-      setFiles(prevFiles => {
-        const newFiles = [...prevFiles]
-        newFiles[pageFileIndex] = { ...pageFile, content: newContent }
-        return newFiles
-      })
-
-      // Refresh preview
-      setPreviewKey(k => k + 1)
+      if (insertPoint > 0) {
+        const newContent = content.slice(0, insertPoint) + '\n\n' + code + '\n\n' + content.slice(insertPoint)
+        setFiles(prev => {
+          const newFiles = [...prev]
+          newFiles[pageFileIndex] = { ...pageFile, content: newContent }
+          return newFiles
+        })
+      }
     }
-  }, [files])
+    setPreviewKey(k => k + 1)
+  }, [files, projectName])
 
   // Handle updating a selected element
   const handleUpdateElement = useCallback((updates: Partial<SelectedElement>) => {
     if (!selectedElement) return
     setSelectedElement(prev => prev ? { ...prev, ...updates } : null)
-    // In a real implementation, this would update the actual file content
     setPreviewKey(k => k + 1)
   }, [selectedElement])
 
   // Handle deleting a selected element
   const handleDeleteElement = useCallback(() => {
     if (!selectedElement) return
-    // In a real implementation, this would remove the element from the file
     setSelectedElement(null)
     setShowPropertiesPanel(false)
     setPreviewKey(k => k + 1)
@@ -159,21 +191,18 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
   // Handle duplicating a selected element
   const handleDuplicateElement = useCallback(() => {
     if (!selectedElement) return
-    // In a real implementation, this would duplicate the element in the file
     setPreviewKey(k => k + 1)
   }, [selectedElement])
 
   // Component tree handlers
   const handleReorderComponents = useCallback((newComponents: ComponentNode[]) => {
     setComponentTree(newComponents)
-    // In a real implementation, this would reorder components in the actual file
     setPreviewKey(k => k + 1)
   }, [])
 
   const handleSelectComponent = useCallback((componentId: string) => {
     setSelectedComponentId(componentId)
     setShowPropertiesPanel(true)
-    // Find the component and set it as the selected element
     const findComponent = (nodes: ComponentNode[]): ComponentNode | null => {
       for (const node of nodes) {
         if (node.id === componentId) return node
@@ -265,6 +294,16 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
     setPreviewKey(k => k + 1)
   }, [selectedComponentId])
 
+  // Apply template
+  const handleApplyTemplate = useCallback((templateId: string) => {
+    const template = STATIC_TEMPLATES.find(t => t.id === templateId)
+    if (template) {
+      setSelectedTemplateId(templateId)
+      setUseStaticTemplate(true)
+      setPreviewKey(k => k + 1)
+    }
+  }, [])
+
   // Load project files
   useEffect(() => {
     async function loadProject() {
@@ -277,13 +316,11 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
         setProjectType(data.project.type)
         setFiles(data.project.files || [])
 
-        // Select main page file and parse component tree
         const mainFile = data.project.files?.find((f: ProjectFile) =>
           f.path.includes('page.tsx') || f.path.includes('App.tsx')
         )
         if (mainFile) {
           setSelectedFile(mainFile)
-          // Parse component tree from the main file
           const tree = parseComponentTree(mainFile.content)
           setComponentTree(tree)
         }
@@ -297,33 +334,6 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
     }
     loadProject()
   }, [params.id])
-
-  async function handleDeploy() {
-    setDeploying(true)
-
-    try {
-      const res = await fetch('/api/deploy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId: params.id,
-          files,
-          name: projectName,
-        }),
-      })
-
-      const data = await res.json()
-      if (data.success) {
-        setDeployUrl(data.url)
-      } else {
-        throw new Error(data.error)
-      }
-    } catch (err: any) {
-      alert('Deploy failed: ' + err.message)
-    } finally {
-      setDeploying(false)
-    }
-  }
 
   function handleDownload() {
     const content = files
@@ -339,8 +349,17 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
     URL.revokeObjectURL(url)
   }
 
-  // Generate static HTML preview from the React components
+  // Generate preview HTML
   function generatePreviewHTML(): string {
+    // Use static template if enabled
+    if (useStaticTemplate) {
+      const template = STATIC_TEMPLATES.find(t => t.id === selectedTemplateId)
+      if (template) {
+        return applyTemplateVariables(template.html, { projectName })
+      }
+    }
+
+    // Fallback to generated content
     const pageFile = files.find(f => f.path.includes('page.tsx') || f.path.includes('App.tsx'))
     const globalCss = files.find(f => f.path.includes('globals.css'))
 
@@ -350,255 +369,60 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
 
     const convertedHTML = convertJSXToHTML(pageFile.content)
 
-    const htmlContent = `
-<!DOCTYPE html>
+    return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${projectName}</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            primary: '#3b82f6',
-            secondary: '#64748b',
-          }
-        }
-      }
-    }
-  </script>
   <style>
     ${globalCss?.content || ''}
     * { box-sizing: border-box; }
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      margin: 0;
-      padding: 0;
-    }
-    /* Hide any raw code that leaks through */
-    .preview-hide { display: none !important; }
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 0; }
   </style>
 </head>
 <body>
-  <div id="preview-root">
-    ${convertedHTML}
-  </div>
+  <div id="preview-root">${convertedHTML}</div>
 </body>
 </html>`
-
-    return htmlContent
   }
 
-  // Generate a nice fallback preview when conversion fails
   function generateFallbackPreview(): string {
-    return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${projectName}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="min-h-screen bg-gradient-to-br from-blue-600 to-purple-700">
-  <nav class="bg-white/10 backdrop-blur-lg border-b border-white/20">
-    <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-      <span class="text-xl font-bold text-white">${projectName}</span>
-      <div class="flex gap-6 text-white/80">
-        <a href="#" class="hover:text-white">Home</a>
-        <a href="#" class="hover:text-white">About</a>
-        <a href="#" class="hover:text-white">Services</a>
-        <a href="#" class="hover:text-white">Contact</a>
-      </div>
-    </div>
-  </nav>
-  <section class="py-20 text-center text-white">
-    <div class="max-w-4xl mx-auto px-4">
-      <h1 class="text-5xl font-bold mb-6">${projectName}</h1>
-      <p class="text-xl text-white/80 mb-8">Building amazing things</p>
-      <button class="px-8 py-3 bg-white text-blue-600 rounded-lg font-semibold hover:bg-blue-50 transition">
-        Get Started
-      </button>
-    </div>
-  </section>
-  <section class="py-16 bg-white">
-    <div class="max-w-6xl mx-auto px-4">
-      <h2 class="text-3xl font-bold text-center text-gray-900 mb-12">Our Features</h2>
-      <div class="grid md:grid-cols-3 gap-8">
-        <div class="p-6 rounded-xl bg-gray-50 text-center">
-          <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-            <span class="text-2xl">⚡</span>
-          </div>
-          <h3 class="text-xl font-semibold mb-2">Fast Performance</h3>
-          <p class="text-gray-600">Lightning fast loading speeds for the best user experience.</p>
-        </div>
-        <div class="p-6 rounded-xl bg-gray-50 text-center">
-          <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-            <span class="text-2xl">🎨</span>
-          </div>
-          <h3 class="text-xl font-semibold mb-2">Beautiful Design</h3>
-          <p class="text-gray-600">Modern and elegant design that stands out from the crowd.</p>
-        </div>
-        <div class="p-6 rounded-xl bg-gray-50 text-center">
-          <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-            <span class="text-2xl">🔒</span>
-          </div>
-          <h3 class="text-xl font-semibold mb-2">Secure & Reliable</h3>
-          <p class="text-gray-600">Enterprise-grade security to protect your data.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-  <footer class="py-8 bg-gray-900 text-center text-gray-400">
-    <p>&copy; 2024 ${projectName}. All rights reserved.</p>
-  </footer>
-</body>
-</html>`
+    const template = STATIC_TEMPLATES.find(t => t.id === 'modern-saas')
+    if (template) {
+      return applyTemplateVariables(template.html, { projectName })
+    }
+    return `<!DOCTYPE html><html><body><h1>${projectName}</h1></body></html>`
   }
 
-  // Improved JSX to HTML converter for preview
   function convertJSXToHTML(jsx: string): string {
-    // Try to extract the return statement content
-    // Handle both `return (...)` and direct return
     let returnMatch = jsx.match(/return\s*\(\s*([\s\S]*)\s*\)\s*;?\s*\}[\s\S]*$/)
-
     if (!returnMatch) {
-      // Try alternative pattern
       returnMatch = jsx.match(/return\s*\(\s*([\s\S]+?)\s*\);?\s*\}\s*$/)
     }
-
-    if (!returnMatch) {
-      return generateFallbackPreview().match(/<body>([\s\S]*)<\/body>/)?.[1] || ''
-    }
+    if (!returnMatch) return ''
 
     let html = returnMatch[1]
-
-    // Step 1: Remove imports and type definitions at the start
     html = html.replace(/^[\s\S]*?(?=<)/m, '')
-
-    // Step 2: Handle .map() expressions - replace with static content
-    // This regex finds .map() calls and replaces them with placeholder content
-    html = html.replace(/\{[\w\s\[\],\.]*\.map\s*\(\s*\([^)]*\)\s*=>\s*\(?([\s\S]*?)\)?\s*\)\s*\}/g, (match, content) => {
-      // Generate 3 copies of the mapped content for preview
-      const cleanContent = content
-        .replace(/key=\{[^}]*\}/g, '')
-        .replace(/\{[\w\.]+\}/g, 'Item')
-        .replace(/\$\{[^}]*\}/g, 'Value')
+    html = html.replace(/\{[\w\s\[\],\.]*\.map\s*\(\s*\([^)]*\)\s*=>\s*\(?([\s\S]*?)\)?\s*\)\s*\}/g, (_, content) => {
+      const cleanContent = content.replace(/key=\{[^}]*\}/g, '').replace(/\{[\w\.]+\}/g, 'Item')
       return `${cleanContent}${cleanContent}${cleanContent}`
     })
-
-    // Step 3: Handle conditional rendering {condition && <element>}
     html = html.replace(/\{[^{}]*&&\s*(<[\s\S]*?>[\s\S]*?<\/[\s\S]*?>)\}/g, '$1')
-    html = html.replace(/\{[^{}]*&&\s*(<[^>]*\/>)\}/g, '$1')
-
-    // Step 4: Handle ternary expressions {condition ? <a> : <b>}
     html = html.replace(/\{[^{}]*\?\s*(<[\s\S]*?>[\s\S]*?<\/[\s\S]*?>)\s*:\s*(<[\s\S]*?>[\s\S]*?<\/[\s\S]*?>)\}/g, '$1')
-    html = html.replace(/\{[^{}]*\?\s*(<[^>]*\/>)\s*:\s*(<[^>]*\/>)\}/g, '$1')
-
-    // Step 5: Convert JSX comments
     html = html.replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
-
-    // Step 6: Convert className to class
     html = html.replace(/className=/g, 'class=')
-
-    // Step 7: Handle template literals
     html = html.replace(/\{`([^`]*)`\}/g, '$1')
-
-    // Step 8: Handle simple string expressions
     html = html.replace(/\{"([^"]*)"\}/g, '$1')
-    html = html.replace(/\{'([^']*)'\}/g, '$1')
-
-    // Step 9: Convert React/Lucide icons to emoji equivalents
-    const iconReplacements: Record<string, string> = {
-      'ArrowRight': '→',
-      'ArrowLeft': '←',
-      'ArrowUp': '↑',
-      'ArrowDown': '↓',
-      'Check': '✓',
-      'CheckCircle': '✓',
-      'X': '✕',
-      'Star': '★',
-      'Heart': '❤',
-      'Users': '👥',
-      'User': '👤',
-      'Mail': '✉',
-      'Phone': '📞',
-      'MapPin': '📍',
-      'Calendar': '📅',
-      'Clock': '⏰',
-      'Search': '🔍',
-      'Menu': '☰',
-      'Home': '🏠',
-      'Settings': '⚙',
-      'Zap': '⚡',
-      'Shield': '🛡',
-      'Globe': '🌐',
-      'Rocket': '🚀',
-      'Sparkles': '✨',
-      'Code': '💻',
-      'Code2': '💻',
-      'Layers': '📚',
-      'Play': '▶',
-      'Pause': '⏸',
-      'ShoppingCart': '🛒',
-      'CreditCard': '💳',
-      'Package': '📦',
-      'Truck': '🚚',
-      'Gift': '🎁',
-      'Target': '🎯',
-      'Award': '🏆',
-      'Loader2': '⏳',
-      'ChevronRight': '›',
-      'ChevronLeft': '‹',
-      'ChevronDown': '▼',
-      'ChevronUp': '▲',
-      'Plus': '+',
-      'Minus': '-',
-      'Github': '🐙',
-      'Twitter': '🐦',
-      'Facebook': '📘',
-      'Instagram': '📷',
-      'Linkedin': '💼',
-    }
-
-    // Replace icon components with their emoji equivalents
-    for (const [icon, emoji] of Object.entries(iconReplacements)) {
-      const iconRegex = new RegExp(`<${icon}[^>]*\\/?>`, 'g')
-      html = html.replace(iconRegex, `<span class="inline-block">${emoji}</span>`)
-    }
-
-    // Step 10: Convert PascalCase components to divs
     html = html.replace(/<([A-Z][a-zA-Z0-9]*)\s/g, '<div data-component="$1" ')
     html = html.replace(/<([A-Z][a-zA-Z0-9]*)>/g, '<div data-component="$1">')
     html = html.replace(/<\/([A-Z][a-zA-Z0-9]*)>/g, '</div>')
     html = html.replace(/<([A-Z][a-zA-Z0-9]*)\s*\/>/g, '<div data-component="$1"></div>')
-
-    // Step 11: Handle self-closing HTML tags
-    html = html.replace(/<(img|input|br|hr|meta|link)([^>]*)\s*\/>/gi, '<$1$2>')
-
-    // Step 12: Clean up any remaining JSX expressions by removing them
-    // This handles expressions like {variable} or {expression}
     html = html.replace(/\{[^{}]*\}/g, '')
-
-    // Step 13: Clean up nested braces that might have been left
-    html = html.replace(/\{\{[^}]*\}\}/g, '')
-
-    // Step 14: Remove any onClick, onChange, etc. handlers
     html = html.replace(/\s+(on[A-Z][a-zA-Z]*)=\{[^}]*\}/g, '')
-    html = html.replace(/\s+(on[A-Z][a-zA-Z]*)="[^"]*"/g, '')
-
-    // Step 15: Remove ref attributes
     html = html.replace(/\s+ref=\{[^}]*\}/g, '')
-
-    // Step 16: Fix any broken attributes
     html = html.replace(/=\{([^}]*)\}/g, '="$1"')
-
-    // Step 17: Clean up extra whitespace
-    html = html.replace(/\n\s*\n\s*\n/g, '\n\n')
-
     return html
   }
 
@@ -631,74 +455,78 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-slate-800">
+    <div className="h-screen flex flex-col bg-slate-950">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-700">
+      <header className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800">
         <div className="flex items-center gap-4">
+          <button
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition"
+          >
+            {sidebarCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+          </button>
           <div>
             <h1 className="font-semibold text-white">{projectName}</h1>
-            <p className="text-xs text-slate-400 capitalize">{projectType?.replace('-', ' ')} Website</p>
+            <p className="text-xs text-slate-500 capitalize">{projectType?.replace('-', ' ')} Website</p>
           </div>
         </div>
 
         {/* Device Toggle */}
-        <div className="flex items-center gap-1 bg-slate-700 rounded-lg p-1">
-          <button
-            onClick={() => setDeviceMode('desktop')}
-            className={`p-2 rounded text-slate-300 ${deviceMode === 'desktop' ? 'bg-slate-600 text-white' : 'hover:bg-slate-600'}`}
-          >
-            <Monitor className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setDeviceMode('tablet')}
-            className={`p-2 rounded text-slate-300 ${deviceMode === 'tablet' ? 'bg-slate-600 text-white' : 'hover:bg-slate-600'}`}
-          >
-            <Tablet className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setDeviceMode('mobile')}
-            className={`p-2 rounded text-slate-300 ${deviceMode === 'mobile' ? 'bg-slate-600 text-white' : 'hover:bg-slate-600'}`}
-          >
-            <Smartphone className="w-4 h-4" />
-          </button>
+        <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1">
+          {[
+            { mode: 'desktop' as const, icon: Monitor },
+            { mode: 'tablet' as const, icon: Tablet },
+            { mode: 'mobile' as const, icon: Smartphone },
+          ].map(({ mode, icon: Icon }) => (
+            <button
+              key={mode}
+              onClick={() => setDeviceMode(mode)}
+              className={cn(
+                "p-2 rounded text-slate-400 transition",
+                deviceMode === mode && 'bg-slate-700 text-white'
+              )}
+            >
+              <Icon className="w-4 h-4" />
+            </button>
+          ))}
         </div>
 
         <div className="flex items-center gap-2">
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => setShowChat(!showChat)}
-            className={`gap-2 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white ${showChat ? 'bg-purple-900/50 border-purple-500 text-purple-300' : ''}`}
+            className={cn(
+              "gap-2 text-slate-400 hover:text-white",
+              showChat && 'bg-purple-900/50 text-purple-300'
+            )}
           >
             <MessageSquare className="w-4 h-4" />
             AI Chat
           </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => setPreviewKey(k => k + 1)}
-            className="gap-2 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+            className="gap-2 text-slate-400 hover:text-white"
           >
             <RefreshCw className="w-4 h-4" />
-            Refresh
           </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => setViewMode(viewMode === 'preview' ? 'code' : 'preview')}
-            className="gap-2 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+            className="gap-2 text-slate-400 hover:text-white"
           >
             {viewMode === 'preview' ? <Code className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            {viewMode === 'preview' ? 'View Code' : 'Preview'}
           </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={handleDownload}
-            className="gap-2 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-white"
+            className="gap-2 text-slate-400 hover:text-white"
           >
             <Download className="w-4 h-4" />
-            Download
           </Button>
           <Button
             size="sm"
@@ -713,99 +541,182 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
 
       {/* Deploy Success Banner */}
       {deployUrl && (
-        <div className="px-4 py-3 bg-green-50 border-b border-green-200 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-green-800">
-            <span className="font-medium">Deployed successfully!</span>
+        <div className="px-4 py-2 bg-green-900/50 border-b border-green-700 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-green-300">
+            <span className="font-medium">Deployed!</span>
             <a href={deployUrl} target="_blank" rel="noopener noreferrer" className="underline">
               {deployUrl}
             </a>
           </div>
-          <span className="text-sm text-green-600">May take a few minutes to build</span>
         </div>
       )}
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - Mode Toggle */}
-        <div className="w-12 bg-slate-950 border-r border-slate-800 flex flex-col items-center py-3 gap-1">
-          <button
-            onClick={() => setLeftPanelMode(leftPanelMode === 'components' ? 'collapsed' : 'components')}
-            className={`p-2.5 rounded-lg transition ${leftPanelMode === 'components' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
-            title="Components"
-          >
-            <Plus className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setLeftPanelMode(leftPanelMode === 'layers' ? 'collapsed' : 'layers')}
-            className={`p-2.5 rounded-lg transition ${leftPanelMode === 'layers' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
-            title="Layers"
-          >
-            <Layers className="w-5 h-5" />
-          </button>
-          <div className="w-8 h-px bg-slate-800 my-2" />
-          <button
-            onClick={() => {
-              setShowPropertiesPanel(!showPropertiesPanel)
-            }}
-            className={`p-2.5 rounded-lg transition ${showPropertiesPanel ? 'bg-purple-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
-            title="Properties"
-          >
-            <MousePointer className="w-5 h-5" />
-          </button>
-          <div className="flex-1" />
-          <button
-            onClick={() => setLeftPanelMode(leftPanelMode === 'collapsed' ? 'components' : 'collapsed')}
-            className="p-2.5 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition"
-            title={leftPanelMode === 'collapsed' ? 'Expand Panel' : 'Collapse Panel'}
-          >
-            {leftPanelMode === 'collapsed' ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
-          </button>
-        </div>
+        {/* Collapsible Sidebar */}
+        <div className={cn(
+          "flex transition-all duration-300",
+          sidebarCollapsed ? "w-14" : "w-80"
+        )}>
+          {/* Tab Icons */}
+          <div className="w-14 bg-slate-900 border-r border-slate-800 flex flex-col items-center py-2 gap-1">
+            {SIDEBAR_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id)
+                  if (sidebarCollapsed) setSidebarCollapsed(false)
+                }}
+                className={cn(
+                  "w-10 h-10 rounded-lg flex items-center justify-center transition group relative",
+                  activeTab === tab.id && !sidebarCollapsed
+                    ? "bg-slate-800 text-white"
+                    : "text-slate-500 hover:text-white hover:bg-slate-800"
+                )}
+                title={tab.label}
+              >
+                <tab.icon className={cn("w-5 h-5", activeTab === tab.id && tab.color)} />
+                {sidebarCollapsed && (
+                  <div className="absolute left-12 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-50">
+                    {tab.label}
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
 
-        {/* Component Library Panel */}
-        {leftPanelMode === 'components' && (
-          <ComponentLibrary onInsertComponent={handleInsertComponent} />
-        )}
+          {/* Panel Content */}
+          {!sidebarCollapsed && (
+            <div className="flex-1 bg-slate-900 border-r border-slate-800 flex flex-col overflow-hidden">
+              {/* Panel Header */}
+              <div className="p-3 border-b border-slate-800 flex items-center justify-between">
+                <h3 className="text-sm font-medium text-white">
+                  {SIDEBAR_TABS.find(t => t.id === activeTab)?.label}
+                </h3>
+              </div>
 
-        {/* Layers Panel */}
-        {leftPanelMode === 'layers' && (
-          <div className="w-64 bg-slate-900 border-r border-slate-700 flex flex-col">
-            <div className="p-3 border-b border-slate-700">
-              <h3 className="text-sm font-medium text-white">Page Layers</h3>
-              <p className="text-xs text-slate-500 mt-1">Drag to reorder components</p>
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              <DraggableComponentList
-                components={componentTree}
-                onReorder={handleReorderComponents}
-                onSelect={handleSelectComponent}
-                onToggleVisibility={handleToggleComponentVisibility}
-                onDuplicate={handleDuplicateComponent}
-                onDelete={handleDeleteComponent}
-                selectedId={selectedComponentId || undefined}
-              />
-            </div>
-            <div className="p-3 border-t border-slate-700">
-              <div className="text-xs text-slate-500 space-y-1">
-                <p className="flex items-center gap-2">
-                  <span className="w-3 h-3 bg-slate-700 rounded" /> Drag to reorder
-                </p>
-                <p className="flex items-center gap-2">
-                  <Eye className="w-3 h-3" /> Toggle visibility
-                </p>
+              {/* Panel Body */}
+              <div className="flex-1 overflow-y-auto">
+                {activeTab === 'components' && (
+                  <ComponentLibrary onInsertComponent={handleInsertCode} />
+                )}
+
+                {activeTab === 'layers' && (
+                  <DraggableComponentList
+                    components={componentTree}
+                    onReorder={handleReorderComponents}
+                    onSelect={handleSelectComponent}
+                    onToggleVisibility={handleToggleComponentVisibility}
+                    onDuplicate={handleDuplicateComponent}
+                    onDelete={handleDeleteComponent}
+                    selectedId={selectedComponentId || undefined}
+                  />
+                )}
+
+                {activeTab === 'embeds' && (
+                  <EmbedWidgets onInsertCode={handleInsertCode} />
+                )}
+
+                {activeTab === 'integrations' && (
+                  <IntegrationsSidebar
+                    projectId={params.id}
+                    savedKeys={userKeys}
+                    onSaveKeys={handleSaveKeys}
+                  />
+                )}
+
+                {activeTab === 'templates' && (
+                  <div className="p-3 space-y-3">
+                    <div className="flex items-center gap-2 mb-4">
+                      <input
+                        type="checkbox"
+                        id="useTemplate"
+                        checked={useStaticTemplate}
+                        onChange={(e) => setUseStaticTemplate(e.target.checked)}
+                        className="rounded border-slate-600 bg-slate-800"
+                      />
+                      <label htmlFor="useTemplate" className="text-sm text-slate-300">
+                        Use static template (recommended)
+                      </label>
+                    </div>
+                    {STATIC_TEMPLATES.map((template) => (
+                      <button
+                        key={template.id}
+                        onClick={() => handleApplyTemplate(template.id)}
+                        className={cn(
+                          "w-full p-3 rounded-lg border text-left transition",
+                          selectedTemplateId === template.id
+                            ? "border-purple-500 bg-purple-500/10"
+                            : "border-slate-700 hover:border-slate-600"
+                        )}
+                      >
+                        <div className="aspect-video bg-slate-800 rounded mb-2 overflow-hidden">
+                          <div className={cn(
+                            "w-full h-full",
+                            template.id === 'modern-saas' && "bg-gradient-to-br from-purple-600 to-blue-600",
+                            template.id === 'portfolio-minimal' && "bg-gradient-to-br from-slate-100 to-slate-200",
+                            template.id === 'agency-bold' && "bg-gradient-to-br from-yellow-400 to-orange-500"
+                          )} />
+                        </div>
+                        <h4 className="text-sm font-medium text-white">{template.name}</h4>
+                        <p className="text-xs text-slate-500 mt-1">{template.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {activeTab === 'settings' && (
+                  <div className="p-4 space-y-4">
+                    <div>
+                      <label className="text-xs font-medium text-slate-400 uppercase">Project Name</label>
+                      <input
+                        type="text"
+                        value={projectName}
+                        onChange={(e) => setProjectName(e.target.value)}
+                        className="mt-1 w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-slate-400 uppercase">Project Type</label>
+                      <p className="mt-1 text-white capitalize">{projectType?.replace('-', ' ')}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-slate-400 uppercase">Files</label>
+                      <p className="mt-1 text-white">{files.length} files</p>
+                    </div>
+                    <div className="pt-4 border-t border-slate-800">
+                      <h4 className="text-xs font-medium text-slate-400 uppercase mb-2">Files</h4>
+                      <div className="space-y-1">
+                        {files.map((file) => (
+                          <button
+                            key={file.path}
+                            onClick={() => {
+                              setSelectedFile(file)
+                              setViewMode('code')
+                            }}
+                            className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-left text-slate-400 hover:bg-slate-800 hover:text-white rounded"
+                          >
+                            <FileCode className="w-3 h-3" />
+                            <span className="truncate">{file.path}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Preview Area */}
-        <div className="flex-1 p-6 overflow-auto">
+        <div className="flex-1 p-4 overflow-auto bg-slate-950">
           <div
-            className="mx-auto bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300"
+            className="mx-auto bg-white rounded-lg shadow-2xl overflow-hidden transition-all duration-300"
             style={{
               width: deviceWidths[deviceMode],
               maxWidth: '100%',
-              minHeight: 'calc(100vh - 200px)'
+              minHeight: 'calc(100vh - 180px)'
             }}
           >
             {viewMode === 'preview' ? (
@@ -817,23 +728,22 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
               />
             ) : (
               <div className="h-full bg-slate-950">
-                {/* File Tabs */}
-                <div className="flex border-b border-slate-700 bg-slate-900 overflow-x-auto">
+                <div className="flex border-b border-slate-800 bg-slate-900 overflow-x-auto">
                   {files.slice(0, 6).map((file) => (
                     <button
                       key={file.path}
                       onClick={() => setSelectedFile(file)}
-                      className={`px-4 py-2 text-sm whitespace-nowrap border-r border-slate-700 ${
+                      className={cn(
+                        "px-4 py-2 text-xs whitespace-nowrap border-r border-slate-800",
                         selectedFile?.path === file.path
-                          ? 'bg-slate-800 text-white font-medium'
-                          : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                      }`}
+                          ? "bg-slate-800 text-white"
+                          : "text-slate-500 hover:bg-slate-800 hover:text-white"
+                      )}
                     >
                       {file.path.split('/').pop()}
                     </button>
                   ))}
                 </div>
-                {/* Code View with Syntax Highlighting */}
                 <div className="p-4 overflow-auto h-[calc(100%-40px)] bg-slate-950">
                   {selectedFile ? (
                     <CodeHighlighter
@@ -843,14 +753,12 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
                           ? 'typescript'
                           : selectedFile.path.endsWith('.css')
                           ? 'css'
-                          : selectedFile.path.endsWith('.json')
-                          ? 'json'
                           : 'typescript'
                       }
                       showLineNumbers
                     />
                   ) : (
-                    <p className="text-slate-500">Select a file to view its contents</p>
+                    <p className="text-slate-500">Select a file to view</p>
                   )}
                 </div>
               </div>
@@ -858,8 +766,8 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
           </div>
         </div>
 
-        {/* Right Sidebar - Properties or Project Details */}
-        {showPropertiesPanel && selectedElement ? (
+        {/* Properties Panel (Right) */}
+        {showPropertiesPanel && selectedElement && (
           <PropertiesPanel
             selectedElement={selectedElement}
             onUpdateElement={handleUpdateElement}
@@ -870,75 +778,6 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
               setSelectedElement(null)
             }}
           />
-        ) : (
-          <div className="w-72 bg-slate-900 border-l border-slate-700 overflow-y-auto">
-            <div className="p-4 border-b border-slate-700">
-              <h3 className="font-semibold text-white">Project Details</h3>
-            </div>
-
-            <div className="p-4 space-y-4">
-              <div>
-                <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">
-                  Project Name
-                </label>
-                <p className="mt-1 text-white">{projectName}</p>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">
-                  Type
-                </label>
-                <p className="mt-1 text-white capitalize">{projectType?.replace('-', ' ')}</p>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">
-                  Files
-                </label>
-                <p className="mt-1 text-white">{files.length} files</p>
-              </div>
-
-              <div className="pt-4 border-t border-slate-700">
-                <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">
-                  Project Files
-                </label>
-                <div className="mt-2 space-y-1">
-                  {files.map((file) => (
-                    <button
-                      key={file.path}
-                      onClick={() => {
-                        setSelectedFile(file)
-                        setViewMode('code')
-                      }}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 text-sm text-left text-slate-300 hover:bg-slate-800 hover:text-white rounded"
-                    >
-                      <Code className="w-3.5 h-3.5 text-slate-500" />
-                      <span className="truncate">{file.path}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Tips */}
-            <div className="p-4 border-t border-slate-700">
-              <h4 className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-3">Quick Tips</h4>
-              <ul className="space-y-2 text-xs text-slate-500">
-                <li className="flex items-start gap-2">
-                  <Plus className="w-3 h-3 mt-0.5 text-blue-400" />
-                  <span>Click components to add them to your page</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <MousePointer className="w-3 h-3 mt-0.5 text-purple-400" />
-                  <span>Use Properties mode to edit elements</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <MessageSquare className="w-3 h-3 mt-0.5 text-green-400" />
-                  <span>Ask AI to make complex changes</span>
-                </li>
-              </ul>
-            </div>
-          </div>
         )}
 
         {/* AI Chat Panel */}
@@ -951,13 +790,6 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
         )}
       </div>
 
-      {/* Integrations Panel */}
-      <IntegrationsPanel
-        projectId={params.id}
-        savedKeys={userKeys}
-        onSaveKeys={handleSaveKeys}
-      />
-
       {/* Deployment Panel */}
       {showDeployPanel && (
         <DeploymentPanel
@@ -967,6 +799,103 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
           onClose={() => setShowDeployPanel(false)}
         />
       )}
+    </div>
+  )
+}
+
+// Inline Integrations Sidebar Component
+function IntegrationsSidebar({
+  projectId,
+  savedKeys,
+  onSaveKeys,
+}: {
+  projectId: string
+  savedKeys: Record<string, string>
+  onSaveKeys: (keys: Record<string, string>) => void
+}) {
+  const [keys, setKeys] = useState<Record<string, string>>(savedKeys)
+  const [showKey, setShowKey] = useState<Record<string, boolean>>({})
+  const [saving, setSaving] = useState(false)
+
+  const INTEGRATIONS = [
+    { id: 'openai', name: 'OpenAI', key: 'OPENAI_API_KEY', placeholder: 'sk-...', category: 'AI', required: true },
+    { id: 'anthropic', name: 'Anthropic', key: 'ANTHROPIC_API_KEY', placeholder: 'sk-ant-...', category: 'AI' },
+    { id: 'google', name: 'Google AI', key: 'GOOGLE_AI_API_KEY', placeholder: 'AIza...', category: 'AI' },
+    { id: 'stripe', name: 'Stripe', key: 'STRIPE_SECRET_KEY', placeholder: 'sk_...', category: 'Payments' },
+    { id: 'stripe_webhook', name: 'Stripe Webhook', key: 'STRIPE_WEBHOOK_SECRET', placeholder: 'whsec_...', category: 'Payments' },
+    { id: 'mongodb', name: 'MongoDB', key: 'MONGODB_URI', placeholder: 'mongodb+srv://...', category: 'Database', required: true },
+    { id: 'sendgrid', name: 'SendGrid', key: 'SENDGRID_API_KEY', placeholder: 'SG...', category: 'Email' },
+    { id: 'n8n', name: 'n8n Webhook', key: 'N8N_WEBHOOK_URL', placeholder: 'https://n8n.example.com/webhook/...', category: 'Automation' },
+    { id: 'render', name: 'Render', key: 'RENDER_API_KEY', placeholder: 'rnd_...', category: 'Deploy' },
+    { id: 'github', name: 'GitHub Token', key: 'GITHUB_TOKEN', placeholder: 'ghp_...', category: 'Deploy' },
+    { id: 'nextauth', name: 'NextAuth Secret', key: 'NEXTAUTH_SECRET', placeholder: 'random-secret', category: 'Auth', required: true },
+    { id: 'google_oauth', name: 'Google OAuth', key: 'GOOGLE_CLIENT_ID', placeholder: 'xxx.apps.googleusercontent.com', category: 'Auth' },
+  ]
+
+  const categories = [...new Set(INTEGRATIONS.map(i => i.category))]
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await onSaveKeys(keys)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="p-3 space-y-4">
+      <p className="text-xs text-slate-500">
+        Add API keys for services you want to use
+      </p>
+
+      {categories.map(category => {
+        const categoryIntegrations = INTEGRATIONS.filter(i => i.category === category)
+        return (
+          <div key={category}>
+            <h4 className="text-xs font-medium text-slate-400 uppercase mb-2">{category}</h4>
+            <div className="space-y-2">
+              {categoryIntegrations.map(integration => (
+                <div key={integration.id} className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-slate-300 flex-1">
+                      {integration.name}
+                      {integration.required && <span className="text-amber-400 ml-1">*</span>}
+                    </label>
+                    {keys[integration.key] && (
+                      <span className="text-xs text-green-400">Connected</span>
+                    )}
+                  </div>
+                  <div className="flex gap-1">
+                    <input
+                      type={showKey[integration.id] ? 'text' : 'password'}
+                      value={keys[integration.key] || ''}
+                      onChange={(e) => setKeys(prev => ({ ...prev, [integration.key]: e.target.value }))}
+                      placeholder={integration.placeholder}
+                      className="flex-1 px-2 py-1.5 text-xs bg-slate-800 border border-slate-700 rounded text-white font-mono"
+                    />
+                    <button
+                      onClick={() => setShowKey(prev => ({ ...prev, [integration.id]: !prev[integration.id] }))}
+                      className="px-2 py-1.5 bg-slate-800 border border-slate-700 rounded text-slate-400 hover:text-white text-xs"
+                    >
+                      {showKey[integration.id] ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+
+      <Button
+        onClick={handleSave}
+        disabled={saving}
+        className="w-full bg-purple-600 hover:bg-purple-700"
+        size="sm"
+      >
+        {saving ? 'Saving...' : 'Save All Keys'}
+      </Button>
     </div>
   )
 }
