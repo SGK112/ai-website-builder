@@ -7,8 +7,6 @@ import {
   Sparkles,
   Loader2,
   CheckCircle,
-  Download,
-  ExternalLink,
   Zap,
   Shield,
   Globe,
@@ -25,7 +23,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 type ProjectType = 'business-portfolio' | 'ecommerce' | 'saas'
-type GenerationStatus = 'idle' | 'generating' | 'success' | 'error'
+type GenerationStatus = 'idle' | 'generating' | 'error'
 
 const stats = [
   { value: '10K+', label: 'Websites Built' },
@@ -94,9 +92,7 @@ export default function HomePage() {
   const [projectName, setProjectName] = useState('')
   const [description, setDescription] = useState('')
   const [status, setStatus] = useState<GenerationStatus>('idle')
-  const [generatedFiles, setGeneratedFiles] = useState<{ path: string; content: string }[]>([])
   const [error, setError] = useState('')
-  const [projectId, setProjectId] = useState<string | null>(null)
 
   const handleGenerate = async () => {
     if (!projectName) {
@@ -128,27 +124,13 @@ export default function HomePage() {
       if (!response.ok) throw new Error('Generation failed')
 
       const data = await response.json()
-      setGeneratedFiles(data.project.files || [])
-      setProjectId(data.project._id)
-      setStatus('success')
+
+      // Redirect directly to builder
+      router.push(`/builder/${data.project._id}`)
     } catch (err) {
       setError('Failed to generate project. Please make sure your API keys are configured.')
       setStatus('error')
     }
-  }
-
-  const handleDownload = () => {
-    const content = generatedFiles
-      .map((file) => `\n\n=== ${file.path} ===\n${file.content}`)
-      .join('\n')
-
-    const blob = new Blob([content], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${projectName.replace(/\s+/g, '-')}.txt`
-    a.click()
-    URL.revokeObjectURL(url)
   }
 
   return (
@@ -379,53 +361,6 @@ export default function HomePage() {
               )}
             </Button>
           </div>
-
-          {/* Success State */}
-          {status === 'success' && generatedFiles.length > 0 && (
-            <div className="mt-8 overflow-hidden rounded-3xl border border-green-500/20 bg-gradient-to-b from-green-500/10 to-slate-900/50 p-8 backdrop-blur-xl">
-              <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-green-500/20">
-                  <CheckCircle className="h-7 w-7 text-green-400" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold">Project Generated!</h3>
-                  <p className="text-slate-400">
-                    {generatedFiles.length} files created and ready for deployment
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-6 max-h-64 space-y-2 overflow-y-auto rounded-xl bg-slate-900/50 p-4">
-                {generatedFiles.map((file, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center gap-3 rounded-lg bg-white/5 px-4 py-2 font-mono text-sm text-slate-300"
-                  >
-                    <Code2 className="h-4 w-4 text-slate-500" />
-                    {file.path}
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-6 flex flex-col gap-4 sm:flex-row">
-                <Button
-                  onClick={() => router.push(`/builder/${projectId}`)}
-                  className="h-12 flex-1 gap-2 bg-white text-slate-900 hover:bg-slate-100"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Open in Builder
-                </Button>
-                <Button
-                  onClick={handleDownload}
-                  variant="outline"
-                  className="h-12 gap-2 border-white/20 bg-white/5 text-white hover:bg-white/10"
-                >
-                  <Download className="h-4 w-4" />
-                  Download Files
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
       </section>
 
