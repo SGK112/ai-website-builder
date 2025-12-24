@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { TemplateGallery, templates, type Template } from '@/components/templates/TemplateGallery'
 
 type ProjectType = 'business-portfolio' | 'ecommerce' | 'saas'
 type GenerationStatus = 'idle' | 'generating' | 'error'
@@ -89,10 +90,18 @@ const projectTypes = [
 export default function HomePage() {
   const router = useRouter()
   const [projectType, setProjectType] = useState<ProjectType>('business-portfolio')
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
   const [projectName, setProjectName] = useState('')
   const [description, setDescription] = useState('')
   const [status, setStatus] = useState<GenerationStatus>('idle')
   const [error, setError] = useState('')
+
+  const handleSelectTemplate = (template: Template) => {
+    setSelectedTemplate(template)
+    setProjectType(template.category)
+    // Scroll to generator section
+    document.getElementById('generator')?.scrollIntoView({ behavior: 'smooth' })
+  }
 
   const handleGenerate = async () => {
     if (!projectName) {
@@ -103,20 +112,24 @@ export default function HomePage() {
     setStatus('generating')
     setError('')
 
+    const colorScheme = selectedTemplate?.colorScheme || {
+      primary: '#3b82f6',
+      secondary: '#64748b',
+      accent: '#f59e0b',
+    }
+
     try {
       const response = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: projectName,
-          description,
+          description: description || selectedTemplate?.description,
           type: projectType,
+          templateId: selectedTemplate?.id,
           config: {
-            colorScheme: {
-              primary: '#3b82f6',
-              secondary: '#64748b',
-              accent: '#f59e0b',
-            },
+            colorScheme,
+            template: selectedTemplate?.id,
           },
         }),
       })
@@ -147,6 +160,9 @@ export default function HomePage() {
           <div className="hidden items-center gap-8 md:flex">
             <Link href="#features" className="text-sm text-slate-400 transition hover:text-white">
               Features
+            </Link>
+            <Link href="#templates" className="text-sm text-slate-400 transition hover:text-white">
+              Templates
             </Link>
             <Link href="#pricing" className="text-sm text-slate-400 transition hover:text-white">
               Pricing
@@ -264,8 +280,32 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Template Gallery Section */}
+      <section id="templates" className="py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 rounded-full bg-purple-500/10 px-4 py-2 mb-4">
+              <Layers className="h-4 w-4 text-purple-400" />
+              <span className="text-sm font-medium text-purple-400">15+ Professional Templates</span>
+            </div>
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+              Start with a Beautiful Template
+            </h2>
+            <p className="mt-4 text-lg text-slate-400 max-w-2xl mx-auto">
+              Choose from our curated collection of professionally designed templates.
+              Each one is fully customizable and production-ready.
+            </p>
+          </div>
+
+          <TemplateGallery
+            onSelectTemplate={handleSelectTemplate}
+            selectedTemplateId={selectedTemplate?.id}
+          />
+        </div>
+      </section>
+
       {/* Generator Section */}
-      <section id="generator" className="py-24">
+      <section id="generator" className="py-24 bg-slate-900/50">
         <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
           <div className="overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-slate-800/50 to-slate-900/50 p-8 backdrop-blur-xl sm:p-12">
             <div className="text-center">
@@ -273,41 +313,75 @@ export default function HomePage() {
                 <Sparkles className="h-4 w-4 text-blue-400" />
                 <span className="text-sm font-medium text-blue-400">AI-Powered Builder</span>
               </div>
-              <h2 className="mt-4 text-3xl font-bold">Create Your Website</h2>
+              <h2 className="mt-4 text-3xl font-bold">
+                {selectedTemplate ? `Create with ${selectedTemplate.name}` : 'Create Your Website'}
+              </h2>
               <p className="mt-2 text-slate-400">
-                Choose a template, describe your project, and let AI do the rest
+                {selectedTemplate
+                  ? `Customizing the ${selectedTemplate.name} template for your business`
+                  : 'Choose a template above, or describe your project and let AI do the rest'
+                }
               </p>
             </div>
 
-            {/* Project Type Selection */}
-            <div className="mt-8 grid gap-4 sm:grid-cols-3">
-              {projectTypes.map((option) => (
-                <button
-                  key={option.type}
-                  onClick={() => setProjectType(option.type)}
-                  className={`group relative overflow-hidden rounded-2xl border p-6 text-left transition-all ${
-                    projectType === option.type
-                      ? 'border-blue-500 bg-blue-500/10'
-                      : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
-                  }`}
+            {/* Selected Template Preview */}
+            {selectedTemplate && (
+              <div className="mt-6 p-4 rounded-xl border border-white/10 bg-white/5 flex items-center gap-4">
+                <div
+                  className="w-12 h-12 rounded-lg flex items-center justify-center"
+                  style={{
+                    background: `linear-gradient(135deg, ${selectedTemplate.colorScheme.primary}30 0%, ${selectedTemplate.colorScheme.secondary}30 100%)`,
+                  }}
                 >
-                  <div
-                    className={`absolute inset-0 bg-gradient-to-br ${option.gradient} opacity-0 transition group-hover:opacity-5 ${
-                      projectType === option.type ? 'opacity-10' : ''
-                    }`}
+                  <selectedTemplate.icon
+                    className="w-6 h-6"
+                    style={{ color: selectedTemplate.colorScheme.primary }}
                   />
-                  <div className="relative">
-                    <h3 className="text-lg font-semibold">{option.title}</h3>
-                    <p className="mt-1 text-sm text-slate-400">{option.description}</p>
-                  </div>
-                  {projectType === option.type && (
-                    <div className="absolute right-4 top-4">
-                      <CheckCircle className="h-5 w-5 text-blue-400" />
-                    </div>
-                  )}
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-medium text-white">{selectedTemplate.name}</h4>
+                  <p className="text-sm text-slate-400">{selectedTemplate.description}</p>
+                </div>
+                <button
+                  onClick={() => setSelectedTemplate(null)}
+                  className="text-sm text-slate-400 hover:text-white px-3 py-1 rounded hover:bg-white/10 transition"
+                >
+                  Change
                 </button>
-              ))}
-            </div>
+              </div>
+            )}
+
+            {/* Project Type Selection - Only show if no template selected */}
+            {!selectedTemplate && (
+              <div className="mt-8 grid gap-4 sm:grid-cols-3">
+                {projectTypes.map((option) => (
+                  <button
+                    key={option.type}
+                    onClick={() => setProjectType(option.type)}
+                    className={`group relative overflow-hidden rounded-2xl border p-6 text-left transition-all ${
+                      projectType === option.type
+                        ? 'border-blue-500 bg-blue-500/10'
+                        : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
+                    }`}
+                  >
+                    <div
+                      className={`absolute inset-0 bg-gradient-to-br ${option.gradient} opacity-0 transition group-hover:opacity-5 ${
+                        projectType === option.type ? 'opacity-10' : ''
+                      }`}
+                    />
+                    <div className="relative">
+                      <h3 className="text-lg font-semibold">{option.title}</h3>
+                      <p className="mt-1 text-sm text-slate-400">{option.description}</p>
+                    </div>
+                    {projectType === option.type && (
+                      <div className="absolute right-4 top-4">
+                        <CheckCircle className="h-5 w-5 text-blue-400" />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Form Fields */}
             <div className="mt-8 grid gap-6 sm:grid-cols-2">
