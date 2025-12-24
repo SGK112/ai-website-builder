@@ -32,6 +32,7 @@ import { ComponentLibrary } from '@/components/builder/ComponentLibrary'
 import { PropertiesPanel } from '@/components/builder/PropertiesPanel'
 import { DraggableComponentList, parseComponentTree } from '@/components/builder/DraggableComponentList'
 import type { ComponentNode } from '@/components/builder/DraggableComponentList'
+import { CodeHighlighter } from '@/components/builder/CodeHighlighter'
 
 interface ProjectFile {
   path: string
@@ -636,10 +637,26 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
                     </button>
                   ))}
                 </div>
-                {/* Code View */}
-                <pre className="p-4 text-sm overflow-auto h-[calc(100%-40px)] bg-slate-950 text-green-400 font-mono">
-                  <code>{selectedFile?.content || 'Select a file'}</code>
-                </pre>
+                {/* Code View with Syntax Highlighting */}
+                <div className="p-4 overflow-auto h-[calc(100%-40px)] bg-slate-950">
+                  {selectedFile ? (
+                    <CodeHighlighter
+                      code={selectedFile.content}
+                      language={
+                        selectedFile.path.endsWith('.tsx') || selectedFile.path.endsWith('.ts')
+                          ? 'typescript'
+                          : selectedFile.path.endsWith('.css')
+                          ? 'css'
+                          : selectedFile.path.endsWith('.json')
+                          ? 'json'
+                          : 'typescript'
+                      }
+                      showLineNumbers
+                    />
+                  ) : (
+                    <p className="text-slate-500">Select a file to view its contents</p>
+                  )}
+                </div>
               </div>
             )}
           </div>

@@ -1,4 +1,5 @@
 export { BuilderChat } from './BuilderChat'
+export { CodeHighlighter, SimpleCodeBlock } from './CodeHighlighter'
 export { CodeViewer } from './CodeViewer'
 export { ComponentLibrary } from './ComponentLibrary'
 export { DeploymentPanel } from './DeploymentPanel'
