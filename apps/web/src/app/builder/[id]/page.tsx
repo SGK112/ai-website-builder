@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import {
   Rocket,
   Loader2,
@@ -17,12 +17,19 @@ import {
   Tablet,
   Smartphone,
   RefreshCw,
-  MessageSquare
+  MessageSquare,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Layers,
+  MousePointer,
+  Plus,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { BuilderChat } from '@/components/builder/BuilderChat'
 import { IntegrationsPanel } from '@/components/builder/IntegrationsPanel'
 import { DeploymentPanel } from '@/components/builder/DeploymentPanel'
+import { ComponentLibrary } from '@/components/builder/ComponentLibrary'
+import { PropertiesPanel } from '@/components/builder/PropertiesPanel'
 
 interface ProjectFile {
   path: string
@@ -31,6 +38,17 @@ interface ProjectFile {
 
 type ViewMode = 'preview' | 'code'
 type DeviceMode = 'desktop' | 'tablet' | 'mobile'
+type LeftPanelMode = 'components' | 'layers' | 'collapsed'
+
+interface SelectedElement {
+  id: string
+  type: string
+  tagName: string
+  className: string
+  textContent?: string
+  styles: Record<string, string>
+  attributes: Record<string, string>
+}
 
 export default function BuilderPage({ params }: { params: { id: string } }) {
   const [files, setFiles] = useState<ProjectFile[]>([])
@@ -47,6 +65,9 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
   const [showChat, setShowChat] = useState(true)
   const [userKeys, setUserKeys] = useState<Record<string, string>>({})
   const [showDeployPanel, setShowDeployPanel] = useState(false)
+  const [leftPanelMode, setLeftPanelMode] = useState<LeftPanelMode>('components')
+  const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null)
+  const [showPropertiesPanel, setShowPropertiesPanel] = useState(false)
 
   // Handle saving user API keys
   async function handleSaveKeys(keys: Record<string, string>) {
@@ -72,6 +93,70 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
     // Refresh preview
     setPreviewKey(k => k + 1)
   }
+
+  // Handle inserting a component from the library
+  const handleInsertComponent = useCallback((code: string) => {
+    // Find the main page file
+    const pageFileIndex = files.findIndex(f =>
+      f.path.includes('page.tsx') || f.path.includes('App.tsx')
+    )
+
+    if (pageFileIndex === -1) return
+
+    const pageFile = files[pageFileIndex]
+
+    // Find the return statement and insert before the closing tag
+    const returnMatch = pageFile.content.match(/return\s*\(\s*([\s\S]*)\s*\)\s*;?\s*\}/)
+    if (!returnMatch) return
+
+    // Find a good insertion point (before the last closing div/section)
+    const content = pageFile.content
+    const lastMainDivEnd = content.lastIndexOf('</main>')
+    const lastDivEnd = content.lastIndexOf('</div>')
+    const insertPoint = lastMainDivEnd > 0 ? lastMainDivEnd : lastDivEnd
+
+    if (insertPoint > 0) {
+      const newContent =
+        content.slice(0, insertPoint) +
+        '\n\n      {/* New Component */}\n      ' +
+        code +
+        '\n\n      ' +
+        content.slice(insertPoint)
+
+      setFiles(prevFiles => {
+        const newFiles = [...prevFiles]
+        newFiles[pageFileIndex] = { ...pageFile, content: newContent }
+        return newFiles
+      })
+
+      // Refresh preview
+      setPreviewKey(k => k + 1)
+    }
+  }, [files])
+
+  // Handle updating a selected element
+  const handleUpdateElement = useCallback((updates: Partial<SelectedElement>) => {
+    if (!selectedElement) return
+    setSelectedElement(prev => prev ? { ...prev, ...updates } : null)
+    // In a real implementation, this would update the actual file content
+    setPreviewKey(k => k + 1)
+  }, [selectedElement])
+
+  // Handle deleting a selected element
+  const handleDeleteElement = useCallback(() => {
+    if (!selectedElement) return
+    // In a real implementation, this would remove the element from the file
+    setSelectedElement(null)
+    setShowPropertiesPanel(false)
+    setPreviewKey(k => k + 1)
+  }, [selectedElement])
+
+  // Handle duplicating a selected element
+  const handleDuplicateElement = useCallback(() => {
+    if (!selectedElement) return
+    // In a real implementation, this would duplicate the element in the file
+    setPreviewKey(k => k + 1)
+  }, [selectedElement])
 
   // Load project files
   useEffect(() => {
@@ -333,25 +418,70 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - Quick Actions */}
-        <div className="w-16 bg-slate-900 border-r border-slate-700 flex flex-col items-center py-4 gap-2">
-          <button className="p-3 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white" title="Layout">
-            <Layout className="w-5 h-5" />
+        {/* Left Sidebar - Mode Toggle */}
+        <div className="w-12 bg-slate-950 border-r border-slate-800 flex flex-col items-center py-3 gap-1">
+          <button
+            onClick={() => setLeftPanelMode(leftPanelMode === 'components' ? 'collapsed' : 'components')}
+            className={`p-2.5 rounded-lg transition ${leftPanelMode === 'components' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+            title="Components"
+          >
+            <Plus className="w-5 h-5" />
           </button>
-          <button className="p-3 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white" title="Colors">
-            <Palette className="w-5 h-5" />
+          <button
+            onClick={() => setLeftPanelMode(leftPanelMode === 'layers' ? 'collapsed' : 'layers')}
+            className={`p-2.5 rounded-lg transition ${leftPanelMode === 'layers' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+            title="Layers"
+          >
+            <Layers className="w-5 h-5" />
           </button>
-          <button className="p-3 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white" title="Text">
-            <Type className="w-5 h-5" />
-          </button>
-          <button className="p-3 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white" title="Images">
-            <Image className="w-5 h-5" />
+          <div className="w-8 h-px bg-slate-800 my-2" />
+          <button
+            onClick={() => {
+              setShowPropertiesPanel(!showPropertiesPanel)
+            }}
+            className={`p-2.5 rounded-lg transition ${showPropertiesPanel ? 'bg-purple-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+            title="Properties"
+          >
+            <MousePointer className="w-5 h-5" />
           </button>
           <div className="flex-1" />
-          <button className="p-3 rounded-lg hover:bg-slate-700 text-slate-400 hover:text-white" title="Settings">
-            <Settings className="w-5 h-5" />
+          <button
+            onClick={() => setLeftPanelMode(leftPanelMode === 'collapsed' ? 'components' : 'collapsed')}
+            className="p-2.5 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition"
+            title={leftPanelMode === 'collapsed' ? 'Expand Panel' : 'Collapse Panel'}
+          >
+            {leftPanelMode === 'collapsed' ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
           </button>
         </div>
+
+        {/* Component Library Panel */}
+        {leftPanelMode === 'components' && (
+          <ComponentLibrary onInsertComponent={handleInsertComponent} />
+        )}
+
+        {/* Layers Panel */}
+        {leftPanelMode === 'layers' && (
+          <div className="w-64 bg-slate-900 border-r border-slate-700 flex flex-col">
+            <div className="p-3 border-b border-slate-700">
+              <h3 className="text-sm font-medium text-white">Page Layers</h3>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              {files.filter(f => f.path.includes('.tsx')).map((file, idx) => (
+                <div
+                  key={file.path}
+                  className="px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 rounded-lg cursor-pointer flex items-center gap-2"
+                  onClick={() => {
+                    setSelectedFile(file)
+                    setViewMode('code')
+                  }}
+                >
+                  <Layers className="w-4 h-4 text-slate-500" />
+                  <span className="truncate">{file.path.split('/').pop()}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Preview Area */}
         <div className="flex-1 p-6 overflow-auto">
@@ -397,56 +527,88 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
           </div>
         </div>
 
-        {/* Right Sidebar - Properties */}
-        <div className="w-72 bg-slate-900 border-l border-slate-700 overflow-y-auto">
-          <div className="p-4 border-b border-slate-700">
-            <h3 className="font-semibold text-white">Project Details</h3>
-          </div>
-
-          <div className="p-4 space-y-4">
-            <div>
-              <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">
-                Project Name
-              </label>
-              <p className="mt-1 text-white">{projectName}</p>
+        {/* Right Sidebar - Properties or Project Details */}
+        {showPropertiesPanel && selectedElement ? (
+          <PropertiesPanel
+            selectedElement={selectedElement}
+            onUpdateElement={handleUpdateElement}
+            onDeleteElement={handleDeleteElement}
+            onDuplicateElement={handleDuplicateElement}
+            onClose={() => {
+              setShowPropertiesPanel(false)
+              setSelectedElement(null)
+            }}
+          />
+        ) : (
+          <div className="w-72 bg-slate-900 border-l border-slate-700 overflow-y-auto">
+            <div className="p-4 border-b border-slate-700">
+              <h3 className="font-semibold text-white">Project Details</h3>
             </div>
 
-            <div>
-              <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">
-                Type
-              </label>
-              <p className="mt-1 text-white capitalize">{projectType?.replace('-', ' ')}</p>
-            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">
+                  Project Name
+                </label>
+                <p className="mt-1 text-white">{projectName}</p>
+              </div>
 
-            <div>
-              <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">
-                Files
-              </label>
-              <p className="mt-1 text-white">{files.length} files</p>
-            </div>
+              <div>
+                <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">
+                  Type
+                </label>
+                <p className="mt-1 text-white capitalize">{projectType?.replace('-', ' ')}</p>
+              </div>
 
-            <div className="pt-4 border-t border-slate-700">
-              <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">
-                Project Files
-              </label>
-              <div className="mt-2 space-y-1">
-                {files.map((file) => (
-                  <button
-                    key={file.path}
-                    onClick={() => {
-                      setSelectedFile(file)
-                      setViewMode('code')
-                    }}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 text-sm text-left text-slate-300 hover:bg-slate-800 hover:text-white rounded"
-                  >
-                    <Code className="w-3.5 h-3.5 text-slate-500" />
-                    <span className="truncate">{file.path}</span>
-                  </button>
-                ))}
+              <div>
+                <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">
+                  Files
+                </label>
+                <p className="mt-1 text-white">{files.length} files</p>
+              </div>
+
+              <div className="pt-4 border-t border-slate-700">
+                <label className="text-xs font-medium text-slate-400 uppercase tracking-wide">
+                  Project Files
+                </label>
+                <div className="mt-2 space-y-1">
+                  {files.map((file) => (
+                    <button
+                      key={file.path}
+                      onClick={() => {
+                        setSelectedFile(file)
+                        setViewMode('code')
+                      }}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 text-sm text-left text-slate-300 hover:bg-slate-800 hover:text-white rounded"
+                    >
+                      <Code className="w-3.5 h-3.5 text-slate-500" />
+                      <span className="truncate">{file.path}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
+
+            {/* Quick Tips */}
+            <div className="p-4 border-t border-slate-700">
+              <h4 className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-3">Quick Tips</h4>
+              <ul className="space-y-2 text-xs text-slate-500">
+                <li className="flex items-start gap-2">
+                  <Plus className="w-3 h-3 mt-0.5 text-blue-400" />
+                  <span>Click components to add them to your page</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <MousePointer className="w-3 h-3 mt-0.5 text-purple-400" />
+                  <span>Use Properties mode to edit elements</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <MessageSquare className="w-3 h-3 mt-0.5 text-green-400" />
+                  <span>Ask AI to make complex changes</span>
+                </li>
+              </ul>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* AI Chat Panel */}
         {showChat && (
