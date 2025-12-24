@@ -149,3 +149,119 @@ App: ${config.appName}
 Features: ${config.features?.join(', ') || 'Standard features'}
 `,
 }
+
+// Extended template configurations for more specific use cases
+export const TEMPLATE_CONFIGS = {
+  // Business Portfolio Templates
+  'agency-portfolio': {
+    name: 'Creative Agency',
+    category: 'business-portfolio',
+    description: 'Modern agency site with case studies and team showcase',
+    features: ['Hero with video background', 'Case study grid', 'Team section', 'Client logos', 'Contact form'],
+    colorScheme: { primary: '#6366f1', secondary: '#8b5cf6', accent: '#f59e0b' },
+  },
+  'freelancer-portfolio': {
+    name: 'Freelancer Portfolio',
+    category: 'business-portfolio',
+    description: 'Personal portfolio for designers and developers',
+    features: ['About section', 'Skills display', 'Project gallery', 'Testimonials', 'Blog', 'Contact'],
+    colorScheme: { primary: '#0ea5e9', secondary: '#06b6d4', accent: '#f97316' },
+  },
+  'law-firm': {
+    name: 'Law Firm',
+    category: 'business-portfolio',
+    description: 'Professional site for legal services',
+    features: ['Practice areas', 'Attorney profiles', 'Case results', 'Client testimonials', 'Consultation form'],
+    colorScheme: { primary: '#1e3a5f', secondary: '#2d4a6f', accent: '#c9a227' },
+  },
+  'medical-practice': {
+    name: 'Medical Practice',
+    category: 'business-portfolio',
+    description: 'Healthcare provider website',
+    features: ['Services list', 'Doctor profiles', 'Patient resources', 'Appointment booking', 'Location map'],
+    colorScheme: { primary: '#0891b2', secondary: '#0e7490', accent: '#10b981' },
+  },
+  'restaurant': {
+    name: 'Restaurant',
+    category: 'business-portfolio',
+    description: 'Restaurant with menu and reservations',
+    features: ['Menu display', 'Photo gallery', 'Online reservations', 'Location & hours', 'Reviews'],
+    colorScheme: { primary: '#dc2626', secondary: '#991b1b', accent: '#fbbf24' },
+  },
+
+  // E-commerce Templates
+  'fashion-store': {
+    name: 'Fashion Boutique',
+    category: 'ecommerce',
+    description: 'Clothing and accessories store',
+    features: ['Product catalog', 'Size guide', 'Wishlist', 'Reviews', 'Instagram feed'],
+    colorScheme: { primary: '#0f0f0f', secondary: '#262626', accent: '#d4af37' },
+  },
+  'electronics-store': {
+    name: 'Electronics Store',
+    category: 'ecommerce',
+    description: 'Tech gadgets and electronics',
+    features: ['Product comparison', 'Specifications', 'Customer reviews', 'Deals section', 'Search filters'],
+    colorScheme: { primary: '#1e40af', secondary: '#1e3a8a', accent: '#f59e0b' },
+  },
+  'food-delivery': {
+    name: 'Food Delivery',
+    category: 'ecommerce',
+    description: 'Restaurant delivery platform',
+    features: ['Menu categories', 'Cart system', 'Delivery tracking', 'Restaurant profiles', 'Reviews'],
+    colorScheme: { primary: '#ea580c', secondary: '#c2410c', accent: '#16a34a' },
+  },
+  'subscription-box': {
+    name: 'Subscription Box',
+    category: 'ecommerce',
+    description: 'Monthly subscription service',
+    features: ['Subscription tiers', 'Past boxes gallery', 'Account management', 'Gift subscriptions', 'Reviews'],
+    colorScheme: { primary: '#7c3aed', secondary: '#6d28d9', accent: '#f472b6' },
+  },
+  'digital-products': {
+    name: 'Digital Products',
+    category: 'ecommerce',
+    description: 'Digital downloads and courses',
+    features: ['Product previews', 'Instant download', 'License management', 'Reviews', 'Author profiles'],
+    colorScheme: { primary: '#059669', secondary: '#047857', accent: '#3b82f6' },
+  },
+
+  // SaaS Templates
+  'analytics-dashboard': {
+    name: 'Analytics Dashboard',
+    category: 'saas',
+    description: 'Data analytics and reporting platform',
+    features: ['Dashboard widgets', 'Chart visualizations', 'Report builder', 'Export data', 'Team access'],
+    colorScheme: { primary: '#3b82f6', secondary: '#2563eb', accent: '#10b981' },
+  },
+  'project-management': {
+    name: 'Project Management',
+    category: 'saas',
+    description: 'Team collaboration and task tracking',
+    features: ['Kanban boards', 'Task lists', 'Team calendar', 'File sharing', 'Time tracking'],
+    colorScheme: { primary: '#8b5cf6', secondary: '#7c3aed', accent: '#f59e0b' },
+  },
+  'crm-platform': {
+    name: 'CRM Platform',
+    category: 'saas',
+    description: 'Customer relationship management',
+    features: ['Contact management', 'Deal pipeline', 'Email integration', 'Reports', 'Team collaboration'],
+    colorScheme: { primary: '#0891b2', secondary: '#0e7490', accent: '#f97316' },
+  },
+  'booking-system': {
+    name: 'Booking System',
+    category: 'saas',
+    description: 'Appointment and reservation platform',
+    features: ['Calendar view', 'Booking widget', 'Payment processing', 'Email reminders', 'Staff management'],
+    colorScheme: { primary: '#16a34a', secondary: '#15803d', accent: '#6366f1' },
+  },
+  'learning-management': {
+    name: 'Learning Management',
+    category: 'saas',
+    description: 'Online course platform',
+    features: ['Course builder', 'Video hosting', 'Quiz system', 'Progress tracking', 'Certificates'],
+    colorScheme: { primary: '#dc2626', secondary: '#b91c1c', accent: '#0ea5e9' },
+  },
+}
+
+export type TemplateKey = keyof typeof TEMPLATE_CONFIGS
