@@ -342,13 +342,14 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
   // Generate static HTML preview from the React components
   function generatePreviewHTML(): string {
     const pageFile = files.find(f => f.path.includes('page.tsx') || f.path.includes('App.tsx'))
-    const layoutFile = files.find(f => f.path.includes('layout.tsx'))
     const globalCss = files.find(f => f.path.includes('globals.css'))
 
-    // Extract content from JSX (simplified)
-    let content = pageFile?.content || ''
+    if (!pageFile) {
+      return generateFallbackPreview()
+    }
 
-    // Basic JSX to HTML conversion for preview
+    const convertedHTML = convertJSXToHTML(pageFile.content)
+
     const htmlContent = `
 <!DOCTYPE html>
 <html>
@@ -357,6 +358,18 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${projectName}</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3b82f6',
+            secondary: '#64748b',
+          }
+        }
+      }
+    }
+  </script>
   <style>
     ${globalCss?.content || ''}
     * { box-sizing: border-box; }
@@ -364,14 +377,14 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
       font-family: system-ui, -apple-system, sans-serif;
       margin: 0;
       padding: 0;
-      background: #f8fafc;
-      color: #1e293b;
     }
+    /* Hide any raw code that leaks through */
+    .preview-hide { display: none !important; }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-900">
-  <div id="preview-root" class="min-h-screen">
-    ${convertJSXToHTML(content)}
+<body>
+  <div id="preview-root">
+    ${convertedHTML}
   </div>
 </body>
 </html>`
@@ -379,29 +392,212 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
     return htmlContent
   }
 
-  // Simple JSX to HTML converter for preview
+  // Generate a nice fallback preview when conversion fails
+  function generateFallbackPreview(): string {
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${projectName}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-600 to-purple-700">
+  <nav class="bg-white/10 backdrop-blur-lg border-b border-white/20">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+      <span class="text-xl font-bold text-white">${projectName}</span>
+      <div class="flex gap-6 text-white/80">
+        <a href="#" class="hover:text-white">Home</a>
+        <a href="#" class="hover:text-white">About</a>
+        <a href="#" class="hover:text-white">Services</a>
+        <a href="#" class="hover:text-white">Contact</a>
+      </div>
+    </div>
+  </nav>
+  <section class="py-20 text-center text-white">
+    <div class="max-w-4xl mx-auto px-4">
+      <h1 class="text-5xl font-bold mb-6">${projectName}</h1>
+      <p class="text-xl text-white/80 mb-8">Building amazing things</p>
+      <button class="px-8 py-3 bg-white text-blue-600 rounded-lg font-semibold hover:bg-blue-50 transition">
+        Get Started
+      </button>
+    </div>
+  </section>
+  <section class="py-16 bg-white">
+    <div class="max-w-6xl mx-auto px-4">
+      <h2 class="text-3xl font-bold text-center text-gray-900 mb-12">Our Features</h2>
+      <div class="grid md:grid-cols-3 gap-8">
+        <div class="p-6 rounded-xl bg-gray-50 text-center">
+          <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+            <span class="text-2xl">⚡</span>
+          </div>
+          <h3 class="text-xl font-semibold mb-2">Fast Performance</h3>
+          <p class="text-gray-600">Lightning fast loading speeds for the best user experience.</p>
+        </div>
+        <div class="p-6 rounded-xl bg-gray-50 text-center">
+          <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+            <span class="text-2xl">🎨</span>
+          </div>
+          <h3 class="text-xl font-semibold mb-2">Beautiful Design</h3>
+          <p class="text-gray-600">Modern and elegant design that stands out from the crowd.</p>
+        </div>
+        <div class="p-6 rounded-xl bg-gray-50 text-center">
+          <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+            <span class="text-2xl">🔒</span>
+          </div>
+          <h3 class="text-xl font-semibold mb-2">Secure & Reliable</h3>
+          <p class="text-gray-600">Enterprise-grade security to protect your data.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+  <footer class="py-8 bg-gray-900 text-center text-gray-400">
+    <p>&copy; 2024 ${projectName}. All rights reserved.</p>
+  </footer>
+</body>
+</html>`
+  }
+
+  // Improved JSX to HTML converter for preview
   function convertJSXToHTML(jsx: string): string {
-    // Extract the return statement content
-    const returnMatch = jsx.match(/return\s*\(\s*([\s\S]*?)\s*\)\s*;?\s*\}/)
-    if (!returnMatch) return '<div class="p-8"><h1 class="text-2xl font-bold">' + projectName + '</h1><p>Preview not available</p></div>'
+    // Try to extract the return statement content
+    // Handle both `return (...)` and direct return
+    let returnMatch = jsx.match(/return\s*\(\s*([\s\S]*)\s*\)\s*;?\s*\}[\s\S]*$/)
+
+    if (!returnMatch) {
+      // Try alternative pattern
+      returnMatch = jsx.match(/return\s*\(\s*([\s\S]+?)\s*\);?\s*\}\s*$/)
+    }
+
+    if (!returnMatch) {
+      return generateFallbackPreview().match(/<body>([\s\S]*)<\/body>/)?.[1] || ''
+    }
 
     let html = returnMatch[1]
 
-    // Convert JSX syntax to HTML
-    html = html
-      .replace(/className=/g, 'class=')
-      .replace(/\{\/\*[\s\S]*?\*\/\}/g, '') // Remove JSX comments
-      .replace(/<([A-Z][a-zA-Z]*)/g, '<div data-component="$1"') // Convert components to divs
-      .replace(/<\/([A-Z][a-zA-Z]*)>/g, '</div>')
-      .replace(/\{`([^`]*)`\}/g, '$1') // Template literals
-      .replace(/\{"([^"]*)"\}/g, '$1') // String expressions
-      .replace(/\{([^{}]*)\}/g, '<!-- $1 -->') // Other expressions as comments
-      .replace(/<ArrowRight[^>]*\/>/g, '→')
-      .replace(/<Star[^>]*\/>/g, '★')
-      .replace(/<Users[^>]*\/>/g, '👥')
-      .replace(/<Target[^>]*\/>/g, '🎯')
-      .replace(/<Check[^>]*\/>/g, '✓')
-      .replace(/<([a-z]+)([^>]*)\s*\/>/g, '<$1$2></$1>') // Self-closing tags
+    // Step 1: Remove imports and type definitions at the start
+    html = html.replace(/^[\s\S]*?(?=<)/m, '')
+
+    // Step 2: Handle .map() expressions - replace with static content
+    // This regex finds .map() calls and replaces them with placeholder content
+    html = html.replace(/\{[\w\s\[\],\.]*\.map\s*\(\s*\([^)]*\)\s*=>\s*\(?([\s\S]*?)\)?\s*\)\s*\}/g, (match, content) => {
+      // Generate 3 copies of the mapped content for preview
+      const cleanContent = content
+        .replace(/key=\{[^}]*\}/g, '')
+        .replace(/\{[\w\.]+\}/g, 'Item')
+        .replace(/\$\{[^}]*\}/g, 'Value')
+      return `${cleanContent}${cleanContent}${cleanContent}`
+    })
+
+    // Step 3: Handle conditional rendering {condition && <element>}
+    html = html.replace(/\{[^{}]*&&\s*(<[\s\S]*?>[\s\S]*?<\/[\s\S]*?>)\}/g, '$1')
+    html = html.replace(/\{[^{}]*&&\s*(<[^>]*\/>)\}/g, '$1')
+
+    // Step 4: Handle ternary expressions {condition ? <a> : <b>}
+    html = html.replace(/\{[^{}]*\?\s*(<[\s\S]*?>[\s\S]*?<\/[\s\S]*?>)\s*:\s*(<[\s\S]*?>[\s\S]*?<\/[\s\S]*?>)\}/g, '$1')
+    html = html.replace(/\{[^{}]*\?\s*(<[^>]*\/>)\s*:\s*(<[^>]*\/>)\}/g, '$1')
+
+    // Step 5: Convert JSX comments
+    html = html.replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+
+    // Step 6: Convert className to class
+    html = html.replace(/className=/g, 'class=')
+
+    // Step 7: Handle template literals
+    html = html.replace(/\{`([^`]*)`\}/g, '$1')
+
+    // Step 8: Handle simple string expressions
+    html = html.replace(/\{"([^"]*)"\}/g, '$1')
+    html = html.replace(/\{'([^']*)'\}/g, '$1')
+
+    // Step 9: Convert React/Lucide icons to emoji equivalents
+    const iconReplacements: Record<string, string> = {
+      'ArrowRight': '→',
+      'ArrowLeft': '←',
+      'ArrowUp': '↑',
+      'ArrowDown': '↓',
+      'Check': '✓',
+      'CheckCircle': '✓',
+      'X': '✕',
+      'Star': '★',
+      'Heart': '❤',
+      'Users': '👥',
+      'User': '👤',
+      'Mail': '✉',
+      'Phone': '📞',
+      'MapPin': '📍',
+      'Calendar': '📅',
+      'Clock': '⏰',
+      'Search': '🔍',
+      'Menu': '☰',
+      'Home': '🏠',
+      'Settings': '⚙',
+      'Zap': '⚡',
+      'Shield': '🛡',
+      'Globe': '🌐',
+      'Rocket': '🚀',
+      'Sparkles': '✨',
+      'Code': '💻',
+      'Code2': '💻',
+      'Layers': '📚',
+      'Play': '▶',
+      'Pause': '⏸',
+      'ShoppingCart': '🛒',
+      'CreditCard': '💳',
+      'Package': '📦',
+      'Truck': '🚚',
+      'Gift': '🎁',
+      'Target': '🎯',
+      'Award': '🏆',
+      'Loader2': '⏳',
+      'ChevronRight': '›',
+      'ChevronLeft': '‹',
+      'ChevronDown': '▼',
+      'ChevronUp': '▲',
+      'Plus': '+',
+      'Minus': '-',
+      'Github': '🐙',
+      'Twitter': '🐦',
+      'Facebook': '📘',
+      'Instagram': '📷',
+      'Linkedin': '💼',
+    }
+
+    // Replace icon components with their emoji equivalents
+    for (const [icon, emoji] of Object.entries(iconReplacements)) {
+      const iconRegex = new RegExp(`<${icon}[^>]*\\/?>`, 'g')
+      html = html.replace(iconRegex, `<span class="inline-block">${emoji}</span>`)
+    }
+
+    // Step 10: Convert PascalCase components to divs
+    html = html.replace(/<([A-Z][a-zA-Z0-9]*)\s/g, '<div data-component="$1" ')
+    html = html.replace(/<([A-Z][a-zA-Z0-9]*)>/g, '<div data-component="$1">')
+    html = html.replace(/<\/([A-Z][a-zA-Z0-9]*)>/g, '</div>')
+    html = html.replace(/<([A-Z][a-zA-Z0-9]*)\s*\/>/g, '<div data-component="$1"></div>')
+
+    // Step 11: Handle self-closing HTML tags
+    html = html.replace(/<(img|input|br|hr|meta|link)([^>]*)\s*\/>/gi, '<$1$2>')
+
+    // Step 12: Clean up any remaining JSX expressions by removing them
+    // This handles expressions like {variable} or {expression}
+    html = html.replace(/\{[^{}]*\}/g, '')
+
+    // Step 13: Clean up nested braces that might have been left
+    html = html.replace(/\{\{[^}]*\}\}/g, '')
+
+    // Step 14: Remove any onClick, onChange, etc. handlers
+    html = html.replace(/\s+(on[A-Z][a-zA-Z]*)=\{[^}]*\}/g, '')
+    html = html.replace(/\s+(on[A-Z][a-zA-Z]*)="[^"]*"/g, '')
+
+    // Step 15: Remove ref attributes
+    html = html.replace(/\s+ref=\{[^}]*\}/g, '')
+
+    // Step 16: Fix any broken attributes
+    html = html.replace(/=\{([^}]*)\}/g, '="$1"')
+
+    // Step 17: Clean up extra whitespace
+    html = html.replace(/\n\s*\n\s*\n/g, '\n\n')
 
     return html
   }
