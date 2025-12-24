@@ -30,6 +30,8 @@ import { IntegrationsPanel } from '@/components/builder/IntegrationsPanel'
 import { DeploymentPanel } from '@/components/builder/DeploymentPanel'
 import { ComponentLibrary } from '@/components/builder/ComponentLibrary'
 import { PropertiesPanel } from '@/components/builder/PropertiesPanel'
+import { DraggableComponentList, parseComponentTree } from '@/components/builder/DraggableComponentList'
+import type { ComponentNode } from '@/components/builder/DraggableComponentList'
 
 interface ProjectFile {
   path: string
@@ -68,6 +70,8 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
   const [leftPanelMode, setLeftPanelMode] = useState<LeftPanelMode>('components')
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null)
   const [showPropertiesPanel, setShowPropertiesPanel] = useState(false)
+  const [componentTree, setComponentTree] = useState<ComponentNode[]>([])
+  const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null)
 
   // Handle saving user API keys
   async function handleSaveKeys(keys: Record<string, string>) {
@@ -158,6 +162,108 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
     setPreviewKey(k => k + 1)
   }, [selectedElement])
 
+  // Component tree handlers
+  const handleReorderComponents = useCallback((newComponents: ComponentNode[]) => {
+    setComponentTree(newComponents)
+    // In a real implementation, this would reorder components in the actual file
+    setPreviewKey(k => k + 1)
+  }, [])
+
+  const handleSelectComponent = useCallback((componentId: string) => {
+    setSelectedComponentId(componentId)
+    setShowPropertiesPanel(true)
+    // Find the component and set it as the selected element
+    const findComponent = (nodes: ComponentNode[]): ComponentNode | null => {
+      for (const node of nodes) {
+        if (node.id === componentId) return node
+        if (node.children) {
+          const found = findComponent(node.children)
+          if (found) return found
+        }
+      }
+      return null
+    }
+    const component = findComponent(componentTree)
+    if (component) {
+      setSelectedElement({
+        id: component.id,
+        type: component.type,
+        tagName: component.tagName,
+        className: '',
+        textContent: component.name,
+        styles: {},
+        attributes: {},
+      })
+    }
+  }, [componentTree])
+
+  const handleToggleComponentVisibility = useCallback((componentId: string) => {
+    setComponentTree(prev => {
+      const toggleVisibility = (nodes: ComponentNode[]): ComponentNode[] => {
+        return nodes.map(node => {
+          if (node.id === componentId) {
+            return { ...node, visible: !node.visible }
+          }
+          if (node.children) {
+            return { ...node, children: toggleVisibility(node.children) }
+          }
+          return node
+        })
+      }
+      return toggleVisibility(prev)
+    })
+    setPreviewKey(k => k + 1)
+  }, [])
+
+  const handleDuplicateComponent = useCallback((componentId: string) => {
+    setComponentTree(prev => {
+      const duplicateComponent = (nodes: ComponentNode[]): ComponentNode[] => {
+        const result: ComponentNode[] = []
+        for (const node of nodes) {
+          result.push(node)
+          if (node.id === componentId) {
+            result.push({
+              ...node,
+              id: `${node.id}-copy-${Date.now()}`,
+              name: `${node.name} (Copy)`,
+            })
+          }
+          if (node.children) {
+            result[result.length - 1] = {
+              ...result[result.length - 1],
+              children: duplicateComponent(node.children),
+            }
+          }
+        }
+        return result
+      }
+      return duplicateComponent(prev)
+    })
+    setPreviewKey(k => k + 1)
+  }, [])
+
+  const handleDeleteComponent = useCallback((componentId: string) => {
+    setComponentTree(prev => {
+      const deleteComponent = (nodes: ComponentNode[]): ComponentNode[] => {
+        return nodes
+          .filter(node => node.id !== componentId)
+          .map(node => {
+            if (node.children) {
+              return { ...node, children: deleteComponent(node.children) }
+            }
+            return node
+          })
+      }
+      return deleteComponent(prev)
+    })
+    if (selectedComponentId === componentId) {
+      setSelectedComponentId(null)
+      setSelectedElement(null)
+      setShowPropertiesPanel(false)
+    }
+    setPreviewKey(k => k + 1)
+  }, [selectedComponentId])
+
   // Load project files
   useEffect(() => {
     async function loadProject() {
@@ -170,11 +276,16 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
         setProjectType(data.project.type)
         setFiles(data.project.files || [])
 
-        // Select main page file
+        // Select main page file and parse component tree
         const mainFile = data.project.files?.find((f: ProjectFile) =>
           f.path.includes('page.tsx') || f.path.includes('App.tsx')
         )
-        if (mainFile) setSelectedFile(mainFile)
+        if (mainFile) {
+          setSelectedFile(mainFile)
+          // Parse component tree from the main file
+          const tree = parseComponentTree(mainFile.content)
+          setComponentTree(tree)
+        }
 
         setLoading(false)
       } catch (err: any) {
@@ -464,21 +575,28 @@ export default function BuilderPage({ params }: { params: { id: string } }) {
           <div className="w-64 bg-slate-900 border-r border-slate-700 flex flex-col">
             <div className="p-3 border-b border-slate-700">
               <h3 className="text-sm font-medium text-white">Page Layers</h3>
+              <p className="text-xs text-slate-500 mt-1">Drag to reorder components</p>
             </div>
-            <div className="flex-1 overflow-y-auto p-2">
-              {files.filter(f => f.path.includes('.tsx')).map((file, idx) => (
-                <div
-                  key={file.path}
-                  className="px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 rounded-lg cursor-pointer flex items-center gap-2"
-                  onClick={() => {
-                    setSelectedFile(file)
-                    setViewMode('code')
-                  }}
-                >
-                  <Layers className="w-4 h-4 text-slate-500" />
-                  <span className="truncate">{file.path.split('/').pop()}</span>
-                </div>
-              ))}
+            <div className="flex-1 overflow-y-auto">
+              <DraggableComponentList
+                components={componentTree}
+                onReorder={handleReorderComponents}
+                onSelect={handleSelectComponent}
+                onToggleVisibility={handleToggleComponentVisibility}
+                onDuplicate={handleDuplicateComponent}
+                onDelete={handleDeleteComponent}
+                selectedId={selectedComponentId || undefined}
+              />
+            </div>
+            <div className="p-3 border-t border-slate-700">
+              <div className="text-xs text-slate-500 space-y-1">
+                <p className="flex items-center gap-2">
+                  <span className="w-3 h-3 bg-slate-700 rounded" /> Drag to reorder
+                </p>
+                <p className="flex items-center gap-2">
+                  <Eye className="w-3 h-3" /> Toggle visibility
+                </p>
+              </div>
             </div>
           </div>
         )}
