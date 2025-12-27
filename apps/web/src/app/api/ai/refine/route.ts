@@ -105,7 +105,7 @@ Return ONLY the modified HTML. No explanations, no markdown code blocks, just th
 export async function POST(request: NextRequest) {
   try {
     // Check API key first
-    if (!apiKey) {
+    if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
         { error: 'OpenAI API key not configured' },
         { status: 503 }
