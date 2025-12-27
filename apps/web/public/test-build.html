@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Build Flow</title>
+  <style>
+    body { font-family: system-ui; padding: 40px; background: #1a1a1a; color: white; }
+    button { padding: 15px 30px; font-size: 16px; margin: 10px; cursor: pointer; border-radius: 8px; border: none; }
+    .primary { background: #7c3aed; color: white; }
+    .secondary { background: #374151; color: white; }
+    #log { background: #000; padding: 20px; margin-top: 20px; font-family: monospace; white-space: pre-wrap; max-height: 400px; overflow: auto; border-radius: 8px; }
+    input { padding: 10px; font-size: 16px; width: 300px; border-radius: 8px; border: 1px solid #374151; background: #111; color: white; }
+  </style>
+</head>
+<body>
+  <h1>Test Build Flow</h1>
+
+  <div>
+    <input type="text" id="prompt" value="modern coffee shop website" placeholder="Enter prompt">
+  </div>
+
+  <div style="margin: 20px 0;">
+    <label><input type="radio" name="theme" value="dark" checked> Dark Theme</label>
+    <label style="margin-left: 20px;"><input type="radio" name="theme" value="light"> Light Theme</label>
+  </div>
+
+  <button class="primary" onclick="testSessionStorage()">1. Test SessionStorage Flow</button>
+  <button class="secondary" onclick="testDirectAPI()">2. Test Direct API</button>
+  <button class="secondary" onclick="clearLog()">Clear Log</button>
+
+  <div id="log"></div>
+
+  <script>
+    function log(msg) {
+      const logDiv = document.getElementById('log');
+      logDiv.textContent += new Date().toISOString().slice(11, 19) + ' ' + msg + '\n';
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    function clearLog() {
+      document.getElementById('log').textContent = '';
+    }
+
+    function getPrompt() {
+      return document.getElementById('prompt').value;
+    }
+
+    function getTheme() {
+      return document.querySelector('input[name="theme"]:checked').value;
+    }
+
+    function testSessionStorage() {
+      const prompt = getPrompt();
+      const theme = getTheme();
+
+      log('=== Testing SessionStorage Flow ===');
+      log('Prompt: ' + prompt);
+      log('Theme: ' + theme);
+
+      // Clear any previous build state
+      sessionStorage.removeItem('build-started');
+
+      // Store in sessionStorage
+      sessionStorage.setItem('pending-prompt', prompt);
+      sessionStorage.setItem('pending-theme', theme);
+
+      // Verify
+      log('Stored prompt: ' + sessionStorage.getItem('pending-prompt'));
+      log('Stored theme: ' + sessionStorage.getItem('pending-theme'));
+
+      log('Navigating to /workspace in 1 second...');
+
+      setTimeout(() => {
+        window.location.href = '/workspace?new=true';
+      }, 1000);
+    }
+
+    async function testDirectAPI() {
+      const prompt = getPrompt();
+      const theme = getTheme();
+
+      log('=== Testing Direct API Call ===');
+      log('Prompt: ' + prompt);
+      log('Theme: ' + theme);
+
+      try {
+        const response = await fetch('/api/ai/build', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, theme })
+        });
+
+        log('Response status: ' + response.status);
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const text = decoder.decode(value);
+          const lines = text.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.type === 'status') {
+                  log('Stage: ' + data.phase + ' - ' + data.message);
+                } else if (data.type === 'complete') {
+                  log('COMPLETE! HTML length: ' + (data.code?.html?.length || 0));
+                  log('First 200 chars: ' + (data.code?.html?.substring(0, 200) || ''));
+                }
+              } catch (e) {}
+            }
+          }
+        }
+
+        log('=== Build finished ===');
+      } catch (err) {
+        log('ERROR: ' + err.message);
+      }
+    }
+  </script>
+</body>
+</html>

@@ -187,7 +187,26 @@ async function createRenderService(name: string, repoUrl: string): Promise<strin
     throw new Error('Render API key not configured')
   }
 
-  // Create web service
+  // First get the owner ID
+  const ownersRes = await fetch('https://api.render.com/v1/owners', {
+    headers: {
+      Authorization: `Bearer ${RENDER_API_KEY}`,
+      Accept: 'application/json',
+    },
+  })
+
+  if (!ownersRes.ok) {
+    throw new Error('Failed to get Render owner ID')
+  }
+
+  const owners = await ownersRes.json()
+  const ownerId = owners[0]?.owner?.id
+
+  if (!ownerId) {
+    throw new Error('No Render owner found')
+  }
+
+  // Create static site (simpler for HTML sites)
   const res = await fetch('https://api.render.com/v1/services', {
     method: 'POST',
     headers: {
@@ -196,21 +215,14 @@ async function createRenderService(name: string, repoUrl: string): Promise<strin
       Accept: 'application/json',
     },
     body: JSON.stringify({
-      type: 'web_service',
+      type: 'static_site',
       name,
+      ownerId,
       repo: repoUrl,
       branch: 'main',
       autoDeploy: 'yes',
       serviceDetails: {
-        env: 'node',
-        buildCommand: 'npm install && npm run build',
-        startCommand: 'npm start',
-        plan: 'starter',
-        region: 'oregon',
-        envSpecificDetails: {
-          buildCommand: 'npm install && npm run build',
-          startCommand: 'npm start',
-        },
+        publishPath: '.',
       },
     }),
   })

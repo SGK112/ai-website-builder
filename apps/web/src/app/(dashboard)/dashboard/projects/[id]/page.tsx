@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Download, Rocket, Trash2, Loader2 } from 'lucide-react'
+import { ArrowLeft, Download, Rocket, Trash2, Loader2, Mail } from 'lucide-react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { FileTree } from '@/components/builder/FileTree'
@@ -137,12 +138,18 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Link href={`/dashboard/projects/${params.id}/submissions`}>
+              <Button variant="outline" size="sm">
+                <Mail className="h-4 w-4 mr-2" />
+                Submissions
+              </Button>
+            </Link>
             <Button variant="outline" size="sm" onClick={handleDownload}>
               <Download className="h-4 w-4 mr-2" />
               Download
             </Button>
-            <DeploymentDialog 
-              projectId={params.id} 
+            <DeploymentDialog
+              projectId={params.id}
               projectName={project.name}
               onSuccess={fetchProject}
             />

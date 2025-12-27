@@ -1,7 +1,6 @@
 'use client'
 
 import { LucideIcon, FolderOpen, Rocket, Eye, CreditCard, TrendingUp, TrendingDown } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
 interface StatCardProps {
@@ -13,8 +12,7 @@ interface StatCardProps {
     value: number
     isPositive: boolean
   }
-  iconColor?: string
-  iconBgColor?: string
+  gradient?: string
 }
 
 export function StatCard({
@@ -23,45 +21,42 @@ export function StatCard({
   description,
   icon: Icon,
   trend,
-  iconColor = 'text-blue-600',
-  iconBgColor = 'bg-blue-100',
+  gradient = 'from-blue-500 to-cyan-500',
 }: StatCardProps) {
   return (
-    <Card className="overflow-hidden">
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg', iconBgColor)}>
-            <Icon className={cn('h-5 w-5', iconColor)} />
+    <div className="group relative p-5 rounded-3xl bg-white/[0.02] backdrop-blur-xl border border-white/[0.06] hover:bg-white/[0.04] hover:border-white/[0.1] transition-all duration-300">
+      {/* Glass highlight */}
+      <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-white/[0.04] via-transparent to-transparent pointer-events-none" />
+      <div className="relative">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm text-slate-400">{title}</p>
+          <div className={cn('flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br shadow-lg', gradient)}>
+            <Icon className="h-4 w-4 text-white" />
           </div>
         </div>
-        <div className="mt-3">
-          <p className="text-3xl font-bold tracking-tight">{value}</p>
-          {(description || trend) && (
-            <div className="mt-1 flex items-center gap-2">
-              {trend && (
-                <span
-                  className={cn(
-                    'inline-flex items-center gap-0.5 text-xs font-medium',
-                    trend.isPositive ? 'text-green-600' : 'text-red-600'
-                  )}
-                >
-                  {trend.isPositive ? (
-                    <TrendingUp className="h-3 w-3" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3" />
-                  )}
-                  {trend.value}%
-                </span>
+        <div className="flex items-end gap-2">
+          <p className="text-3xl font-bold text-white">{value}</p>
+          {trend && (
+            <span
+              className={cn(
+                'inline-flex items-center gap-0.5 text-xs font-medium mb-1',
+                trend.isPositive ? 'text-green-400' : 'text-red-400'
               )}
-              {description && (
-                <span className="text-xs text-muted-foreground">{description}</span>
+            >
+              {trend.isPositive ? (
+                <TrendingUp className="h-3 w-3" />
+              ) : (
+                <TrendingDown className="h-3 w-3" />
               )}
-            </div>
+              {trend.value}%
+            </span>
           )}
         </div>
-      </CardContent>
-    </Card>
+        {description && (
+          <span className="text-xs text-slate-500 mt-1">{description}</span>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -85,16 +80,14 @@ export function DashboardStats({ stats }: DashboardStatsProps) {
         description="All time"
         icon={FolderOpen}
         trend={stats.projectsTrend ? { value: stats.projectsTrend, isPositive: stats.projectsTrend > 0 } : undefined}
-        iconColor="text-blue-600"
-        iconBgColor="bg-blue-100"
+        gradient="from-blue-500 to-cyan-500"
       />
       <StatCard
         title="Deployed"
         value={stats.deployedProjects}
         description={`${Math.round((stats.deployedProjects / Math.max(stats.totalProjects, 1)) * 100)}% of total`}
         icon={Rocket}
-        iconColor="text-green-600"
-        iconBgColor="bg-green-100"
+        gradient="from-green-500 to-emerald-500"
       />
       <StatCard
         title="Total Views"
@@ -102,22 +95,20 @@ export function DashboardStats({ stats }: DashboardStatsProps) {
         description="Last 30 days"
         icon={Eye}
         trend={stats.viewsTrend ? { value: stats.viewsTrend, isPositive: stats.viewsTrend > 0 } : undefined}
-        iconColor="text-purple-600"
-        iconBgColor="bg-purple-100"
+        gradient="from-purple-500 to-pink-500"
       />
       <StatCard
         title="Credits"
         value={stats.remainingCredits}
         description="Remaining"
         icon={CreditCard}
-        iconColor="text-orange-600"
-        iconBgColor="bg-orange-100"
+        gradient="from-orange-500 to-red-500"
       />
     </div>
   )
 }
 
-// Quick actions component
+// Quick actions component - Liquid Glass
 interface QuickAction {
   label: string
   icon: LucideIcon
@@ -137,10 +128,10 @@ export function QuickActions({ actions }: QuickActionsProps) {
           key={action.label}
           href={action.href}
           className={cn(
-            'inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors',
+            'inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-medium transition-all duration-200',
             action.variant === 'outline'
-              ? 'border border-input bg-background hover:bg-accent hover:text-accent-foreground'
-              : 'bg-primary text-primary-foreground hover:bg-primary/90'
+              ? 'bg-white/[0.03] border border-white/[0.08] text-slate-300 hover:bg-white/[0.06] hover:text-white'
+              : 'bg-white text-black hover:bg-white/90 shadow-lg shadow-white/5'
           )}
         >
           <action.icon className="h-4 w-4" />

@@ -13,14 +13,17 @@ const router = new AIAgentRouter()
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
 
     await connectDB()
 
-    const projects = await Project.find({ userId: session.user.id })
+    // If logged in, show user's projects. Otherwise show all recent projects (dev mode)
+    const query = session?.user?.id
+      ? { userId: session.user.id }
+      : {} // Show all in dev mode
+
+    const projects = await Project.find(query)
       .sort({ updatedAt: -1 })
+      .limit(50)
       .select('-files.content') // Exclude large file contents from list
       .lean()
 
@@ -34,11 +37,12 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/projects - Create a new project and generate code
+// POST /api/projects - Create a new project (fast, no AI generation here)
+// AI generation happens in the builder via /api/ai/build
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    
+
     const body = await req.json()
     const { name, description, type, config, preferredAgent } = body
 
@@ -51,12 +55,12 @@ export async function POST(req: NextRequest) {
 
     await connectDB()
 
-    // Create project in "generating" status
     // Use session user ID or generate a temp ObjectId for anonymous demo usage
     const userId = session?.user?.id
       ? new mongoose.Types.ObjectId(session.user.id)
       : new mongoose.Types.ObjectId()
 
+    // Create project immediately - AI generation happens in the builder
     const project = await Project.create({
       userId,
       name,
@@ -64,7 +68,7 @@ export async function POST(req: NextRequest) {
       type,
       config: config || {},
       aiAgent: preferredAgent || 'claude',
-      status: 'generating',
+      status: 'ready', // Ready for the builder to start generating
       wizardStep: 5,
       wizardCompleted: true,
       generationPrompts: [],
@@ -73,104 +77,18 @@ export async function POST(req: NextRequest) {
       credentialIds: [],
     })
 
-    // Generate initial project structure in the background
-    // For now, we'll do it synchronously, but this could be moved to a job queue
-    try {
-      const generationPrompt = buildGenerationPrompt(type, name, config)
-      
-      const { decision, result } = await router.execute({
-        type: 'code-generation',
-        prompt: generationPrompt,
-        projectType: type,
-        preferredAgent: preferredAgent || 'claude',
-        stream: false,
-      })
+    console.log('Project created:', project._id)
 
-      let generatedContent: string
-      if (typeof result === 'string') {
-        generatedContent = result
-      } else {
-        // If it's an async generator, collect all chunks
-        const chunks: string[] = []
-        for await (const chunk of result as AsyncGenerator<string>) {
-          chunks.push(chunk)
-        }
-        generatedContent = chunks.join('')
-      }
-
-      // Parse generated content and extract files
-      const files = parseGeneratedFiles(generatedContent, decision.agent)
-
-      // Update project with generated files
-      project.files = files
-      project.status = 'ready'
-      project.aiAgent = decision.agent
-      project.generationPrompts.push(generationPrompt)
-      project.generationHistory.push({
-        timestamp: new Date(),
-        agent: decision.agent,
-        prompt: generationPrompt,
-        filesGenerated: files.map((f) => f.path),
-      })
-
-      await project.save()
-
-      return NextResponse.json({
-        success: true,
-        project: {
-          _id: project._id,
-          name: project.name,
-          type: project.type,
-          status: project.status,
-          filesCount: files.length,
-          files: files,
-        },
-      })
-    } catch (genError: any) {
-      console.error('Generation error:', genError?.message || genError)
-
-      // If AI generation fails for any reason, use fallback templates
-      // This includes missing API keys, network errors, rate limits, etc.
-      const shouldUseFallback = true // Always fall back to templates on error
-
-      if (shouldUseFallback) {
-        console.log('Using fallback templates due to AI generation error')
-        const fallbackFiles = generateFallbackFiles(type, name, config || {})
-
-        project.files = fallbackFiles
-        project.status = 'ready'
-        project.aiAgent = 'claude' // Mark as template-generated
-        project.generationHistory.push({
-          timestamp: new Date(),
-          agent: 'template' as any,
-          prompt: 'Fallback template (AI API keys not configured)',
-          filesGenerated: fallbackFiles.map((f) => f.path),
-        })
-
-        await project.save()
-
-        return NextResponse.json({
-          success: true,
-          project: {
-            _id: project._id,
-            name: project.name,
-            type: project.type,
-            status: project.status,
-            filesCount: fallbackFiles.length,
-            files: fallbackFiles,
-            note: 'Generated with fallback templates. Configure AI API keys for AI-powered generation.',
-          },
-        })
-      }
-
-      project.status = 'failed'
-      await project.save()
-
-      return NextResponse.json(
-        { error: 'Failed to generate project files', projectId: project._id },
-        { status: 500 }
-      )
-    }
+    return NextResponse.json({
+      success: true,
+      project: {
+        _id: project._id,
+        name: project.name,
+        type: project.type,
+        status: project.status,
+        config: project.config,
+      },
+    })
   } catch (error) {
     console.error('POST project error:', error)
     return NextResponse.json(

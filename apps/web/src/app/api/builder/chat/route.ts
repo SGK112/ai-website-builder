@@ -1,31 +1,168 @@
 import { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 
-const BUILDER_SYSTEM_PROMPT = `You are Claude, an AI coding assistant integrated into a website builder platform. You help users modify and improve their websites through conversation.
+const BUILDER_SYSTEM_PROMPT = `You are Claude, an AI coding assistant integrated into a professional website builder platform. You help users modify and improve their websites through natural conversation.
 
-Your capabilities:
-1. Modify existing code files based on user requests
-2. Explain code and suggest improvements
-3. Add new features to their website
-4. Fix bugs and issues
-5. Improve styling and design
+## Your Core Capabilities
+1. **Code Modification** - Modify existing code files based on user requests
+2. **Feature Addition** - Add new functionality, sections, and components
+3. **Design Enhancement** - Improve styling, colors, typography, and layout
+4. **Bug Fixing** - Identify and fix issues in the code
+5. **Performance Optimization** - Improve loading speed and efficiency
+6. **Accessibility** - Ensure WCAG compliance and screen reader support
 
-When the user asks for code changes, respond with:
-1. A brief explanation of what you'll change
-2. The modified code in a structured format
+## Response Format
 
-For code changes, use this format:
+When providing code changes, use this EXACT format:
+
 \`\`\`file:path/to/file.tsx
-// The complete updated file content goes here
+// Complete file content here
 \`\`\`
 
-Always provide the COMPLETE file content, not just snippets. The user's builder will parse your response and extract file updates.
+**Critical Rules:**
+- Always provide the COMPLETE file content, never partial snippets
+- Use \`file:\` prefix followed by the relative path
+- One code block per file
+- Multiple files should have separate code blocks
 
-Be conversational and helpful. If the request is unclear, ask clarifying questions.`
+## Code Quality Guidelines
+
+1. **Modern Best Practices**
+   - Use React functional components with hooks
+   - Apply TypeScript where beneficial
+   - Follow ESLint/Prettier formatting
+   - Use semantic HTML elements
+
+2. **Styling Approach**
+   - Use Tailwind CSS utility classes
+   - Apply responsive breakpoints (sm:, md:, lg:, xl:)
+   - Include hover and focus states for interactivity
+   - Use CSS variables for theming when appropriate
+
+3. **Performance**
+   - Optimize images with proper sizing
+   - Lazy load non-critical content
+   - Minimize re-renders with proper React patterns
+   - Use appropriate loading states
+
+4. **Accessibility**
+   - Include proper ARIA labels
+   - Ensure keyboard navigation
+   - Maintain color contrast ratios
+   - Add alt text for images
+
+## Conversation Style
+
+- Be concise but thorough in explanations
+- Ask clarifying questions if the request is ambiguous
+- Explain the "why" behind changes, not just the "what"
+- Suggest improvements proactively when relevant
+- Break down complex changes into steps
+
+## Context Awareness
+
+You may receive:
+- \`currentFile\`: The file the user is currently viewing
+- \`selectedElement\`: An HTML element the user has selected in the visual editor
+- \`conversationHistory\`: Previous messages for context
+
+Prioritize changes to the current file and selected element when relevant.`
+
+// Determine the type of request to optimize the prompt
+function analyzeRequest(message: string): {
+  type: 'style' | 'feature' | 'content' | 'fix' | 'general'
+  priority: 'high' | 'medium' | 'low'
+} {
+  const lowerMessage = message.toLowerCase()
+
+  if (lowerMessage.includes('bug') || lowerMessage.includes('fix') || lowerMessage.includes('error') || lowerMessage.includes('broken')) {
+    return { type: 'fix', priority: 'high' }
+  }
+
+  if (lowerMessage.includes('style') || lowerMessage.includes('color') || lowerMessage.includes('design') ||
+      lowerMessage.includes('font') || lowerMessage.includes('spacing') || lowerMessage.includes('layout') ||
+      lowerMessage.includes('responsive') || lowerMessage.includes('mobile') || lowerMessage.includes('dark mode') ||
+      lowerMessage.includes('animation')) {
+    return { type: 'style', priority: 'medium' }
+  }
+
+  if (lowerMessage.includes('add') || lowerMessage.includes('create') || lowerMessage.includes('implement') ||
+      lowerMessage.includes('feature') || lowerMessage.includes('section') || lowerMessage.includes('component')) {
+    return { type: 'feature', priority: 'medium' }
+  }
+
+  if (lowerMessage.includes('text') || lowerMessage.includes('content') || lowerMessage.includes('copy') ||
+      lowerMessage.includes('headline') || lowerMessage.includes('description')) {
+    return { type: 'content', priority: 'low' }
+  }
+
+  return { type: 'general', priority: 'medium' }
+}
+
+// Build optimized file context based on request type
+function buildFileContext(
+  files: Array<{ path: string; content: string }>,
+  requestType: string,
+  currentFile?: string
+): string {
+  if (!files || files.length === 0) return ''
+
+  // Sort files by relevance
+  const sortedFiles = [...files].sort((a, b) => {
+    // Current file always first
+    if (currentFile) {
+      if (a.path === currentFile) return -1
+      if (b.path === currentFile) return 1
+    }
+
+    // Page files are important
+    const aIsPage = a.path.includes('page.tsx') || a.path.includes('page.jsx')
+    const bIsPage = b.path.includes('page.tsx') || b.path.includes('page.jsx')
+    if (aIsPage && !bIsPage) return -1
+    if (!aIsPage && bIsPage) return 1
+
+    // For style requests, prioritize CSS files
+    if (requestType === 'style') {
+      const aIsCSS = a.path.endsWith('.css')
+      const bIsCSS = b.path.endsWith('.css')
+      if (aIsCSS && !bIsCSS) return -1
+      if (!aIsCSS && bIsCSS) return 1
+    }
+
+    return 0
+  })
+
+  // Limit context size
+  const maxFiles = 6
+  const relevantFiles = sortedFiles.slice(0, maxFiles)
+
+  return `\n\n## Current Project Files\n\n${relevantFiles.map((f) =>
+    `### ${f.path}\n\`\`\`${getFileExtension(f.path)}\n${truncateContent(f.content, 3000)}\n\`\`\``
+  ).join('\n\n')}`
+}
+
+function getFileExtension(path: string): string {
+  const ext = path.split('.').pop()?.toLowerCase() || ''
+  const langMap: Record<string, string> = {
+    'tsx': 'tsx',
+    'ts': 'typescript',
+    'jsx': 'jsx',
+    'js': 'javascript',
+    'css': 'css',
+    'html': 'html',
+    'json': 'json',
+  }
+  return langMap[ext] || ext
+}
+
+function truncateContent(content: string, maxLength: number): string {
+  if (content.length <= maxLength) return content
+  return content.slice(0, maxLength) + '\n\n// ... (truncated for brevity)'
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, files, projectName, conversationHistory } = await req.json()
+    const { message, files, projectName, conversationHistory, currentFile, selectedElement } = await req.json()
 
     if (!message || typeof message !== 'string') {
       return new Response(JSON.stringify({ error: 'Message is required' }), {
@@ -44,24 +181,34 @@ export async function POST(req: NextRequest) {
 
     const client = new Anthropic({ apiKey })
 
-    // Build context with current project files
-    const fileContext = files?.length > 0
-      ? `\n\nCurrent Project Files:\n${files.map((f: { path: string; content: string }) =>
-        `--- ${f.path} ---\n${f.content}\n`
-      ).join('\n')}`
-      : ''
+    // Analyze the request type
+    const { type: requestType } = analyzeRequest(message)
 
-    const systemPrompt = `${BUILDER_SYSTEM_PROMPT}
+    // Build optimized file context
+    const fileContext = buildFileContext(files || [], requestType, currentFile)
 
-Project: ${projectName || 'Untitled Project'}
-${fileContext}`
+    // Build context info
+    let contextInfo = `\n\n## Project Context\n- **Project Name:** ${projectName || 'Untitled Project'}`
+
+    if (currentFile) {
+      contextInfo += `\n- **Currently Viewing:** ${currentFile}`
+    }
+
+    if (selectedElement) {
+      contextInfo += `\n- **Selected Element:** <${selectedElement.tagName?.toLowerCase() || 'unknown'}${
+        selectedElement.className ? ` class="${selectedElement.className}"` : ''
+      }>${selectedElement.textContent ? ` (contains: "${selectedElement.textContent.slice(0, 50)}...")` : ''}`
+    }
+
+    const systemPrompt = `${BUILDER_SYSTEM_PROMPT}${contextInfo}${fileContext}`
 
     // Build conversation messages
     const messages: { role: 'user' | 'assistant'; content: string }[] = []
 
-    // Add conversation history
+    // Add conversation history (limit to last 10 messages to save tokens)
     if (conversationHistory?.length > 0) {
-      for (const msg of conversationHistory) {
+      const recentHistory = conversationHistory.slice(-10)
+      for (const msg of recentHistory) {
         messages.push({
           role: msg.role as 'user' | 'assistant',
           content: msg.content
