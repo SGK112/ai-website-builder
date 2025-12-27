@@ -5,13 +5,23 @@ import { SYSTEM_PROMPTS } from '../prompts/templates'
 export class OpenAIAgent implements AIAgent {
   name = 'OpenAI'
   provider = 'openai' as const
-  private client: OpenAI
+  private client: OpenAI | null = null
   private model = 'gpt-4o'
 
   constructor() {
-    this.client = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    })
+    // Lazy initialization - don't create client in constructor
+  }
+
+  private getClient(): OpenAI {
+    if (!this.client) {
+      if (!process.env.OPENAI_API_KEY) {
+        throw new Error('OPENAI_API_KEY is not configured. AI generation is disabled.')
+      }
+      this.client = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      })
+    }
+    return this.client
   }
 
   async generate(prompt: string, context?: string): Promise<GenerationResult> {
@@ -25,7 +35,7 @@ export class OpenAIAgent implements AIAgent {
       { role: 'user', content: prompt },
     ]
 
-    const response = await this.client.chat.completions.create({
+    const response = await this.getClient().chat.completions.create({
       model: this.model,
       messages,
       max_tokens: 4096,
@@ -55,7 +65,7 @@ export class OpenAIAgent implements AIAgent {
       { role: 'user', content: prompt },
     ]
 
-    const stream = await this.client.chat.completions.create({
+    const stream = await this.getClient().chat.completions.create({
       model: this.model,
       messages,
       max_tokens: 4096,
@@ -79,7 +89,7 @@ export class OpenAIAgent implements AIAgent {
       })
     )
 
-    const response = await this.client.chat.completions.create({
+    const response = await this.getClient().chat.completions.create({
       model: this.model,
       messages: openaiMessages,
       max_tokens: 2048,
@@ -97,7 +107,7 @@ export class OpenAIAgent implements AIAgent {
       })
     )
 
-    const stream = await this.client.chat.completions.create({
+    const stream = await this.getClient().chat.completions.create({
       model: this.model,
       messages: openaiMessages,
       max_tokens: 2048,

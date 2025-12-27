@@ -5,15 +5,25 @@ import { SYSTEM_PROMPTS } from '../prompts/templates'
 export class GeminiAgent implements AIAgent {
   name = 'Gemini'
   provider = 'google' as const
-  private client: GoogleGenerativeAI
+  private client: GoogleGenerativeAI | null = null
   private modelName = 'gemini-1.5-pro'
 
   constructor() {
-    this.client = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!)
+    // Lazy initialization - don't create client in constructor
+  }
+
+  private getClient(): GoogleGenerativeAI {
+    if (!this.client) {
+      if (!process.env.GOOGLE_AI_API_KEY) {
+        throw new Error('GOOGLE_AI_API_KEY is not configured. AI generation is disabled.')
+      }
+      this.client = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY)
+    }
+    return this.client
   }
 
   async generate(prompt: string, context?: string): Promise<GenerationResult> {
-    const model = this.client.getGenerativeModel({
+    const model = this.getClient().getGenerativeModel({
       model: this.modelName,
       generationConfig: {
         maxOutputTokens: 8192,
@@ -41,7 +51,7 @@ export class GeminiAgent implements AIAgent {
   }
 
   async *streamGenerate(prompt: string, context?: string): AsyncGenerator<string> {
-    const model = this.client.getGenerativeModel({
+    const model = this.getClient().getGenerativeModel({
       model: this.modelName,
       generationConfig: {
         maxOutputTokens: 8192,
@@ -61,7 +71,7 @@ export class GeminiAgent implements AIAgent {
   }
 
   async chat(messages: ChatMessage[]): Promise<string> {
-    const model = this.client.getGenerativeModel({ model: this.modelName })
+    const model = this.getClient().getGenerativeModel({ model: this.modelName })
 
     const history = messages.slice(0, -1).map((msg) => ({
       role: msg.role === 'assistant' ? 'model' : ('user' as const),
@@ -76,7 +86,7 @@ export class GeminiAgent implements AIAgent {
   }
 
   async *streamChat(messages: ChatMessage[]): AsyncGenerator<string> {
-    const model = this.client.getGenerativeModel({ model: this.modelName })
+    const model = this.getClient().getGenerativeModel({ model: this.modelName })
 
     const history = messages.slice(0, -1).map((msg) => ({
       role: msg.role === 'assistant' ? 'model' : ('user' as const),
