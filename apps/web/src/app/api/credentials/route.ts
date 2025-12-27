@@ -5,7 +5,17 @@ import { connectDB } from '@/lib/db'
 import { Credential } from '@ai-website-builder/database'
 import { EncryptionService } from '@ai-website-builder/shared'
 
-const encryptionService = new EncryptionService()
+// Lazy initialization to avoid build-time errors
+let encryptionService: EncryptionService | null = null
+function getEncryptionService(): EncryptionService {
+  if (!encryptionService) {
+    if (!process.env.ENCRYPTION_KEY || process.env.ENCRYPTION_KEY.length < 32) {
+      throw new Error('ENCRYPTION_KEY must be configured with at least 32 characters')
+    }
+    encryptionService = new EncryptionService()
+  }
+  return encryptionService
+}
 
 // GET /api/credentials - Get user's credentials (keys masked)
 export async function GET(req: NextRequest) {
@@ -70,7 +80,7 @@ export async function POST(req: NextRequest) {
         if (!typeInfo) continue
 
         // Encrypt the credential value
-        const encryptedValue = encryptionService.encrypt(value as string)
+        const encryptedValue = getEncryptionService().encrypt(value as string)
 
         // Upsert credential
         await Credential.findOneAndUpdate(
