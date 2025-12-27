@@ -262,6 +262,237 @@ export const TEMPLATE_CONFIGS = {
     features: ['Course builder', 'Video hosting', 'Quiz system', 'Progress tracking', 'Certificates'],
     colorScheme: { primary: '#dc2626', secondary: '#b91c1c', accent: '#0ea5e9' },
   },
+
+  // Construction & Home Services
+  'construction-company': {
+    name: 'Construction Company',
+    category: 'business-portfolio',
+    description: 'Building and renovation services',
+    features: ['Project showcase', 'Services list', 'Quote request form', 'Before/after gallery', 'Testimonials'],
+    colorScheme: { primary: '#f97316', secondary: '#ea580c', accent: '#fbbf24' },
+  },
+  'home-renovation': {
+    name: 'Home Renovation',
+    category: 'business-portfolio',
+    description: 'Kitchen, bath, and home remodeling',
+    features: ['Before/after gallery', 'Service areas map', 'Free estimates form', 'Portfolio', 'Reviews'],
+    colorScheme: { primary: '#84cc16', secondary: '#65a30d', accent: '#f59e0b' },
+  },
+
+  // Automotive
+  'auto-dealership': {
+    name: 'Auto Dealership',
+    category: 'ecommerce',
+    description: 'Car sales and inventory',
+    features: ['Vehicle inventory', 'Finance calculator', 'Trade-in form', 'Specials', 'Test drive booking'],
+    colorScheme: { primary: '#1e40af', secondary: '#1d4ed8', accent: '#ef4444' },
+  },
+  'auto-repair': {
+    name: 'Auto Repair Shop',
+    category: 'business-portfolio',
+    description: 'Mechanic and auto service',
+    features: ['Service menu', 'Online booking', 'Specials', 'Reviews', 'Location map'],
+    colorScheme: { primary: '#dc2626', secondary: '#b91c1c', accent: '#fbbf24' },
+  },
+
+  // Wellness & Beauty
+  'spa-wellness': {
+    name: 'Spa & Wellness',
+    category: 'business-portfolio',
+    description: 'Relaxation and self-care services',
+    features: ['Treatment menu', 'Online booking', 'Gift cards', 'Packages', 'Staff profiles'],
+    colorScheme: { primary: '#ec4899', secondary: '#db2777', accent: '#f0abfc' },
+  },
+  'hair-salon': {
+    name: 'Hair Salon',
+    category: 'business-portfolio',
+    description: 'Hair styling and beauty services',
+    features: ['Service menu', 'Stylist profiles', 'Online booking', 'Gallery', 'Reviews'],
+    colorScheme: { primary: '#a855f7', secondary: '#9333ea', accent: '#fbbf24' },
+  },
+
+  // Nonprofit & Community
+  'nonprofit-charity': {
+    name: 'Nonprofit Organization',
+    category: 'business-portfolio',
+    description: 'Charity and fundraising',
+    features: ['Donation form', 'Impact stories', 'Volunteer signup', 'Events', 'Newsletter'],
+    colorScheme: { primary: '#10b981', secondary: '#059669', accent: '#f59e0b' },
+  },
+  'church-ministry': {
+    name: 'Church & Ministry',
+    category: 'business-portfolio',
+    description: 'Religious organization website',
+    features: ['Service times', 'Sermon archive', 'Events calendar', 'Give online', 'Connect groups'],
+    colorScheme: { primary: '#6366f1', secondary: '#4f46e5', accent: '#fcd34d' },
+  },
+
+  // Event & Entertainment
+  'event-venue': {
+    name: 'Event Venue',
+    category: 'business-portfolio',
+    description: 'Wedding and event space',
+    features: ['Virtual tour', 'Availability calendar', 'Package pricing', 'Gallery', 'Book tour form'],
+    colorScheme: { primary: '#d946ef', secondary: '#c026d3', accent: '#fbbf24' },
+  },
+  'wedding-planner': {
+    name: 'Wedding Planner',
+    category: 'business-portfolio',
+    description: 'Wedding planning services',
+    features: ['Service packages', 'Real weddings gallery', 'Vendor list', 'Contact form', 'Blog'],
+    colorScheme: { primary: '#f43f5e', secondary: '#e11d48', accent: '#fcd34d' },
+  },
+
+  // Fitness & Sports
+  'fitness-gym': {
+    name: 'Fitness Gym',
+    category: 'business-portfolio',
+    description: 'Gym and fitness center',
+    features: ['Class schedule', 'Membership plans', 'Trainer profiles', 'Virtual tour', 'Free trial form'],
+    colorScheme: { primary: '#ef4444', secondary: '#dc2626', accent: '#22c55e' },
+  },
+  'yoga-studio': {
+    name: 'Yoga Studio',
+    category: 'business-portfolio',
+    description: 'Yoga and meditation center',
+    features: ['Class schedule', 'Instructor bios', 'Online booking', 'Workshops', 'Retreats'],
+    colorScheme: { primary: '#14b8a6', secondary: '#0d9488', accent: '#fcd34d' },
+  },
+
+  // Professional Services
+  'accounting-firm': {
+    name: 'Accounting Firm',
+    category: 'business-portfolio',
+    description: 'CPA and tax services',
+    features: ['Service list', 'Team profiles', 'Client portal link', 'Resources', 'Contact form'],
+    colorScheme: { primary: '#0369a1', secondary: '#0284c7', accent: '#22c55e' },
+  },
+  'consulting-agency': {
+    name: 'Consulting Agency',
+    category: 'business-portfolio',
+    description: 'Business consulting services',
+    features: ['Case studies', 'Service areas', 'Team profiles', 'Insights blog', 'Contact form'],
+    colorScheme: { primary: '#1e3a8a', secondary: '#1e40af', accent: '#f59e0b' },
+  },
+
+  // Pet Services
+  'pet-grooming': {
+    name: 'Pet Grooming',
+    category: 'business-portfolio',
+    description: 'Pet grooming and care',
+    features: ['Service menu', 'Online booking', 'Pet gallery', 'Loyalty program', 'Reviews'],
+    colorScheme: { primary: '#f97316', secondary: '#ea580c', accent: '#84cc16' },
+  },
+  'veterinary-clinic': {
+    name: 'Veterinary Clinic',
+    category: 'business-portfolio',
+    description: 'Animal hospital and care',
+    features: ['Services', 'Emergency info', 'Pet portal link', 'Team profiles', 'Location'],
+    colorScheme: { primary: '#059669', secondary: '#047857', accent: '#3b82f6' },
+  },
+
+  // E-commerce Specialty
+  'jewelry-store': {
+    name: 'Jewelry Store',
+    category: 'ecommerce',
+    description: 'Fine jewelry and accessories',
+    features: ['Product catalog', 'Custom orders form', 'Gift registry', 'Care guide', 'Reviews'],
+    colorScheme: { primary: '#1c1917', secondary: '#292524', accent: '#d4af37' },
+  },
+  'organic-market': {
+    name: 'Organic Market',
+    category: 'ecommerce',
+    description: 'Organic food and wellness products',
+    features: ['Product categories', 'Subscription boxes', 'Local delivery', 'Blog', 'Recipes'],
+    colorScheme: { primary: '#15803d', secondary: '#166534', accent: '#fbbf24' },
+  },
+
+  // Technology & SaaS
+  'ai-startup': {
+    name: 'AI Startup',
+    category: 'saas',
+    description: 'AI-powered product landing',
+    features: ['Demo video', 'Feature highlights', 'API docs link', 'Pricing', 'Waitlist form'],
+    colorScheme: { primary: '#7c3aed', secondary: '#6d28d9', accent: '#06b6d4' },
+  },
+  'developer-tools': {
+    name: 'Developer Tools',
+    category: 'saas',
+    description: 'Developer productivity platform',
+    features: ['Documentation', 'GitHub integration', 'Changelog', 'Community forum', 'Pricing'],
+    colorScheme: { primary: '#0f172a', secondary: '#1e293b', accent: '#22d3ee' },
+  },
+}
+
+// Industry-specific prompts for better website generation
+export const INDUSTRY_PROMPTS = {
+  construction: `
+Generate a professional construction/contractor website with:
+- Hero section with project imagery and "Get a Free Quote" CTA
+- Services grid (residential, commercial, renovations)
+- Project gallery with before/after images
+- Testimonials from satisfied customers
+- Contact form with project type selector
+- Trust badges (licensed, bonded, insured)
+- Service area map
+`,
+
+  restaurant: `
+Generate an appetizing restaurant website with:
+- Hero section with mouthwatering food photography
+- Menu sections (appetizers, mains, desserts, drinks)
+- Online reservation system
+- Photo gallery of dishes and ambiance
+- Location with embedded map
+- Hours of operation
+- Special events/private dining info
+`,
+
+  healthcare: `
+Generate a trustworthy healthcare website with:
+- Hero section emphasizing patient care
+- Services/specialties grid
+- Provider profiles with credentials
+- Patient resources section
+- Online appointment booking
+- Insurance information
+- Contact with location map
+- HIPAA compliant design considerations
+`,
+
+  fitness: `
+Generate an energetic fitness website with:
+- Dynamic hero with action imagery
+- Class schedule with filtering
+- Membership plans comparison
+- Trainer profiles with specialties
+- Virtual tour embed
+- Free trial/first class offer
+- Testimonials and transformations
+- Location and hours
+`,
+
+  ecommerce: `
+Generate a conversion-optimized e-commerce website with:
+- Hero section with featured products
+- Category navigation
+- Product grid with quick view
+- Trust badges (secure checkout, returns, shipping)
+- Customer reviews section
+- Newsletter signup with discount offer
+- Footer with policies and support links
+`,
+
+  saas: `
+Generate a modern SaaS landing page with:
+- Hero section with product screenshot
+- Feature highlights with icons
+- Pricing table with comparison
+- Social proof (logos, testimonials, stats)
+- FAQ section
+- CTA sections throughout
+- Demo/trial signup form
+`,
 }
 
 export type TemplateKey = keyof typeof TEMPLATE_CONFIGS
