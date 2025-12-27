@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 
-// Validate API key exists
-const apiKey = process.env.OPENAI_API_KEY
-if (!apiKey) {
-  console.warn('Warning: OPENAI_API_KEY not configured')
+// Lazy initialization to avoid build-time errors
+let openaiClient: OpenAI | null = null
+function getOpenAI(): OpenAI {
+  if (!openaiClient) {
+    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || '' })
+  }
+  return openaiClient
 }
-
-const openai = new OpenAI({
-  apiKey: apiKey || '',
-})
 
 interface RefineRequest {
   prompt: string
@@ -168,7 +167,7 @@ export async function POST(request: NextRequest) {
 
           send({ type: 'update', message: 'Applying changes...' })
 
-          const completion = await openai.chat.completions.create({
+          const completion = await getOpenAI().chat.completions.create({
             model: 'gpt-4o',
             messages,
             temperature: 0.3, // Lower temperature for more consistent output

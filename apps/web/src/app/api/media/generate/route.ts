@@ -4,9 +4,14 @@ import { authOptions } from '@/lib/auth'
 import { getClient } from '@/lib/mongodb'
 import OpenAI from 'openai'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || '',
-})
+// Lazy initialization to avoid build-time errors
+let openaiClient: OpenAI | null = null
+function getOpenAI(): OpenAI {
+  if (!openaiClient) {
+    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || '' })
+  }
+  return openaiClient
+}
 
 // Aspect ratio to DALL-E size mapping
 const ASPECT_RATIO_SIZES: Record<string, '1024x1024' | '1792x1024' | '1024x1792'> = {
@@ -61,7 +66,7 @@ export async function POST(request: NextRequest) {
     const size = ASPECT_RATIO_SIZES[aspectRatio] || '1792x1024'
 
     // Generate with DALL-E 3
-    const response = await openai.images.generate({
+    const response = await getOpenAI().images.generate({
       model: 'dall-e-3',
       prompt: enhancedPrompt,
       n: 1,

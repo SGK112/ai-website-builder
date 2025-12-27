@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+// Lazy initialization of OpenAI client to avoid build-time errors
+let openaiClient: OpenAI | null = null
+function getOpenAIClient(): OpenAI | null {
+  if (!process.env.OPENAI_API_KEY) return null
+  if (!openaiClient) {
+    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  }
+  return openaiClient
+}
 
 // Provider availability check
 function getAvailableProviders() {
@@ -79,6 +85,12 @@ async function generateWithFlux(prompt: string, width: number, height: number): 
 // Generate with DALL-E 3
 async function generateWithDalle(prompt: string, size: '1024x1024' | '1792x1024' | '1024x1792'): Promise<{ url: string; provider: string; revised_prompt?: string } | null> {
   console.log('[ImageGen] Generating with DALL-E 3...')
+
+  const openai = getOpenAIClient()
+  if (!openai) {
+    console.error('[ImageGen] OpenAI client not available')
+    return null
+  }
 
   try {
     const response = await openai.images.generate({
