@@ -1,6 +1,8 @@
 // Unified Media Library
 export { UnifiedMediaLibrary } from './UnifiedMediaLibrary'
 export { MediaPickerModal } from './MediaPickerModal'
+export { ImageDropOverlay, generateImageLayoutHtml } from './ImageDropOverlay'
+export type { ImageLayout } from './ImageDropOverlay'
 
 // Types
 export interface MediaItem {

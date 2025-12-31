@@ -308,6 +308,191 @@ function VolumetricCloud({ className, scale = 1, opacity = 1 }: { className?: st
   )
 }
 
+// Day/Night Timelapse with dial motion - sun and moon arc across the sky
+export function DayNightCycle() {
+  const cycleDuration = 20 // 20 seconds per full cycle
+
+  // Pre-generate star positions
+  const stars = useMemo(() =>
+    Array.from({ length: 40 }).map((_, i) => ({
+      id: i,
+      left: Math.random() * 100,
+      top: Math.random() * 50,
+      size: Math.random() * 2 + 1,
+    })), []
+  )
+
+  // Arc radius for the dial motion (relative to container center)
+  const arcRadius = 42 // percentage of container height
+
+  return (
+    <div className="absolute inset-0 overflow-hidden">
+      {/* Sky gradient - smooth day to night transition */}
+      <motion.div
+        className="absolute inset-0"
+        animate={{
+          background: [
+            // Sunrise (sun rising from left)
+            'linear-gradient(to bottom, #fcd34d 0%, #fb923c 30%, #f97316 60%, #ea580c 100%)',
+            // Day (sun at top)
+            'linear-gradient(to bottom, #0ea5e9 0%, #38bdf8 40%, #7dd3fc 70%, #bae6fd 100%)',
+            // Sunset (sun setting to right)
+            'linear-gradient(to bottom, #7c3aed 0%, #c026d3 30%, #f43f5e 60%, #fb923c 100%)',
+            // Night (moon rising)
+            'linear-gradient(to bottom, #020617 0%, #0f172a 40%, #1e1b4b 70%, #312e81 100%)',
+            // Late night (moon at top)
+            'linear-gradient(to bottom, #020617 0%, #0c1222 30%, #1e1b4b 60%, #312e81 100%)',
+            // Back to Sunrise
+            'linear-gradient(to bottom, #fcd34d 0%, #fb923c 30%, #f97316 60%, #ea580c 100%)',
+          ]
+        }}
+        transition={{
+          duration: cycleDuration,
+          repeat: Infinity,
+          ease: 'linear',
+          times: [0, 0.2, 0.4, 0.6, 0.8, 1]
+        }}
+      />
+
+      {/* Sun - arcs from left horizon, across top, to right horizon (half circle) */}
+      <motion.div
+        className="absolute"
+        style={{
+          zIndex: 10,
+          bottom: '10%',
+          left: '50%',
+          transformOrigin: 'center bottom',
+        }}
+        animate={{
+          // Arc motion: rotate from -90deg (left horizon) to 90deg (right horizon)
+          rotate: [-90, 0, 90, 90, 90, -90],
+          opacity: [1, 1, 1, 0, 0, 1],
+        }}
+        transition={{
+          duration: cycleDuration,
+          repeat: Infinity,
+          ease: 'linear',
+          times: [0, 0.2, 0.4, 0.5, 0.9, 1]
+        }}
+      >
+        <div
+          style={{
+            transform: `translateX(-50%) translateY(-${arcRadius}vh)`,
+          }}
+        >
+          <div
+            className="w-20 h-20 sm:w-24 sm:h-24 rounded-full"
+            style={{
+              background: 'radial-gradient(circle at 30% 30%, #FFF 0%, #FDE68A 40%, #FBBF24 70%, #F59E0B 100%)',
+              boxShadow: '0 0 60px 20px rgba(251,191,36,0.5), 0 0 100px 40px rgba(251,191,36,0.3)',
+            }}
+          />
+        </div>
+      </motion.div>
+
+      {/* Moon - arcs from left horizon, across top, to right horizon (half circle) */}
+      <motion.div
+        className="absolute"
+        style={{
+          zIndex: 10,
+          bottom: '10%',
+          left: '50%',
+          transformOrigin: 'center bottom',
+        }}
+        animate={{
+          // Arc motion for moon (opposite timing of sun)
+          rotate: [-90, -90, -90, 0, 90, -90],
+          opacity: [0, 0, 0, 1, 1, 0],
+        }}
+        transition={{
+          duration: cycleDuration,
+          repeat: Infinity,
+          ease: 'linear',
+          times: [0, 0.4, 0.5, 0.7, 0.9, 1]
+        }}
+      >
+        <div
+          style={{
+            transform: `translateX(-50%) translateY(-${arcRadius}vh)`,
+          }}
+        >
+          <div
+            className="w-16 h-16 sm:w-20 sm:h-20 rounded-full"
+            style={{
+              background: 'radial-gradient(circle at 35% 35%, #f8fafc 0%, #e2e8f0 50%, #cbd5e1 100%)',
+              boxShadow: '0 0 40px 15px rgba(241,245,249,0.4), 0 0 80px 30px rgba(241,245,249,0.2)',
+            }}
+          />
+        </div>
+      </motion.div>
+
+      {/* Stars - only visible at night */}
+      <motion.div
+        className="absolute inset-0"
+        style={{ zIndex: 5 }}
+        animate={{ opacity: [0, 0, 0, 0.8, 1, 0] }}
+        transition={{
+          duration: cycleDuration,
+          repeat: Infinity,
+          times: [0, 0.35, 0.5, 0.6, 0.8, 1]
+        }}
+      >
+        {stars.map((star) => (
+          <motion.div
+            key={star.id}
+            className="absolute rounded-full bg-white"
+            style={{
+              left: `${star.left}%`,
+              top: `${star.top}%`,
+              width: star.size,
+              height: star.size,
+            }}
+            animate={{ opacity: [0.3, 1, 0.3] }}
+            transition={{ duration: 2 + Math.random(), repeat: Infinity, delay: star.id * 0.05 }}
+          />
+        ))}
+      </motion.div>
+
+      {/* Horizon line for visual reference */}
+      <div
+        className="absolute left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
+        style={{ bottom: '10%', zIndex: 15 }}
+      />
+
+      {/* Time indicator at bottom */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+        <motion.div
+          className="flex items-center gap-2 px-4 py-2 rounded-full bg-black/40 backdrop-blur-sm border border-white/10"
+          animate={{
+            backgroundColor: [
+              'rgba(251,191,36,0.4)',
+              'rgba(14,165,233,0.4)',
+              'rgba(192,38,211,0.4)',
+              'rgba(15,23,42,0.6)',
+              'rgba(30,27,75,0.6)',
+              'rgba(251,191,36,0.4)',
+            ]
+          }}
+          transition={{
+            duration: cycleDuration,
+            repeat: Infinity,
+            times: [0, 0.2, 0.4, 0.6, 0.8, 1]
+          }}
+        >
+          <motion.span
+            className="text-xl"
+            animate={{ rotate: [0, 360] }}
+            transition={{ duration: cycleDuration, repeat: Infinity, ease: 'linear' }}
+          >
+            🌍
+          </motion.span>
+          <span className="text-white text-sm font-medium">Building 24/7</span>
+        </motion.div>
+      </div>
+    </div>
+  )
+}
+
 // Sunrise Background
 export function SunriseBackground() {
   return (

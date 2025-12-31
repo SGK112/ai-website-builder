@@ -46,7 +46,7 @@ export function WorkspaceNav() {
 
   // Extract project ID from pathname
   useEffect(() => {
-    const match = pathname.match(/\/(create|builder|editor)\/([a-f0-9]+)/)
+    const match = pathname.match(/\/(create|workspace|editor)\/([a-f0-9]+)/)
     if (match) {
       setCurrentProjectId(match[2])
     } else {
@@ -98,7 +98,7 @@ export function WorkspaceNav() {
   }, [])
 
   const currentProject = projects.find(p => p._id === currentProjectId)
-  const isInBuilder = pathname.startsWith('/create') || pathname.startsWith('/builder') || pathname.startsWith('/editor')
+  const isInBuilder = pathname.startsWith('/create') || pathname.startsWith('/workspace') || pathname.startsWith('/editor')
   const isHome = pathname === '/'
   const isDashboard = pathname.startsWith('/dashboard')
   const isMarketplace = pathname.startsWith('/marketplace')

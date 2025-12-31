@@ -812,3 +812,38 @@
   background: var(--theme-accent);
   color: white;
 }
+
+/* ============================================
+   ONBOARDING TOUR STYLES
+   ============================================ */
+
+.tour-highlight {
+  position: relative;
+  z-index: 101;
+  animation: tour-pulse 2s ease-in-out infinite;
+}
+
+@keyframes tour-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(139, 92, 246, 0); }
+}
+
+/* ============================================
+   BUILD PROGRESS INDICATOR
+   ============================================ */
+
+.build-phase {
+  @apply transition-all duration-500 ease-out;
+}
+
+.build-phase-active {
+  @apply text-violet-400 scale-105;
+}
+
+.build-phase-complete {
+  @apply text-emerald-400;
+}
+
+.build-phase-pending {
+  @apply text-zinc-500;
+}

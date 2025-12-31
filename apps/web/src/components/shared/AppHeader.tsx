@@ -34,7 +34,7 @@ export function AppHeader() {
 
   // Extract project ID from pathname
   useEffect(() => {
-    const match = pathname.match(/\/(create|builder)\/([a-f0-9]+)/)
+    const match = pathname.match(/\/(create|workspace)\/([a-f0-9]+)/)
     if (match) {
       setCurrentProjectId(match[2])
     } else {
@@ -61,7 +61,7 @@ export function AppHeader() {
   }, [])
 
   const currentProject = projects.find(p => p._id === currentProjectId)
-  const isInBuilder = pathname.startsWith('/create') || pathname.startsWith('/builder')
+  const isInBuilder = pathname.startsWith('/create') || pathname.startsWith('/workspace')
   const isHome = pathname === '/'
   const isDashboard = pathname.startsWith('/dashboard')
 

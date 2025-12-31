@@ -128,7 +128,7 @@ import { WebStewPanel, StewIngredient } from '@/components/WebStew'
 import { OnboardingTour } from '@/components/onboarding'
 import { MonacoCodeEditor } from '@/components/editor'
 import { StylePresetPicker, ComponentPicker } from '@/components/builder'
-import { stylePresets, StylePreset, generatePresetStyles } from '@/lib/builder/style-presets'
+import { stylePresets, StylePreset, generatePresetStyles, applyThemeToHtml, generateAllThemesStyles } from '@/lib/builder/style-presets'
 import { componentLibrary, ComponentSection, assemblePage } from '@/lib/builder/component-library'
 import { imageService, getUnsplashImage, enhanceImagesInHtml } from '@/lib/builder/image-service'
 import { ChefLoader } from '@/components/loading'
@@ -3427,21 +3427,16 @@ body { cursor: crosshair !important; }
               <span className="hidden sm:inline">Images</span>
             </button>
 
-            {/* Style Preset Picker */}
+            {/* Style Preset Picker - Auto-applies on selection */}
             <StylePresetPicker
               selected={selectedPreset}
               onChange={(preset) => {
                 setSelectedPreset(preset.id)
-                // Apply preset to current HTML if exists
+                // Auto-apply preset to current HTML in background
                 if (html) {
-                  const presetStyles = generatePresetStyles(preset)
-                  // Inject preset styles into the HTML
-                  const updatedHtml = html.replace(
-                    /<head>/i,
-                    `<head>\n${presetStyles}`
-                  )
+                  const updatedHtml = applyThemeToHtml(html, preset)
                   setHtml(updatedHtml)
-                  addConsoleLog('info', `Applied ${preset.name} style preset`)
+                  addConsoleLog('info', `Theme switched to ${preset.name}`)
                 }
               }}
               compact
@@ -3522,6 +3517,23 @@ body { cursor: crosshair !important; }
               title="Refresh Preview"
             >
               <RefreshCw className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => {
+                if (html && !confirm('Clear the current preview and start fresh?')) return
+                setHtml('')
+                setHistory([])
+                setHistoryIndex(-1)
+                setChatMessages([])
+                setStewIngredients([])
+                addConsoleLog('info', 'Workspace cleared - ready for a fresh start!')
+                addTerminalLine('success', '✨ Workspace cleared')
+              }}
+              disabled={!html}
+              className="p-1.5 rounded-lg hover:bg-red-500/10 text-zinc-600 hover:text-red-400 hover:shadow-lg hover:shadow-red-500/20 disabled:opacity-30 disabled:hover:shadow-none disabled:hover:bg-transparent disabled:hover:text-zinc-600 transition-all duration-200"
+              title="Clear Preview (Start Fresh)"
+            >
+              <Eraser className="w-4 h-4" />
             </button>
 
             <div className="h-4 w-px bg-white/10 mx-1" />
@@ -4087,12 +4099,113 @@ body { cursor: crosshair !important; }
                   </div>
                 </div>
 
+                {/* Divider - Free Providers */}
+                <div className="flex items-center gap-3 pt-2">
+                  <div className="h-px flex-1 bg-white/[0.08]" />
+                  <span className="text-xs text-zinc-500 font-medium">FREE PROVIDERS</span>
+                  <div className="h-px flex-1 bg-white/[0.08]" />
+                </div>
+
+                {/* Hugging Face */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-md bg-yellow-500/20 flex items-center justify-center">
+                      <span className="text-xs">🤗</span>
+                    </div>
+                    <span className="text-sm font-medium text-white">Hugging Face</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">FREE</span>
+                    {apiKeys.huggingface && <Check className="w-4 h-4 text-emerald-400 ml-auto" />}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="password"
+                      value={apiKeys.huggingface}
+                      onChange={(e) => setApiKeys(prev => ({ ...prev, huggingface: e.target.value }))}
+                      placeholder="hf_..."
+                      className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-yellow-500/50 transition-colors"
+                    />
+                    <a
+                      href="https://huggingface.co/settings/tokens"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-yellow-400 hover:text-yellow-300"
+                    >
+                      Get free token
+                    </a>
+                  </div>
+                </div>
+
+                {/* Together AI */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-md bg-purple-500/20 flex items-center justify-center">
+                      <Zap className="w-3.5 h-3.5 text-purple-400" />
+                    </div>
+                    <span className="text-sm font-medium text-white">Together AI</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">FREE</span>
+                    {apiKeys.together && <Check className="w-4 h-4 text-emerald-400 ml-auto" />}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="password"
+                      value={apiKeys.together}
+                      onChange={(e) => setApiKeys(prev => ({ ...prev, together: e.target.value }))}
+                      placeholder="..."
+                      className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500/50 transition-colors"
+                    />
+                    <a
+                      href="https://api.together.ai"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-purple-400 hover:text-purple-300"
+                    >
+                      Get free credits
+                    </a>
+                  </div>
+                </div>
+
+                {/* Cloudflare */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-md bg-orange-500/20 flex items-center justify-center">
+                      <Cloud className="w-3.5 h-3.5 text-orange-400" />
+                    </div>
+                    <span className="text-sm font-medium text-white">Cloudflare AI</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">FREE</span>
+                    {apiKeys.cloudflare && <Check className="w-4 h-4 text-emerald-400 ml-auto" />}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="password"
+                      value={apiKeys.cloudflare}
+                      onChange={(e) => setApiKeys(prev => ({ ...prev, cloudflare: e.target.value }))}
+                      placeholder="API Token..."
+                      className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500/50 transition-colors"
+                    />
+                    <a
+                      href="https://dash.cloudflare.com/profile/api-tokens"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-orange-400 hover:text-orange-300"
+                    >
+                      Get token
+                    </a>
+                  </div>
+                  <input
+                    type="text"
+                    value={apiKeys.cloudflareAccountId}
+                    onChange={(e) => setApiKeys(prev => ({ ...prev, cloudflareAccountId: e.target.value }))}
+                    placeholder="Account ID (from Workers & Pages)"
+                    className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500/50 transition-colors"
+                  />
+                </div>
+
                 {/* Info */}
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
                   <Info className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
                   <p className="text-xs text-blue-300/80">
                     Your API keys are stored locally in your browser and never sent to our servers.
-                    You can also use our hosted AI service without adding keys.
+                    Free providers require tokens but don't charge your credit card.
                   </p>
                 </div>
               </div>
@@ -4382,9 +4495,9 @@ const loadingQuips = [
 
 // Cloud Loading Component
 function CloudLoader() {
-  const { theme } = useTheme()
-  const isDark = theme === 'dark'
+  // Safe default - don't use context hooks in Suspense fallback
   const [quip, setQuip] = useState(loadingQuips[0])
+  const isDark = true // Default to dark theme for loading
 
   useEffect(() => {
     const interval = setInterval(() => {

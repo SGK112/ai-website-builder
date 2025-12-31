@@ -296,23 +296,60 @@ export default function HomePage() {
                     "text-xl font-bold tracking-tight",
                     isDark ? "text-white" : "text-slate-800"
                   )}>
-                    WebCraft
+                    WebStew
                   </span>
                 </motion.div>
 
-                <motion.button
+                <motion.nav
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  onClick={() => setTheme(isDark ? 'light' : 'dark')}
-                  className={cn(
-                    "p-3 rounded-xl backdrop-blur-sm transition-all duration-300",
-                    isDark
-                      ? "bg-white/10 hover:bg-white/20 text-white"
-                      : "bg-white/50 hover:bg-white/70 text-slate-700 shadow-lg"
-                  )}
+                  className="flex items-center gap-2"
                 >
-                  {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                </motion.button>
+                  <a
+                    href="/community"
+                    className={cn(
+                      "px-3 py-2 rounded-lg text-sm font-medium transition-all hidden sm:block",
+                      isDark
+                        ? "text-slate-400 hover:text-white hover:bg-white/10"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                    )}
+                  >
+                    Community
+                  </a>
+                  <a
+                    href="/login"
+                    className={cn(
+                      "px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                      isDark
+                        ? "text-slate-400 hover:text-white hover:bg-white/10"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                    )}
+                  >
+                    Sign in
+                  </a>
+                  <a
+                    href="/workspace"
+                    className={cn(
+                      "px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                      isDark
+                        ? "bg-violet-600 hover:bg-violet-500 text-white"
+                        : "bg-orange-500 hover:bg-orange-400 text-white"
+                    )}
+                  >
+                    Start Building
+                  </a>
+                  <button
+                    onClick={() => setTheme(isDark ? 'light' : 'dark')}
+                    className={cn(
+                      "p-2.5 rounded-lg backdrop-blur-sm transition-all duration-300",
+                      isDark
+                        ? "bg-white/10 hover:bg-white/20 text-white"
+                        : "bg-white/50 hover:bg-white/70 text-slate-700"
+                    )}
+                  >
+                    {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                  </button>
+                </motion.nav>
               </div>
             </header>
 

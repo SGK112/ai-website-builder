@@ -17,6 +17,7 @@
 
 const HF_ROUTER_URL = 'https://router.huggingface.co'
 const HF_INFERENCE_URL = 'https://router.huggingface.co/hf-inference/models'
+const HF_CHAT_URL = 'https://router.huggingface.co/v1/chat/completions'
 
 export interface HuggingFaceConfig {
   apiKey?: string // Required for most operations now
@@ -111,30 +112,64 @@ export async function hfGenerateText(
     }
   }
 
+  console.log(`[HF] Calling model: ${modelId} with token: ${apiKey?.slice(0, 10)}...`)
+
   try {
-    // Use OpenAI-compatible chat completions endpoint
-    const response = await fetch(`${HF_ROUTER_URL}/v1/chat/completions`, {
+    // Use OpenAI-compatible chat completions endpoint for instruction models
+    const response = await fetch(HF_CHAT_URL, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: `${modelId}:fastest`, // Use fastest provider
-        messages: [{ role: 'user', content: prompt }],
+        model: modelId,
+        messages: [
+          { role: 'user', content: prompt }
+        ],
         max_tokens: maxTokens,
         temperature: 0.7,
       }),
     })
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
-      throw new Error(error.error?.message || `HuggingFace API error: ${response.status}`)
+      const errorText = await response.text()
+      console.error(`[HF] API error ${response.status}:`, errorText)
+
+      // Try to parse as JSON for better error messages
+      try {
+        const errorJson = JSON.parse(errorText)
+        if (errorJson.error?.includes('loading')) {
+          return { error: 'Model is loading. Please try again in ~20 seconds.' }
+        }
+        throw new Error(errorJson.error || `HuggingFace API error: ${response.status}`)
+      } catch {
+        throw new Error(`HuggingFace API error: ${response.status} - ${errorText.slice(0, 200)}`)
+      }
     }
 
     const result = await response.json()
-    return { text: result.choices?.[0]?.message?.content || '' }
+    console.log(`[HF] Response received, length: ${JSON.stringify(result).length}`)
+
+    // Handle OpenAI-compatible chat response format
+    if (result.choices?.[0]?.message?.content) {
+      return { text: result.choices[0].message.content }
+    }
+    // Fallback for other formats
+    if (Array.isArray(result) && result[0]?.generated_text) {
+      return { text: result[0].generated_text }
+    }
+    if (result.generated_text) {
+      return { text: result.generated_text }
+    }
+    if (typeof result === 'string') {
+      return { text: result }
+    }
+
+    console.error('[HF] Unexpected response format:', result)
+    return { error: 'Unexpected response format from HuggingFace' }
   } catch (error: any) {
+    console.error('[HF] Error:', error.message)
     return { error: error.message }
   }
 }
