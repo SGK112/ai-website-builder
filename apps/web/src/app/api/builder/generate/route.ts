@@ -12,6 +12,7 @@ import {
   isAdminEmail,
   PLAN_LIMITS
 } from '@ai-website-builder/database'
+import { LUXE_ECOMMERCE_TEMPLATE } from '@/lib/templates'
 
 // Improved prompt for small/free AI models (3B-7B parameters)
 const SIMPLE_SYSTEM_PROMPT = `You are a web developer. Generate a COMPLETE, PROFESSIONAL HTML website.
@@ -599,6 +600,130 @@ ACCESSIBILITY REQUIREMENTS:
 
 Generate a complete, stunning website. No placeholders - fill in realistic content. Return ONLY the HTML.`
 
+// E-commerce detection - identifies when user wants an online store
+function isEcommerceRequest(prompt: string): boolean {
+  const ecommerceKeywords = [
+    'e-commerce', 'ecommerce', 'online store', 'shop', 'shopping',
+    'products', 'cart', 'checkout', 'boutique', 'store', 'retail',
+    'merchandise', 'sell online', 'product catalog', 'fashion',
+    'clothing', 'accessories', 'jewelry', 'luxury', 'handbags'
+  ]
+  const lowerPrompt = prompt.toLowerCase()
+  return ecommerceKeywords.some(keyword => lowerPrompt.includes(keyword))
+}
+
+// Premium E-commerce System Prompt - Uses Luxe template as reference
+const ECOMMERCE_SYSTEM_PROMPT = `You are an elite e-commerce web designer specializing in luxury, high-converting online stores. Generate COMPLETE, PRODUCTION-READY HTML that rivals top brands like Apple, Coach, and Net-a-Porter.
+
+CRITICAL OUTPUT RULES:
+1. Start with exactly: <!DOCTYPE html>
+2. Return ONLY the HTML - no markdown, no \`\`\`, no explanations
+3. Generate a COMPLETE, production-ready e-commerce website
+4. Code must be clean, semantic, and accessible
+
+DESIGN PHILOSOPHY - APPLE-INSPIRED LUXURY:
+- Minimalist elegance with generous whitespace
+- Light theme with subtle gray tints (not pure white)
+- Serif fonts for headings (Playfair Display), Sans-serif for body (Inter)
+- Subtle hover animations and smooth transitions
+- Photography-focused design with large product images
+- Premium feel through restraint, not excess
+
+COLOR PALETTE (Luxury Light Theme):
+:root {
+  --white: #ffffff;
+  --white-soft: #fafafa;
+  --white-muted: #f5f5f5;
+  --gray-light: #e8e8e8;
+  --gray-medium: #86868b;
+  --black-soft: #1d1d1f;
+  --accent: #bf4800; /* Use brand color from user request or this default */
+}
+
+REQUIRED STRUCTURE - Follow this premium e-commerce layout:
+
+1. FIXED NAVIGATION (Glassmorphic)
+- Logo on left, centered nav links, cart/search icons on right
+- Sticky with blur backdrop
+- Clean, minimal with good spacing
+
+2. HERO SECTION (Full viewport, Ken Burns effect optional)
+- Large lifestyle/product photography background
+- Gradient overlays for text readability
+- Elegant headline with serif font
+- Subtitle with tracking-wide uppercase
+- CTA button with rounded-full style
+
+3. TRUST BADGES BAR
+- Free Shipping, Easy Returns, Secure Checkout, Authentic Products
+- Icons with small text, horizontal layout
+- Subtle border-bottom separator
+
+4. FEATURED PRODUCTS GRID
+- 2 cols mobile, 4 cols desktop
+- Product cards with:
+  - Aspect ratio 4:5 images
+  - Hover zoom effect on images
+  - "Quick Add" button that appears on hover
+  - NEW/SALE badges
+  - Product name (small, medium font weight)
+  - Price (with strikethrough for sale items)
+
+5. CATEGORY SECTIONS
+- Large category images with overlay text
+- 2-3 cols responsive grid
+- Hover scale effect
+
+6. PROMOTIONAL BANNER
+- Dark background (#1d1d1f)
+- Centered text layout
+- "Limited Time" or "Holiday Sale" messaging
+- Strong CTA
+
+7. MORE PRODUCTS / BESTSELLERS
+- Same grid layout as featured products
+- Different product selection
+
+8. NEWSLETTER SECTION
+- Email input with Join button
+- "Get 15% off your first order" incentive
+
+9. FOOTER
+- Multi-column layout (Shop, Help, About, Newsletter)
+- Social media icons
+- Copyright and legal links
+
+REFERENCE TEMPLATE - Study this luxury e-commerce code for quality standards:
+
+\`\`\`html
+${LUXE_ECOMMERCE_TEMPLATE.html.slice(0, 8000)}...
+\`\`\`
+
+PRODUCT CARD PATTERN (Use this exact structure):
+<div class="group cursor-pointer">
+  <div class="relative aspect-[4/5] bg-gray-100 mb-4 overflow-hidden">
+    <img src="[PRODUCT_IMAGE]" alt="[PRODUCT_NAME]" class="w-full h-full object-cover group-hover:scale-105 transition duration-700">
+    <button class="absolute bottom-4 left-4 right-4 bg-white/95 backdrop-blur py-3 text-xs tracking-[0.15em] uppercase font-medium opacity-0 group-hover:opacity-100 transition transform translate-y-2 group-hover:translate-y-0">
+      Quick Add
+    </button>
+    <span class="absolute top-4 left-4 bg-black text-white text-[10px] tracking-wider px-3 py-1">NEW</span>
+  </div>
+  <h3 class="text-sm font-medium mb-1">[PRODUCT_NAME]</h3>
+  <p class="text-sm text-gray-500">$[PRICE]</p>
+</div>
+
+IMAGES: Use https://picsum.photos/seed/[keyword]/[width]/[height] for all images
+- Hero: /seed/luxury/1920/1080
+- Products: /seed/bag1/400/500, /seed/bag2/400/500, etc.
+- Categories: /seed/fashion/600/800
+
+ANIMATIONS TO INCLUDE:
+- @keyframes kenBurns { 0% { transform: scale(1); } 100% { transform: scale(1.08); } }
+- Hover transitions: scale, opacity, transform
+- Group-hover effects for product cards
+
+Generate a COMPLETE, BEAUTIFUL e-commerce website based on the user's specific requirements. Match or exceed the quality of the reference template. Return ONLY the HTML.`
+
 // Fix broken image URLs - replace unsplash with reliable picsum
 function fixImageUrls(html: string): string {
   let result = html
@@ -1162,13 +1287,17 @@ export async function POST(req: NextRequest) {
         })
       }
 
-      console.log(`[Generate] Calling generateWithFreeProvider with simplified prompt...`)
+      // Detect if this is an e-commerce request for better prompting
+      const isEcommerce = isEcommerceRequest(prompt || fullUserPrompt)
+      const systemPrompt = isEcommerce ? ECOMMERCE_SYSTEM_PROMPT : SIMPLE_SYSTEM_PROMPT
 
-      // Use simplified prompt for small models - they can't handle the complex one
+      console.log(`[Generate] Calling generateWithFreeProvider (${isEcommerce ? 'e-commerce' : 'standard'} mode)...`)
+
+      // Use e-commerce prompt for stores, simplified for other sites
       const result = await generateWithFreeProvider(
         freeProviderInfo.provider,
         freeProviderInfo.model || 'mistral-7b',
-        SIMPLE_SYSTEM_PROMPT,
+        systemPrompt,
         fullUserPrompt,
         providerApiKey,
         accountId
@@ -1276,10 +1405,16 @@ export async function POST(req: NextRequest) {
                         claudeModel.includes('sonnet') ? 8192 :
                         claudeModel.includes('opus') ? 4096 : 4096
 
+      // Detect if this is an e-commerce request for better prompting
+      const isEcommerce = isEcommerceRequest(prompt || fullUserPrompt)
+      const claudeSystemPrompt = isEcommerce ? ECOMMERCE_SYSTEM_PROMPT : ENHANCED_SYSTEM_PROMPT
+
+      console.log(`[Generate] Using Claude ${claudeModel} (${isEcommerce ? 'e-commerce' : 'standard'} mode)`)
+
       const stream = anthropic.messages.stream({
         model: claudeModel,
         max_tokens: maxTokens,
-        system: ENHANCED_SYSTEM_PROMPT,
+        system: claudeSystemPrompt,
         messages: [
           { role: 'user', content: fullUserPrompt }
         ]
@@ -1416,10 +1551,16 @@ export async function POST(req: NextRequest) {
                           model === 'gpt-4o-mini' ? 'gpt-4o-mini' :
                           'gpt-4o'
 
+    // Detect if this is an e-commerce request for better prompting
+    const isEcommerce = isEcommerceRequest(prompt || fullUserPrompt)
+    const openaiSystemPrompt = isEcommerce ? ECOMMERCE_SYSTEM_PROMPT : ENHANCED_SYSTEM_PROMPT
+
+    console.log(`[Generate] Using OpenAI ${selectedModel} (${isEcommerce ? 'e-commerce' : 'standard'} mode)`)
+
     const stream = await openai.chat.completions.create({
       model: selectedModel,
       messages: [
-        { role: 'system', content: ENHANCED_SYSTEM_PROMPT },
+        { role: 'system', content: openaiSystemPrompt },
         { role: 'user', content: fullUserPrompt }
       ],
       stream: true,
