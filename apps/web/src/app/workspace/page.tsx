@@ -132,6 +132,7 @@ import { stylePresets, StylePreset, generatePresetStyles, applyThemeToHtml, gene
 import { componentLibrary, ComponentSection, assemblePage } from '@/lib/builder/component-library'
 import { imageService, getUnsplashImage, enhanceImagesInHtml } from '@/lib/builder/image-service'
 import { ChefLoader } from '@/components/loading'
+import { LUXE_ECOMMERCE_TEMPLATE, applyTemplateVariables } from '@/lib/templates'
 
 type DeviceMode = 'desktop' | 'tablet' | 'mobile'
 type ViewMode = 'preview' | 'code' | 'split'
@@ -285,6 +286,15 @@ interface WorkspaceSettings {
 // Prompt suggestions by skill level
 // Quick Start Templates - Premium industry templates with detailed prompts
 const quickStartTemplates = [
+  {
+    id: 'luxe-ecommerce',
+    icon: ShoppingCart,
+    label: 'Luxe Boutique',
+    gradient: 'from-amber-600 to-rose-600',
+    prompt: 'Apple-inspired luxury e-commerce template',
+    htmlTemplate: LUXE_ECOMMERCE_TEMPLATE.html, // Pre-made template - no AI generation needed
+    isPremade: true,
+  },
   {
     id: 'saas',
     icon: Rocket,
@@ -2431,12 +2441,26 @@ body { cursor: crosshair !important; }
                               <button
                                 key={template.id}
                                 onClick={() => {
-                                  setCommandInput(template.prompt)
-                                  handleGenerate(template.prompt)
+                                  if (template.htmlTemplate && template.isPremade) {
+                                    // Use pre-made template directly - no AI generation needed
+                                    setHtml(template.htmlTemplate)
+                                    setViewMode('preview')
+                                    addTerminalLine('success', `✓ Loaded "${template.label}" template`)
+                                    addConsoleLog('success', `Template "${template.label}" loaded successfully`)
+                                    saveToHistory(template.htmlTemplate, `Loaded ${template.label} template`)
+                                  } else {
+                                    setCommandInput(template.prompt)
+                                    handleGenerate(template.prompt)
+                                  }
                                 }}
                                 className="group relative p-3 rounded-xl bg-gradient-to-br from-white/[0.03] to-transparent border border-white/[0.05] hover:border-white/[0.15] transition-all text-left overflow-hidden"
                               >
                                 <div className={`absolute inset-0 bg-gradient-to-br ${template.gradient} opacity-0 group-hover:opacity-10 transition-opacity`} />
+                                {template.isPremade && (
+                                  <span className="absolute top-2 right-2 px-1.5 py-0.5 text-[8px] font-bold tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded">
+                                    INSTANT
+                                  </span>
+                                )}
                                 <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${template.gradient} flex items-center justify-center mb-2`}>
                                   <Icon className="w-4 h-4 text-white" />
                                 </div>
