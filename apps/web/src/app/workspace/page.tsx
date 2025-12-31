@@ -1119,6 +1119,21 @@ function WorkspaceContent() {
   // WebStew ingredients
   const [stewIngredients, setStewIngredients] = useState<StewIngredient[]>([])
 
+  // Supabase Templates
+  interface SupabaseTemplate {
+    id: string
+    name: string
+    description: string
+    category: string
+    industry: string
+    thumbnail_url: string
+    is_premium: boolean
+    price_credits: number
+    html_content?: string
+  }
+  const [supabaseTemplates, setSupabaseTemplates] = useState<SupabaseTemplate[]>([])
+  const [loadingTemplates, setLoadingTemplates] = useState(false)
+
   // History
   const [history, setHistory] = useState<HistoryEntry[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
@@ -1246,6 +1261,25 @@ function WorkspaceContent() {
         console.error('Failed to parse saved API keys')
       }
     }
+  }, [])
+
+  // Fetch templates from Supabase
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      setLoadingTemplates(true)
+      try {
+        const res = await fetch('/api/templates')
+        if (res.ok) {
+          const data = await res.json()
+          setSupabaseTemplates(data.templates || [])
+        }
+      } catch (error) {
+        console.error('Failed to fetch templates:', error)
+      } finally {
+        setLoadingTemplates(false)
+      }
+    }
+    fetchTemplates()
   }, [])
 
   // Load initial prompt from URL params - with caching to prevent token waste on reload
@@ -1564,6 +1598,29 @@ function WorkspaceContent() {
       setHistoryIndex(historyIndex + 1)
       setHtml(history[historyIndex + 1].html)
       addConsoleLog('info', 'Redo')
+    }
+  }
+
+  // Load template from Supabase
+  const loadSupabaseTemplate = async (templateId: string, templateName: string) => {
+    try {
+      addTerminalLine('info', `Loading template: ${templateName}...`)
+      const res = await fetch(`/api/templates?id=${templateId}`)
+      if (res.ok) {
+        const data = await res.json()
+        const template = data.templates?.[0]
+        if (template?.html_content) {
+          setHtml(template.html_content)
+          setViewMode('preview')
+          addTerminalLine('success', `✓ Loaded "${templateName}" template`)
+          addConsoleLog('success', `Template "${templateName}" loaded successfully`)
+          addToHistory(template.html_content, `Loaded ${templateName} template`)
+        } else {
+          addTerminalLine('error', `Template content not found`)
+        }
+      }
+    } catch (error) {
+      addTerminalLine('error', `Failed to load template: ${error}`)
     }
   }
 
@@ -2493,11 +2550,42 @@ body { cursor: crosshair !important; }
                         </div>
                       </div>
 
+                      {/* Template Library from Supabase */}
+                      {supabaseTemplates.length > 0 && (
+                        <div>
+                          <p className="text-zinc-500 text-[10px] uppercase tracking-wider mb-2">Template Library</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {supabaseTemplates.slice(0, 6).map((template) => (
+                              <button
+                                key={template.id}
+                                onClick={() => loadSupabaseTemplate(template.id, template.name)}
+                                className="group relative p-2 rounded-xl bg-gradient-to-br from-white/[0.03] to-transparent border border-white/[0.05] hover:border-white/[0.15] transition-all text-left overflow-hidden"
+                              >
+                                <div className="aspect-video rounded-lg overflow-hidden mb-2 bg-zinc-800">
+                                  <img
+                                    src={template.thumbnail_url}
+                                    alt={template.name}
+                                    className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-300"
+                                  />
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-white text-[10px] font-medium truncate">{template.name}</span>
+                                  {template.is_premium && (
+                                    <span className="px-1 py-0.5 text-[7px] font-bold bg-amber-500/20 text-amber-400 rounded">PRO</span>
+                                  )}
+                                </div>
+                                <span className="text-zinc-500 text-[9px] capitalize">{template.category}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Pro tip */}
                       <div className="p-3 rounded-lg bg-violet-500/5 border border-violet-500/10">
                         <p className="text-violet-400 text-[10px] font-medium mb-1">Pro tip</p>
                         <p className="text-zinc-500 text-[10px] leading-relaxed">
-                          Click a Quick Start template to generate a full website instantly, or click a suggestion below to customize the prompt first.
+                          Click a Quick Start template to generate a full website instantly, or browse the Template Library for pre-made designs.
                         </p>
                       </div>
                     </div>
