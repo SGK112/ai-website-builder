@@ -2447,7 +2447,7 @@ body { cursor: crosshair !important; }
                                     setViewMode('preview')
                                     addTerminalLine('success', `✓ Loaded "${template.label}" template`)
                                     addConsoleLog('success', `Template "${template.label}" loaded successfully`)
-                                    saveToHistory(template.htmlTemplate, `Loaded ${template.label} template`)
+                                    addToHistory(template.htmlTemplate, `Loaded ${template.label} template`)
                                   } else {
                                     setCommandInput(template.prompt)
                                     handleGenerate(template.prompt)
