@@ -1264,15 +1264,21 @@ export async function POST(req: NextRequest) {
         apiKey: apiKey || apiKeys?.anthropic || process.env.ANTHROPIC_API_KEY
       })
 
+      // Map to actual Claude model IDs
       const claudeModel = model === 'claude-3-opus' ? 'claude-3-opus-20240229' :
                           model === 'claude-3-sonnet' ? 'claude-3-sonnet-20240229' :
                           model === 'claude-3-haiku' ? 'claude-3-haiku-20240307' :
                           model === 'claude-3.5-sonnet' ? 'claude-3-5-sonnet-20241022' :
-                          'claude-3-5-sonnet-20241022' // Default to latest Sonnet
+                          'claude-3-haiku-20240307' // Default to Haiku (most available)
+
+      // Set max tokens based on model capabilities
+      const maxTokens = claudeModel.includes('haiku') ? 4096 :
+                        claudeModel.includes('sonnet') ? 8192 :
+                        claudeModel.includes('opus') ? 4096 : 4096
 
       const stream = anthropic.messages.stream({
         model: claudeModel,
-        max_tokens: 16000,
+        max_tokens: maxTokens,
         system: ENHANCED_SYSTEM_PROMPT,
         messages: [
           { role: 'user', content: fullUserPrompt }
