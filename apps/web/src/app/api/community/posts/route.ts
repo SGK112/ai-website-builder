@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
 
+export const dynamic = 'force-dynamic'
+
 export interface CommunityPost {
   _id?: ObjectId
   type: 'template' | 'website' | 'component' | 'ad' | 'blog'

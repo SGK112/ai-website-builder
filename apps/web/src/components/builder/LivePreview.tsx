@@ -100,6 +100,15 @@ export function LivePreview({
         let selectedPath = ${selectedPath ? `"${selectedPath}"` : 'null'};
         let hoveredPath = null;
 
+        // Prevent all link navigation in preview
+        document.addEventListener('click', function(e) {
+          const link = e.target.closest('a');
+          if (link) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }, true);
+
         // Generate unique path for element
         function getElementPath(el) {
           if (!el || el === document.body) return 'body';

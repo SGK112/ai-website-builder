@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { SECTION_TEMPLATES, getSectionsByCategory, getSectionCategories, SectionTemplate } from '@/lib/section-templates'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)

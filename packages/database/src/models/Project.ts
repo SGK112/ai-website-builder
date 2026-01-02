@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose'
 
-export type ProjectType = 'business-portfolio' | 'ecommerce' | 'saas'
+export type ProjectType = 'business-portfolio' | 'ecommerce' | 'saas' | 'website'
 export type ProjectStatus = 'draft' | 'generating' | 'ready' | 'deployed' | 'failed'
 
 export interface IProject extends Document {
@@ -70,7 +70,7 @@ const projectSchema = new Schema<IProject>(
     description: String,
     type: {
       type: String,
-      enum: ['business-portfolio', 'ecommerce', 'saas'],
+      enum: ['business-portfolio', 'ecommerce', 'saas', 'website'],
       required: true,
     },
     templateId: { type: Schema.Types.ObjectId, ref: 'Template' },

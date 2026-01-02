@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 const PIXABAY_API_KEY = process.env.PIXABAY_API_KEY
 
 interface PixabayImage {

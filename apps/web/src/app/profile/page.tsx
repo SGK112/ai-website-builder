@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
+import { useSession, signOut } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import {
   User,
   Mail,
@@ -34,10 +36,12 @@ import {
   Moon,
   Monitor,
   Palette,
+  Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/context/ThemeContext'
 import { StarryNight, SunriseBackground } from '@/components/landing/BackgroundEffects'
+import { WebStewNav } from '@/components/shared/WebStewNav'
 
 interface PricingPlan {
   id: string
@@ -242,33 +246,59 @@ function AppearanceSettings() {
 export default function ProfilePage() {
   const { theme } = useTheme()
   const isDark = theme === 'dark'
+  const router = useRouter()
+  const { data: session, status } = useSession()
   const [activeTab, setActiveTab] = useState<'profile' | 'billing' | 'usage' | 'settings'>('profile')
   const [billingInterval, setBillingInterval] = useState<'month' | 'year'>('month')
+  const [credits, setCredits] = useState<number | null>(null)
 
-  // Mock user data
-  const [user] = useState({
-    name: 'Alex Johnson',
-    email: 'alex@example.com',
-    avatar: null,
+  // Fetch credits on mount
+  useEffect(() => {
+    if (session?.user) {
+      fetch('/api/credits')
+        .then(res => res.json())
+        .then(data => setCredits(data.credits))
+        .catch(() => setCredits(0))
+    }
+  }, [session?.user])
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login')
+    }
+  }, [status, router])
+
+  // Show loading while checking auth
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-950">
+        <Loader2 className="w-8 h-8 animate-spin text-violet-500" />
+      </div>
+    )
+  }
+
+  // User data from session
+  const user = {
+    name: session?.user?.name || 'User',
+    email: session?.user?.email || '',
+    avatar: session?.user?.image || null,
     plan: 'free',
-    joinedDate: '2024-01-15',
-  })
+    joinedDate: new Date().toISOString().split('T')[0],
+  }
 
-  // Mock usage stats
+  // Usage stats from credits
   const [usage] = useState<UsageStats>({
-    buildsUsed: 3,
-    buildsLimit: 5,
+    buildsUsed: credits !== null ? Math.max(0, 100 - credits) / 10 : 0,
+    buildsLimit: 10,
     storageUsed: 0.2,
     storageLimit: 1,
     apiCalls: 150,
     apiLimit: 500,
   })
 
-  // Mock billing history
-  const [billingHistory] = useState<BillingHistory[]>([
-    { id: '1', date: '2024-12-01', amount: 0, status: 'paid', invoice: 'INV-001' },
-    { id: '2', date: '2024-11-01', amount: 0, status: 'paid', invoice: 'INV-002' },
-  ])
+  // Billing history
+  const [billingHistory] = useState<BillingHistory[]>([])
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
@@ -287,43 +317,8 @@ export default function ProfilePage() {
         {isDark ? <StarryNight /> : <SunriseBackground />}
       </div>
 
-      {/* Header */}
-      <header className={cn(
-        'sticky top-0 z-50 border-b backdrop-blur-xl',
-        isDark ? 'bg-black/50 border-white/10' : 'bg-white/80 border-zinc-200'
-      )}>
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="flex items-center gap-2">
-              <div className={cn(
-                'w-8 h-8 rounded-lg flex items-center justify-center',
-                isDark
-                  ? 'bg-gradient-to-br from-violet-500 to-fuchsia-500'
-                  : 'bg-gradient-to-br from-orange-400 to-pink-500'
-              )}>
-                <Sparkles className="w-4 h-4 text-white" />
-              </div>
-              <span className="font-bold">WebStew</span>
-            </Link>
-            <ChevronRight className="w-4 h-4 text-zinc-500" />
-            <span className={isDark ? 'text-zinc-400' : 'text-zinc-600'}>Account</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/workspace"
-              className={cn(
-                'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                isDark
-                  ? 'bg-white/5 hover:bg-white/10 text-white'
-                  : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-900'
-              )}
-            >
-              <Home className="w-4 h-4" />
-              Workspace
-            </Link>
-          </div>
-        </div>
-      </header>
+      {/* Unified Navigation */}
+      <WebStewNav />
 
       {/* Main Content */}
       <main className="relative z-10 max-w-6xl mx-auto px-4 py-8">

@@ -100,17 +100,18 @@ export async function PATCH(req: NextRequest) {
   try {
     const { userId, amount, operation } = await req.json()
 
-    // Verify internal API key
-    const apiKey = req.headers.get('x-internal-api-key')
-    if (apiKey !== process.env.INTERNAL_API_KEY && !userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const session = await getServerSession(authOptions)
     const targetUserId = userId || session?.user?.id
 
+    // For anonymous users, allow demo usage without deducting
     if (!targetUserId) {
-      return NextResponse.json({ error: 'User ID required' }, { status: 400 })
+      return NextResponse.json({
+        success: true,
+        credits: 100, // Demo credits
+        deducted: 0,
+        operation,
+        isDemo: true,
+      })
     }
 
     await connectDB()

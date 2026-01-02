@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth'
 import { getClient } from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
 
+export const dynamic = 'force-dynamic'
+
 interface FolderDocument {
   _id?: ObjectId
   email: string

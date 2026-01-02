@@ -3,12 +3,23 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { connectDB } from '@/lib/db'
 import { getClient } from '@/lib/mongodb'
-import { Project } from '@ai-website-builder/database'
+import { Project, IProject } from '@ai-website-builder/database'
 import mongoose from 'mongoose'
 
+// Lean project document type
+interface LeanProject {
+  _id: mongoose.Types.ObjectId
+  userId?: mongoose.Types.ObjectId
+  name: string
+  description?: string
+  type: string
+  status: string
+  isPublic?: boolean
+  [key: string]: unknown
+}
+
 // GET /api/projects/[id] - Get a specific project with pages
-// Note: For demo purposes, allows unauthenticated access by project ID
-// In production, implement proper access control (ownership, sharing tokens, etc.)
+// Access control: Owner can access any of their projects, others can only access public projects
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -18,13 +29,23 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 })
     }
 
+    const session = await getServerSession(authOptions)
     await connectDB()
 
-    // Allow access by ID for demo - in production, add proper access control
-    const project = await Project.findById(params.id).lean()
+    const project = await Project.findById(params.id).lean() as LeanProject | null
 
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    }
+
+    // Access control: Allow if user owns the project OR project is public
+    // userId is stored as ObjectId, session.user.id is the string representation
+    const projectUserId = project.userId?.toString?.() || String(project.userId || '')
+    const isOwner = session?.user?.id && projectUserId === session.user.id
+    const isPublic = project.isPublic === true || project.status === 'published'
+
+    if (!isOwner && !isPublic) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
     // Fetch pages for this project

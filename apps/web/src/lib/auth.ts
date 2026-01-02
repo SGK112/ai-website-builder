@@ -26,53 +26,69 @@ declare module 'next-auth/jwt' {
   }
 }
 
-export const authOptions: NextAuthOptions = {
-  providers: [
-    CredentialsProvider({
-      name: 'credentials',
-      credentials: {
-        email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' },
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error('Email and password required')
-        }
+// Build providers array conditionally based on available env vars
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const providers: any[] = [
+  CredentialsProvider({
+    name: 'credentials',
+    credentials: {
+      email: { label: 'Email', type: 'email' },
+      password: { label: 'Password', type: 'password' },
+    },
+    async authorize(credentials) {
+      if (!credentials?.email || !credentials?.password) {
+        throw new Error('Email and password required')
+      }
 
-        await connectDB()
+      await connectDB()
 
-        const user = await User.findOne({ email: credentials.email }).select(
-          '+password'
-        )
+      const user = await User.findOne({ email: credentials.email }).select(
+        '+password'
+      )
 
-        if (!user || !user.password) {
-          throw new Error('Invalid email or password')
-        }
+      if (!user || !user.password) {
+        throw new Error('Invalid email or password')
+      }
 
-        const isValid = await user.matchPassword(credentials.password)
+      const isValid = await user.matchPassword(credentials.password)
 
-        if (!isValid) {
-          throw new Error('Invalid email or password')
-        }
+      if (!isValid) {
+        throw new Error('Invalid email or password')
+      }
 
-        return {
-          id: user._id.toString(),
-          email: user.email,
-          name: user.name,
-          image: user.avatar,
-          plan: user.plan,
-        }
-      },
-    }),
+      return {
+        id: user._id.toString(),
+        email: user.email,
+        name: user.name,
+        image: user.avatar,
+        plan: user.plan,
+      }
+    },
+  }),
+]
+
+// Only add Google provider if credentials are configured
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  providers.push(
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    })
+  )
+}
+
+// Only add GitHub provider if credentials are configured
+if (process.env.GITHUB_ID && process.env.GITHUB_SECRET) {
+  providers.push(
     GitHubProvider({
-      clientId: process.env.GITHUB_ID!,
-      clientSecret: process.env.GITHUB_SECRET!,
-    }),
-  ],
+      clientId: process.env.GITHUB_ID,
+      clientSecret: process.env.GITHUB_SECRET,
+    })
+  )
+}
+
+export const authOptions: NextAuthOptions = {
+  providers,
   callbacks: {
     async signIn({ user, account, profile }) {
       if (account?.provider === 'google' || account?.provider === 'github') {

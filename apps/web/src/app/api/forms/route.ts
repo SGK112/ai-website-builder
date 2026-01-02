@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
 
+export const dynamic = 'force-dynamic'
+
 // GET - List all forms for a project
 export async function GET(request: NextRequest) {
   try {

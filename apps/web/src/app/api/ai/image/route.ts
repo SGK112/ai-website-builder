@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN
 
 // Replicate model versions

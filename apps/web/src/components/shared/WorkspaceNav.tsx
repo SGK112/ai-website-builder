@@ -22,9 +22,11 @@ import {
   Search,
   Command,
   ArrowRight,
+  Activity,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { UsageModal } from '@/components/dashboard/UsageModal'
 
 interface Project {
   _id: string
@@ -41,8 +43,10 @@ export function WorkspaceNav() {
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null)
   const [showProjects, setShowProjects] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
+  const [showUsage, setShowUsage] = useState(false)
   const [loading, setLoading] = useState(true)
   const [credits, setCredits] = useState<number | null>(null)
+  const [todayUsage, setTodayUsage] = useState<{ generations: number; credits: number } | null>(null)
 
   // Extract project ID from pathname
   useEffect(() => {
@@ -54,13 +58,14 @@ export function WorkspaceNav() {
     }
   }, [pathname])
 
-  // Fetch projects and credits
+  // Fetch projects, credits, and usage
   useEffect(() => {
     async function fetchData() {
       try {
-        const [projectsRes, creditsRes] = await Promise.all([
+        const [projectsRes, creditsRes, usageRes] = await Promise.all([
           fetch('/api/projects'),
-          fetch('/api/credits')
+          fetch('/api/credits'),
+          fetch('/api/usage')
         ])
 
         if (projectsRes.ok) {
@@ -72,6 +77,14 @@ export function WorkspaceNav() {
           const data = await creditsRes.json()
           setCredits(data.credits ?? 0)
         }
+
+        if (usageRes.ok) {
+          const data = await usageRes.json()
+          setTodayUsage({
+            generations: data.today?.generations ?? 0,
+            credits: data.today?.credits ?? 0
+          })
+        }
       } catch (e) {
         console.error('Failed to fetch data')
       } finally {
@@ -79,6 +92,10 @@ export function WorkspaceNav() {
       }
     }
     fetchData()
+
+    // Refresh usage every 30 seconds
+    const interval = setInterval(fetchData, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   // Keyboard shortcut for search
@@ -324,19 +341,24 @@ export function WorkspaceNav() {
               </kbd>
             </motion.button>
 
-            {/* Credits/Upgrade */}
-            <Link href="/upgrade">
-              <motion.div
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.05] transition"
-              >
-                <CreditCard className="w-4 h-4 text-orange-400" />
-                <span className="text-sm font-medium text-white">
-                  {credits !== null ? credits.toLocaleString() : '---'}
-                </span>
-              </motion.div>
-            </Link>
+            {/* Credits/Usage Button */}
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowUsage(true)}
+              className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.05] transition"
+            >
+              <CreditCard className="w-4 h-4 text-orange-400" />
+              <span className="text-sm font-medium text-white">
+                {credits !== null ? credits.toLocaleString() : '---'}
+              </span>
+              {todayUsage && todayUsage.generations > 0 && (
+                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/20 border border-blue-500/30">
+                  <Activity className="w-3 h-3 text-blue-400" />
+                  <span className="text-xs text-blue-400">{todayUsage.generations}</span>
+                </div>
+              )}
+            </motion.button>
 
             {/* Create Button */}
             {!isInBuilder && (
@@ -354,6 +376,9 @@ export function WorkspaceNav() {
           </div>
         </div>
       </motion.header>
+
+      {/* Usage Modal */}
+      <UsageModal isOpen={showUsage} onClose={() => setShowUsage(false)} />
 
       {/* Command Palette / Search */}
       <AnimatePresence>

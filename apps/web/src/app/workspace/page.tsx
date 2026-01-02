@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Terminal,
@@ -37,6 +38,7 @@ import {
   Play,
   Bug,
   Lightbulb,
+  User,
   Users,
   ShoppingCart,
   Star,
@@ -88,6 +90,7 @@ import {
   CloudSun,
   MapPin,
   CreditCard,
+  Coins,
   Store,
   Building2,
   BarChart3,
@@ -120,38 +123,39 @@ import {
   ChefHat,
   Maximize2,
   Upload,
+  Database,
+  Phone,
+  Shield,
+  Mail,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/context/ThemeContext'
+import { useSession } from 'next-auth/react'
+import { useProject as useProjectHook } from '@/hooks/useProject'
 import { StarryNight, SunriseBackground, DayNightCycle } from '@/components/landing/BackgroundEffects'
 import { WebStewPanel, StewIngredient } from '@/components/WebStew'
 import { OnboardingTour } from '@/components/onboarding'
 import { MonacoCodeEditor } from '@/components/editor'
-import { StylePresetPicker, ComponentPicker } from '@/components/builder'
+import { StylePresetPicker, ComponentPicker, ThemeBuilder } from '@/components/builder'
 import { stylePresets, StylePreset, generatePresetStyles, applyThemeToHtml, generateAllThemesStyles } from '@/lib/builder/style-presets'
 import { componentLibrary, ComponentSection, assemblePage } from '@/lib/builder/component-library'
 import { imageService, getUnsplashImage, enhanceImagesInHtml } from '@/lib/builder/image-service'
 import { ChefLoader } from '@/components/loading'
 import { LUXE_ECOMMERCE_TEMPLATE, applyTemplateVariables } from '@/lib/templates'
+// AgentPanel removed for simplicity - agent code preserved in /lib/agent if needed later
+import { ExportPanel } from '@/components/builder/ExportPanel'
 
 type DeviceMode = 'desktop' | 'tablet' | 'mobile'
 type ViewMode = 'preview' | 'code' | 'split'
-type Panel = 'build' | 'projects' | 'integrations' | 'images' | 'env' | 'console' | 'deploy' | 'webstew'
+type Panel = 'build' | 'projects' | 'integrations' | 'images' | 'env' | 'console' | 'deploy' | 'webstew' | 'templates'
 type SkillLevel = 'no-code' | 'low-code' | 'full-stack'
 type BuildPhase = 'idle' | 'structure' | 'styling' | 'interactivity' | 'complete'
 type ConsoleLogType = 'log' | 'info' | 'warn' | 'error' | 'success'
 
 interface SelectedElement {
   tagName: string
-  className: string
-  id: string
-  textContent: string
-  directText?: string
   outerHTML: string
-  path: string
-  rect: { top: number; left: number; width: number; height: number }
-  section?: { tagName: string; id?: string; dataSection?: string; className?: string }
-  isEditable?: boolean
+  textContent?: string
 }
 
 interface ImageEdit {
@@ -1073,7 +1077,11 @@ function WorkspaceContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { theme, toggleTheme } = useTheme()
+  const { data: session } = useSession()
   const isDark = theme === 'dark'
+
+  // Database persistence hook
+  const projectHook = useProjectHook({ autoLoad: !!session?.user })
 
   // Core state
   const [html, setHtml] = useState('')
@@ -1095,6 +1103,8 @@ function WorkspaceContent() {
   const [selectedPreset, setSelectedPreset] = useState<string>('modern-dark')
   const [hasInitialized, setHasInitialized] = useState(false)
   const [showProjectsDropdown, setShowProjectsDropdown] = useState(false)
+  const [editingProjectName, setEditingProjectName] = useState(false)
+  const [showChatModelSelector, setShowChatModelSelector] = useState(false)
 
   // Terminal state
   const [terminalLines, setTerminalLines] = useState<TerminalLine[]>([])
@@ -1167,6 +1177,7 @@ function WorkspaceContent() {
   // AI Model Selection state
   const [selectedModel, setSelectedModel] = useState<AIModel>(aiModels[0])
   const [showApiKeyModal, setShowApiKeyModal] = useState(false)
+  const [userCredits, setUserCredits] = useState<number | null>(null)
   const [apiKeys, setApiKeys] = useState<{
     anthropic: string
     openai: string
@@ -1186,6 +1197,36 @@ function WorkspaceContent() {
   })
   const [showModelSelector, setShowModelSelector] = useState(false)
 
+  // Service credentials for databases, APIs, etc. (stored server-side encrypted)
+  const [serviceCredentials, setServiceCredentials] = useState<{
+    MONGODB_URI: string
+    REDIS_URL: string
+    SUPABASE_URL: string
+    SUPABASE_ANON_KEY: string
+    STRIPE_SECRET_KEY: string
+    STRIPE_PUBLISHABLE_KEY: string
+    SENDGRID_API_KEY: string
+    TWILIO_AUTH_TOKEN: string
+    TWILIO_ACCOUNT_SID: string
+    CLOUDINARY_API_SECRET: string
+    CLOUDINARY_API_KEY: string
+  }>({
+    MONGODB_URI: '',
+    REDIS_URL: '',
+    SUPABASE_URL: '',
+    SUPABASE_ANON_KEY: '',
+    STRIPE_SECRET_KEY: '',
+    STRIPE_PUBLISHABLE_KEY: '',
+    SENDGRID_API_KEY: '',
+    TWILIO_AUTH_TOKEN: '',
+    TWILIO_ACCOUNT_SID: '',
+    CLOUDINARY_API_SECRET: '',
+    CLOUDINARY_API_KEY: '',
+  })
+  const [savedCredentials, setSavedCredentials] = useState<string[]>([]) // Track which are saved
+  const [apiKeyTab, setApiKeyTab] = useState<'ai' | 'services' | 'integrations'>('ai')
+  const [savingCredentials, setSavingCredentials] = useState(false)
+
   // Stock Image state
   const [showImageLibrary, setShowImageLibrary] = useState(false)
   const [imageSearchQuery, setImageSearchQuery] = useState('')
@@ -1197,11 +1238,26 @@ function WorkspaceContent() {
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false)
 
+  // Deploy state
+  const [isDeploying, setIsDeploying] = useState(false)
+  const [deployStatus, setDeployStatus] = useState<'idle' | 'github' | 'render' | 'success' | 'error'>('idle')
+  const [deployUrl, setDeployUrl] = useState<string | null>(null)
+  const [deployError, setDeployError] = useState<string | null>(null)
+
   // Welcome chat message state
   const [showWelcome, setShowWelcome] = useState(true)
   const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
     { role: 'assistant', content: '👋 Welcome to WebStew! I\'m your AI builder assistant. Describe your website idea, or upload your content in the Stew panel - I\'ll cook up something amazing!' }
   ])
+
+  // Agent Mode state - Manus-like autonomous AI agent
+  // Agent mode removed for simplicity
+
+  // Export panel state
+  const [showExportPanel, setShowExportPanel] = useState(false)
+
+  // Theme builder panel state
+  const [showThemeBuilder, setShowThemeBuilder] = useState(false)
 
   // Refs
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -1223,8 +1279,147 @@ function WorkspaceContent() {
     setConsoleLogs(prev => [...prev, { type, message, timestamp: new Date(), source }])
   }, [])
 
-  // Load projects from localStorage
+  // Credit costs for operations
+  const CREDIT_COSTS = {
+    generate_website: 10,
+    chat_message: 1,
+    image_generation: 5,
+  }
+
+  // Check and deduct credits
+  const checkAndDeductCredits = useCallback(async (operation: keyof typeof CREDIT_COSTS): Promise<{ success: boolean; error?: string }> => {
+    if (!session?.user) {
+      // Anonymous users get limited free generations
+      return { success: true }
+    }
+
+    const cost = CREDIT_COSTS[operation]
+
+    try {
+      // Check credits first
+      const checkRes = await fetch('/api/credits')
+      if (checkRes.ok) {
+        const data = await checkRes.json()
+        if (data.credits < cost && !data.isDemo) {
+          return { success: false, error: `Insufficient credits. You have ${data.credits} credits but need ${cost}.` }
+        }
+      }
+
+      // Deduct credits via PATCH
+      const deductRes = await fetch('/api/credits', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: cost, operation })
+      })
+
+      if (!deductRes.ok) {
+        const error = await deductRes.json()
+        if (deductRes.status === 402) {
+          return { success: false, error: `Insufficient credits. Need ${cost} credits.` }
+        }
+        return { success: false, error: error.error || 'Failed to deduct credits' }
+      }
+
+      const result = await deductRes.json()
+      addConsoleLog('info', `Used ${cost} credits. Remaining: ${result.credits}`)
+      return { success: true }
+    } catch (error) {
+      console.error('Credit check error:', error)
+      return { success: true } // Allow generation on credit check failure
+    }
+  }, [session?.user, addConsoleLog])
+
+  // Fetch user credits on load and after generation (works for anonymous too - returns demo credits)
+  const fetchCredits = useCallback(async () => {
+    try {
+      const res = await fetch('/api/credits')
+      if (res.ok) {
+        const data = await res.json()
+        setUserCredits(data.credits)
+      }
+    } catch (e) {
+      console.error('Failed to fetch credits:', e)
+      // Default to demo credits on error
+      setUserCredits(100)
+    }
+  }, [])
+
   useEffect(() => {
+    fetchCredits()
+  }, [fetchCredits])
+
+  // Fetch saved service credentials (for logged in users)
+  const fetchServiceCredentials = useCallback(async () => {
+    if (!session?.user) return
+    try {
+      const res = await fetch('/api/credentials')
+      if (res.ok) {
+        const data = await res.json()
+        // Track which credentials are saved (we don't get the actual values back, just metadata)
+        const saved = data.credentials?.map((c: { name: string }) => c.name) || []
+        setSavedCredentials(saved)
+      }
+    } catch (e) {
+      console.error('Failed to fetch credentials:', e)
+    }
+  }, [session?.user])
+
+  useEffect(() => {
+    fetchServiceCredentials()
+  }, [fetchServiceCredentials])
+
+  // Save service credentials to server (encrypted)
+  const saveServiceCredentials = useCallback(async () => {
+    if (!session?.user) {
+      addConsoleLog('warn', 'Login required to save service credentials securely')
+      return false
+    }
+
+    setSavingCredentials(true)
+    try {
+      // Only send credentials that have values
+      const credentialsToSave: Record<string, string> = {}
+      for (const [key, value] of Object.entries(serviceCredentials)) {
+        if (value && value.trim()) {
+          credentialsToSave[key] = value
+        }
+      }
+
+      if (Object.keys(credentialsToSave).length === 0) {
+        addConsoleLog('info', 'No credentials to save')
+        setSavingCredentials(false)
+        return true
+      }
+
+      const res = await fetch('/api/credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credentials: credentialsToSave })
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        addConsoleLog('success', `Saved ${data.savedCount} credentials securely`)
+        // Refresh saved credentials list
+        fetchServiceCredentials()
+        return true
+      } else {
+        const error = await res.json()
+        addConsoleLog('error', error.error || 'Failed to save credentials')
+        return false
+      }
+    } catch (e) {
+      console.error('Error saving credentials:', e)
+      addConsoleLog('error', 'Failed to save credentials')
+      return false
+    } finally {
+      setSavingCredentials(false)
+    }
+  }, [session?.user, serviceCredentials, addConsoleLog, fetchServiceCredentials])
+
+  // Load projects from localStorage and merge with database projects
+  useEffect(() => {
+    // Load local projects
     const savedProjects = localStorage.getItem('vibe-projects')
     if (savedProjects) {
       try {
@@ -1237,6 +1432,25 @@ function WorkspaceContent() {
       } catch (e) {
         console.error('Failed to parse saved projects')
       }
+    }
+
+    // Merge database projects when available
+    if (session?.user && projectHook.projects.length > 0) {
+      setProjects(prev => {
+        const dbProjectIds = new Set(projectHook.projects.map(p => p.id))
+        // Keep local projects that aren't in DB, and add all DB projects
+        const localOnly = prev.filter(p => !dbProjectIds.has(p.id))
+        const dbProjects = projectHook.projects.map(p => ({
+          id: p.id,
+          name: p.name,
+          html: p.html || '',
+          envVars: p.envVars || [],
+          skillLevel: (p.skillLevel || 'no-code') as SkillLevel,
+          createdAt: p.createdAt,
+          updatedAt: p.updatedAt,
+        }))
+        return [...dbProjects, ...localOnly]
+      })
     }
 
     const savedSettings = localStorage.getItem('workspace-settings')
@@ -1261,7 +1475,7 @@ function WorkspaceContent() {
         console.error('Failed to parse saved API keys')
       }
     }
-  }, [])
+  }, [session?.user, projectHook.projects])
 
   // Fetch templates from Supabase
   useEffect(() => {
@@ -1455,38 +1669,10 @@ function WorkspaceContent() {
           }
         }
       } else if (event.data?.type === 'element-click' && selectMode) {
+        // Simple: just store the element for deletion
         setSelectedElement(event.data.element)
-        const tag = event.data.element.tagName.toLowerCase()
-        const directText = event.data.element.directText || event.data.element.textContent?.slice(0, 50) || ''
-        const section = event.data.element.section
-        const isEditable = event.data.element.isEditable
-
-        // Show section context
-        const sectionInfo = section ? `[${section.tagName}${section.id ? '#' + section.id : ''}] ` : ''
-
-        // For editable elements, user can edit directly - show helpful message
-        if (isEditable) {
-          addConsoleLog('info', `${sectionInfo}Editing <${tag}>: "${directText.slice(0, 30)}..." - Type to edit, Enter to save`)
-          // Don't fill command input - user is editing inline
-          setCommandInput('')
-        } else {
-          // For non-editable elements, offer AI edit via chat
-          let prompt = ''
-          if (tag === 'img') {
-            prompt = `Replace this image with: `
-          } else if (tag === 'div' || tag === 'section') {
-            prompt = `Modify this ${tag} section: `
-          } else {
-            prompt = `Edit this ${tag}: `
-          }
-          setCommandInput(prompt)
-          inputRef.current?.focus()
-          addConsoleLog('info', `${sectionInfo}Selected <${tag}> - Use chat to edit`)
-        }
-      } else if (event.data?.type === 'element-hover' && selectMode) {
-        setHoveredElement(event.data.element)
-      } else if (event.data?.type === 'element-leave') {
-        setHoveredElement(null)
+        const tag = event.data.element.tagName?.toLowerCase() || 'element'
+        addConsoleLog('info', `Selected <${tag}> - Click DELETE to remove`)
       }
     }
     window.addEventListener('message', handleMessage)
@@ -1494,7 +1680,7 @@ function WorkspaceContent() {
   }, [addConsoleLog, selectMode])
 
   // Project management
-  const saveProject = () => {
+  const saveProject = async () => {
     const now = new Date()
     const project: Project = {
       id: currentProject?.id || generateId(),
@@ -1506,6 +1692,7 @@ function WorkspaceContent() {
       updatedAt: now,
     }
 
+    // Save to local state
     setProjects(prev => {
       const existing = prev.findIndex(p => p.id === project.id)
       if (existing >= 0) {
@@ -1515,10 +1702,30 @@ function WorkspaceContent() {
       }
       return [...prev, project]
     })
-
     setCurrentProject(project)
-    addTerminalLine('success', `Project "${projectName}" saved`)
-    addConsoleLog('info', `Project saved: ${projectName}`)
+
+    // Also save to database if authenticated
+    if (session?.user) {
+      try {
+        const savedProject = await projectHook.saveProject({
+          id: currentProject?.id,
+          name: projectName,
+          html,
+        })
+        if (savedProject) {
+          // Update local project with database id
+          setCurrentProject(prev => prev ? { ...prev, id: savedProject.id } : null)
+          addTerminalLine('success', `Project "${projectName}" saved to cloud`)
+          addConsoleLog('success', `Project synced to cloud: ${projectName}`)
+        }
+      } catch (err) {
+        addTerminalLine('error', `Failed to save to cloud: ${err}`)
+        addConsoleLog('error', `Cloud save failed: ${err}`)
+      }
+    } else {
+      addTerminalLine('success', `Project "${projectName}" saved locally`)
+      addConsoleLog('info', `Project saved locally: ${projectName}`)
+    }
   }
 
   const loadProject = (project: Project) => {
@@ -1533,15 +1740,28 @@ function WorkspaceContent() {
     setShowProjectsDropdown(false)
   }
 
-  const deleteProject = (projectId: string) => {
+  const deleteProject = async (projectId: string) => {
     const project = projects.find(p => p.id === projectId)
+
+    // Delete from local state
     setProjects(prev => prev.filter(p => p.id !== projectId))
     if (currentProject?.id === projectId) {
       setCurrentProject(null)
       setProjectName('Untitled Project')
       setHtml('')
     }
-    addTerminalLine('info', `Project "${project?.name}" deleted`)
+
+    // Also delete from database if authenticated
+    if (session?.user) {
+      try {
+        await projectHook.deleteProject(projectId)
+        addTerminalLine('success', `Project "${project?.name}" deleted from cloud`)
+      } catch (err) {
+        addTerminalLine('error', `Failed to delete from cloud: ${err}`)
+      }
+    } else {
+      addTerminalLine('info', `Project "${project?.name}" deleted locally`)
+    }
   }
 
   const newProject = () => {
@@ -1554,6 +1774,151 @@ function WorkspaceContent() {
     setHistoryIndex(-1)
     addTerminalLine('info', 'New project created')
     setShowProjectsDropdown(false)
+  }
+
+  // Deploy functions
+  const deployToGitHub = async () => {
+    if (!html.trim()) {
+      addTerminalLine('error', 'No content to deploy')
+      addConsoleLog('error', 'Deploy failed: No HTML content')
+      return
+    }
+
+    setIsDeploying(true)
+    setDeployStatus('github')
+    setDeployError(null)
+    addTerminalLine('info', '🚀 Starting GitHub deployment...')
+
+    try {
+      const repoName = projectName
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, '-')
+        .replace(/-+/g, '-')
+        .slice(0, 50) || 'ai-website'
+
+      const response = await fetch('/api/deploy/github', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          files: [
+            { path: 'index.html', content: html },
+            { path: 'README.md', content: `# ${projectName}\n\nBuilt with AI Website Builder` }
+          ],
+          repoName: `${repoName}-${Date.now().toString(36)}`,
+          isPrivate: false,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create repository')
+      }
+
+      addTerminalLine('success', `✅ GitHub repo created: ${data.repoUrl}`)
+      addConsoleLog('success', `Repository created: ${data.repoUrl}`)
+      setDeployUrl(data.repoUrl)
+      setDeployStatus('success')
+    } catch (error: any) {
+      const message = error.message || 'GitHub deployment failed'
+      addTerminalLine('error', `❌ ${message}`)
+      addConsoleLog('error', message)
+      setDeployError(message)
+      setDeployStatus('error')
+    } finally {
+      setIsDeploying(false)
+    }
+  }
+
+  const deployToRender = async () => {
+    if (!html.trim()) {
+      addTerminalLine('error', 'No content to deploy')
+      addConsoleLog('error', 'Deploy failed: No HTML content')
+      return
+    }
+
+    setIsDeploying(true)
+    setDeployStatus('github')
+    addTerminalLine('info', '🚀 Starting full deployment...')
+
+    try {
+      addTerminalLine('info', '📦 Creating GitHub repository...')
+      setDeployStatus('github')
+
+      const response = await fetch('/api/deploy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: projectName,
+          files: [
+            { path: 'index.html', content: html },
+          ],
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Deployment failed')
+      }
+
+      addTerminalLine('info', '🌐 Deploying to Render...')
+      setDeployStatus('render')
+
+      // Wait a moment for Render to process
+      await new Promise(r => setTimeout(r, 2000))
+
+      addTerminalLine('success', `✅ Site deployed: ${data.url}`)
+      addConsoleLog('success', `Live at: ${data.url}`)
+      setDeployUrl(data.url)
+      setDeployStatus('success')
+    } catch (error: any) {
+      const message = error.message || 'Deployment failed'
+      addTerminalLine('error', `❌ ${message}`)
+      addConsoleLog('error', message)
+      setDeployError(message)
+      setDeployStatus('error')
+    } finally {
+      setIsDeploying(false)
+    }
+  }
+
+  const exportHtml = () => {
+    if (!html.trim()) {
+      addTerminalLine('error', 'No content to export')
+      return
+    }
+
+    const fullHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${projectName}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; margin: 0; }
+    .font-serif { font-family: 'Playfair Display', serif; }
+  </style>
+</head>
+<body>
+${html}
+</body>
+</html>`
+
+    const blob = new Blob([fullHtml], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${projectName.toLowerCase().replace(/\s+/g, '-')}.html`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+
+    addTerminalLine('success', `📥 Exported: ${a.download}`)
+    addConsoleLog('success', `HTML exported: ${a.download}`)
   }
 
   // Environment variables
@@ -1629,6 +1994,21 @@ function WorkspaceContent() {
     const consoleScript = `
 <script>
 (function() {
+  // Prevent all link navigation in preview
+  document.addEventListener('click', function(e) {
+    const link = e.target.closest('a');
+    if (link) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, true);
+
+  // Prevent form submissions
+  document.addEventListener('submit', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
+
   const originalConsole = { log: console.log, info: console.info, warn: console.warn, error: console.error };
   ['log', 'info', 'warn', 'error'].forEach(level => {
     console[level] = function(...args) {
@@ -1642,249 +2022,80 @@ function WorkspaceContent() {
 })();
 </script>`
 
+    // Simple element selector - click to select, shows delete button
     const elementSelectorScript = selectMode ? `
 <script>
 (function() {
-  let highlightEl = null;
-  let toolbarEl = null;
-  let activeElement = null;
-  let originalContent = '';
+  // Add simple hover styles
+  const style = document.createElement('style');
+  style.textContent = \`
+    *:hover { outline: 2px dashed #a855f7 !important; outline-offset: -2px; cursor: pointer !important; }
+    .__selected__ { outline: 3px solid #ef4444 !important; outline-offset: -3px; background: rgba(239,68,68,0.1) !important; }
+  \`;
+  document.head.appendChild(style);
 
-  // Editable element types
-  const EDITABLE_TAGS = ['h1','h2','h3','h4','h5','h6','p','span','a','button','label','li','td','th'];
-  const SECTION_TAGS = ['section', 'header', 'footer', 'nav', 'main', 'article', 'aside'];
-
-  // Get only direct text content
-  function getDirectText(el) {
-    let text = '';
-    for (let node of el.childNodes) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        text += node.textContent.trim() + ' ';
-      }
-    }
-    return text.trim() || el.innerText?.slice(0, 100)?.trim() || '';
-  }
-
-  // Find parent section
-  function findSection(el) {
-    let current = el;
-    while (current && current !== document.body) {
-      if (SECTION_TAGS.includes(current.tagName.toLowerCase()) ||
-          current.dataset?.section ||
-          current.id?.includes('section')) {
-        return {
-          tagName: current.tagName.toLowerCase(),
-          id: current.id || null,
-          dataSection: current.dataset?.section || null,
-          className: current.className?.split(' ').slice(0, 2).join(' ') || ''
-        };
-      }
-      current = current.parentElement;
-    }
-    return null;
-  }
-
-  // Create floating toolbar
-  function createToolbar() {
-    if (toolbarEl) return toolbarEl;
-    toolbarEl = document.createElement('div');
-    toolbarEl.id = '__edit-toolbar__';
-    toolbarEl.innerHTML = \`
-      <button data-action="bold" title="Bold">B</button>
-      <button data-action="italic" title="Italic">I</button>
-      <span class="divider"></span>
-      <button data-action="save" title="Save" class="save">✓</button>
-      <button data-action="cancel" title="Cancel" class="cancel">✕</button>
-    \`;
-    toolbarEl.style.cssText = 'position:fixed;z-index:100000;background:#18181b;border:1px solid #3f3f46;border-radius:8px;padding:4px;display:none;gap:2px;box-shadow:0 10px 40px rgba(0,0,0,0.5);';
-    const style = document.createElement('style');
-    style.textContent = \`
-      #__edit-toolbar__ button {
-        background:#27272a;border:none;color:#a1a1aa;padding:6px 10px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600;
-      }
-      #__edit-toolbar__ button:hover { background:#3f3f46;color:#fff; }
-      #__edit-toolbar__ button.save { color:#22c55e; }
-      #__edit-toolbar__ button.save:hover { background:#22c55e;color:#fff; }
-      #__edit-toolbar__ button.cancel { color:#ef4444; }
-      #__edit-toolbar__ button.cancel:hover { background:#ef4444;color:#fff; }
-      #__edit-toolbar__ .divider { width:1px;background:#3f3f46;margin:0 4px; }
-      [contenteditable="true"] { outline:2px solid #a855f7 !important;outline-offset:2px;background:rgba(168,85,247,0.05); }
-    \`;
-    document.head.appendChild(style);
-    document.body.appendChild(toolbarEl);
-
-    // Toolbar actions
-    toolbarEl.addEventListener('click', function(e) {
-      const action = e.target.dataset?.action;
-      if (!action || !activeElement) return;
-
-      if (action === 'bold') document.execCommand('bold');
-      else if (action === 'italic') document.execCommand('italic');
-      else if (action === 'save') saveEdit();
-      else if (action === 'cancel') cancelEdit();
-    });
-
-    return toolbarEl;
-  }
-
-  function showToolbar(el) {
-    const toolbar = createToolbar();
-    const rect = el.getBoundingClientRect();
-    toolbar.style.display = 'flex';
-    toolbar.style.top = Math.max(5, rect.top - 40) + 'px';
-    toolbar.style.left = rect.left + 'px';
-  }
-
-  function hideToolbar() {
-    if (toolbarEl) toolbarEl.style.display = 'none';
-  }
-
-  function saveEdit() {
-    if (!activeElement) return;
-    const newContent = activeElement.innerHTML;
-    activeElement.contentEditable = 'false';
-    hideToolbar();
-
-    // Send update to parent
-    window.parent.postMessage({
-      type: 'element-edited',
-      oldContent: originalContent,
-      newContent: newContent,
-      element: {
-        tagName: activeElement.tagName,
-        className: activeElement.className,
-        id: activeElement.id,
-        section: findSection(activeElement)
-      }
-    }, '*');
-
-    activeElement = null;
-    originalContent = '';
-  }
-
-  function cancelEdit() {
-    if (!activeElement) return;
-    activeElement.innerHTML = originalContent;
-    activeElement.contentEditable = 'false';
-    hideToolbar();
-    activeElement = null;
-    originalContent = '';
-  }
-
-  // Create highlight
-  function createHighlight() {
-    if (highlightEl) return highlightEl;
-    highlightEl = document.createElement('div');
-    highlightEl.id = '__selector-highlight__';
-    highlightEl.style.cssText = 'position:fixed;pointer-events:none;border:2px solid #a855f7;background:rgba(168,85,247,0.1);z-index:99998;transition:all 0.1s ease;border-radius:4px;';
-    document.body.appendChild(highlightEl);
-    return highlightEl;
-  }
-
-  document.addEventListener('mouseover', function(e) {
-    if (e.target.id?.startsWith('__') || activeElement) return;
-    const rect = e.target.getBoundingClientRect();
-    const hl = createHighlight();
-    hl.style.top = rect.top + 'px';
-    hl.style.left = rect.left + 'px';
-    hl.style.width = rect.width + 'px';
-    hl.style.height = rect.height + 'px';
-
-    window.parent.postMessage({
-      type: 'element-hover',
-      element: {
-        tagName: e.target.tagName,
-        className: e.target.className,
-        id: e.target.id,
-        textContent: getDirectText(e.target).slice(0, 60),
-        section: findSection(e.target)
-      }
-    }, '*');
-  });
-
-  document.addEventListener('mouseout', function(e) {
-    if (!activeElement) window.parent.postMessage({ type: 'element-leave' }, '*');
-  });
+  let selected = null;
 
   document.addEventListener('click', function(e) {
-    if (e.target.id?.startsWith('__')) return;
     e.preventDefault();
     e.stopPropagation();
 
-    const tag = e.target.tagName.toLowerCase();
-    const section = findSection(e.target);
-    const rect = e.target.getBoundingClientRect();
+    // Remove previous selection
+    if (selected) selected.classList.remove('__selected__');
 
-    // For editable elements, enable inline editing
-    if (EDITABLE_TAGS.includes(tag)) {
-      // Cancel any previous edit
-      if (activeElement && activeElement !== e.target) {
-        cancelEdit();
-      }
+    // IMPORTANT: Get outerHTML BEFORE adding class so it matches original HTML
+    const outerHTML = e.target.outerHTML;
+    const textContent = e.target.innerText?.slice(0, 100) || '';
+    const tagName = e.target.tagName;
 
-      activeElement = e.target;
-      originalContent = e.target.innerHTML;
-      e.target.contentEditable = 'true';
-      e.target.focus();
-      showToolbar(e.target);
+    // Select new element (this changes outerHTML, so we captured it above)
+    selected = e.target;
+    selected.classList.add('__selected__');
 
-      // Select all text
-      const range = document.createRange();
-      range.selectNodeContents(e.target);
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(range);
-    }
-
-    // Send click info to parent
+    // Send to parent with the ORIGINAL outerHTML for deletion
     window.parent.postMessage({
       type: 'element-click',
       element: {
-        tagName: e.target.tagName,
-        className: e.target.className,
-        id: e.target.id,
-        textContent: getDirectText(e.target).slice(0, 150),
-        directText: getDirectText(e.target).slice(0, 80),
-        outerHTML: e.target.outerHTML.slice(0, 400),
-        section: section,
-        isEditable: EDITABLE_TAGS.includes(tag),
-        rect: rect
+        tagName: tagName,
+        outerHTML: outerHTML,
+        textContent: textContent
       }
     }, '*');
   }, true);
-
-  // Handle Escape to cancel edit
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && activeElement) {
-      cancelEdit();
-    } else if ((e.key === 'Enter' && !e.shiftKey) && activeElement) {
-      e.preventDefault();
-      saveEdit();
-    }
-  });
-
-  // Click outside to save
-  document.addEventListener('click', function(e) {
-    if (activeElement && !activeElement.contains(e.target) && !e.target.id?.startsWith('__')) {
-      saveEdit();
-    }
-  });
 })();
-</script>
-<style>
-body { cursor: crosshair !important; }
-*:not([contenteditable="true"]):hover { outline: 2px dashed rgba(168,85,247,0.3) !important; }
-</style>` : '';
+</script>` : '';
 
-    if (originalHtml.includes('</head>')) {
-      return originalHtml.replace('</head>', `${consoleScript}${elementSelectorScript}</head>`)
+    // Inject console script in head, selector script before </body> so DOM is ready
+    let result = originalHtml
+
+    if (result.includes('</head>')) {
+      result = result.replace('</head>', `${consoleScript}</head>`)
+    } else {
+      result = consoleScript + result
     }
-    return consoleScript + elementSelectorScript + originalHtml
+
+    if (elementSelectorScript) {
+      if (result.includes('</body>')) {
+        result = result.replace('</body>', `${elementSelectorScript}</body>`)
+      } else {
+        result = result + elementSelectorScript
+      }
+    }
+
+    return result
   }, [selectMode])
 
   // Layered generation with phases
   const handleGenerate = async (promptText: string, ingredients?: StewIngredient[]) => {
     if (!promptText.trim() && (!ingredients || ingredients.length === 0)) return
+
+    // Check and deduct credits before generation
+    const creditCheck = await checkAndDeductCredits('generate_website')
+    if (!creditCheck.success) {
+      addTerminalLine('error', creditCheck.error || 'Insufficient credits')
+      addConsoleLog('error', creditCheck.error || 'Please upgrade to continue generating')
+      return
+    }
 
     setIsGenerating(true)
     setBuildPhase('structure')
@@ -2010,6 +2221,9 @@ body { cursor: crosshair !important; }
       setIsGenerating(false)
       setViewMode('preview')
 
+      // Refresh credits after generation
+      fetchCredits()
+
       // Reset build phase after a delay
       setTimeout(() => setBuildPhase('idle'), 500)
 
@@ -2027,7 +2241,7 @@ body { cursor: crosshair !important; }
     if (!selectedElement || !html) return false
 
     const tag = selectedElement.tagName.toLowerCase()
-    const oldText = selectedElement.directText || selectedElement.textContent?.slice(0, 100) || ''
+    const oldText = selectedElement.textContent?.slice(0, 100) || ''
 
     // Only quick edit for simple text elements
     if (!['h1','h2','h3','h4','h5','h6','p','span','a','button','label'].includes(tag)) {
@@ -2057,6 +2271,57 @@ body { cursor: crosshair !important; }
     return false
   }
 
+  // Simple delete - just remove the outerHTML from the page
+  const deleteSelectedElement = useCallback(() => {
+    if (!selectedElement || !html) return false
+
+    const outerHtml = selectedElement.outerHTML
+    const tag = selectedElement.tagName?.toLowerCase() || 'element'
+
+    // Don't delete critical elements
+    if (['HTML', 'BODY', 'HEAD'].includes(selectedElement.tagName)) {
+      addConsoleLog('warn', 'Cannot delete page structure')
+      return false
+    }
+
+    // Simple: just remove the outerHTML
+    if (outerHtml && html.includes(outerHtml)) {
+      const newHtml = html.replace(outerHtml, '')
+      setHtml(newHtml)
+      addToHistory(newHtml, `Deleted <${tag}>`)
+      addConsoleLog('success', `Deleted <${tag}>`)
+      setSelectedElement(null)
+      setSelectMode(false)
+      return true
+    }
+
+    addConsoleLog('warn', 'Could not find element to delete')
+    return false
+  }, [html, selectedElement, addConsoleLog, addToHistory])
+
+  // Keyboard: Delete/Backspace to delete, Escape to deselect
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!selectedElement) return
+
+      // Don't interfere with typing
+      const activeEl = document.activeElement
+      if (activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA') return
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        deleteSelectedElement()
+      }
+      if (e.key === 'Escape') {
+        setSelectedElement(null)
+        setSelectMode(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedElement, deleteSelectedElement])
+
   const handleCommandSubmit = () => {
     if (!commandInput.trim() || isGenerating) return
     const command = commandInput
@@ -2065,7 +2330,6 @@ body { cursor: crosshair !important; }
     // Check if this is a simple text replacement for selected element
     if (selectedElement) {
       const tag = selectedElement.tagName.toLowerCase()
-      const directText = selectedElement.directText || selectedElement.textContent?.slice(0, 50) || ''
 
       // Check for patterns like 'Change this heading "X" to: Y'
       const textReplaceMatch = command.match(/^(?:Change this (?:heading|button|link|text)[^"]*"[^"]*"[^:]*:\s*)?(.+)$/i)
@@ -2085,14 +2349,12 @@ body { cursor: crosshair !important; }
   }
 
   const handleExport = () => {
-    const blob = new Blob([html], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${projectName.toLowerCase().replace(/\s+/g, '-')}.html`
-    a.click()
-    URL.revokeObjectURL(url)
-    addConsoleLog('info', `Exported: ${projectName}.html`)
+    if (!html.trim()) {
+      addConsoleLog('error', 'No content to export')
+      return
+    }
+    // Open the export panel with full options
+    setShowExportPanel(true)
   }
 
   const handleCopyCode = () => {
@@ -2255,7 +2517,10 @@ body { cursor: crosshair !important; }
   const currentSuggestions = promptSuggestions[skillLevel]
 
   return (
-    <div className="h-screen flex bg-[#09090b] text-white overflow-hidden">
+    <div className={cn(
+      "h-screen flex overflow-hidden transition-colors duration-300",
+      isDark ? "bg-[#09090b] text-white" : "bg-white text-slate-900"
+    )}>
       {/* Gradient Background Orbs */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-violet-500/10 rounded-full blur-[150px]" />
@@ -2267,7 +2532,10 @@ body { cursor: crosshair !important; }
         initial={{ width: 380 }}
         animate={{ width: sidebarCollapsed ? 56 : 380 }}
         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-        className="relative h-full border-r border-white/[0.08] flex flex-col bg-white/[0.02] backdrop-blur-xl z-10"
+        className={cn(
+          "relative h-full border-r flex flex-col backdrop-blur-xl z-10",
+          isDark ? "border-white/[0.08] bg-white/[0.02]" : "border-slate-200 bg-slate-50/80"
+        )}
       >
         {/* Top accent line */}
         <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-violet-500/50 to-transparent" />
@@ -2290,16 +2558,39 @@ body { cursor: crosshair !important; }
 
               {/* Project dropdown */}
               <div className="relative flex-1">
-                <button
-                  onClick={() => setShowProjectsDropdown(!showProjectsDropdown)}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors w-full"
-                >
-                  <div className="w-6 h-6 rounded bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors w-full">
+                  <button
+                    onClick={() => setShowProjectsDropdown(!showProjectsDropdown)}
+                    className="w-6 h-6 rounded bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shrink-0"
+                  >
                     <Sparkles className="w-3.5 h-3.5 text-white" />
-                  </div>
-                  <span className="text-sm font-medium text-white truncate flex-1 text-left">{projectName}</span>
-                  <ChevronDown className={cn("w-4 h-4 text-zinc-500 transition-transform", showProjectsDropdown && "rotate-180")} />
-                </button>
+                  </button>
+                  {editingProjectName ? (
+                    <input
+                      type="text"
+                      value={projectName}
+                      onChange={(e) => setProjectName(e.target.value)}
+                      onBlur={() => setEditingProjectName(false)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') setEditingProjectName(false)
+                        if (e.key === 'Escape') setEditingProjectName(false)
+                      }}
+                      autoFocus
+                      className="flex-1 bg-white/5 border border-violet-500/50 rounded px-2 py-0.5 text-sm font-medium text-white focus:outline-none"
+                    />
+                  ) : (
+                    <button
+                      onClick={() => setEditingProjectName(true)}
+                      className="text-sm font-medium text-white truncate flex-1 text-left hover:text-violet-400 transition-colors"
+                      title="Click to rename project"
+                    >
+                      {projectName}
+                    </button>
+                  )}
+                  <button onClick={() => setShowProjectsDropdown(!showProjectsDropdown)}>
+                    <ChevronDown className={cn("w-4 h-4 text-zinc-500 transition-transform", showProjectsDropdown && "rotate-180")} />
+                  </button>
+                </div>
 
                 <AnimatePresence>
                   {showProjectsDropdown && (
@@ -2399,34 +2690,62 @@ body { cursor: crosshair !important; }
           </div>
         )}
 
-        {/* Panel Tabs */}
+        {/* Panel Tabs - Horizontal Scrolling Gallery */}
         {!sidebarCollapsed && (
-          <div className="flex border-b border-white/[0.08] overflow-x-auto">
-            {[
-              { id: 'build' as Panel, icon: Wand2, label: 'Build' },
-              { id: 'webstew' as Panel, icon: ChefHat, label: 'Stew', tour: 'webstew' },
-              { id: 'projects' as Panel, icon: FolderOpen, label: 'Files' },
-              { id: 'integrations' as Panel, icon: Link2, label: 'APIs' },
-              { id: 'images' as Panel, icon: ImageIcon, label: 'Media' },
-              { id: 'env' as Panel, icon: Variable, label: 'Env' },
-              { id: 'console' as Panel, icon: Terminal, label: 'Log' },
-              { id: 'deploy' as Panel, icon: Rocket, label: 'Ship', tour: 'deploy' },
-            ].map(({ id, icon: Icon, label, tour }) => (
-              <button
-                key={id}
-                onClick={() => setActivePanel(id)}
-                data-tour={tour}
-                className={cn(
-                  'flex-1 min-w-0 py-2 text-[10px] font-medium transition-all flex flex-col items-center gap-0.5',
-                  activePanel === id
-                    ? 'text-violet-400 bg-violet-500/10'
-                    : 'text-zinc-600 hover:text-white hover:bg-white/5'
-                )}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {label}
-              </button>
-            ))}
+          <div className="relative border-b border-white/[0.08]">
+            {/* Scroll gradient indicators */}
+            <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-zinc-900 to-transparent z-10 pointer-events-none opacity-50" />
+            <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-zinc-900 to-transparent z-10 pointer-events-none opacity-50" />
+
+            {/* Scrollable tabs container */}
+            <div className="flex gap-1 px-2 py-1.5 overflow-x-auto scrollbar-hide scroll-smooth">
+              {[
+                { id: 'build' as Panel, icon: Wand2, label: 'Build', color: 'violet' },
+                { id: 'templates' as Panel, icon: Layout, label: 'Templates', tour: 'templates', color: 'blue' },
+                { id: 'webstew' as Panel, icon: ChefHat, label: 'Stew', tour: 'webstew', color: 'orange' },
+                { id: 'projects' as Panel, icon: FolderOpen, label: 'Files', color: 'emerald' },
+                { id: 'integrations' as Panel, icon: Link2, label: 'APIs', color: 'cyan' },
+                { id: 'images' as Panel, icon: ImageIcon, label: 'Media', color: 'pink' },
+                { id: 'env' as Panel, icon: Variable, label: 'Env', color: 'yellow' },
+                { id: 'console' as Panel, icon: Terminal, label: 'Log', color: 'green' },
+                { id: 'deploy' as Panel, icon: Rocket, label: 'Ship', tour: 'deploy', color: 'red' },
+              ].map(({ id, icon: Icon, label, tour, color }) => (
+                <button
+                  key={id}
+                  onClick={() => setActivePanel(id)}
+                  data-tour={tour}
+                  className={cn(
+                    'flex-shrink-0 px-3 py-1.5 text-[11px] font-medium transition-all flex items-center gap-1.5 rounded-md whitespace-nowrap',
+                    activePanel === id
+                      ? `text-${color}-400 bg-${color}-500/15 ring-1 ring-${color}-500/30`
+                      : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
+                  )}
+                  style={activePanel === id ? {
+                    color: color === 'violet' ? '#a78bfa' :
+                           color === 'blue' ? '#60a5fa' :
+                           color === 'orange' ? '#fb923c' :
+                           color === 'emerald' ? '#34d399' :
+                           color === 'cyan' ? '#22d3ee' :
+                           color === 'pink' ? '#f472b6' :
+                           color === 'yellow' ? '#facc15' :
+                           color === 'green' ? '#4ade80' :
+                           color === 'red' ? '#f87171' : '#a78bfa',
+                    backgroundColor: color === 'violet' ? 'rgba(139, 92, 246, 0.15)' :
+                                     color === 'blue' ? 'rgba(59, 130, 246, 0.15)' :
+                                     color === 'orange' ? 'rgba(249, 115, 22, 0.15)' :
+                                     color === 'emerald' ? 'rgba(16, 185, 129, 0.15)' :
+                                     color === 'cyan' ? 'rgba(6, 182, 212, 0.15)' :
+                                     color === 'pink' ? 'rgba(236, 72, 153, 0.15)' :
+                                     color === 'yellow' ? 'rgba(234, 179, 8, 0.15)' :
+                                     color === 'green' ? 'rgba(34, 197, 94, 0.15)' :
+                                     color === 'red' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(139, 92, 246, 0.15)',
+                  } : {}}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -2627,198 +2946,112 @@ body { cursor: crosshair !important; }
                   )}
                 </div>
 
-                {/* AI Model Selector */}
-                <div className="px-3 py-2 border-t border-white/[0.08]">
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowModelSelector(!showModelSelector)}
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] hover:bg-white/[0.05] hover:border-violet-500/20 transition-all text-left"
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className={cn(
-                          'w-6 h-6 rounded-md flex items-center justify-center',
-                          selectedModel.provider === 'anthropic' ? 'bg-orange-500/20 text-orange-400' :
-                          selectedModel.provider === 'openai' ? 'bg-emerald-500/20 text-emerald-400' :
-                          selectedModel.provider === 'huggingface' ? 'bg-yellow-500/20 text-yellow-400' :
-                          selectedModel.provider === 'together' ? 'bg-purple-500/20 text-purple-400' :
-                          selectedModel.provider === 'cloudflare' ? 'bg-orange-500/20 text-orange-400' :
-                          'bg-blue-500/20 text-blue-400'
-                        )}>
-                          {selectedModel.provider === 'anthropic' ? <Brain className="w-3.5 h-3.5" /> :
-                           selectedModel.provider === 'openai' ? <Bot className="w-3.5 h-3.5" /> :
-                           selectedModel.provider === 'huggingface' ? <Sparkles className="w-3.5 h-3.5" /> :
-                           selectedModel.provider === 'together' ? <Zap className="w-3.5 h-3.5" /> :
-                           selectedModel.provider === 'cloudflare' ? <Cloud className="w-3.5 h-3.5" /> :
-                           <Sparkles className="w-3.5 h-3.5" />}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div>
-                            <p className="text-xs text-white font-medium">{selectedModel.name}</p>
-                            <p className="text-[10px] text-zinc-500">{selectedModel.description}</p>
-                          </div>
-                          {selectedModel.free && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                              FREE
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <ChevronDown className={cn(
-                        'w-4 h-4 text-zinc-500 transition-transform',
-                        showModelSelector && 'rotate-180'
-                      )} />
-                    </button>
+              </motion.div>
+            )}
 
-                    <AnimatePresence>
-                      {showModelSelector && (
-                        <motion.div
-                          initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                          className="absolute bottom-full left-0 right-0 mb-2 p-2 rounded-xl bg-zinc-900 border border-white/[0.1] shadow-xl z-50 max-h-[300px] overflow-y-auto"
-                        >
-                          {/* FREE MODELS Section */}
-                          <div className="mb-3 pb-2 border-b border-emerald-500/20">
-                            <div className="flex items-center gap-2 px-2 py-1.5 mb-1">
-                              <div className="w-5 h-5 rounded flex items-center justify-center bg-emerald-500/20 text-emerald-400">
-                                <Sparkles className="w-3 h-3" />
-                              </div>
-                              <span className="text-[10px] font-medium text-emerald-400 uppercase tracking-wide">
-                                FREE MODELS
-                              </span>
-                              <span className="ml-auto text-[9px] text-emerald-400/70">No payment required</span>
-                            </div>
-                            <div className="space-y-0.5">
-                              {aiModels.filter(m => m.free).map((model) => (
-                                <button
-                                  key={model.id}
-                                  onClick={() => {
-                                    setSelectedModel(model)
-                                    setShowModelSelector(false)
-                                  }}
-                                  className={cn(
-                                    'w-full flex items-center justify-between px-2 py-1.5 rounded-lg transition-all text-left',
-                                    selectedModel.id === model.id
-                                      ? 'bg-emerald-500/20 border border-emerald-500/30'
-                                      : 'hover:bg-white/[0.05] border border-transparent'
-                                  )}
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <div className={cn(
-                                      'w-4 h-4 rounded flex items-center justify-center',
-                                      model.provider === 'huggingface' ? 'bg-yellow-500/20 text-yellow-400' :
-                                      model.provider === 'together' ? 'bg-purple-500/20 text-purple-400' :
-                                      'bg-orange-500/20 text-orange-400'
-                                    )}>
-                                      {model.provider === 'huggingface' ? <Sparkles className="w-2.5 h-2.5" /> :
-                                       model.provider === 'together' ? <Zap className="w-2.5 h-2.5" /> :
-                                       <Cloud className="w-2.5 h-2.5" />}
-                                    </div>
-                                    <span className="text-[11px] text-white">{model.name}</span>
-                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">
-                                      FREE
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-[8px] text-zinc-500 capitalize">{model.provider}</span>
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* PAID Provider Groups */}
-                          {(['anthropic', 'openai', 'google'] as AIProvider[]).map((provider) => (
-                            <div key={provider} className="mb-2 last:mb-0">
-                              <div className="flex items-center gap-2 px-2 py-1.5 mb-1">
-                                <div className={cn(
-                                  'w-5 h-5 rounded flex items-center justify-center',
-                                  provider === 'anthropic' ? 'bg-orange-500/20 text-orange-400' :
-                                  provider === 'openai' ? 'bg-emerald-500/20 text-emerald-400' :
-                                  'bg-blue-500/20 text-blue-400'
-                                )}>
-                                  {provider === 'anthropic' ? <Brain className="w-3 h-3" /> :
-                                   provider === 'openai' ? <Bot className="w-3 h-3" /> :
-                                   <Sparkles className="w-3 h-3" />}
-                                </div>
-                                <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-wide">
-                                  {provider === 'anthropic' ? 'Claude' : provider === 'openai' ? 'OpenAI' : 'Google'}
-                                </span>
-                                {!apiKeys[provider] && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setShowApiKeyModal(true)
-                                    }}
-                                    className="ml-auto flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 text-[9px]"
-                                  >
-                                    <Key className="w-2.5 h-2.5" />
-                                    Add Key
-                                  </button>
-                                )}
-                              </div>
-                              <div className="space-y-0.5">
-                                {aiModels.filter(m => m.provider === provider && !m.free).map((model) => (
-                                  <button
-                                    key={model.id}
-                                    onClick={() => {
-                                      setSelectedModel(model)
-                                      setShowModelSelector(false)
-                                    }}
-                                    className={cn(
-                                      'w-full flex items-center justify-between px-2 py-1.5 rounded-lg transition-all text-left',
-                                      selectedModel.id === model.id
-                                        ? 'bg-violet-500/20 border border-violet-500/30'
-                                        : 'hover:bg-white/[0.05] border border-transparent'
-                                    )}
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-[11px] text-white">{model.name}</span>
-                                      <span className={cn(
-                                        'text-[9px] px-1.5 py-0.5 rounded',
-                                        model.quality === 'best' ? 'bg-violet-500/20 text-violet-300' :
-                                        model.quality === 'great' ? 'bg-blue-500/20 text-blue-300' :
-                                        'bg-zinc-700 text-zinc-400'
-                                      )}>
-                                        {model.quality}
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-[9px] text-zinc-500">{model.contextWindow}</span>
-                                      <span className={cn(
-                                        'text-[9px] px-1 py-0.5 rounded',
-                                        model.speed === 'fast' ? 'bg-emerald-500/20 text-emerald-400' :
-                                        model.speed === 'medium' ? 'bg-amber-500/20 text-amber-400' :
-                                        'bg-red-500/20 text-red-400'
-                                      )}>
-                                        {model.speed}
-                                      </span>
-                                    </div>
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-
-                          {/* API Keys Button */}
-                          <div className="pt-2 mt-2 border-t border-white/[0.08]">
-                            <button
-                              onClick={() => {
-                                setShowModelSelector(false)
-                                setShowApiKeyModal(true)
-                              }}
-                              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-white/[0.03] hover:bg-white/[0.05] border border-white/[0.08] transition-all"
-                            >
-                              <Key className="w-3.5 h-3.5 text-violet-400" />
-                              <span className="text-xs text-zinc-400">Manage API Keys</span>
-                            </button>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+            {/* Templates Panel */}
+            {!sidebarCollapsed && activePanel === 'templates' && (
+              <motion.div
+                key="templates"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex-1 overflow-y-auto p-3 space-y-4"
+              >
+                {/* Quick Start Templates */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Sparkles className="w-4 h-4 text-violet-400" />
+                    <h3 className="text-sm font-medium text-white">Quick Start</h3>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {quickStartTemplates.map((template) => (
+                      <button
+                        key={template.id}
+                        onClick={() => {
+                          if (template.isPremade && template.htmlTemplate) {
+                            setHtml(template.htmlTemplate)
+                            setProjectName(template.label)
+                            addTerminalLine('success', `Loaded template: ${template.label}`)
+                          } else {
+                            setCommandInput(template.prompt)
+                            handleGenerate(template.prompt)
+                          }
+                        }}
+                        className={cn(
+                          "p-3 rounded-xl border transition-all text-left group",
+                          `bg-gradient-to-br ${template.gradient}/10 border-white/10 hover:border-white/20`
+                        )}
+                      >
+                        <template.icon className="w-5 h-5 text-white/80 mb-2 group-hover:scale-110 transition-transform" />
+                        <div className="text-xs font-medium text-white">{template.label}</div>
+                      </button>
+                    ))}
                   </div>
                 </div>
 
+                {/* Supabase Templates */}
+                {loadingTemplates ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 text-violet-400 animate-spin" />
+                  </div>
+                ) : supabaseTemplates.length > 0 ? (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Layout className="w-4 h-4 text-fuchsia-400" />
+                      <h3 className="text-sm font-medium text-white">Template Library</h3>
+                      <span className="text-[10px] text-zinc-500">({supabaseTemplates.length})</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {supabaseTemplates.map((template) => (
+                        <button
+                          key={template.id}
+                          onClick={() => loadSupabaseTemplate(template.id, template.name)}
+                          className="group relative rounded-xl bg-gradient-to-br from-white/[0.03] to-transparent border border-white/[0.05] hover:border-violet-500/30 transition-all text-left overflow-hidden"
+                        >
+                          <div className="aspect-video rounded-t-lg overflow-hidden bg-zinc-800">
+                            <img
+                              src={template.thumbnail_url}
+                              alt={template.name}
+                              className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-300"
+                            />
+                          </div>
+                          <div className="p-2">
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className="text-white text-[10px] font-medium truncate">{template.name}</span>
+                              {template.is_premium && (
+                                <span className="px-1 py-0.5 text-[7px] font-bold bg-amber-500/20 text-amber-400 rounded">PRO</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-zinc-500 text-[9px] capitalize">{template.category}</span>
+                              {template.industry && (
+                                <>
+                                  <span className="text-zinc-600 text-[9px]">•</span>
+                                  <span className="text-zinc-500 text-[9px] capitalize">{template.industry}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05] text-center">
+                    <Layout className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
+                    <p className="text-sm text-zinc-400">No templates available</p>
+                    <p className="text-[10px] text-zinc-600 mt-1">Check your Supabase connection</p>
+                  </div>
+                )}
+
+                {/* Pro tip */}
+                <div className="p-3 rounded-lg bg-violet-500/5 border border-violet-500/10">
+                  <p className="text-violet-400 text-[10px] font-medium mb-1">💡 Pro tip</p>
+                  <p className="text-zinc-500 text-[10px] leading-relaxed">
+                    Quick Start templates generate with AI. Template Library contains pre-made designs that load instantly.
+                  </p>
+                </div>
               </motion.div>
             )}
 
@@ -3432,20 +3665,94 @@ body { cursor: crosshair !important; }
                   ))}
                 </div>
 
+                {/* Deploy Status */}
+                {deployUrl && (
+                  <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                    <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium mb-1">
+                      <CheckCircle2 className="w-4 h-4" />
+                      Deployed Successfully!
+                    </div>
+                    <a
+                      href={deployUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-emerald-300/80 hover:text-emerald-300 underline break-all"
+                    >
+                      {deployUrl}
+                    </a>
+                  </div>
+                )}
+
+                {deployError && (
+                  <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                    <div className="flex items-center gap-2 text-red-400 text-sm font-medium mb-1">
+                      <AlertCircle className="w-4 h-4" />
+                      Deploy Failed
+                    </div>
+                    <p className="text-xs text-red-300/80">{deployError}</p>
+                  </div>
+                )}
+
                 {/* Actions */}
                 <div className="space-y-2 pt-2">
-                  <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.08] hover:bg-white/[0.05] transition-all text-left group">
-                    <Github className="w-5 h-5 text-zinc-400 group-hover:text-white" />
+                  <button
+                    onClick={deployToGitHub}
+                    disabled={isDeploying || !html.trim()}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left group",
+                      isDeploying || !html.trim()
+                        ? "bg-white/[0.02] border-white/[0.05] opacity-50 cursor-not-allowed"
+                        : "bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.05]"
+                    )}
+                  >
+                    {isDeploying && deployStatus === 'github' ? (
+                      <Loader2 className="w-5 h-5 text-violet-400 animate-spin" />
+                    ) : (
+                      <Github className="w-5 h-5 text-zinc-400 group-hover:text-white" />
+                    )}
                     <div className="flex-1">
                       <div className="text-sm font-medium text-white">Push to GitHub</div>
-                      <div className="text-[10px] text-zinc-600">Create repository</div>
+                      <div className="text-[10px] text-zinc-600">
+                        {isDeploying && deployStatus === 'github' ? 'Creating repository...' : 'Create repository'}
+                      </div>
                     </div>
                   </button>
-                  <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 border border-violet-500/20 hover:from-violet-500/20 hover:to-fuchsia-500/20 transition-all text-left">
-                    <Rocket className="w-5 h-5 text-violet-400" />
+                  <button
+                    onClick={deployToRender}
+                    disabled={isDeploying || !html.trim()}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left",
+                      isDeploying || !html.trim()
+                        ? "bg-white/[0.02] border-white/[0.05] opacity-50 cursor-not-allowed"
+                        : "bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 border-violet-500/20 hover:from-violet-500/20 hover:to-fuchsia-500/20"
+                    )}
+                  >
+                    {isDeploying && deployStatus === 'render' ? (
+                      <Loader2 className="w-5 h-5 text-violet-400 animate-spin" />
+                    ) : (
+                      <Rocket className="w-5 h-5 text-violet-400" />
+                    )}
                     <div className="flex-1">
                       <div className="text-sm font-medium text-white">Deploy Live</div>
-                      <div className="text-[10px] text-violet-300/60">One-click deploy</div>
+                      <div className="text-[10px] text-violet-300/60">
+                        {isDeploying ? 'Deploying to Render...' : 'One-click deploy'}
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setShowExportPanel(true)}
+                    disabled={!html.trim()}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left group",
+                      !html.trim()
+                        ? "bg-white/[0.02] border-white/[0.05] opacity-50 cursor-not-allowed"
+                        : "bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.05]"
+                    )}
+                  >
+                    <Download className="w-5 h-5 text-zinc-400 group-hover:text-white" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-white">Export Project</div>
+                      <div className="text-[10px] text-zinc-600">HTML, ZIP, Next.js, or Static</div>
                     </div>
                   </button>
                 </div>
@@ -3475,7 +3782,10 @@ body { cursor: crosshair !important; }
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden relative">
         {/* Toolbar - High z-index so dropdowns appear above preview */}
-        <header className="h-12 border-b border-white/[0.08] flex items-center justify-between px-4 bg-zinc-950/95 backdrop-blur-xl relative z-50">
+        <header className={cn(
+          "h-12 border-b flex items-center justify-between px-4 backdrop-blur-xl relative z-50",
+          isDark ? "border-white/[0.08] bg-zinc-950/95" : "border-slate-200 bg-white/95"
+        )}>
           <div className="flex items-center gap-3">
             {/* Device toggles */}
             <div className="flex bg-white/[0.03] rounded-lg p-0.5 border border-white/[0.05]">
@@ -3501,27 +3811,27 @@ body { cursor: crosshair !important; }
 
             <div className="h-4 w-px bg-white/10" />
 
-            {/* Element Selector */}
+            {/* Element Selector - PROMINENT */}
             <button
               onClick={() => {
                 setSelectMode(!selectMode)
                 if (!selectMode) {
-                  addConsoleLog('info', 'Element selector enabled - click any element to edit')
+                  addConsoleLog('info', '🎯 Select Mode ON - Click elements to edit or DELETE them')
                 } else {
                   setSelectedElement(null)
                   setHoveredElement(null)
                 }
               }}
               className={cn(
-                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200',
+                'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200',
                 selectMode
-                  ? 'bg-violet-500/20 text-violet-400 border border-violet-500/30 shadow-lg shadow-violet-500/20'
-                  : 'bg-white/[0.03] text-zinc-600 hover:text-violet-400 hover:bg-violet-500/10 hover:border-violet-500/30 hover:shadow-lg hover:shadow-violet-500/20 border border-white/[0.05]'
+                  ? 'bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow-lg shadow-violet-500/40 scale-105 ring-2 ring-violet-400/50'
+                  : 'bg-gradient-to-r from-violet-500/20 to-purple-500/20 text-violet-300 hover:from-violet-500 hover:to-purple-500 hover:text-white hover:shadow-lg hover:shadow-violet-500/30 border border-violet-500/30 hover:border-violet-400'
               )}
-              title="Select elements to edit"
+              title="Click to select and delete elements"
             >
-              <Crosshair className={cn("w-3.5 h-3.5", selectMode && "animate-pulse")} />
-              <span className="hidden sm:inline">{selectMode ? 'Selecting' : 'Select'}</span>
+              <Crosshair className={cn("w-4 h-4", selectMode && "animate-pulse")} />
+              <span>{selectMode ? '✓ Selecting...' : 'Select/Delete'}</span>
             </button>
 
             {/* Image Library */}
@@ -3540,19 +3850,28 @@ body { cursor: crosshair !important; }
             </button>
 
             {/* Style Preset Picker - Auto-applies on selection */}
-            <StylePresetPicker
-              selected={selectedPreset}
-              onChange={(preset) => {
-                setSelectedPreset(preset.id)
-                // Auto-apply preset to current HTML in background
-                if (html) {
-                  const updatedHtml = applyThemeToHtml(html, preset)
-                  setHtml(updatedHtml)
-                  addConsoleLog('info', `Theme switched to ${preset.name}`)
-                }
-              }}
-              compact
-            />
+            <div data-tour="styles" className="flex items-center gap-1">
+              <StylePresetPicker
+                selected={selectedPreset}
+                onChange={(preset) => {
+                  setSelectedPreset(preset.id)
+                  // Auto-apply preset to current HTML in background
+                  if (html) {
+                    const updatedHtml = applyThemeToHtml(html, preset)
+                    setHtml(updatedHtml)
+                    addConsoleLog('info', `Theme switched to ${preset.name}`)
+                  }
+                }}
+                compact
+              />
+              <button
+                onClick={() => setShowThemeBuilder(true)}
+                className="p-2 rounded-lg bg-white/5 hover:bg-violet-500/20 border border-white/10 hover:border-violet-500/30 transition-all group"
+                title="Advanced Theme Builder"
+              >
+                <Palette className="w-4 h-4 text-zinc-400 group-hover:text-violet-400 transition-colors" />
+              </button>
+            </div>
 
             {/* Component Library */}
             <ComponentPicker
@@ -3663,6 +3982,15 @@ body { cursor: crosshair !important; }
               )}
             </button>
 
+            {/* Profile Link */}
+            <Link
+              href="/profile"
+              className="p-1.5 rounded-lg hover:bg-violet-500/10 text-zinc-600 hover:text-violet-400 hover:shadow-lg hover:shadow-violet-500/20 transition-all duration-200"
+              title="Profile & Settings"
+            >
+              <User className="w-4 h-4" />
+            </Link>
+
             <button
               onClick={saveProject}
               disabled={!html}
@@ -3689,116 +4017,44 @@ body { cursor: crosshair !important; }
           </div>
         </header>
 
-        {/* Selected Element Indicator - Enhanced with AI Editing */}
+        {/* Simple Selected Element Bar */}
         <AnimatePresence>
           {selectedElement && (
             <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="border-b border-white/[0.08] bg-gradient-to-r from-violet-500/10 via-fuchsia-500/5 to-transparent overflow-hidden"
+              initial={{ y: -20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -20, opacity: 0 }}
+              className="bg-red-500/10 border-b-2 border-red-500"
             >
-              <div className="px-4 py-2.5 flex items-center justify-between gap-3">
-                {/* Element Info */}
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-violet-500/20 flex items-center justify-center">
-                      <Target className="w-4 h-4 text-violet-400" />
-                    </div>
-                    <code className="text-xs text-violet-400 font-mono font-medium">
-                      &lt;{selectedElement.tagName.toLowerCase()}&gt;
-                    </code>
-                  </div>
-                  {selectedElement.className && (
-                    <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[100px]">
-                      .{selectedElement.className.split(' ').slice(0, 2).join('.')}
-                    </span>
-                  )}
-                  {selectedElement.id && (
-                    <span className="text-[10px] text-amber-400 font-mono">
-                      #{selectedElement.id}
-                    </span>
-                  )}
+              <div className="px-4 py-2 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <code className="text-sm text-red-400 font-mono font-bold">
+                    &lt;{selectedElement.tagName?.toLowerCase()}&gt;
+                  </code>
+                  <span className="text-xs text-zinc-400 max-w-[300px] truncate">
+                    {selectedElement.textContent?.slice(0, 50) || 'selected'}
+                  </span>
                 </div>
 
-                {/* AI Edit Input */}
-                <div className="flex-1 flex items-center gap-2">
-                  <div className="flex-1 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.08] focus-within:border-violet-500/50">
-                    <Wand2 className="w-3.5 h-3.5 text-zinc-500" />
-                    <input
-                      type="text"
-                      placeholder="Edit with AI: 'make text larger' or 'change color to blue'..."
-                      className="flex-1 bg-transparent text-xs text-white placeholder-zinc-600 focus:outline-none"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && (e.target as HTMLInputElement).value) {
-                          const editPrompt = (e.target as HTMLInputElement).value
-                          const elementContext = `Modify this ${selectedElement.tagName.toLowerCase()} element: ${editPrompt}. The element currently contains: "${selectedElement.textContent?.slice(0, 100)}"`
-                          setCommandInput(editPrompt)
-                          ;(e.target as HTMLInputElement).value = ''
-                          handleGenerate(elementContext)
-                        }
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Quick Edit Actions */}
-                <div className="flex items-center gap-1 shrink-0">
-                  {/* Quick Style Presets */}
-                  <div className="flex gap-0.5 p-0.5 rounded bg-white/[0.03] border border-white/[0.05]">
-                    {[
-                      { icon: Type, label: 'Style text', prompt: 'Make the text larger and bolder' },
-                      { icon: Palette, label: 'Change colors', prompt: 'Change colors to use a modern gradient' },
-                      { icon: Box, label: 'Add spacing', prompt: 'Add more padding and margin for better spacing' },
-                      { icon: Sparkles, label: 'Enhance', prompt: 'Make this element look more modern and professional' },
-                    ].map(action => (
-                      <button
-                        key={action.label}
-                        title={action.label}
-                        onClick={() => {
-                          const elementContext = `Modify the ${selectedElement.tagName.toLowerCase()} element: ${action.prompt}. Element content: "${selectedElement.textContent?.slice(0, 50)}"`
-                          handleGenerate(elementContext)
-                        }}
-                        className="p-1.5 rounded hover:bg-violet-500/20 text-zinc-500 hover:text-violet-400 transition-colors"
-                      >
-                        <action.icon className="w-3.5 h-3.5" />
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="w-px h-5 bg-white/10 mx-1" />
-
-                  {/* Copy/Delete Actions */}
+                <div className="flex items-center gap-2">
+                  {/* DELETE BUTTON */}
                   <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(selectedElement.outerHTML || '')
-                      addConsoleLog('info', 'Element HTML copied to clipboard')
-                    }}
-                    title="Copy HTML"
-                    className="p-1.5 rounded hover:bg-white/5 text-zinc-500 hover:text-white transition-colors"
+                    onClick={() => deleteSelectedElement()}
+                    className="flex items-center gap-2 px-6 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold transition-all"
                   >
-                    <Copy className="w-3.5 h-3.5" />
+                    <Trash className="w-4 h-4" />
+                    DELETE
                   </button>
 
-                  <button
-                    onClick={() => {
-                      const deletePrompt = `Delete the ${selectedElement.tagName.toLowerCase()} element that contains: "${selectedElement.textContent?.slice(0, 50)}"`
-                      handleGenerate(deletePrompt)
-                    }}
-                    title="Delete element"
-                    className="p-1.5 rounded hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition-colors"
-                  >
-                    <Trash className="w-3.5 h-3.5" />
-                  </button>
-
+                  {/* Cancel */}
                   <button
                     onClick={() => {
                       setSelectedElement(null)
                       setSelectMode(false)
                     }}
-                    className="p-1.5 rounded hover:bg-white/5 text-zinc-500 hover:text-white transition-colors"
+                    className="px-3 py-2 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    Cancel
                   </button>
                 </div>
               </div>
@@ -3806,33 +4062,14 @@ body { cursor: crosshair !important; }
           )}
         </AnimatePresence>
 
-        {/* Hover Element Tooltip */}
-        <AnimatePresence>
-          {selectMode && hoveredElement && !selectedElement && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              className="absolute top-16 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-lg bg-zinc-900 border border-white/10 shadow-xl"
-            >
-              <code className="text-xs text-violet-400 font-mono">
-                &lt;{hoveredElement.tagName.toLowerCase()}&gt;
-              </code>
-              {hoveredElement.className && (
-                <span className="text-xs text-zinc-500 ml-2 font-mono">
-                  .{hoveredElement.className.split(' ')[0]}
-                </span>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* Preview Area - z-0 to stay below header dropdowns */}
         <div className="flex-1 flex overflow-hidden relative z-0">
           {/* Preview */}
           {(viewMode === 'preview' || viewMode === 'split') && (
             <div className={cn(
-              'relative flex items-center justify-center p-4 bg-zinc-950/50',
+              'relative flex items-center justify-center p-4',
+                isDark ? 'bg-zinc-950/50' : 'bg-slate-100/50',
               viewMode === 'split' ? 'w-1/2' : 'w-full'
             )}>
               {/* Fullscreen Toggle */}
@@ -3853,8 +4090,8 @@ body { cursor: crosshair !important; }
                 <Maximize2 className="w-4 h-4" />
               </button>
 
-              {/* Chef Loader - Simple, witty cooking animation */}
-              <ChefLoader isVisible={isGenerating} />
+              {/* Chef Loader - Enhanced cooking animation with phase indicator */}
+              <ChefLoader isVisible={isGenerating} phase={buildPhase} />
 
               <motion.div
                 initial={{ scale: 0.98, opacity: 0 }}
@@ -3868,7 +4105,7 @@ body { cursor: crosshair !important; }
                     ref={iframeRef}
                     srcDoc={getHtmlWithConsole(html)}
                     className="w-full h-full border-0"
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+                    sandbox="allow-scripts allow-same-origin allow-forms"
                     title="Preview"
                   />
                 ) : (
@@ -4032,30 +4269,205 @@ body { cursor: crosshair !important; }
               value={commandInput}
               onChange={(e) => setCommandInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleCommandSubmit()}
-              placeholder={isGenerating ? 'Building your website...' : 'Describe what to build or change...'}
+              placeholder={isGenerating ? 'Cooking up your website...' : 'Describe what to build or change...'}
               disabled={isGenerating}
               data-tour="prompt"
               className="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 focus:outline-none disabled:opacity-50"
             />
             <div className="flex items-center gap-2 shrink-0">
-              {/* AI Model indicator */}
-              <div className={cn(
-                'hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-medium',
-                selectedModel.provider === 'anthropic' ? 'bg-orange-500/10 text-orange-400' :
-                selectedModel.provider === 'openai' ? 'bg-emerald-500/10 text-emerald-400' :
-                selectedModel.provider === 'huggingface' ? 'bg-yellow-500/10 text-yellow-400' :
-                selectedModel.provider === 'together' ? 'bg-purple-500/10 text-purple-400' :
-                selectedModel.provider === 'cloudflare' ? 'bg-orange-500/10 text-orange-400' :
-                'bg-blue-500/10 text-blue-400'
-              )}>
-                {selectedModel.provider === 'anthropic' ? <Brain className="w-3 h-3" /> :
-                 selectedModel.provider === 'openai' ? <Bot className="w-3 h-3" /> :
-                 selectedModel.provider === 'huggingface' ? <Sparkles className="w-3 h-3" /> :
-                 selectedModel.provider === 'together' ? <Zap className="w-3 h-3" /> :
-                 selectedModel.provider === 'cloudflare' ? <Cloud className="w-3 h-3" /> :
-                 <Sparkles className="w-3 h-3" />}
-                <span>{selectedModel.name.split(' ')[0]}</span>
-                {selectedModel.free && <span className="text-emerald-400">FREE</span>}
+              {/* Credits Display */}
+              {session?.user && userCredits !== null && (
+                <div className={cn(
+                  'hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-medium',
+                  userCredits < 10 ? 'bg-red-500/20 text-red-400' :
+                  userCredits < 50 ? 'bg-amber-500/20 text-amber-400' :
+                  'bg-emerald-500/20 text-emerald-400'
+                )}>
+                  <Coins className="w-3 h-3" />
+                  <span>{userCredits} credits</span>
+                </div>
+              )}
+
+              {/* AI Model Selector Button */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowChatModelSelector(!showChatModelSelector)}
+                  className={cn(
+                    'hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-medium cursor-pointer hover:scale-105 transition-all',
+                    selectedModel.provider === 'anthropic' ? 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20' :
+                    selectedModel.provider === 'openai' ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20' :
+                    selectedModel.provider === 'huggingface' ? 'bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20' :
+                    selectedModel.provider === 'together' ? 'bg-purple-500/10 text-purple-400 hover:bg-purple-500/20' :
+                    selectedModel.provider === 'cloudflare' ? 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20' :
+                    'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'
+                  )}
+                  title="Click to change AI model"
+                >
+                  {selectedModel.provider === 'anthropic' ? <Brain className="w-3 h-3" /> :
+                   selectedModel.provider === 'openai' ? <Bot className="w-3 h-3" /> :
+                   selectedModel.provider === 'huggingface' ? <Sparkles className="w-3 h-3" /> :
+                   selectedModel.provider === 'together' ? <Zap className="w-3 h-3" /> :
+                   selectedModel.provider === 'cloudflare' ? <Cloud className="w-3 h-3" /> :
+                   <Sparkles className="w-3 h-3" />}
+                  <span>{selectedModel.name.split(' ')[0]}</span>
+                  {selectedModel.free && <span className="text-emerald-400">FREE</span>}
+                  <ChevronDown className={cn('w-3 h-3 transition-transform', showChatModelSelector && 'rotate-180')} />
+                </button>
+
+                {/* Chat Model Dropdown */}
+                <AnimatePresence>
+                  {showChatModelSelector && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute bottom-full right-0 mb-2 w-64 p-2 rounded-xl bg-zinc-900 border border-white/[0.1] shadow-2xl z-50 max-h-[280px] overflow-y-auto"
+                    >
+                      {/* Free Models */}
+                      <div className="mb-2 pb-2 border-b border-emerald-500/20">
+                        <div className="flex items-center gap-1.5 px-2 py-1 mb-1">
+                          <Sparkles className="w-3 h-3 text-emerald-400" />
+                          <span className="text-[9px] font-medium text-emerald-400 uppercase">Free Models</span>
+                        </div>
+                        {aiModels.filter(m => m.free).map((model) => (
+                          <button
+                            key={model.id}
+                            onClick={() => {
+                              setSelectedModel(model)
+                              setShowChatModelSelector(false)
+                            }}
+                            className={cn(
+                              'w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all text-[10px]',
+                              selectedModel.id === model.id
+                                ? 'bg-emerald-500/20 border border-emerald-500/30'
+                                : 'hover:bg-white/[0.05] border border-transparent'
+                            )}
+                          >
+                            {model.provider === 'huggingface' ? <Sparkles className="w-3 h-3 text-yellow-400" /> :
+                             model.provider === 'together' ? <Zap className="w-3 h-3 text-purple-400" /> :
+                             <Cloud className="w-3 h-3 text-orange-400" />}
+                            <span className="text-white flex-1">{model.name}</span>
+                            <span className="text-[8px] text-emerald-400 px-1 bg-emerald-500/20 rounded">FREE</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Paid Models - Anthropic */}
+                      <div className="mb-2 pb-2 border-b border-white/[0.08]">
+                        <div className="flex items-center gap-1.5 px-2 py-1 mb-1">
+                          <Brain className="w-3 h-3 text-orange-400" />
+                          <span className="text-[9px] font-medium text-zinc-400 uppercase">Claude</span>
+                          {userCredits !== null && userCredits >= 5 && (
+                            <span className="ml-auto text-[8px] text-emerald-400">Uses credits</span>
+                          )}
+                          {(userCredits === null || userCredits < 5) && (
+                            <button onClick={() => { setShowApiKeyModal(true); setShowChatModelSelector(false) }} className="ml-auto text-[8px] text-amber-400 hover:underline">+ Key</button>
+                          )}
+                        </div>
+                        {aiModels.filter(m => m.provider === 'anthropic' && !m.free).map((model) => (
+                          <button
+                            key={model.id}
+                            onClick={() => {
+                              if (userCredits === null || userCredits < 5) {
+                                addConsoleLog('warn', 'You need at least 5 credits to use paid models.')
+                                return
+                              }
+                              setSelectedModel(model)
+                              setShowChatModelSelector(false)
+                            }}
+                            disabled={userCredits === null || userCredits < 5}
+                            className={cn(
+                              'w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all text-[10px]',
+                              selectedModel.id === model.id
+                                ? 'bg-orange-500/20 border border-orange-500/30'
+                                : 'hover:bg-white/[0.05] border border-transparent',
+                              (userCredits === null || userCredits < 5) && 'opacity-50 cursor-not-allowed'
+                            )}
+                          >
+                            <Brain className="w-3 h-3 text-orange-400" />
+                            <span className="text-white flex-1">{model.name}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* OpenAI */}
+                      <div className="mb-2 pb-2 border-b border-white/[0.08]">
+                        <div className="flex items-center gap-1.5 px-2 py-1 mb-1">
+                          <Bot className="w-3 h-3 text-emerald-400" />
+                          <span className="text-[9px] font-medium text-zinc-400 uppercase">OpenAI</span>
+                          {userCredits !== null && userCredits >= 5 && (
+                            <span className="ml-auto text-[8px] text-emerald-400">Uses credits</span>
+                          )}
+                          {(userCredits === null || userCredits < 5) && (
+                            <button onClick={() => { setShowApiKeyModal(true); setShowChatModelSelector(false) }} className="ml-auto text-[8px] text-amber-400 hover:underline">+ Key</button>
+                          )}
+                        </div>
+                        {aiModels.filter(m => m.provider === 'openai' && !m.free).map((model) => (
+                          <button
+                            key={model.id}
+                            onClick={() => {
+                              if (userCredits === null || userCredits < 5) {
+                                addConsoleLog('warn', 'You need at least 5 credits to use paid models.')
+                                return
+                              }
+                              setSelectedModel(model)
+                              setShowChatModelSelector(false)
+                            }}
+                            disabled={userCredits === null || userCredits < 5}
+                            className={cn(
+                              'w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all text-[10px]',
+                              selectedModel.id === model.id
+                                ? 'bg-emerald-500/20 border border-emerald-500/30'
+                                : 'hover:bg-white/[0.05] border border-transparent',
+                              (userCredits === null || userCredits < 5) && 'opacity-50 cursor-not-allowed'
+                            )}
+                          >
+                            <Bot className="w-3 h-3 text-emerald-400" />
+                            <span className="text-white flex-1">{model.name}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Google */}
+                      <div>
+                        <div className="flex items-center gap-1.5 px-2 py-1 mb-1">
+                          <Sparkles className="w-3 h-3 text-blue-400" />
+                          <span className="text-[9px] font-medium text-zinc-400 uppercase">Google</span>
+                          {userCredits !== null && userCredits >= 5 && (
+                            <span className="ml-auto text-[8px] text-emerald-400">Uses credits</span>
+                          )}
+                          {(userCredits === null || userCredits < 5) && (
+                            <button onClick={() => { setShowApiKeyModal(true); setShowChatModelSelector(false) }} className="ml-auto text-[8px] text-amber-400 hover:underline">+ Key</button>
+                          )}
+                        </div>
+                        {aiModels.filter(m => m.provider === 'google' && !m.free).map((model) => (
+                          <button
+                            key={model.id}
+                            onClick={() => {
+                              if (userCredits === null || userCredits < 5) {
+                                addConsoleLog('warn', 'You need at least 5 credits to use paid models.')
+                                return
+                              }
+                              setSelectedModel(model)
+                              setShowChatModelSelector(false)
+                            }}
+                            disabled={userCredits === null || userCredits < 5}
+                            className={cn(
+                              'w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all text-[10px]',
+                              selectedModel.id === model.id
+                                ? 'bg-blue-500/20 border border-blue-500/30'
+                                : 'hover:bg-white/[0.05] border border-transparent',
+                              (userCredits === null || userCredits < 5) && 'opacity-50 cursor-not-allowed'
+                            )}
+                          >
+                            <Sparkles className="w-3 h-3 text-blue-400" />
+                            <span className="text-white flex-1">{model.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
               <button
                 onClick={handleCommandSubmit}
@@ -4089,6 +4501,70 @@ body { cursor: crosshair !important; }
         </div>
       </main>
 
+      {/* Export Panel */}
+      <AnimatePresence>
+        {showExportPanel && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-end justify-end bg-black/40 backdrop-blur-sm"
+            onClick={() => setShowExportPanel(false)}
+          >
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              className="h-full w-[400px]"
+            >
+              <ExportPanel
+                projectName={currentProject?.name || 'WebStew Project'}
+                files={[]}
+                html={html}
+                onClose={() => setShowExportPanel(false)}
+                className="h-full"
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Theme Builder Panel */}
+      <AnimatePresence>
+        {showThemeBuilder && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-end justify-end bg-black/40 backdrop-blur-sm"
+            onClick={() => setShowThemeBuilder(false)}
+          >
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+              className="h-full w-[420px]"
+            >
+              <ThemeBuilder
+                currentHtml={html}
+                onThemeApply={(updatedHtml, theme) => {
+                  setHtml(updatedHtml)
+                  addToHistory(updatedHtml, `Applied theme: ${theme.name}`)
+                  addConsoleLog('success', `Theme "${theme.name}" applied successfully`)
+                  setShowThemeBuilder(false)
+                }}
+                onClose={() => setShowThemeBuilder(false)}
+                className="h-full"
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* API Key Modal */}
       <AnimatePresence>
         {showApiKeyModal && (
@@ -4113,8 +4589,8 @@ body { cursor: crosshair !important; }
                     <Key className="w-5 h-5 text-violet-400" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-semibold text-white">API Keys</h2>
-                    <p className="text-xs text-zinc-500">Add your own keys to use AI models</p>
+                    <h2 className="text-lg font-semibold text-white">API Keys & Services</h2>
+                    <p className="text-xs text-zinc-500">Connect AI models and services</p>
                   </div>
                 </div>
                 <button
@@ -4125,8 +4601,34 @@ body { cursor: crosshair !important; }
                 </button>
               </div>
 
+              {/* Tabs */}
+              <div className="px-6 pt-4 flex gap-1 border-b border-white/[0.08]">
+                {[
+                  { id: 'ai', label: 'AI Models', icon: Brain },
+                  { id: 'services', label: 'Databases', icon: Database },
+                  { id: 'integrations', label: 'Integrations', icon: Plug },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setApiKeyTab(tab.id as typeof apiKeyTab)}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-t-lg transition-all',
+                      apiKeyTab === tab.id
+                        ? 'bg-white/[0.05] text-white border-b-2 border-violet-500'
+                        : 'text-zinc-400 hover:text-white hover:bg-white/[0.02]'
+                    )}
+                  >
+                    <tab.icon className="w-3.5 h-3.5" />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
               {/* Content */}
-              <div className="p-6 space-y-4">
+              <div className="p-6 space-y-4 max-h-[400px] overflow-y-auto">
+                {/* AI Models Tab */}
+                {apiKeyTab === 'ai' && (
+                  <>
                 {/* Anthropic */}
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
@@ -4320,6 +4822,188 @@ body { cursor: crosshair !important; }
                     Free providers require tokens but don't charge your credit card.
                   </p>
                 </div>
+                  </>
+                )}
+
+                {/* Services Tab - Databases */}
+                {apiKeyTab === 'services' && (
+                  <>
+                    <div className="flex items-start gap-2 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20 mb-4">
+                      <Shield className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+                      <p className="text-xs text-emerald-300/80">
+                        Service credentials are encrypted and stored securely on our servers.
+                        The builder can use these to create working integrations.
+                      </p>
+                    </div>
+
+                    {/* MongoDB */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-md bg-green-500/20 flex items-center justify-center">
+                          <Database className="w-3.5 h-3.5 text-green-400" />
+                        </div>
+                        <span className="text-sm font-medium text-white">MongoDB</span>
+                        {savedCredentials.includes('MONGODB_URI') && <Check className="w-4 h-4 text-emerald-400 ml-auto" />}
+                      </div>
+                      <input
+                        type="password"
+                        value={serviceCredentials.MONGODB_URI}
+                        onChange={(e) => setServiceCredentials(prev => ({ ...prev, MONGODB_URI: e.target.value }))}
+                        placeholder="mongodb+srv://user:pass@cluster..."
+                        className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-green-500/50 transition-colors"
+                      />
+                    </div>
+
+                    {/* Redis */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-md bg-red-500/20 flex items-center justify-center">
+                          <Zap className="w-3.5 h-3.5 text-red-400" />
+                        </div>
+                        <span className="text-sm font-medium text-white">Redis</span>
+                        {savedCredentials.includes('REDIS_URL') && <Check className="w-4 h-4 text-emerald-400 ml-auto" />}
+                      </div>
+                      <input
+                        type="password"
+                        value={serviceCredentials.REDIS_URL}
+                        onChange={(e) => setServiceCredentials(prev => ({ ...prev, REDIS_URL: e.target.value }))}
+                        placeholder="redis://user:pass@host:port"
+                        className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-red-500/50 transition-colors"
+                      />
+                    </div>
+
+                    {/* Supabase */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-md bg-emerald-500/20 flex items-center justify-center">
+                          <Database className="w-3.5 h-3.5 text-emerald-400" />
+                        </div>
+                        <span className="text-sm font-medium text-white">Supabase</span>
+                        {savedCredentials.includes('SUPABASE_URL') && <Check className="w-4 h-4 text-emerald-400 ml-auto" />}
+                      </div>
+                      <input
+                        type="text"
+                        value={serviceCredentials.SUPABASE_URL}
+                        onChange={(e) => setServiceCredentials(prev => ({ ...prev, SUPABASE_URL: e.target.value }))}
+                        placeholder="https://your-project.supabase.co"
+                        className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                      />
+                      <input
+                        type="password"
+                        value={serviceCredentials.SUPABASE_ANON_KEY}
+                        onChange={(e) => setServiceCredentials(prev => ({ ...prev, SUPABASE_ANON_KEY: e.target.value }))}
+                        placeholder="Anon/Public Key"
+                        className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Integrations Tab */}
+                {apiKeyTab === 'integrations' && (
+                  <>
+                    <div className="flex items-start gap-2 p-3 rounded-lg bg-violet-500/5 border border-violet-500/20 mb-4">
+                      <Plug className="w-4 h-4 text-violet-400 mt-0.5 shrink-0" />
+                      <p className="text-xs text-violet-300/80">
+                        Add payment, email, and media services. The builder will create
+                        working integrations you can test in the preview.
+                      </p>
+                    </div>
+
+                    {/* Stripe */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-md bg-purple-500/20 flex items-center justify-center">
+                          <CreditCard className="w-3.5 h-3.5 text-purple-400" />
+                        </div>
+                        <span className="text-sm font-medium text-white">Stripe</span>
+                        {savedCredentials.includes('STRIPE_SECRET_KEY') && <Check className="w-4 h-4 text-emerald-400 ml-auto" />}
+                      </div>
+                      <input
+                        type="password"
+                        value={serviceCredentials.STRIPE_SECRET_KEY}
+                        onChange={(e) => setServiceCredentials(prev => ({ ...prev, STRIPE_SECRET_KEY: e.target.value }))}
+                        placeholder="sk_test_... or sk_live_..."
+                        className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500/50 transition-colors"
+                      />
+                      <input
+                        type="text"
+                        value={serviceCredentials.STRIPE_PUBLISHABLE_KEY}
+                        onChange={(e) => setServiceCredentials(prev => ({ ...prev, STRIPE_PUBLISHABLE_KEY: e.target.value }))}
+                        placeholder="pk_test_... or pk_live_..."
+                        className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500/50 transition-colors"
+                      />
+                    </div>
+
+                    {/* SendGrid */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-md bg-blue-500/20 flex items-center justify-center">
+                          <Mail className="w-3.5 h-3.5 text-blue-400" />
+                        </div>
+                        <span className="text-sm font-medium text-white">SendGrid</span>
+                        {savedCredentials.includes('SENDGRID_API_KEY') && <Check className="w-4 h-4 text-emerald-400 ml-auto" />}
+                      </div>
+                      <input
+                        type="password"
+                        value={serviceCredentials.SENDGRID_API_KEY}
+                        onChange={(e) => setServiceCredentials(prev => ({ ...prev, SENDGRID_API_KEY: e.target.value }))}
+                        placeholder="SG.xxxx..."
+                        className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-blue-500/50 transition-colors"
+                      />
+                    </div>
+
+                    {/* Twilio */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-md bg-red-500/20 flex items-center justify-center">
+                          <Phone className="w-3.5 h-3.5 text-red-400" />
+                        </div>
+                        <span className="text-sm font-medium text-white">Twilio</span>
+                        {savedCredentials.includes('TWILIO_AUTH_TOKEN') && <Check className="w-4 h-4 text-emerald-400 ml-auto" />}
+                      </div>
+                      <input
+                        type="text"
+                        value={serviceCredentials.TWILIO_ACCOUNT_SID}
+                        onChange={(e) => setServiceCredentials(prev => ({ ...prev, TWILIO_ACCOUNT_SID: e.target.value }))}
+                        placeholder="Account SID"
+                        className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-red-500/50 transition-colors"
+                      />
+                      <input
+                        type="password"
+                        value={serviceCredentials.TWILIO_AUTH_TOKEN}
+                        onChange={(e) => setServiceCredentials(prev => ({ ...prev, TWILIO_AUTH_TOKEN: e.target.value }))}
+                        placeholder="Auth Token"
+                        className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-red-500/50 transition-colors"
+                      />
+                    </div>
+
+                    {/* Cloudinary */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-md bg-blue-500/20 flex items-center justify-center">
+                          <ImageIcon className="w-3.5 h-3.5 text-blue-400" />
+                        </div>
+                        <span className="text-sm font-medium text-white">Cloudinary</span>
+                        {savedCredentials.includes('CLOUDINARY_API_KEY') && <Check className="w-4 h-4 text-emerald-400 ml-auto" />}
+                      </div>
+                      <input
+                        type="text"
+                        value={serviceCredentials.CLOUDINARY_API_KEY}
+                        onChange={(e) => setServiceCredentials(prev => ({ ...prev, CLOUDINARY_API_KEY: e.target.value }))}
+                        placeholder="API Key"
+                        className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-blue-500/50 transition-colors"
+                      />
+                      <input
+                        type="password"
+                        value={serviceCredentials.CLOUDINARY_API_SECRET}
+                        onChange={(e) => setServiceCredentials(prev => ({ ...prev, CLOUDINARY_API_SECRET: e.target.value }))}
+                        placeholder="API Secret"
+                        className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-blue-500/50 transition-colors"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Footer */}
@@ -4331,17 +5015,25 @@ body { cursor: crosshair !important; }
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
-                    // Save to localStorage
+                  onClick={async () => {
+                    // Save AI keys to localStorage
                     if (typeof window !== 'undefined') {
                       localStorage.setItem('ai-builder-api-keys', JSON.stringify(apiKeys))
                     }
+                    // Save service credentials to server (if on services/integrations tab)
+                    if (apiKeyTab !== 'ai') {
+                      await saveServiceCredentials()
+                    }
                     setShowApiKeyModal(false)
-                    addTerminalLine('success', 'API keys saved successfully')
+                    addTerminalLine('success', 'Settings saved successfully')
                   }}
-                  className="px-4 py-2 rounded-lg text-sm bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white font-medium hover:shadow-lg hover:shadow-violet-500/25 transition-all"
+                  disabled={savingCredentials}
+                  className={cn(
+                    "px-4 py-2 rounded-lg text-sm bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white font-medium hover:shadow-lg hover:shadow-violet-500/25 transition-all",
+                    savingCredentials && "opacity-50 cursor-not-allowed"
+                  )}
                 >
-                  Save Keys
+                  {savingCredentials ? 'Saving...' : 'Save'}
                 </button>
               </div>
             </motion.div>

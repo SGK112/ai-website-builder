@@ -17,10 +17,12 @@ export interface ImageSearchOptions {
   size?: 'small' | 'medium' | 'large'
 }
 
-// Unsplash Source URLs (no API key needed for basic usage)
+// Reliable image URLs - uses picsum.photos with seed for consistent results
+// (source.unsplash.com is deprecated and unreliable)
 export function getUnsplashImage(query: string, width = 800, height = 600): string {
-  const encodedQuery = encodeURIComponent(query)
-  return `https://source.unsplash.com/${width}x${height}/?${encodedQuery}`
+  // Convert query to a seed for consistent images
+  const seed = query.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+  return `https://picsum.photos/seed/${seed}/${width}/${height}`
 }
 
 // Picsum (Lorem Picsum) for random quality images
@@ -81,23 +83,33 @@ export function getLogoPlaceholder(name: string, size = 120): string {
 // Smart image replacement in HTML
 export function enhanceImagesInHtml(html: string, context?: string): string {
   let enhanced = html
+  const seed = context?.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'business'
 
   // Replace generic placeholder images with contextual ones
   enhanced = enhanced.replace(
     /src=["']https:\/\/via\.placeholder\.com\/(\d+)x(\d+)[^"']*["']/g,
     (_, w, h) => {
-      const query = context || 'modern business'
-      return `src="${getUnsplashImage(query, parseInt(w), parseInt(h))}"`
+      return `src="https://picsum.photos/seed/${seed}/${parseInt(w)}/${parseInt(h)}"`
     }
   )
 
-  // Replace picsum with more specific images if context is provided
-  if (context) {
-    enhanced = enhanced.replace(
-      /src=["']https:\/\/picsum\.photos\/seed\/[^\/]+\/(\d+)\/(\d+)["']/g,
-      (_, w, h) => `src="${getUnsplashImage(context, parseInt(w), parseInt(h))}"`
-    )
-  }
+  // Replace broken/deprecated source.unsplash.com URLs with picsum
+  enhanced = enhanced.replace(
+    /src=["']https:\/\/source\.unsplash\.com\/[^"']*["']/g,
+    () => `src="https://picsum.photos/seed/${seed}/800/600"`
+  )
+
+  // Replace images.unsplash.com URLs (require photo IDs) with picsum
+  enhanced = enhanced.replace(
+    /src=["']https:\/\/images\.unsplash\.com\/[^"']*["']/g,
+    () => `src="https://picsum.photos/seed/${seed}/800/600"`
+  )
+
+  // Fix placehold.co URLs if needed
+  enhanced = enhanced.replace(
+    /src=["']https:\/\/placehold\.co\/(\d+)x(\d+)[^"']*["']/g,
+    (_, w, h) => `src="https://picsum.photos/seed/${seed}/${parseInt(w)}/${parseInt(h)}"`
+  )
 
   return enhanced
 }

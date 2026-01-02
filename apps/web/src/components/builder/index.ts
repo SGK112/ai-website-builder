@@ -27,6 +27,15 @@
 // ============================================
 export { StylePresetPicker } from './StylePresetPicker'
 export { ComponentPicker } from './ComponentPicker'
+export { ThemeBuilder } from './ThemeBuilder'
+
+// ============================================
+// NEW GAME-CHANGING UI COMPONENTS
+// ============================================
+export { ComponentPalette } from './ComponentPalette'
+export { SmartPromptInput } from './SmartPromptInput'
+export { LivePreview } from './LivePreview'
+export type { SelectedElement, LivePreviewProps } from './LivePreview'
 
 // ============================================
 // AVAILABLE COMPONENTS (for future integration)

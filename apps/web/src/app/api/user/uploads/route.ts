@@ -7,6 +7,8 @@ import { existsSync } from 'fs'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
+export const dynamic = 'force-dynamic'
+
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads')
 
 // GET - Retrieve user's uploaded images with optional filtering

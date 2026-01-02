@@ -5,6 +5,8 @@ import { getClient } from '@/lib/mongodb'
 import mongoose from 'mongoose'
 import { ObjectId } from 'mongodb'
 
+export const dynamic = 'force-dynamic'
+
 interface PageDocument {
   _id?: ObjectId
   projectId: string

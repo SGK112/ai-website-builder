@@ -65,11 +65,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('webcraft-theme-chosen', value.toString())
   }
 
-  // Prevent flash of wrong theme
-  if (!mounted) {
-    return null
-  }
-
   return (
     <ThemeContext.Provider value={{
       theme,

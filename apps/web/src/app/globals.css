@@ -736,6 +736,15 @@
   scrollbar-color: var(--theme-text-muted) var(--theme-bg-secondary);
 }
 
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* ============================================
    THEME TRANSITION UTILITY
    ============================================ */

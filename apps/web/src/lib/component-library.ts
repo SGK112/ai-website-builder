@@ -3,7 +3,7 @@
 export interface ComponentTemplate {
   id: string
   name: string
-  category: 'hero' | 'features' | 'pricing' | 'testimonials' | 'cta' | 'contact' | 'footer' | 'navigation' | 'gallery' | 'stats' | 'team' | 'faq'
+  category: 'hero' | 'features' | 'pricing' | 'testimonials' | 'cta' | 'contact' | 'footer' | 'navigation' | 'gallery' | 'stats' | 'team' | 'faq' | 'video' | 'audio' | 'media'
   description: string
   preview: string // Small preview description
   html: string
@@ -16,7 +16,10 @@ export const COMPONENT_CATEGORIES = [
   { id: 'testimonials', name: 'Testimonials', icon: 'message-circle' },
   { id: 'cta', name: 'Call to Action', icon: 'megaphone' },
   { id: 'contact', name: 'Contact', icon: 'mail' },
-  { id: 'gallery', name: 'Gallery', icon: 'image' },
+  { id: 'gallery', name: 'Image Gallery', icon: 'image' },
+  { id: 'video', name: 'Video', icon: 'play' },
+  { id: 'audio', name: 'Audio', icon: 'volume-2' },
+  { id: 'media', name: 'Media Grid', icon: 'film' },
   { id: 'stats', name: 'Stats', icon: 'bar-chart' },
   { id: 'team', name: 'Team', icon: 'users' },
   { id: 'faq', name: 'FAQ', icon: 'help-circle' },
@@ -606,6 +609,461 @@ export const COMPONENTS: ComponentTemplate[] = [
 </section>`,
   },
 ]
+
+// VIDEO COMPONENTS
+const VIDEO_COMPONENTS: ComponentTemplate[] = [
+  {
+    id: 'video-hero',
+    name: 'Video Hero',
+    category: 'video',
+    description: 'Full-width hero with background video',
+    preview: 'Video background hero',
+    html: `<section class="relative min-h-screen flex items-center justify-center overflow-hidden">
+  <video autoplay muted loop playsinline class="absolute inset-0 w-full h-full object-cover">
+    <source src="https://assets.mixkit.co/videos/preview/mixkit-abstract-technology-network-connections-27610-large.mp4" type="video/mp4">
+  </video>
+  <div class="absolute inset-0 bg-slate-950/70"></div>
+  <div class="relative z-10 max-w-4xl mx-auto px-6 text-center">
+    <h1 class="text-5xl md:text-7xl font-bold text-white mb-6">Captivating Video Content</h1>
+    <p class="text-xl text-slate-300 mb-10">Engage your audience with stunning video backgrounds</p>
+    <a href="#" class="px-8 py-4 bg-white text-slate-900 font-semibold rounded-xl hover:bg-slate-100 transition">Get Started</a>
+  </div>
+</section>`,
+  },
+  {
+    id: 'video-embed',
+    name: 'Video Embed',
+    category: 'video',
+    description: 'Embedded YouTube/Vimeo player',
+    preview: 'Responsive video embed',
+    html: `<section class="py-24 bg-slate-950">
+  <div class="max-w-5xl mx-auto px-6">
+    <div class="text-center mb-12">
+      <h2 class="text-4xl font-bold text-white mb-4">Watch Our Story</h2>
+      <p class="text-xl text-slate-400">See how we're changing the game</p>
+    </div>
+    <div class="relative aspect-video rounded-2xl overflow-hidden shadow-2xl">
+      <iframe
+        src="https://www.youtube.com/embed/dQw4w9WgXcQ"
+        title="Video"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen
+        class="absolute inset-0 w-full h-full"
+      ></iframe>
+    </div>
+  </div>
+</section>`,
+  },
+  {
+    id: 'video-gallery',
+    name: 'Video Gallery',
+    category: 'video',
+    description: 'Grid of video thumbnails',
+    preview: 'Multiple video cards',
+    html: `<section class="py-24 bg-slate-900">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <h2 class="text-4xl font-bold text-white mb-4">Video Library</h2>
+      <p class="text-xl text-slate-400">Browse our collection</p>
+    </div>
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="group cursor-pointer">
+        <div class="relative aspect-video rounded-xl overflow-hidden mb-4">
+          <img src="https://picsum.photos/seed/video1/640/360" alt="Video thumbnail" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+          <div class="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/60 transition">
+            <div class="w-16 h-16 bg-white/90 rounded-full flex items-center justify-center">
+              <svg class="w-6 h-6 text-slate-900 ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </div>
+          </div>
+          <span class="absolute bottom-3 right-3 px-2 py-1 bg-black/70 text-white text-xs rounded">3:45</span>
+        </div>
+        <h3 class="text-lg font-semibold text-white mb-1">Introduction Video</h3>
+        <p class="text-slate-400 text-sm">Learn the basics in minutes</p>
+      </div>
+      <div class="group cursor-pointer">
+        <div class="relative aspect-video rounded-xl overflow-hidden mb-4">
+          <img src="https://picsum.photos/seed/video2/640/360" alt="Video thumbnail" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+          <div class="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/60 transition">
+            <div class="w-16 h-16 bg-white/90 rounded-full flex items-center justify-center">
+              <svg class="w-6 h-6 text-slate-900 ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </div>
+          </div>
+          <span class="absolute bottom-3 right-3 px-2 py-1 bg-black/70 text-white text-xs rounded">5:20</span>
+        </div>
+        <h3 class="text-lg font-semibold text-white mb-1">Advanced Tutorial</h3>
+        <p class="text-slate-400 text-sm">Deep dive into features</p>
+      </div>
+      <div class="group cursor-pointer">
+        <div class="relative aspect-video rounded-xl overflow-hidden mb-4">
+          <img src="https://picsum.photos/seed/video3/640/360" alt="Video thumbnail" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+          <div class="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/60 transition">
+            <div class="w-16 h-16 bg-white/90 rounded-full flex items-center justify-center">
+              <svg class="w-6 h-6 text-slate-900 ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </div>
+          </div>
+          <span class="absolute bottom-3 right-3 px-2 py-1 bg-black/70 text-white text-xs rounded">8:15</span>
+        </div>
+        <h3 class="text-lg font-semibold text-white mb-1">Customer Stories</h3>
+        <p class="text-slate-400 text-sm">Real success stories</p>
+      </div>
+    </div>
+  </div>
+</section>`,
+  },
+]
+
+// AUDIO COMPONENTS
+const AUDIO_COMPONENTS: ComponentTemplate[] = [
+  {
+    id: 'audio-player',
+    name: 'Audio Player',
+    category: 'audio',
+    description: 'Custom audio player with controls',
+    preview: 'Styled audio player',
+    html: `<section class="py-24 bg-slate-950">
+  <div class="max-w-2xl mx-auto px-6">
+    <div class="bg-slate-900 rounded-2xl p-8 border border-slate-800">
+      <div class="flex items-center gap-6 mb-6">
+        <img src="https://picsum.photos/seed/album/120/120" alt="Album art" class="w-24 h-24 rounded-xl object-cover">
+        <div>
+          <h3 class="text-xl font-bold text-white mb-1">Track Title</h3>
+          <p class="text-slate-400">Artist Name</p>
+        </div>
+      </div>
+      <audio controls class="w-full h-12 [&::-webkit-media-controls-panel]:bg-slate-800 [&::-webkit-media-controls-current-time-display]:text-white [&::-webkit-media-controls-time-remaining-display]:text-white">
+        <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
+      </audio>
+    </div>
+  </div>
+</section>`,
+  },
+  {
+    id: 'audio-playlist',
+    name: 'Audio Playlist',
+    category: 'audio',
+    description: 'List of audio tracks',
+    preview: 'Music playlist',
+    html: `<section class="py-24 bg-slate-900">
+  <div class="max-w-3xl mx-auto px-6">
+    <h2 class="text-3xl font-bold text-white mb-8">Playlist</h2>
+    <div class="space-y-3">
+      <div class="flex items-center gap-4 p-4 bg-slate-800/50 rounded-xl hover:bg-slate-800 transition cursor-pointer group">
+        <div class="w-12 h-12 bg-violet-500/20 rounded-lg flex items-center justify-center group-hover:bg-violet-500 transition">
+          <svg class="w-5 h-5 text-violet-400 group-hover:text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+        <div class="flex-1">
+          <p class="font-medium text-white">Morning Vibes</p>
+          <p class="text-sm text-slate-400">Chill Beats • 3:42</p>
+        </div>
+        <span class="text-slate-500">3:42</span>
+      </div>
+      <div class="flex items-center gap-4 p-4 bg-slate-800/50 rounded-xl hover:bg-slate-800 transition cursor-pointer group">
+        <div class="w-12 h-12 bg-violet-500/20 rounded-lg flex items-center justify-center group-hover:bg-violet-500 transition">
+          <svg class="w-5 h-5 text-violet-400 group-hover:text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+        <div class="flex-1">
+          <p class="font-medium text-white">Focus Flow</p>
+          <p class="text-sm text-slate-400">Study Music • 5:18</p>
+        </div>
+        <span class="text-slate-500">5:18</span>
+      </div>
+      <div class="flex items-center gap-4 p-4 bg-slate-800/50 rounded-xl hover:bg-slate-800 transition cursor-pointer group">
+        <div class="w-12 h-12 bg-violet-500/20 rounded-lg flex items-center justify-center group-hover:bg-violet-500 transition">
+          <svg class="w-5 h-5 text-violet-400 group-hover:text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+        <div class="flex-1">
+          <p class="font-medium text-white">Night Drive</p>
+          <p class="text-sm text-slate-400">Electronic • 4:55</p>
+        </div>
+        <span class="text-slate-500">4:55</span>
+      </div>
+    </div>
+  </div>
+</section>`,
+  },
+  {
+    id: 'podcast-player',
+    name: 'Podcast Player',
+    category: 'audio',
+    description: 'Podcast episode player',
+    preview: 'Podcast with transcript',
+    html: `<section class="py-24 bg-white">
+  <div class="max-w-4xl mx-auto px-6">
+    <div class="grid md:grid-cols-3 gap-8">
+      <div class="md:col-span-1">
+        <img src="https://picsum.photos/seed/podcast/400/400" alt="Podcast cover" class="w-full rounded-2xl shadow-lg">
+      </div>
+      <div class="md:col-span-2">
+        <span class="text-violet-600 font-semibold text-sm uppercase tracking-wider">Episode 42</span>
+        <h2 class="text-3xl font-bold text-slate-900 mt-2 mb-4">The Future of Technology</h2>
+        <p class="text-slate-600 mb-6">Join us as we discuss emerging trends in AI, blockchain, and more with industry experts.</p>
+        <div class="flex items-center gap-4 mb-6">
+          <button class="w-14 h-14 bg-violet-600 rounded-full flex items-center justify-center hover:bg-violet-700 transition">
+            <svg class="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          </button>
+          <div class="flex-1">
+            <div class="h-2 bg-slate-200 rounded-full">
+              <div class="h-2 bg-violet-600 rounded-full w-1/3"></div>
+            </div>
+            <div class="flex justify-between text-sm text-slate-500 mt-1">
+              <span>12:34</span>
+              <span>45:20</span>
+            </div>
+          </div>
+        </div>
+        <div class="flex gap-4">
+          <button class="px-4 py-2 text-slate-600 hover:text-slate-900 transition flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+            Share
+          </button>
+          <button class="px-4 py-2 text-slate-600 hover:text-slate-900 transition flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Download
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>`,
+  },
+]
+
+// NAVIGATION (Multi-page support)
+const NAVIGATION_COMPONENTS: ComponentTemplate[] = [
+  {
+    id: 'nav-multipage',
+    name: 'Multi-Page Navigation',
+    category: 'navigation',
+    description: 'Navigation bar with page links',
+    preview: 'Multi-page nav with dropdown',
+    html: `<nav class="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-b border-slate-200">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="flex items-center justify-between h-16">
+      <a href="index.html" class="text-xl font-bold text-slate-900">Brand</a>
+      <div class="hidden md:flex items-center gap-8">
+        <a href="index.html" class="text-slate-600 hover:text-slate-900 transition">Home</a>
+        <a href="about.html" class="text-slate-600 hover:text-slate-900 transition">About</a>
+        <div class="relative group">
+          <button class="text-slate-600 hover:text-slate-900 transition flex items-center gap-1">
+            Services
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          <div class="absolute top-full left-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+            <a href="services-web.html" class="block px-4 py-3 text-slate-600 hover:bg-slate-50 hover:text-slate-900">Web Design</a>
+            <a href="services-mobile.html" class="block px-4 py-3 text-slate-600 hover:bg-slate-50 hover:text-slate-900">Mobile Apps</a>
+            <a href="services-marketing.html" class="block px-4 py-3 text-slate-600 hover:bg-slate-50 hover:text-slate-900">Marketing</a>
+          </div>
+        </div>
+        <a href="blog.html" class="text-slate-600 hover:text-slate-900 transition">Blog</a>
+        <a href="contact.html" class="text-slate-600 hover:text-slate-900 transition">Contact</a>
+      </div>
+      <a href="contact.html" class="px-5 py-2.5 bg-violet-600 text-white font-medium rounded-lg hover:bg-violet-700 transition">Get Quote</a>
+    </div>
+  </div>
+</nav>`,
+  },
+  {
+    id: 'nav-dark-multipage',
+    name: 'Dark Multi-Page Nav',
+    category: 'navigation',
+    description: 'Dark navigation for multi-page sites',
+    preview: 'Dark nav with pages',
+    html: `<nav class="fixed top-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-lg border-b border-white/10">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="flex items-center justify-between h-16">
+      <a href="index.html" class="text-xl font-bold text-white">Brand</a>
+      <div class="hidden md:flex items-center gap-8">
+        <a href="index.html" class="text-slate-300 hover:text-white transition">Home</a>
+        <a href="about.html" class="text-slate-300 hover:text-white transition">About</a>
+        <a href="services.html" class="text-slate-300 hover:text-white transition">Services</a>
+        <a href="portfolio.html" class="text-slate-300 hover:text-white transition">Portfolio</a>
+        <a href="blog.html" class="text-slate-300 hover:text-white transition">Blog</a>
+        <a href="contact.html" class="text-slate-300 hover:text-white transition">Contact</a>
+      </div>
+      <div class="flex items-center gap-4">
+        <a href="login.html" class="text-slate-300 hover:text-white transition">Login</a>
+        <a href="signup.html" class="px-5 py-2.5 bg-violet-600 text-white font-medium rounded-lg hover:bg-violet-500 transition">Sign Up</a>
+      </div>
+    </div>
+  </div>
+</nav>`,
+  },
+]
+
+// MEDIA GRID COMPONENTS
+const MEDIA_COMPONENTS: ComponentTemplate[] = [
+  {
+    id: 'media-gallery',
+    name: 'Mixed Media Gallery',
+    category: 'media',
+    description: 'Gallery with images, videos, audio',
+    preview: 'Multi-media grid',
+    html: `<section class="py-24 bg-slate-950">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <h2 class="text-4xl font-bold text-white mb-4">Media Gallery</h2>
+      <div class="flex justify-center gap-4 mt-8">
+        <button class="px-4 py-2 bg-violet-600 text-white rounded-lg font-medium">All</button>
+        <button class="px-4 py-2 bg-white/10 text-slate-300 rounded-lg hover:bg-white/20 transition">Images</button>
+        <button class="px-4 py-2 bg-white/10 text-slate-300 rounded-lg hover:bg-white/20 transition">Videos</button>
+        <button class="px-4 py-2 bg-white/10 text-slate-300 rounded-lg hover:bg-white/20 transition">Audio</button>
+      </div>
+    </div>
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="group relative aspect-square rounded-2xl overflow-hidden">
+        <img src="https://picsum.photos/seed/media1/600/600" alt="Media" class="w-full h-full object-cover group-hover:scale-110 transition duration-500">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition">
+          <div class="absolute bottom-4 left-4 right-4">
+            <p class="text-white font-medium">Project Alpha</p>
+            <p class="text-slate-300 text-sm">Photography</p>
+          </div>
+        </div>
+      </div>
+      <div class="group relative aspect-square rounded-2xl overflow-hidden">
+        <img src="https://picsum.photos/seed/media2/600/600" alt="Media" class="w-full h-full object-cover">
+        <div class="absolute inset-0 bg-black/40 flex items-center justify-center">
+          <div class="w-16 h-16 bg-white/90 rounded-full flex items-center justify-center cursor-pointer hover:scale-110 transition">
+            <svg class="w-6 h-6 text-slate-900 ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          </div>
+        </div>
+        <div class="absolute bottom-4 left-4">
+          <span class="px-3 py-1 bg-red-500 text-white text-xs font-medium rounded-full">Video</span>
+        </div>
+      </div>
+      <div class="group relative aspect-square rounded-2xl overflow-hidden bg-gradient-to-br from-violet-600 to-fuchsia-600 flex items-center justify-center">
+        <div class="text-center p-6">
+          <div class="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+          </div>
+          <p class="text-white font-semibold">Ambient Mix</p>
+          <p class="text-white/70 text-sm">Audio • 12:45</p>
+        </div>
+        <div class="absolute bottom-4 left-4">
+          <span class="px-3 py-1 bg-violet-800 text-white text-xs font-medium rounded-full">Audio</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>`,
+  },
+  {
+    id: 'image-lightbox',
+    name: 'Image Lightbox Gallery',
+    category: 'gallery',
+    description: 'Clickable images with lightbox',
+    preview: 'Gallery with zoom',
+    html: `<section class="py-24 bg-white">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <h2 class="text-4xl font-bold text-slate-900 mb-4">Our Work</h2>
+      <p class="text-xl text-slate-600">Click any image to enlarge</p>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <a href="#" class="group block aspect-square rounded-xl overflow-hidden">
+        <img src="https://picsum.photos/seed/work1/400/400" alt="Work" class="w-full h-full object-cover group-hover:scale-110 transition duration-500">
+      </a>
+      <a href="#" class="group block aspect-square rounded-xl overflow-hidden">
+        <img src="https://picsum.photos/seed/work2/400/400" alt="Work" class="w-full h-full object-cover group-hover:scale-110 transition duration-500">
+      </a>
+      <a href="#" class="group block aspect-square rounded-xl overflow-hidden">
+        <img src="https://picsum.photos/seed/work3/400/400" alt="Work" class="w-full h-full object-cover group-hover:scale-110 transition duration-500">
+      </a>
+      <a href="#" class="group block aspect-square rounded-xl overflow-hidden">
+        <img src="https://picsum.photos/seed/work4/400/400" alt="Work" class="w-full h-full object-cover group-hover:scale-110 transition duration-500">
+      </a>
+      <a href="#" class="group block aspect-square rounded-xl overflow-hidden md:col-span-2 md:row-span-2">
+        <img src="https://picsum.photos/seed/work5/800/800" alt="Work" class="w-full h-full object-cover group-hover:scale-110 transition duration-500">
+      </a>
+      <a href="#" class="group block aspect-square rounded-xl overflow-hidden">
+        <img src="https://picsum.photos/seed/work6/400/400" alt="Work" class="w-full h-full object-cover group-hover:scale-110 transition duration-500">
+      </a>
+      <a href="#" class="group block aspect-square rounded-xl overflow-hidden">
+        <img src="https://picsum.photos/seed/work7/400/400" alt="Work" class="w-full h-full object-cover group-hover:scale-110 transition duration-500">
+      </a>
+    </div>
+  </div>
+</section>`,
+  },
+]
+
+// FOOTER with multi-page links
+const FOOTER_COMPONENTS: ComponentTemplate[] = [
+  {
+    id: 'footer-multipage',
+    name: 'Multi-Page Footer',
+    category: 'footer',
+    description: 'Footer with site map links',
+    preview: 'Full site navigation footer',
+    html: `<footer class="bg-slate-900 pt-16 pb-8">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="grid md:grid-cols-2 lg:grid-cols-5 gap-8 pb-12 border-b border-slate-800">
+      <div class="lg:col-span-2">
+        <a href="index.html" class="text-2xl font-bold text-white">Brand</a>
+        <p class="text-slate-400 mt-4 max-w-sm">Building amazing digital experiences since 2020. We help businesses grow with innovative solutions.</p>
+        <div class="flex gap-4 mt-6">
+          <a href="#" class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center hover:bg-white/20 transition">
+            <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/></svg>
+          </a>
+          <a href="#" class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center hover:bg-white/20 transition">
+            <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.6.11.793-.26.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+          </a>
+          <a href="#" class="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center hover:bg-white/20 transition">
+            <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+          </a>
+        </div>
+      </div>
+      <div>
+        <h4 class="text-white font-semibold mb-4">Pages</h4>
+        <ul class="space-y-3">
+          <li><a href="index.html" class="text-slate-400 hover:text-white transition">Home</a></li>
+          <li><a href="about.html" class="text-slate-400 hover:text-white transition">About Us</a></li>
+          <li><a href="services.html" class="text-slate-400 hover:text-white transition">Services</a></li>
+          <li><a href="portfolio.html" class="text-slate-400 hover:text-white transition">Portfolio</a></li>
+          <li><a href="blog.html" class="text-slate-400 hover:text-white transition">Blog</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4 class="text-white font-semibold mb-4">Services</h4>
+        <ul class="space-y-3">
+          <li><a href="services-web.html" class="text-slate-400 hover:text-white transition">Web Design</a></li>
+          <li><a href="services-mobile.html" class="text-slate-400 hover:text-white transition">Mobile Apps</a></li>
+          <li><a href="services-branding.html" class="text-slate-400 hover:text-white transition">Branding</a></li>
+          <li><a href="services-marketing.html" class="text-slate-400 hover:text-white transition">Marketing</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4 class="text-white font-semibold mb-4">Support</h4>
+        <ul class="space-y-3">
+          <li><a href="contact.html" class="text-slate-400 hover:text-white transition">Contact</a></li>
+          <li><a href="faq.html" class="text-slate-400 hover:text-white transition">FAQ</a></li>
+          <li><a href="privacy.html" class="text-slate-400 hover:text-white transition">Privacy Policy</a></li>
+          <li><a href="terms.html" class="text-slate-400 hover:text-white transition">Terms of Service</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+      <p class="text-slate-500">&copy; 2025 Brand. All rights reserved.</p>
+      <div class="flex gap-6">
+        <a href="privacy.html" class="text-slate-500 hover:text-white transition text-sm">Privacy</a>
+        <a href="terms.html" class="text-slate-500 hover:text-white transition text-sm">Terms</a>
+        <a href="cookies.html" class="text-slate-500 hover:text-white transition text-sm">Cookies</a>
+      </div>
+    </div>
+  </div>
+</footer>`,
+  },
+]
+
+// Combine all components into final export
+// Note: COMPONENTS is already defined above with base components,
+// we extend it with new media/navigation components
+COMPONENTS.push(
+  ...VIDEO_COMPONENTS,
+  ...AUDIO_COMPONENTS,
+  ...NAVIGATION_COMPONENTS,
+  ...MEDIA_COMPONENTS,
+  ...FOOTER_COMPONENTS,
+)
 
 export function getComponentsByCategory(category: string): ComponentTemplate[] {
   return COMPONENTS.filter(c => c.category === category)

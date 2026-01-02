@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 // Free Image APIs
 const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY
 const PEXELS_API_KEY = process.env.PEXELS_API_KEY

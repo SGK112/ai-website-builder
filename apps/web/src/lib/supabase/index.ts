@@ -1,5 +1,3 @@
-// Re-export all Supabase utilities
-export { createClient, getSupabaseClient } from './client'
-export { createClient as createServerClient, createAdminClient } from './server'
-export { supabaseAuth, serverAuth, useSupabaseAuth } from './auth'
+// Supabase types for template database
+// Auth is handled by NextAuth, not Supabase
 export * from './types'

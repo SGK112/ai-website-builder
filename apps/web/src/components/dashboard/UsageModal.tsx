@@ -1,0 +1,69 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { X } from 'lucide-react'
+import { UsageDashboard } from './UsageDashboard'
+import { useRouter } from 'next/navigation'
+
+interface UsageModalProps {
+  isOpen: boolean
+  onClose: () => void
+}
+
+export function UsageModal({ isOpen, onClose }: UsageModalProps) {
+  const router = useRouter()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [isOpen])
+
+  if (!mounted || !isOpen) return null
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Modal */}
+      <div className="relative w-full max-w-3xl max-h-[90vh] mx-4 bg-[#0f0f1a] rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-white/10">
+          <h2 className="text-lg font-semibold text-white">Usage & Credits</h2>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+          <UsageDashboard
+            onUpgrade={() => {
+              onClose()
+              router.push('/upgrade')
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default UsageModal

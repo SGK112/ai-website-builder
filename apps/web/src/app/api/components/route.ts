@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { COMPONENTS, COMPONENT_CATEGORIES } from '@/lib/component-library'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const category = searchParams.get('category')

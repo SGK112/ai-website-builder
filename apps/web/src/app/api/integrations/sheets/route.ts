@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 // Google Sheets API integration
 // Users can connect their own Google Sheets to receive form submissions
 

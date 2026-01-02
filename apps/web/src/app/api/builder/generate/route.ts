@@ -15,23 +15,50 @@ import {
 import { LUXE_ECOMMERCE_TEMPLATE } from '@/lib/templates'
 
 // Improved prompt for small/free AI models (3B-7B parameters)
-const SIMPLE_SYSTEM_PROMPT = `You are a web developer. Generate a COMPLETE, PROFESSIONAL HTML website.
+// Uses chain-of-thought and few-shot prompting based on 2025 best practices
+const SIMPLE_SYSTEM_PROMPT = `You are an expert web developer. Generate a COMPLETE, PROFESSIONAL, IMAGE-RICH HTML website.
 
-CRITICAL RULES:
+THINK STEP BY STEP:
+1. First, understand the business type and target audience
+2. Choose appropriate colors, images, and content tone
+3. Structure the page with semantic HTML sections
+4. Apply responsive design with mobile-first approach
+5. ADD IMAGES TO EVERY SECTION - this is critical for visual appeal
+6. Output the complete HTML code
+
+CRITICAL OUTPUT RULES:
 1. Output ONLY HTML code - NO markdown, NO \`\`\`, NO explanations
 2. Start with <!DOCTYPE html>
 3. Include Tailwind CSS: <script src="https://cdn.tailwindcss.com"></script>
 4. Use dark theme: bg-slate-900/950, text-white, indigo/violet accents
-5. Images: https://picsum.photos/seed/KEYWORD/WIDTH/HEIGHT (e.g., picsum.photos/seed/restaurant/800/600)
-6. Make it responsive with md: and lg: breakpoints
-7. Include ALL sections with REAL content (not placeholders)
+5. Make it responsive with md: and lg: breakpoints
+6. Include ALL sections with REAL content (not placeholders)
+7. Add SEO meta tags: description, Open Graph, Twitter cards
 
-REQUIRED STRUCTURE:
+⚠️ MANDATORY IMAGE REQUIREMENTS - USE THESE EXACT FORMATS:
+- Hero background: style="background-image: url('https://picsum.photos/seed/KEYWORD/1920/1080')"
+- Logo: <img src="https://picsum.photos/seed/logo/120/40" alt="Logo" class="h-10">
+- Feature images: <img src="https://picsum.photos/seed/feature1/600/400" class="rounded-xl">
+- Team photos: <img src="https://i.pravatar.cc/150?img=NUMBER" class="rounded-full">
+- Product/showcase: <img src="https://picsum.photos/seed/product/800/600" class="rounded-2xl shadow-2xl">
+- Gallery: <img src="https://picsum.photos/seed/gallery1/400/300" class="rounded-lg">
+
+KEYWORD EXAMPLES BY BUSINESS TYPE:
+- Tech/SaaS: technology, software, coding, laptop, dashboard, analytics
+- Restaurant: food, restaurant, chef, dining, cuisine, kitchen
+- Fitness: gym, workout, fitness, exercise, health, yoga
+- Real Estate: house, home, interior, architecture, building
+- Fashion: fashion, clothing, style, boutique, model
+- Business: office, meeting, team, corporate, professional
+
+REQUIRED STRUCTURE WITH IMAGES:
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Brief compelling description of the business">
+  <meta property="og:image" content="https://picsum.photos/seed/brand/1200/630">
   <title>BUSINESS NAME - Tagline</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -39,36 +66,45 @@ REQUIRED STRUCTURE:
 </head>
 <body class="bg-slate-950 text-white">
 
-<!-- NAVIGATION: Fixed, glassmorphic -->
+<!-- NAVIGATION with LOGO IMAGE -->
 <nav class="fixed top-0 w-full bg-slate-950/80 backdrop-blur-lg border-b border-white/10 z-50">
   <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-    <a href="#" class="text-xl font-bold">BrandName</a>
+    <a href="#" class="flex items-center gap-2">
+      <img src="https://picsum.photos/seed/brandlogo/40/40" alt="Logo" class="h-10 w-10 rounded-lg">
+      <span class="text-xl font-bold">BrandName</span>
+    </a>
     <div class="hidden md:flex gap-8">
       <a href="#features" class="text-slate-300 hover:text-white transition">Features</a>
       <a href="#about" class="text-slate-300 hover:text-white transition">About</a>
       <a href="#contact" class="text-slate-300 hover:text-white transition">Contact</a>
     </div>
-    <a href="#" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg font-medium transition">Get Started</a>
+    <a href="#contact" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg font-medium transition">Get Started</a>
   </div>
 </nav>
 
-<!-- HERO: Full viewport, gradient background, compelling headline -->
+<!-- HERO: Full viewport with BACKGROUND IMAGE -->
 <section class="min-h-screen flex items-center pt-20 relative overflow-hidden">
-  <div class="absolute inset-0 bg-gradient-to-br from-indigo-600/20 via-transparent to-violet-600/20"></div>
-  <div class="max-w-7xl mx-auto px-6 py-24 relative z-10">
-    <div class="max-w-3xl">
+  <!-- HERO BACKGROUND IMAGE - Use relevant keyword -->
+  <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('https://picsum.photos/seed/hero/1920/1080')"></div>
+  <div class="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/70 to-slate-950/50"></div>
+  <div class="max-w-7xl mx-auto px-6 py-24 relative z-10 grid md:grid-cols-2 gap-12 items-center">
+    <div>
       <span class="inline-block px-4 py-1 bg-indigo-500/20 border border-indigo-500/30 rounded-full text-indigo-300 text-sm mb-6">Welcome to Our Platform</span>
       <h1 class="text-4xl md:text-6xl font-bold mb-6 leading-tight">Your Compelling<br><span class="text-indigo-400">Headline Here</span></h1>
-      <p class="text-xl text-slate-300 mb-8 max-w-xl">A brief, persuasive description of what you offer and why visitors should care. Make it specific to the business.</p>
+      <p class="text-xl text-slate-300 mb-8 max-w-xl">A brief, persuasive description of what you offer and why visitors should care.</p>
       <div class="flex flex-wrap gap-4">
-        <a href="#" class="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-semibold transition shadow-lg shadow-indigo-600/30">Primary Action</a>
-        <a href="#" class="px-8 py-4 bg-white/10 hover:bg-white/20 rounded-xl font-semibold border border-white/20 transition">Learn More</a>
+        <a href="#contact" class="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-semibold transition shadow-lg shadow-indigo-600/30">Get Started</a>
+        <a href="#features" class="px-8 py-4 bg-white/10 hover:bg-white/20 rounded-xl font-semibold border border-white/20 transition">Learn More</a>
       </div>
+    </div>
+    <!-- HERO PRODUCT/APP IMAGE -->
+    <div class="hidden md:block">
+      <img src="https://picsum.photos/seed/dashboard/800/600" alt="Product Preview" class="rounded-2xl shadow-2xl shadow-indigo-500/20 border border-white/10">
     </div>
   </div>
 </section>
 
-<!-- FEATURES: 3-column grid with icons -->
+<!-- FEATURES: 3-column grid with IMAGES -->
 <section id="features" class="py-24 px-6">
   <div class="max-w-7xl mx-auto">
     <div class="text-center mb-16">
@@ -76,26 +112,48 @@ REQUIRED STRUCTURE:
       <p class="text-slate-400 max-w-2xl mx-auto">Describe your key benefits here</p>
     </div>
     <div class="grid md:grid-cols-3 gap-8">
-      <div class="p-8 bg-white/5 rounded-2xl border border-white/10 hover:border-indigo-500/50 transition">
-        <div class="w-14 h-14 bg-indigo-500/20 rounded-xl flex items-center justify-center mb-6">
-          <svg class="w-7 h-7 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      <!-- Feature card WITH IMAGE -->
+      <div class="bg-white/5 rounded-2xl border border-white/10 hover:border-indigo-500/50 transition overflow-hidden group">
+        <img src="https://picsum.photos/seed/feature1/600/400" alt="Feature 1" class="w-full h-48 object-cover group-hover:scale-105 transition duration-500">
+        <div class="p-6">
+          <h3 class="text-xl font-semibold mb-3">Feature One</h3>
+          <p class="text-slate-400">Describe this feature and its benefits to the customer.</p>
         </div>
-        <h3 class="text-xl font-semibold mb-3">Feature One</h3>
-        <p class="text-slate-400">Describe this feature and its benefits to the customer.</p>
       </div>
-      <div class="p-8 bg-white/5 rounded-2xl border border-white/10 hover:border-indigo-500/50 transition">
-        <div class="w-14 h-14 bg-indigo-500/20 rounded-xl flex items-center justify-center mb-6">
-          <svg class="w-7 h-7 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+      <div class="bg-white/5 rounded-2xl border border-white/10 hover:border-indigo-500/50 transition overflow-hidden group">
+        <img src="https://picsum.photos/seed/feature2/600/400" alt="Feature 2" class="w-full h-48 object-cover group-hover:scale-105 transition duration-500">
+        <div class="p-6">
+          <h3 class="text-xl font-semibold mb-3">Feature Two</h3>
+          <p class="text-slate-400">Describe this feature and its benefits to the customer.</p>
         </div>
-        <h3 class="text-xl font-semibold mb-3">Feature Two</h3>
-        <p class="text-slate-400">Describe this feature and its benefits to the customer.</p>
       </div>
-      <div class="p-8 bg-white/5 rounded-2xl border border-white/10 hover:border-indigo-500/50 transition">
-        <div class="w-14 h-14 bg-indigo-500/20 rounded-xl flex items-center justify-center mb-6">
-          <svg class="w-7 h-7 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <div class="bg-white/5 rounded-2xl border border-white/10 hover:border-indigo-500/50 transition overflow-hidden group">
+        <img src="https://picsum.photos/seed/feature3/600/400" alt="Feature 3" class="w-full h-48 object-cover group-hover:scale-105 transition duration-500">
+        <div class="p-6">
+          <h3 class="text-xl font-semibold mb-3">Feature Three</h3>
+          <p class="text-slate-400">Describe this feature and its benefits to the customer.</p>
         </div>
-        <h3 class="text-xl font-semibold mb-3">Feature Three</h3>
-        <p class="text-slate-400">Describe this feature and its benefits to the customer.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SHOWCASE: Large image with overlapping stats -->
+<section class="py-24 px-6 bg-slate-900/50">
+  <div class="max-w-7xl mx-auto">
+    <div class="relative">
+      <img src="https://picsum.photos/seed/showcase/1400/600" alt="Showcase" class="w-full h-96 object-cover rounded-3xl">
+      <div class="absolute inset-0 bg-gradient-to-r from-slate-950/80 to-transparent rounded-3xl"></div>
+      <div class="absolute inset-0 flex items-center px-12">
+        <div class="max-w-lg">
+          <h2 class="text-3xl md:text-4xl font-bold mb-4">Trusted by Thousands</h2>
+          <p class="text-slate-300 mb-6">Join the growing community of successful businesses using our platform.</p>
+          <div class="grid grid-cols-3 gap-6">
+            <div><div class="text-3xl font-bold text-indigo-400">10K+</div><div class="text-sm text-slate-400">Users</div></div>
+            <div><div class="text-3xl font-bold text-indigo-400">95%</div><div class="text-sm text-slate-400">Satisfaction</div></div>
+            <div><div class="text-3xl font-bold text-indigo-400">24/7</div><div class="text-sm text-slate-400">Support</div></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -333,7 +391,9 @@ Pricing Card:
   <a href="#" class="block w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl text-center transition">Get Started</a>
 </div>
 
-5. IMAGES - Use ONLY these reliable sources (they always work):
+5. ⚠️ MANDATORY IMAGE REQUIREMENTS - EVERY WEBSITE MUST HAVE IMAGES:
+
+Use ONLY these reliable sources (they ALWAYS work):
 
 AVATARS (for testimonials, team members):
 - https://i.pravatar.cc/SIZE?img=NUMBER (NUMBER from 1-70)
@@ -345,12 +405,42 @@ GENERAL IMAGES (for hero, features, backgrounds):
 - Example: https://picsum.photos/seed/tech/600/400
 - Example: https://picsum.photos/seed/office/1200/800
 
-PLACEHOLDER.COM (for simple placeholders):
-- https://placehold.co/WIDTHxHEIGHT/COLOR/TEXTCOLOR?text=TEXT
-- Example: https://placehold.co/600x400/1e293b/ffffff?text=Your+Image
+REQUIRED IMAGE PLACEMENTS (DO NOT SKIP ANY):
 
-IMPORTANT: Do NOT use images.unsplash.com - these require real photo IDs.
-Always use picsum.photos/seed/KEYWORD format for reliable images.
+A. HERO SECTION (MANDATORY background image):
+<section class="relative min-h-screen" style="background-image: url('https://picsum.photos/seed/KEYWORD/1920/1080'); background-size: cover; background-position: center;">
+  <div class="absolute inset-0 bg-slate-950/70"></div>
+  <!-- content with relative z-10 -->
+</section>
+
+B. NAVIGATION LOGO (MANDATORY):
+<img src="https://picsum.photos/seed/logo/120/40" alt="Logo" class="h-10">
+
+C. FEATURE/SERVICE IMAGES (at least 3):
+<img src="https://picsum.photos/seed/feature1/600/400" alt="Feature" class="rounded-xl">
+<img src="https://picsum.photos/seed/feature2/600/400" alt="Feature" class="rounded-xl">
+<img src="https://picsum.photos/seed/feature3/600/400" alt="Feature" class="rounded-xl">
+
+D. TESTIMONIAL AVATARS (at least 3):
+<img src="https://i.pravatar.cc/150?img=1" alt="Customer" class="w-16 h-16 rounded-full">
+<img src="https://i.pravatar.cc/150?img=2" alt="Customer" class="w-16 h-16 rounded-full">
+<img src="https://i.pravatar.cc/150?img=3" alt="Customer" class="w-16 h-16 rounded-full">
+
+E. TEAM/ABOUT IMAGES (if applicable):
+<img src="https://i.pravatar.cc/200?img=10" alt="Team Member" class="rounded-xl">
+
+KEYWORD EXAMPLES BY INDUSTRY (use relevant keywords):
+- Fitness/Gym: gym, fitness, workout, training, weights
+- Restaurant: food, restaurant, dining, chef, kitchen
+- Tech/SaaS: tech, software, computer, coding, dashboard
+- Real Estate: house, home, building, interior, architecture
+- Healthcare: doctor, medical, health, clinic, hospital
+- E-commerce: product, shopping, retail, fashion, store
+- Agency: team, office, meeting, creative, design
+
+CRITICAL: Do NOT use images.unsplash.com - these require real photo IDs.
+ALWAYS use picsum.photos/seed/KEYWORD format for reliable images.
+NEVER generate a website without at least 5-7 images!
 
 6. SVG ICONS - Use Heroicons style:
 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -712,10 +802,42 @@ PRODUCT CARD PATTERN (Use this exact structure):
   <p class="text-sm text-gray-500">$[PRICE]</p>
 </div>
 
-IMAGES: Use https://picsum.photos/seed/[keyword]/[width]/[height] for all images
-- Hero: /seed/luxury/1920/1080
-- Products: /seed/bag1/400/500, /seed/bag2/400/500, etc.
-- Categories: /seed/fashion/600/800
+⚠️ MANDATORY IMAGE REQUIREMENTS - E-COMMERCE SITES NEED MANY IMAGES:
+
+Use https://picsum.photos/seed/[keyword]/[width]/[height] for ALL images (they ALWAYS work)
+
+REQUIRED PLACEMENTS:
+A. HERO BACKGROUND (MANDATORY - full width):
+style="background-image: url('https://picsum.photos/seed/luxury/1920/1080'); background-size: cover;"
+
+B. LOGO (MANDATORY):
+<img src="https://picsum.photos/seed/logo/120/40" alt="Brand Logo" class="h-10">
+
+C. PRODUCT IMAGES (at least 8 products):
+- https://picsum.photos/seed/product1/400/500
+- https://picsum.photos/seed/product2/400/500
+- https://picsum.photos/seed/bag1/400/500
+- https://picsum.photos/seed/shoe1/400/500
+... use descriptive keywords for the product type
+
+D. CATEGORY IMAGES (at least 3):
+- https://picsum.photos/seed/fashion/600/800
+- https://picsum.photos/seed/accessories/600/800
+- https://picsum.photos/seed/newcollection/600/800
+
+E. PROMOTIONAL BANNERS:
+- https://picsum.photos/seed/sale/1200/600
+- https://picsum.photos/seed/collection/1400/700
+
+KEYWORD EXAMPLES BY PRODUCT TYPE:
+- Fashion: dress, shirt, jacket, outfit, style
+- Bags: bag, handbag, purse, tote, clutch
+- Shoes: shoe, sneaker, heel, boot, sandal
+- Jewelry: ring, necklace, watch, bracelet
+- Home: furniture, decor, lamp, rug, pillow
+
+CRITICAL: Never use placeholder URLs or broken images.
+ALWAYS generate at least 10-15 images for e-commerce sites!
 
 ANIMATIONS TO INCLUDE:
 - @keyframes kenBurns { 0% { transform: scale(1); } 100% { transform: scale(1.08); } }
@@ -827,6 +949,187 @@ ${result}
     )
   }
 
+  // MANDATORY: Inject interactivity script to make all buttons/forms functional
+  const interactivityScript = `
+<script>
+(function() {
+  'use strict';
+
+  // ===== SMOOTH SCROLLING FOR ALL ANCHOR LINKS =====
+  document.querySelectorAll('a[href^="#"]').forEach(link => {
+    link.addEventListener('click', function(e) {
+      const href = this.getAttribute('href');
+      if (href === '#' || href === '#!') {
+        e.preventDefault();
+        return;
+      }
+      const target = document.querySelector(href);
+      if (target) {
+        e.preventDefault();
+        const offset = 80;
+        const top = target.getBoundingClientRect().top + window.pageYOffset - offset;
+        window.scrollTo({ top, behavior: 'smooth' });
+      }
+    });
+  });
+
+  // ===== MOBILE MENU TOGGLE =====
+  const mobileToggle = document.querySelector('[data-mobile-toggle], .mobile-menu-toggle, button[aria-label*="menu" i]');
+  const mobileMenu = document.querySelector('[data-mobile-menu], .mobile-menu, nav ul.hidden');
+  if (mobileToggle) {
+    mobileToggle.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (mobileMenu) {
+        mobileMenu.classList.toggle('hidden');
+        mobileMenu.classList.toggle('flex');
+      }
+      // Toggle hamburger to X animation
+      const spans = mobileToggle.querySelectorAll('span');
+      spans.forEach(span => span.classList.toggle('rotate-45'));
+    });
+  }
+
+  // ===== NAVBAR BACKGROUND ON SCROLL =====
+  const navbar = document.querySelector('nav, header');
+  if (navbar) {
+    const updateNav = () => {
+      if (window.scrollY > 50) {
+        navbar.classList.add('shadow-lg');
+        navbar.style.background = 'rgba(15, 23, 42, 0.95)';
+      } else {
+        navbar.classList.remove('shadow-lg');
+        navbar.style.background = '';
+      }
+    };
+    window.addEventListener('scroll', updateNav, { passive: true });
+  }
+
+  // ===== FORM SUBMISSION HANDLER =====
+  document.querySelectorAll('form').forEach(form => {
+    form.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const btn = this.querySelector('button[type="submit"], input[type="submit"]');
+      const originalText = btn ? btn.innerHTML : '';
+
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<svg class="animate-spin h-5 w-5 mx-auto" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>';
+      }
+
+      // Simulate form submission (in production, this would POST to a real endpoint)
+      setTimeout(() => {
+        if (btn) {
+          btn.innerHTML = '✓ Success!';
+          btn.classList.remove('bg-indigo-600');
+          btn.classList.add('bg-green-600');
+        }
+        this.reset();
+
+        setTimeout(() => {
+          if (btn) {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            btn.classList.remove('bg-green-600');
+            btn.classList.add('bg-indigo-600');
+          }
+        }, 2000);
+      }, 1500);
+    });
+  });
+
+  // ===== CTA BUTTON CLICK HANDLERS =====
+  document.querySelectorAll('a[href="#"], button:not([type]), .cta-button').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      if (this.getAttribute('href') === '#') {
+        e.preventDefault();
+        // Scroll to contact or first form section
+        const contactSection = document.querySelector('#contact, #form, form, [id*="contact"]');
+        if (contactSection) {
+          const offset = 80;
+          const top = contactSection.getBoundingClientRect().top + window.pageYOffset - offset;
+          window.scrollTo({ top, behavior: 'smooth' });
+        } else {
+          // Show a simple alert if no contact section
+          alert('Thank you for your interest! This feature will be available soon.');
+        }
+      }
+    });
+  });
+
+  // ===== FAQ ACCORDION =====
+  document.querySelectorAll('[data-accordion], .faq-item, .accordion-item').forEach(item => {
+    const trigger = item.querySelector('button, [role="button"], .faq-question');
+    const content = item.querySelector('[data-content], .faq-answer, .accordion-content, p');
+    if (trigger && content) {
+      content.style.maxHeight = '0';
+      content.style.overflow = 'hidden';
+      content.style.transition = 'max-height 0.3s ease';
+
+      trigger.addEventListener('click', () => {
+        const isOpen = content.style.maxHeight !== '0px';
+        content.style.maxHeight = isOpen ? '0px' : content.scrollHeight + 'px';
+        const icon = trigger.querySelector('svg, [class*="chevron"]');
+        if (icon) icon.style.transform = isOpen ? '' : 'rotate(180deg)';
+      });
+    }
+  });
+
+  // ===== SCROLL REVEAL ANIMATIONS =====
+  const observerOptions = { threshold: 0.1, rootMargin: '0px 0px -50px 0px' };
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.style.opacity = '1';
+        entry.target.style.transform = 'translateY(0)';
+      }
+    });
+  }, observerOptions);
+
+  document.querySelectorAll('section, .card, article, [class*="animate"]').forEach(el => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(20px)';
+    el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+    observer.observe(el);
+  });
+
+  // ===== COUNTER ANIMATION FOR STATS =====
+  document.querySelectorAll('[data-count], .stat-number').forEach(counter => {
+    const target = parseInt(counter.textContent.replace(/[^0-9]/g, ''), 10);
+    if (isNaN(target)) return;
+
+    counter.textContent = '0';
+    const countObserver = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        let current = 0;
+        const step = target / 50;
+        const timer = setInterval(() => {
+          current += step;
+          if (current >= target) {
+            counter.textContent = target.toLocaleString() + (counter.dataset.suffix || '+');
+            clearInterval(timer);
+          } else {
+            counter.textContent = Math.floor(current).toLocaleString();
+          }
+        }, 30);
+        countObserver.disconnect();
+      }
+    });
+    countObserver.observe(counter);
+  });
+
+  console.log('✅ WebStew interactivity loaded');
+})();
+</script>`;
+
+  // Inject script before </body> if not already present
+  if (!result.includes('WebStew interactivity loaded')) {
+    if (result.includes('</body>')) {
+      result = result.replace('</body>', interactivityScript + '\n</body>');
+    } else {
+      result += interactivityScript;
+    }
+  }
+
   return result
 }
 
@@ -910,12 +1213,39 @@ function verifyImagesInHtml(html: string): { valid: boolean; imageCount: number;
   return { valid: errors.length === 0, imageCount, errors }
 }
 
+// Service credentials type for full-stack generation
+interface ServiceCredentials {
+  // Database
+  MONGODB_URI?: string
+  REDIS_URL?: string
+  SUPABASE_URL?: string
+  SUPABASE_ANON_KEY?: string
+  // Payments
+  STRIPE_SECRET_KEY?: string
+  STRIPE_PUBLISHABLE_KEY?: string
+  // Communications
+  SENDGRID_API_KEY?: string
+  TWILIO_AUTH_TOKEN?: string
+  TWILIO_ACCOUNT_SID?: string
+  // AI Generation
+  OPENAI_API_KEY?: string
+  ANTHROPIC_API_KEY?: string
+  RUNPOD_FLUX_ENDPOINT?: string
+  // Media
+  PIXABAY_API_KEY?: string
+  // Deployment
+  GITHUB_ACCESS_TOKEN?: string
+  RENDER_API_KEY?: string
+}
+
 // Build prompt with WebStew ingredients - IMAGES ARE CRITICAL
 // This uses image markers to safely pass images through AI generation
 function buildPromptWithIngredients(
   prompt: string,
   ingredients: StewIngredient[],
-  currentHtml?: string
+  currentHtml?: string,
+  serviceCredentials?: ServiceCredentials,
+  outputMode: 'static' | 'nextjs' | 'react' = 'static'
 ): { prompt: string; imageMarkers: Map<string, string> } {
   let enhancedPrompt = prompt
   const imageMarkers = new Map<string, string>()
@@ -1060,14 +1390,170 @@ Generate the complete HTML now.`
   }
 
   if (currentHtml) {
+    // Smart edit detection - determine edit scope
+    const editLower = enhancedPrompt.toLowerCase()
+    const isColorChange = /color|theme|dark|light|palette|accent/.test(editLower)
+    const isTextChange = /text|heading|title|copy|content|wording/.test(editLower)
+    const isSectionAdd = /add|insert|include|create.*section/.test(editLower)
+    const isSectionRemove = /remove|delete|hide.*section/.test(editLower)
+    const isLayoutChange = /layout|grid|column|row|spacing|margin|padding/.test(editLower)
+    const isComponentChange = /button|form|nav|footer|hero|card|image/.test(editLower)
+
+    // Build precision guidance based on edit type
+    let editGuidance = ''
+    if (isColorChange) {
+      editGuidance = `COLOR/THEME EDIT: Change color classes globally. Replace bg-slate-xxx, text-xxx, border-xxx consistently throughout.`
+    } else if (isTextChange) {
+      editGuidance = `TEXT EDIT: Change only text content within tags. Keep ALL HTML structure, classes, and attributes identical.`
+    } else if (isSectionAdd) {
+      editGuidance = `SECTION ADD: Insert new section matching existing design patterns. Use same class conventions, spacing, and component styles.`
+    } else if (isSectionRemove) {
+      editGuidance = `SECTION REMOVE: Delete the entire <section> block. Preserve surrounding sections completely.`
+    } else if (isLayoutChange) {
+      editGuidance = `LAYOUT EDIT: Modify grid/flex classes, spacing utilities. Keep content and other styles intact.`
+    } else if (isComponentChange) {
+      editGuidance = `COMPONENT EDIT: Modify specific component type requested. Match existing visual style.`
+    }
+
     return {
-      prompt: `Modify this HTML based on the request: "${enhancedPrompt}"\n\nCurrent HTML:\n${currentHtml}\n\nReturn the COMPLETE modified HTML. Preserve all image placeholders ({{IMAGE_X_CATEGORY}}).`,
+      prompt: `PRECISION WEBSITE EDITOR - SURGICAL MODIFICATIONS ONLY
+
+REQUEST: "${enhancedPrompt}"
+
+${editGuidance ? `DETECTED EDIT TYPE: ${editGuidance}\n` : ''}
+STRICT RULES:
+1. PRESERVE 100% of HTML structure not mentioned in the request
+2. PRESERVE all existing class names, IDs, and attributes unchanged
+3. PRESERVE all image URLs and placeholder markers exactly
+4. PRESERVE all script tags, style blocks, and meta information
+5. PRESERVE all links (href), form actions, and interactive elements
+6. ONLY modify what is explicitly requested - nothing more
+
+DIFF-STYLE APPROACH:
+- If user says "change hero text" → modify ONLY text inside hero section
+- If user says "make button blue" → change ONLY button background color class
+- If user says "add testimonials" → insert new section, touch nothing else
+
+CURRENT HTML TO EDIT:
+${currentHtml}
+
+OUTPUT REQUIREMENTS:
+- Return COMPLETE HTML document (<!DOCTYPE html> to </html>)
+- Preserve every line not related to the requested change
+- Keep all {{IMAGE_X_CATEGORY}} placeholders exactly as-is
+- NO markdown code blocks - raw HTML only
+- If unsure about a change, preserve the original`,
       imageMarkers
     }
   }
 
+  // Build full-stack features based on available credentials
+  let fullStackFeatures = ''
+  if (serviceCredentials) {
+    const features: string[] = []
+
+    // Payment Integration
+    if (serviceCredentials.STRIPE_PUBLISHABLE_KEY) {
+      features.push(`PAYMENT: Include Stripe checkout button with onclick="handlePayment()". Add payment form section with price display.`)
+    }
+
+    // Communications
+    if (serviceCredentials.SENDGRID_API_KEY || serviceCredentials.TWILIO_ACCOUNT_SID) {
+      features.push(`CONTACT: Forms submit to action="/api/forms/submit" with email, name, message fields. Add success/error states.`)
+    }
+
+    // Authentication
+    if (serviceCredentials.SUPABASE_URL) {
+      features.push(`AUTH: Add login/signup modal with email/password inputs. Forms submit to action="/api/auth/signup" or "/api/auth/signin".`)
+    }
+
+    // Database
+    if (serviceCredentials.MONGODB_URI) {
+      features.push(`DATABASE: Dynamic content sections (testimonials, products, posts) can be populated via /api/sections endpoint.`)
+    }
+
+    // AI-Powered Features
+    if (serviceCredentials.OPENAI_API_KEY || serviceCredentials.ANTHROPIC_API_KEY) {
+      features.push(`AI CHAT: Add floating chat widget with input that posts to /api/ai/chat. Include thinking indicator.`)
+    }
+
+    // AI Image Generation
+    if (serviceCredentials.RUNPOD_FLUX_ENDPOINT) {
+      features.push(`AI IMAGES: Add "Generate Image" buttons that call /api/media/generate with prompts.`)
+    }
+
+    // Stock Photos
+    if (serviceCredentials.PIXABAY_API_KEY) {
+      features.push(`MEDIA: Use real stock photos from /api/media/pixabay?query=KEYWORD for any image sections.`)
+    }
+
+    if (features.length > 0) {
+      fullStackFeatures = `
+
+FULL-STACK CAPABILITIES - INTEGRATE THESE FEATURES:
+${features.map(f => `• ${f}`).join('\n')}
+
+FUNCTIONAL FORM PATTERN:
+<form action="/api/forms/submit" method="POST" class="space-y-4" onsubmit="handleSubmit(event)">
+  <input type="hidden" name="formId" value="contact">
+  <input type="email" name="email" required placeholder="Email" class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl">
+  <textarea name="message" required placeholder="Message" class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl"></textarea>
+  <button type="submit" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-medium">Send</button>
+</form>
+<script>
+async function handleSubmit(e) {
+  e.preventDefault();
+  const form = e.target;
+  const btn = form.querySelector('button[type="submit"]');
+  btn.disabled = true; btn.textContent = 'Sending...';
+  try {
+    const res = await fetch(form.action, { method: 'POST', body: new FormData(form) });
+    if (res.ok) { form.reset(); btn.textContent = 'Sent!'; }
+    else { btn.textContent = 'Error - Try Again'; }
+  } catch { btn.textContent = 'Error - Try Again'; }
+  setTimeout(() => { btn.disabled = false; btn.textContent = 'Send'; }, 3000);
+}
+</script>
+
+INTERACTIVE UI PATTERNS:
+- Add loading spinners: <div class="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+- Success states: class="text-emerald-400" with checkmark icon
+- Error states: class="text-red-400" with alert icon
+- Disabled states: class="opacity-50 cursor-not-allowed" with disabled attribute`
+    }
+  }
+
   return {
-    prompt: `Create a complete website for: ${enhancedPrompt}\n\nMake it look professional with a dark theme, gradients, and modern design.`,
+    prompt: `Create a complete, production-ready website for: ${enhancedPrompt}
+
+DESIGN REQUIREMENTS:
+- Professional dark theme with slate-900/950 backgrounds
+- Gradient accents using indigo/violet/purple
+- Glassmorphic cards with backdrop-blur effects
+- Smooth hover transitions and animations
+- Mobile-first responsive design (sm:, md:, lg: breakpoints)
+
+CONTENT REQUIREMENTS:
+- Write compelling, realistic copy for all sections
+- Use relevant industry-specific terminology
+- Include clear calls-to-action
+- Add testimonials with realistic names and quotes
+- Use appropriate picsum.photos images
+
+FUNCTIONAL REQUIREMENTS:
+- All forms must actually work (proper action, method, inputs)
+- Include form validation with required and pattern attributes
+- Add proper button states (hover, focus, disabled)
+- Include accessibility attributes (aria-label, role, etc.)
+${fullStackFeatures}
+
+SEO REQUIREMENTS:
+- Semantic HTML5 structure
+- Meta description, Open Graph, Twitter cards
+- Proper heading hierarchy (h1, h2, h3)
+- Alt text on all images
+
+Generate the complete HTML now.`,
     imageMarkers
   }
 }
@@ -1157,7 +1643,10 @@ export async function POST(req: NextRequest) {
   let userId: string | null = null
 
   try {
-    const { prompt, currentHtml, model, apiKey, apiKeys, ingredients, stylePreset } = await req.json()
+    const { prompt, currentHtml, model, apiKey, apiKeys, ingredients, stylePreset, serviceCredentials, outputMode } = await req.json()
+
+    // outputMode: 'static' (default) | 'nextjs' | 'react'
+    const targetMode = outputMode || 'static'
 
     if (!prompt && (!ingredients || ingredients.length === 0)) {
       return new Response(JSON.stringify({ error: 'Prompt or ingredients required' }), {
@@ -1236,11 +1725,13 @@ export async function POST(req: NextRequest) {
       console.log('[Generate] Anonymous user - using free tier limits')
     }
 
-    // Build prompt with image markers
+    // Build prompt with image markers and service credentials
     const { prompt: userPrompt, imageMarkers } = buildPromptWithIngredients(
       prompt || 'Create a professional website',
       ingredients,
-      currentHtml
+      currentHtml,
+      serviceCredentials,
+      targetMode
     )
 
     // Add style preset to prompt
@@ -1430,7 +1921,11 @@ export async function POST(req: NextRequest) {
           const safeClose = () => {
             if (!closed) {
               closed = true
-              controller.close()
+              try {
+                controller.close()
+              } catch (e) {
+                // Controller already closed, ignore
+              }
             }
           }
 
@@ -1578,7 +2073,11 @@ export async function POST(req: NextRequest) {
         const safeClose = () => {
           if (!closed) {
             closed = true
-            controller.close()
+            try {
+              controller.close()
+            } catch (e) {
+              // Controller already closed, ignore
+            }
           }
         }
 

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { connectDB } from '@/lib/db'
 import mongoose from 'mongoose'
 import { verifyRecaptcha } from '@/lib/recaptcha'
+
+export const dynamic = 'force-dynamic'
 
 // Import or define the FormSubmission model inline
 const formSubmissionSchema = new mongoose.Schema({
@@ -23,11 +27,26 @@ const FormSubmission = mongoose.models.FormSubmission || mongoose.model('FormSub
 const submissions = new Map<string, number[]>()
 const RATE_LIMIT = 5 // max submissions
 const RATE_WINDOW = 60 * 1000 // per minute
+const MAX_IPS = 10000 // max tracked IPs before cleanup
+let lastCleanup = Date.now()
 
 function isRateLimited(ip: string): boolean {
   const now = Date.now()
   const timestamps = submissions.get(ip) || []
   const recent = timestamps.filter(t => now - t < RATE_WINDOW)
+
+  // Periodic cleanup to prevent memory leak
+  if (submissions.size > MAX_IPS || now - lastCleanup > RATE_WINDOW * 5) {
+    for (const [key, values] of submissions.entries()) {
+      const valid = values.filter(t => now - t < RATE_WINDOW)
+      if (valid.length === 0) {
+        submissions.delete(key)
+      } else {
+        submissions.set(key, valid)
+      }
+    }
+    lastCleanup = now
+  }
 
   if (recent.length >= RATE_LIMIT) {
     return true
@@ -141,13 +160,15 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // TODO: Add authentication check here
-    // const session = await getServerSession(authOptions)
-    // if (!session) { return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+    // Authentication check - require login to view submissions
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
     await connectDB()
 
-    const query: any = { projectId }
+    const query: Record<string, string> = { projectId }
     if (status) query.status = status
 
     const submissions = await FormSubmission

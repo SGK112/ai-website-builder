@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth'
 import { getClient } from '@/lib/mongodb'
 import { decrypt } from '@/lib/encryption'
 
+export const dynamic = 'force-dynamic'
+
 interface MediaItem {
   id: string
   url: string

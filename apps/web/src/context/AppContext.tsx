@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { useSession } from 'next-auth/react'
 
 interface Project {
   _id: string
@@ -59,6 +60,7 @@ const defaultPreferences: UserPreferences = {
 const AppContext = createContext<AppContextType | undefined>(undefined)
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const { data: session, status } = useSession()
   const [user, setUser] = useState<AppState['user']>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [currentProject, setCurrentProject] = useState<Project | null>(null)
@@ -66,6 +68,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [preferences, setPreferences] = useState<UserPreferences>(defaultPreferences)
+
+  // Sync user from NextAuth session
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user) {
+      setUser({
+        id: session.user.id || 'unknown',
+        name: session.user.name || 'User',
+        email: session.user.email || '',
+        plan: session.user.plan || 'free',
+      })
+    } else if (status === 'unauthenticated') {
+      setUser(null)
+    }
+  }, [session, status])
 
   // Load preferences from localStorage on mount
   useEffect(() => {
@@ -86,14 +102,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         console.error('Failed to parse recent projects')
       }
     }
-
-    // Set default user for development
-    setUser({
-      id: 'dev-user',
-      name: 'Developer',
-      email: 'dev@localhost',
-      plan: 'pro',
-    })
   }, [])
 
   // Fetch projects on mount

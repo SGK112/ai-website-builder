@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 // Google PageSpeed Insights API - Free, no key required for basic usage
 const PAGESPEED_API = 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed'
 

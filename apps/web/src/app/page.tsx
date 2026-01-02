@@ -198,6 +198,12 @@ export default function HomePage() {
   const [selectedTemplate, setSelectedTemplate] = useState<typeof templateGallery[0] | null>(null)
   const [scrollY, setScrollY] = useState(0)
   const [showAllTemplates, setShowAllTemplates] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  // Handle client-side mounting for animations
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const visibleTemplates = showAllTemplates ? templateGallery : templateGallery.slice(0, 8)
 
@@ -266,7 +272,7 @@ export default function HomePage() {
       ) : (
         <motion.div
           key="landing"
-          initial={{ opacity: 0 }}
+          initial={mounted ? { opacity: 0 } : false}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
           className="min-h-screen relative overflow-hidden"

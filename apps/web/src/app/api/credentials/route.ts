@@ -5,6 +5,8 @@ import { connectDB } from '@/lib/db'
 import { Credential } from '@ai-website-builder/database'
 import { EncryptionService } from '@ai-website-builder/shared'
 
+export const dynamic = 'force-dynamic'
+
 // Lazy initialization to avoid build-time errors
 let encryptionService: EncryptionService | null = null
 function getEncryptionService(): EncryptionService {

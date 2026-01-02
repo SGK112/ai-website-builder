@@ -50,7 +50,7 @@ export function ClientLayout({ children }: ClientLayoutProps) {
       {!shouldHideNav && <WorkspaceNav />}
 
       {/* Page content with transitions */}
-      <div className={!shouldHideNav ? 'pt-16' : ''}>
+      <div className={`relative z-10 ${!shouldHideNav ? 'pt-16' : ''}`}>
         <PageTransition>
           {children}
         </PageTransition>

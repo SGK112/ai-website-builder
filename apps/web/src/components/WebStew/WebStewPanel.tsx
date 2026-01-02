@@ -26,6 +26,7 @@ import {
   Download,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { WebStewRecipeManager } from './WebStewRecipeManager'
 
 // Types for WebStew ingredients
 export interface StewIngredient {
@@ -651,6 +652,15 @@ export function WebStewPanel({
           <Link2 className="w-4 h-4" />
           Link
         </button>
+      </div>
+
+      {/* Recipe Manager */}
+      <div className="px-4 mt-3">
+        <WebStewRecipeManager
+          currentIngredients={ingredients}
+          onLoadRecipe={onIngredientsChange}
+          isDark={isDark}
+        />
       </div>
 
       {/* Text Input */}

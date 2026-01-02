@@ -5,10 +5,21 @@ import { getStripe } from '@/lib/stripe'
 import { connectDB } from '@/lib/db'
 import { User } from '@ai-website-builder/database'
 
+// Track processed event IDs to prevent duplicate processing (in production, use Redis/DB)
+const processedEvents = new Set<string>()
+const MAX_PROCESSED_EVENTS = 1000
+
 export async function POST(req: NextRequest) {
   const stripe = await getStripe()
   if (!stripe) {
     return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 })
+  }
+
+  // Validate webhook secret is configured
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
+  if (!webhookSecret) {
+    console.error('STRIPE_WEBHOOK_SECRET is not configured')
+    return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 })
   }
 
   const body = await req.text()
@@ -22,15 +33,28 @@ export async function POST(req: NextRequest) {
   let event: Awaited<ReturnType<typeof stripe.webhooks.constructEvent>>
 
   try {
-    event = stripe.webhooks.constructEvent(
-      body,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET!
-    )
+    event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
   } catch (err: any) {
     console.error('Webhook signature verification failed:', err.message)
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
+
+  // Idempotency check - prevent duplicate event processing
+  if (processedEvents.has(event.id)) {
+    console.log(`Event ${event.id} already processed, skipping`)
+    return NextResponse.json({ received: true, duplicate: true })
+  }
+
+  // Add to processed events (cleanup if too many)
+  if (processedEvents.size > MAX_PROCESSED_EVENTS) {
+    const iterator = processedEvents.values()
+    for (let i = 0; i < 100; i++) {
+      const result = iterator.next()
+      if (result.done || !result.value) break
+      processedEvents.delete(result.value)
+    }
+  }
+  processedEvents.add(event.id)
 
   await connectDB()
 

@@ -3,11 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { connectDB } from '@/lib/db'
 import { Project } from '@ai-website-builder/database'
-import { AIAgentRouter } from '@ai-website-builder/ai-agents'
-import { CODE_GENERATION_PROMPTS } from '@ai-website-builder/ai-agents'
 import mongoose from 'mongoose'
-
-const router = new AIAgentRouter()
 
 // GET /api/projects - List all projects for the authenticated user
 export async function GET(req: NextRequest) {

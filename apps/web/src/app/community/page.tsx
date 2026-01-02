@@ -1,29 +1,24 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useState } from 'react'
+import { motion } from 'framer-motion'
 import Link from 'next/link'
 import {
   Users,
   MessageSquare,
   Heart,
-  Share2,
   Bookmark,
   Search,
   Filter,
   TrendingUp,
   Clock,
   Star,
-  Award,
   Zap,
   Eye,
   ExternalLink,
-  ThumbsUp,
   MessageCircle,
   ChevronRight,
-  Home,
   Sparkles,
-  Code2,
   Palette,
   ShoppingBag,
   Briefcase,
