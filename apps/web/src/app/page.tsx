@@ -291,12 +291,16 @@ export default function HomePage() {
                   className="flex items-center gap-3"
                 >
                   <div className={cn(
-                    "w-10 h-10 rounded-xl flex items-center justify-center shadow-lg",
+                    "w-10 h-10 rounded-xl flex items-center justify-center shadow-lg relative overflow-hidden group cursor-pointer",
                     isDark
                       ? "bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-violet-500/30"
                       : "bg-gradient-to-br from-orange-400 to-pink-500 shadow-orange-400/30"
                   )}>
-                    <Sparkles className="w-5 h-5 text-white" />
+                    <span className="text-2xl leading-none select-none">🍲</span>
+                    {/* Steam effect on hover */}
+                    <div className="absolute -top-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="w-1 h-2 bg-white/40 rounded-full animate-pulse" />
+                    </div>
                   </div>
                   <span className={cn(
                     "text-xl font-bold tracking-tight",

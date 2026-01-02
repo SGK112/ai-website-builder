@@ -57,17 +57,21 @@ export function WebStewNav() {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5">
+          {/* Logo - Stew Pot */}
+          <Link href="/" className="flex items-center gap-2.5 group">
             <div
               className={cn(
-                'w-9 h-9 rounded-xl flex items-center justify-center shadow-lg',
+                'w-10 h-10 rounded-xl flex items-center justify-center shadow-lg relative overflow-hidden transition-transform group-hover:scale-105',
                 isDark
                   ? 'bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-violet-500/25'
                   : 'bg-gradient-to-br from-orange-400 to-pink-500 shadow-orange-400/25'
               )}
             >
-              <Sparkles className="w-5 h-5 text-white" />
+              <span className="text-2xl leading-none select-none">🍲</span>
+              {/* Steam effect on hover */}
+              <div className="absolute -top-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="w-1 h-2 bg-white/40 rounded-full animate-pulse" />
+              </div>
             </div>
             <span
               className={cn(
