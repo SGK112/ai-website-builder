@@ -11,11 +11,11 @@ const VIDEO_MODELS = {
   'svd': 'stability-ai/stable-video-diffusion',
   'svd-xt': 'stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172438',
 
-  // Text to Video
-  'animate-diff': 'lucataco/animate-diff:beecf59c4aee8d81bf04f0381033dfa10dc16e845b4ae00d281e2fa377e48571',
+  // Text to Video - using official model format
+  'animate-diff': 'lucataco/animate-diff:beecf59c4aee8d81bf04f0381033dfa10dc16e845b4ae00d281e2fa377e48a9f',
   'zeroscope': 'anotherjesse/zeroscope-v2-xl:9f747673945c62801b13b84701c783929c0ee784e4748ec062204894dda1a351',
 
-  // Advanced models
+  // Advanced models (official)
   'kling': 'kuaishou/kling-v1',
   'luma': 'luma/dream-machine',
   'minimax': 'minimax/video-01',
