@@ -1169,6 +1169,9 @@ function WorkspaceContent() {
   const [imageEdits, setImageEdits] = useState<ImageEdit[]>([])
   const [selectedImage, setSelectedImage] = useState<ImageEdit | null>(null)
   const [runpodEndpoint, setRunpodEndpoint] = useState('')
+  const [videoPrompt, setVideoPrompt] = useState('')
+  const [videoGenerating, setVideoGenerating] = useState(false)
+  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null)
 
   // Business Integrations state
   const [integrations, setIntegrations] = useState<BusinessIntegration[]>(defaultIntegrations)
@@ -2391,11 +2394,6 @@ ${html}
   }
 
   const processImage = async (imageId: string, operation: 'remove-bg' | 'to-video' | 'enhance') => {
-    if (!runpodEndpoint) {
-      addConsoleLog('error', 'RunPod endpoint not configured')
-      return
-    }
-
     setImageEdits(prev => prev.map(img =>
       img.id === imageId ? { ...img, operation, status: 'processing' } : img
     ))
@@ -2404,37 +2402,68 @@ ${html}
     addTerminalLine('info', `Starting ${operation} on image...`)
 
     try {
-      // Simulate RunPod API call (replace with actual endpoint)
       const image = imageEdits.find(img => img.id === imageId)
       if (!image) return
 
-      const response = await fetch(runpodEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          input: {
-            image: image.url,
-            operation,
-          }
+      let response
+      let result
+
+      if (operation === 'to-video') {
+        // Use our video generation API
+        addTerminalLine('info', 'Converting image to video (this may take 1-3 minutes)...')
+        response = await fetch('/api/ai/video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'image-to-video',
+            imageUrl: image.url,
+          })
         })
-      })
 
-      if (!response.ok) throw new Error('Processing failed')
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || 'Video generation failed')
+        }
 
-      const result = await response.json()
+        result = await response.json()
+        const videoUrl = Array.isArray(result.output) ? result.output[0] : result.output
 
-      setImageEdits(prev => prev.map(img =>
-        img.id === imageId ? { ...img, status: 'complete', result: result.output?.image || result.output } : img
-      ))
+        setImageEdits(prev => prev.map(img =>
+          img.id === imageId ? { ...img, status: 'complete', result: videoUrl } : img
+        ))
+      } else {
+        // Use image processing API for remove-bg and enhance
+        response = await fetch('/api/ai/image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: operation,
+            imageUrl: image.url,
+          })
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || 'Image processing failed')
+        }
+
+        result = await response.json()
+        const outputUrl = Array.isArray(result.output) ? result.output[0] : result.output
+
+        setImageEdits(prev => prev.map(img =>
+          img.id === imageId ? { ...img, status: 'complete', result: outputUrl } : img
+        ))
+      }
 
       addConsoleLog('info', `${operation} complete`)
-      addTerminalLine('success', `✓ Image ${operation} complete`)
+      addTerminalLine('success', `✓ ${operation} complete`)
     } catch (error) {
       setImageEdits(prev => prev.map(img =>
         img.id === imageId ? { ...img, status: 'error' } : img
       ))
-      addConsoleLog('error', `${operation} failed: ${error}`)
-      addTerminalLine('error', `Image ${operation} failed`)
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      addConsoleLog('error', `${operation} failed: ${errorMsg}`)
+      addTerminalLine('error', `${operation} failed: ${errorMsg}`)
     }
   }
 
@@ -3359,19 +3388,97 @@ ${html}
                   className="hidden"
                 />
 
-                {/* RunPod Endpoint */}
-                <div>
-                  <label className="block text-xs text-zinc-500 mb-1.5 flex items-center gap-1.5">
-                    <Cpu className="w-3 h-3" />
-                    RunPod Endpoint
+                {/* AI Video Generation */}
+                <div className="p-3 rounded-xl bg-gradient-to-br from-violet-500/10 to-pink-500/10 border border-violet-500/20">
+                  <label className="block text-xs text-violet-300 mb-2 flex items-center gap-1.5 font-medium">
+                    <Film className="w-3.5 h-3.5" />
+                    AI Video Generator
                   </label>
-                  <input
-                    type="text"
-                    value={runpodEndpoint}
-                    onChange={(e) => setRunpodEndpoint(e.target.value)}
-                    placeholder="https://api.runpod.ai/v2/..."
-                    className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-white font-mono focus:outline-none focus:border-violet-500/50"
+                  <textarea
+                    value={videoPrompt}
+                    onChange={(e) => setVideoPrompt(e.target.value)}
+                    placeholder="Describe the video you want to create... e.g., 'abstract colorful particles floating in space'"
+                    rows={2}
+                    className="w-full px-3 py-2 rounded-lg bg-black/30 border border-white/10 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50 resize-none mb-2"
                   />
+                  <button
+                    onClick={async () => {
+                      if (!videoPrompt.trim()) return
+                      setVideoGenerating(true)
+                      setGeneratedVideoUrl(null)
+                      addTerminalLine('info', 'Starting AI video generation...')
+                      try {
+                        const response = await fetch('/api/ai/video', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            action: 'text-to-video',
+                            prompt: videoPrompt,
+                            model: 'animate-diff',
+                          })
+                        })
+                        const data = await response.json()
+                        if (data.success && data.output) {
+                          const url = Array.isArray(data.output) ? data.output[0] : data.output
+                          setGeneratedVideoUrl(url)
+                          addTerminalLine('success', '✓ Video generated successfully!')
+                          addConsoleLog('info', `Video URL: ${url}`)
+                        } else {
+                          throw new Error(data.error || 'Video generation failed')
+                        }
+                      } catch (error) {
+                        const msg = error instanceof Error ? error.message : 'Failed'
+                        addTerminalLine('error', `Video generation failed: ${msg}`)
+                      }
+                      setVideoGenerating(false)
+                    }}
+                    disabled={videoGenerating || !videoPrompt.trim()}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 disabled:opacity-50 text-white text-xs font-medium transition"
+                  >
+                    {videoGenerating ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Generating (~60s)...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Generate Video
+                      </>
+                    )}
+                  </button>
+                  {generatedVideoUrl && (
+                    <div className="mt-3">
+                      <video
+                        src={generatedVideoUrl}
+                        controls
+                        autoPlay
+                        loop
+                        muted
+                        className="w-full rounded-lg"
+                      />
+                      <div className="flex gap-2 mt-2">
+                        <a
+                          href={generatedVideoUrl}
+                          download="ai-video.mp4"
+                          className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-zinc-400 hover:text-white transition"
+                        >
+                          <Download className="w-3 h-3" />
+                          Download
+                        </a>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(generatedVideoUrl)
+                            addTerminalLine('info', 'Video URL copied!')
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-zinc-400 hover:text-white transition"
+                        >
+                          <Copy className="w-3 h-3" />
+                          Copy URL
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Upload Button */}
