@@ -8,14 +8,15 @@ const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN
 // Video generation models on Replicate
 const VIDEO_MODELS = {
   // Image to Video
-  'svd': 'stability-ai/stable-video-diffusion',
-  'svd-xt': 'stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172438',
+  'svd': 'stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172438',
+  'img2vid': 'chenxwh/damo-text-to-video:1e205ea73084bd17a0a3b43396e49ba0d6bc2e754e9283b2df49fad2dcf95755',
 
-  // Text to Video - using official model format
+  // Text to Video - using verified models
   'animate-diff': 'lucataco/animate-diff:beecf59c4aee8d81bf04f0381033dfa10dc16e845b4ae00d281e2fa377e48a9f',
   'zeroscope': 'anotherjesse/zeroscope-v2-xl:9f747673945c62801b13b84701c783929c0ee784e4748ec062204894dda1a351',
+  'wan': 'wan-video/wan-2.1-t2v-480p',
 
-  // Advanced models (official)
+  // Advanced models (may require special access)
   'kling': 'kuaishou/kling-v1',
   'luma': 'luma/dream-machine',
   'minimax': 'minimax/video-01',
