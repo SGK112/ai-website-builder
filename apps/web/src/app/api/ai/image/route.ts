@@ -115,18 +115,24 @@ export async function POST(request: NextRequest) {
 
 // Run a Replicate model and wait for result
 async function runModel(model: string, input: Record<string, any>) {
+  // Determine API endpoint and body based on model type
+  const isOfficialModel = !model.includes(':')
+  const apiUrl = isOfficialModel
+    ? `https://api.replicate.com/v1/models/${model}/predictions`
+    : 'https://api.replicate.com/v1/predictions'
+
+  const body = isOfficialModel
+    ? { input }
+    : { version: model.split(':')[1], input }
+
   // Create prediction
-  const createResponse = await fetch('https://api.replicate.com/v1/predictions', {
+  const createResponse = await fetch(apiUrl, {
     method: 'POST',
     headers: {
       'Authorization': `Token ${REPLICATE_API_TOKEN}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      version: model.includes(':') ? model.split(':')[1] : undefined,
-      model: model.includes(':') ? undefined : model,
-      input,
-    }),
+    body: JSON.stringify(body),
   })
 
   if (!createResponse.ok) {
