@@ -3,6 +3,49 @@ import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 
 const PEXELS_API_KEY = process.env.PEXELS_API_KEY
+const PIXABAY_API_KEY = process.env.PIXABAY_API_KEY
+
+// Helper to fetch from Pixabay and transform to Pexels format
+async function fetchPixabayFallback(query: string, perPage: string) {
+  if (!PIXABAY_API_KEY) {
+    // Ultimate fallback to picsum.photos
+    const photos = Array.from({ length: parseInt(perPage) }, (_, i) => ({
+      id: Date.now() + i,
+      src: {
+        large: `https://picsum.photos/seed/${query}${i}/1200/800`,
+        medium: `https://picsum.photos/seed/${query}${i}/800/600`,
+        small: `https://picsum.photos/seed/${query}${i}/400/300`,
+      },
+      photographer: 'Picsum',
+      alt: query,
+    }))
+    return { photos, fallback: 'picsum' }
+  }
+
+  const pixabayResponse = await fetch(
+    `https://pixabay.com/api/?key=${PIXABAY_API_KEY}&q=${encodeURIComponent(query)}&per_page=${perPage}&image_type=photo&orientation=horizontal`
+  )
+
+  if (!pixabayResponse.ok) {
+    throw new Error('Pixabay API error')
+  }
+
+  const pixabayData = await pixabayResponse.json()
+
+  // Transform Pixabay format to Pexels format
+  const photos = pixabayData.hits.map((hit: { id: number; largeImageURL: string; webformatURL: string; previewURL: string; user: string; tags: string }) => ({
+    id: hit.id,
+    src: {
+      large: hit.largeImageURL,
+      medium: hit.webformatURL,
+      small: hit.previewURL,
+    },
+    photographer: hit.user,
+    alt: hit.tags,
+  }))
+
+  return { photos, fallback: 'pixabay', total: pixabayData.totalHits }
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -10,13 +53,25 @@ export async function GET(request: NextRequest) {
   const perPage = searchParams.get('per_page') || '10'
   const orientation = searchParams.get('orientation') || 'landscape'
 
+  // If no Pexels key, use Pixabay fallback
   if (!PEXELS_API_KEY) {
-    // Fallback to Unsplash if no Pexels key
-    const unsplashUrl = `https://source.unsplash.com/1200x800/?${encodeURIComponent(query)}`
-    return NextResponse.json({
-      photos: [{ src: { large: unsplashUrl, medium: unsplashUrl } }],
-      fallback: 'unsplash'
-    })
+    try {
+      const fallbackData = await fetchPixabayFallback(query, perPage)
+      return NextResponse.json(fallbackData)
+    } catch (error) {
+      console.error('Pixabay fallback error:', error)
+      // Ultimate fallback to picsum
+      const photos = Array.from({ length: parseInt(perPage) }, (_, i) => ({
+        id: Date.now() + i,
+        src: {
+          large: `https://picsum.photos/seed/${query}${i}/1200/800`,
+          medium: `https://picsum.photos/seed/${query}${i}/800/600`,
+        },
+        photographer: 'Picsum',
+        alt: query,
+      }))
+      return NextResponse.json({ photos, fallback: 'picsum' })
+    }
   }
 
   try {
@@ -37,11 +92,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(data)
   } catch (error) {
     console.error('Pexels error:', error)
-    // Fallback to Unsplash
-    const unsplashUrl = `https://source.unsplash.com/1200x800/?${encodeURIComponent(query)}`
-    return NextResponse.json({
-      photos: [{ src: { large: unsplashUrl, medium: unsplashUrl } }],
-      fallback: 'unsplash'
-    })
+    // Fallback to Pixabay
+    try {
+      const fallbackData = await fetchPixabayFallback(query, perPage)
+      return NextResponse.json(fallbackData)
+    } catch {
+      // Ultimate fallback to picsum
+      const photos = Array.from({ length: parseInt(perPage) }, (_, i) => ({
+        id: Date.now() + i,
+        src: {
+          large: `https://picsum.photos/seed/${query}${i}/1200/800`,
+          medium: `https://picsum.photos/seed/${query}${i}/800/600`,
+        },
+        photographer: 'Picsum',
+        alt: query,
+      }))
+      return NextResponse.json({ photos, fallback: 'picsum' })
+    }
   }
 }
