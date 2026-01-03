@@ -24,6 +24,9 @@ import {
   Maximize2,
   Scissors,
   RefreshCw,
+  Video,
+  Play,
+  Film,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -68,7 +71,7 @@ const AI_STYLES = [
 
 export function AssetPanel({ isOpen, onClose, onSelectAsset }: AssetPanelProps) {
   const [assets, setAssets] = useState<Asset[]>([])
-  const [activeTab, setActiveTab] = useState<'uploads' | 'photos' | 'ai' | 'url'>('photos')
+  const [activeTab, setActiveTab] = useState<'uploads' | 'photos' | 'ai' | 'video' | 'url'>('photos')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [searchQuery, setSearchQuery] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -88,6 +91,14 @@ export function AssetPanel({ isOpen, onClose, onSelectAsset }: AssetPanelProps) 
 
   // Enhancement state
   const [enhancing, setEnhancing] = useState<string | null>(null)
+
+  // Video generation state
+  const [videoPrompt, setVideoPrompt] = useState('')
+  const [videoModel, setVideoModel] = useState<'animate-diff' | 'svd'>('animate-diff')
+  const [videoLoading, setVideoLoading] = useState(false)
+  const [videoProgress, setVideoProgress] = useState('')
+  const [generatedVideo, setGeneratedVideo] = useState<string | null>(null)
+  const [videoSourceImage, setVideoSourceImage] = useState('')
 
   // Load initial photos
   useEffect(() => {
@@ -298,7 +309,8 @@ export function AssetPanel({ isOpen, onClose, onSelectAsset }: AssetPanelProps) 
         <div className="flex items-center gap-2 px-6 py-3 border-b border-slate-800">
           {[
             { id: 'photos', label: 'Free Photos', icon: ImageIcon },
-            { id: 'ai', label: 'AI Generate', icon: Sparkles },
+            { id: 'ai', label: 'AI Image', icon: Sparkles },
+            { id: 'video', label: 'AI Video', icon: Video },
             { id: 'uploads', label: 'My Uploads', icon: Upload },
             { id: 'url', label: 'From URL', icon: Link },
           ].map(({ id, label, icon: Icon }) => (
@@ -481,6 +493,212 @@ export function AssetPanel({ isOpen, onClose, onSelectAsset }: AssetPanelProps) 
 
                 <p className="text-xs text-slate-500 text-center">
                   Powered by Flux AI via Replicate • Requires REPLICATE_API_TOKEN
+                </p>
+              </div>
+            )}
+
+            {activeTab === 'video' && (
+              <div className="p-6 space-y-4 overflow-y-auto">
+                {/* Mode Selection */}
+                <div className="flex gap-2 p-1 bg-slate-800 rounded-lg">
+                  <button
+                    onClick={() => setVideoModel('animate-diff')}
+                    className={cn(
+                      'flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition',
+                      videoModel === 'animate-diff'
+                        ? 'bg-purple-600 text-white'
+                        : 'text-slate-400 hover:text-white'
+                    )}
+                  >
+                    <Film className="w-4 h-4" />
+                    Text to Video
+                  </button>
+                  <button
+                    onClick={() => setVideoModel('svd')}
+                    className={cn(
+                      'flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition',
+                      videoModel === 'svd'
+                        ? 'bg-purple-600 text-white'
+                        : 'text-slate-400 hover:text-white'
+                    )}
+                  >
+                    <Play className="w-4 h-4" />
+                    Image to Video
+                  </button>
+                </div>
+
+                {videoModel === 'animate-diff' ? (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Describe the video you want to create
+                      </label>
+                      <textarea
+                        value={videoPrompt}
+                        onChange={(e) => setVideoPrompt(e.target.value)}
+                        placeholder="e.g., Cinematic shot of ocean waves crashing on rocks at sunset, smooth camera motion"
+                        rows={3}
+                        className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm placeholder:text-slate-500 focus:border-purple-500 focus:outline-none resize-none"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-xs text-slate-400">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                        Best for: Motion graphics, abstract scenes
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                        Duration: ~4 seconds
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Source Image URL
+                      </label>
+                      <input
+                        type="url"
+                        value={videoSourceImage}
+                        onChange={(e) => setVideoSourceImage(e.target.value)}
+                        placeholder="https://example.com/image.jpg"
+                        className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm placeholder:text-slate-500 focus:border-purple-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Motion Description (optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={videoPrompt}
+                        onChange={(e) => setVideoPrompt(e.target.value)}
+                        placeholder="e.g., gentle camera zoom, subtle movement"
+                        className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm placeholder:text-slate-500 focus:border-purple-500 focus:outline-none"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-xs text-slate-400">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                        Best for: Animating still photos
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                        Uses Stable Video Diffusion
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <button
+                  onClick={async () => {
+                    setVideoLoading(true)
+                    setVideoProgress('Starting video generation...')
+                    setGeneratedVideo(null)
+
+                    try {
+                      const response = await fetch('/api/ai/video', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          action: videoModel === 'svd' ? 'image-to-video' : 'text-to-video',
+                          prompt: videoPrompt,
+                          imageUrl: videoSourceImage,
+                          model: videoModel,
+                          duration: 4,
+                          fps: 8,
+                        }),
+                      })
+
+                      const data = await response.json()
+
+                      if (data.success && data.output) {
+                        setGeneratedVideo(Array.isArray(data.output) ? data.output[0] : data.output)
+                        setVideoProgress('')
+                      } else if (data.id && !data.output) {
+                        // Need to poll for result
+                        setVideoProgress('Processing video... This may take 1-3 minutes')
+                        const pollResult = async () => {
+                          const statusRes = await fetch(`/api/ai/video?id=${data.id}`)
+                          const status = await statusRes.json()
+                          if (status.status === 'succeeded') {
+                            setGeneratedVideo(Array.isArray(status.output) ? status.output[0] : status.output)
+                            setVideoLoading(false)
+                            setVideoProgress('')
+                          } else if (status.status === 'failed') {
+                            throw new Error(status.error || 'Video generation failed')
+                          } else {
+                            setVideoProgress(`Processing... ${status.progress || ''}%`)
+                            setTimeout(pollResult, 2000)
+                          }
+                        }
+                        pollResult()
+                        return
+                      } else {
+                        throw new Error(data.error || 'Video generation failed')
+                      }
+                    } catch (error) {
+                      console.error('Video generation error:', error)
+                      setVideoProgress('')
+                      alert(error instanceof Error ? error.message : 'Video generation failed')
+                    }
+
+                    setVideoLoading(false)
+                  }}
+                  disabled={videoLoading || (videoModel === 'animate-diff' ? !videoPrompt.trim() : !videoSourceImage.trim())}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 text-white rounded-lg font-medium transition"
+                >
+                  {videoLoading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      {videoProgress || 'Generating...'}
+                    </>
+                  ) : (
+                    <>
+                      <Video className="w-5 h-5" />
+                      Generate Video
+                    </>
+                  )}
+                </button>
+
+                {generatedVideo && (
+                  <div className="mt-4">
+                    <p className="text-sm text-slate-400 mb-2">Generated Video:</p>
+                    <div className="relative rounded-lg overflow-hidden bg-black">
+                      <video
+                        src={generatedVideo}
+                        controls
+                        autoPlay
+                        loop
+                        muted
+                        className="w-full rounded-lg"
+                      />
+                      <div className="absolute bottom-3 right-3 flex gap-2">
+                        <a
+                          href={generatedVideo}
+                          download="generated-video.mp4"
+                          className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-medium"
+                        >
+                          Download
+                        </a>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(generatedVideo)
+                            alert('Video URL copied!')
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-medium"
+                        >
+                          <Copy className="w-4 h-4" />
+                          Copy URL
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-xs text-slate-500 text-center">
+                  Powered by AnimateDiff & Stable Video Diffusion via Replicate
                 </p>
               </div>
             )}
