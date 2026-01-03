@@ -147,7 +147,7 @@ import { ExportPanel } from '@/components/builder/ExportPanel'
 
 type DeviceMode = 'desktop' | 'tablet' | 'mobile'
 type ViewMode = 'preview' | 'code' | 'split'
-type Panel = 'build' | 'projects' | 'integrations' | 'images' | 'env' | 'console' | 'deploy' | 'webstew' | 'templates'
+type Panel = 'build' | 'projects' | 'integrations' | 'images' | 'video' | 'env' | 'console' | 'deploy' | 'webstew' | 'templates'
 type SkillLevel = 'no-code' | 'low-code' | 'full-stack'
 type BuildPhase = 'idle' | 'structure' | 'styling' | 'interactivity' | 'complete'
 type ConsoleLogType = 'log' | 'info' | 'warn' | 'error' | 'success'
@@ -2735,6 +2735,7 @@ ${html}
                 { id: 'projects' as Panel, icon: FolderOpen, label: 'Files', color: 'emerald' },
                 { id: 'integrations' as Panel, icon: Link2, label: 'APIs', color: 'cyan' },
                 { id: 'images' as Panel, icon: ImageIcon, label: 'Media', color: 'pink' },
+                { id: 'video' as Panel, icon: Film, label: 'Video', color: 'purple' },
                 { id: 'env' as Panel, icon: Variable, label: 'Env', color: 'yellow' },
                 { id: 'console' as Panel, icon: Terminal, label: 'Log', color: 'green' },
                 { id: 'deploy' as Panel, icon: Rocket, label: 'Ship', tour: 'deploy', color: 'red' },
@@ -2756,6 +2757,7 @@ ${html}
                            color === 'emerald' ? '#34d399' :
                            color === 'cyan' ? '#22d3ee' :
                            color === 'pink' ? '#f472b6' :
+                           color === 'purple' ? '#c084fc' :
                            color === 'yellow' ? '#facc15' :
                            color === 'green' ? '#4ade80' :
                            color === 'red' ? '#f87171' : '#a78bfa',
@@ -2765,6 +2767,7 @@ ${html}
                                      color === 'emerald' ? 'rgba(16, 185, 129, 0.15)' :
                                      color === 'cyan' ? 'rgba(6, 182, 212, 0.15)' :
                                      color === 'pink' ? 'rgba(236, 72, 153, 0.15)' :
+                                     color === 'purple' ? 'rgba(168, 85, 247, 0.15)' :
                                      color === 'yellow' ? 'rgba(234, 179, 8, 0.15)' :
                                      color === 'green' ? 'rgba(34, 197, 94, 0.15)' :
                                      color === 'red' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(139, 92, 246, 0.15)',
@@ -3582,6 +3585,149 @@ ${html}
                     ))}
                   </div>
                 )}
+              </motion.div>
+            )}
+
+            {/* Video Panel */}
+            {!sidebarCollapsed && activePanel === 'video' && (
+              <motion.div
+                key="video"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex-1 overflow-y-auto p-3 space-y-4"
+              >
+                <div className="flex items-center gap-2 text-xs text-purple-400">
+                  <Film className="w-4 h-4" />
+                  <span className="font-medium">AI Video Generator</span>
+                </div>
+
+                {/* Text to Video */}
+                <div className="p-4 rounded-xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20">
+                  <label className="block text-sm text-purple-300 mb-3 font-medium">
+                    Text to Video
+                  </label>
+                  <textarea
+                    value={videoPrompt}
+                    onChange={(e) => setVideoPrompt(e.target.value)}
+                    placeholder="Describe your video... e.g., 'ocean waves crashing on a beach at sunset'"
+                    rows={3}
+                    className="w-full px-3 py-2.5 rounded-lg bg-black/40 border border-white/10 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-purple-500/50 resize-none mb-3"
+                  />
+
+                  <div className="mb-3">
+                    <label className="block text-xs text-zinc-400 mb-1.5">Model</label>
+                    <select
+                      value="animate-diff"
+                      className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm text-white focus:outline-none focus:border-purple-500/50"
+                    >
+                      <option value="animate-diff">AnimateDiff (Fast, ~60s)</option>
+                      <option value="zeroscope">Zeroscope (Quality)</option>
+                    </select>
+                  </div>
+
+                  <button
+                    onClick={async () => {
+                      if (!videoPrompt.trim()) return
+                      setVideoGenerating(true)
+                      setGeneratedVideoUrl(null)
+                      addTerminalLine('info', 'Starting AI video generation...')
+                      addTerminalLine('info', 'This takes about 60 seconds...')
+                      try {
+                        const response = await fetch('/api/ai/video', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            action: 'text-to-video',
+                            prompt: videoPrompt,
+                            model: 'animate-diff',
+                          })
+                        })
+                        const data = await response.json()
+                        if (data.success && data.output) {
+                          const url = Array.isArray(data.output) ? data.output[0] : data.output
+                          setGeneratedVideoUrl(url)
+                          addTerminalLine('success', '✓ Video generated successfully!')
+                        } else {
+                          throw new Error(data.error || 'Video generation failed')
+                        }
+                      } catch (error) {
+                        const msg = error instanceof Error ? error.message : 'Failed'
+                        addTerminalLine('error', `Video generation failed: ${msg}`)
+                      }
+                      setVideoGenerating(false)
+                    }}
+                    disabled={videoGenerating || !videoPrompt.trim()}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition"
+                  >
+                    {videoGenerating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Generating (~60 seconds)...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        Generate Video
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Generated Video Preview */}
+                {generatedVideoUrl && (
+                  <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                    <label className="block text-xs text-zinc-400 mb-2">Generated Video</label>
+                    <video
+                      src={generatedVideoUrl}
+                      controls
+                      autoPlay
+                      loop
+                      muted
+                      className="w-full rounded-lg mb-3"
+                    />
+                    <div className="flex gap-2">
+                      <a
+                        href={generatedVideoUrl}
+                        download="ai-video.mp4"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium transition"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        Download
+                      </a>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(generatedVideoUrl)
+                          addTerminalLine('info', 'Video URL copied to clipboard!')
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-xs font-medium transition"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        Copy URL
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Info */}
+                <div className="p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+                  <div className="text-xs text-zinc-400 space-y-1">
+                    <p className="flex items-center gap-2">
+                      <span className="text-purple-400">•</span>
+                      Powered by Replicate AI
+                    </p>
+                    <p className="flex items-center gap-2">
+                      <span className="text-purple-400">•</span>
+                      Generation takes ~60 seconds
+                    </p>
+                    <p className="flex items-center gap-2">
+                      <span className="text-purple-400">•</span>
+                      Output: MP4 video clip
+                    </p>
+                  </div>
+                </div>
               </motion.div>
             )}
 
