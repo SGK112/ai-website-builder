@@ -1172,6 +1172,8 @@ function WorkspaceContent() {
   const [videoPrompt, setVideoPrompt] = useState('')
   const [videoGenerating, setVideoGenerating] = useState(false)
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null)
+  const [videoStatus, setVideoStatus] = useState('')
+  const [videoError, setVideoError] = useState('')
 
   // Business Integrations state
   const [integrations, setIntegrations] = useState<BusinessIntegration[]>(defaultIntegrations)
@@ -3631,9 +3633,11 @@ ${html}
                       if (!videoPrompt.trim()) return
                       setVideoGenerating(true)
                       setGeneratedVideoUrl(null)
-                      addTerminalLine('info', 'Starting AI video generation...')
-                      addTerminalLine('info', 'This takes about 60 seconds...')
+                      setVideoError('')
+                      setVideoStatus('Starting video generation...')
+
                       try {
+                        setVideoStatus('Connecting to AI model...')
                         const response = await fetch('/api/ai/video', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
@@ -3643,16 +3647,22 @@ ${html}
                             model: 'animate-diff',
                           })
                         })
+
+                        setVideoStatus('Processing... this takes ~60 seconds')
                         const data = await response.json()
+
                         if (data.success && data.output) {
                           const url = Array.isArray(data.output) ? data.output[0] : data.output
                           setGeneratedVideoUrl(url)
+                          setVideoStatus('✓ Video ready!')
                           addTerminalLine('success', '✓ Video generated successfully!')
                         } else {
                           throw new Error(data.error || 'Video generation failed')
                         }
                       } catch (error) {
                         const msg = error instanceof Error ? error.message : 'Failed'
+                        setVideoError(msg)
+                        setVideoStatus('')
                         addTerminalLine('error', `Video generation failed: ${msg}`)
                       }
                       setVideoGenerating(false)
@@ -3663,7 +3673,7 @@ ${html}
                     {videoGenerating ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Generating (~60 seconds)...
+                        Generating...
                       </>
                     ) : (
                       <>
@@ -3672,6 +3682,28 @@ ${html}
                       </>
                     )}
                   </button>
+
+                  {/* Status Message */}
+                  {videoGenerating && videoStatus && (
+                    <div className="mt-3 p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                      <div className="flex items-center gap-2 text-sm text-purple-300">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        {videoStatus}
+                      </div>
+                      <div className="mt-2 text-xs text-zinc-500">
+                        AI is creating your video. Please wait...
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Error Message */}
+                  {videoError && (
+                    <div className="mt-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                      <div className="text-sm text-red-400">
+                        ✕ {videoError}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Generated Video Preview */}
