@@ -403,7 +403,8 @@ export async function uploadThumbnail(
 export async function getProjectImages(
   projectId: string
 ): Promise<{ images: string[]; error?: string }> {
-  return listFiles(`projects/${projectId}`, STORAGE_BUCKETS.UPLOADS)
+  const result = await listFiles(`projects/${projectId}`, STORAGE_BUCKETS.UPLOADS)
+  return { images: result.files, error: result.error }
 }
 
 /**
@@ -413,26 +414,26 @@ export async function deleteProjectImages(
   projectId: string
 ): Promise<{ success: boolean; deleted: number; error?: string }> {
   try {
-    const { files, error } = await getProjectImages(projectId)
+    const { images, error } = await getProjectImages(projectId)
 
     if (error) {
       return { success: false, deleted: 0, error }
     }
 
-    if (files.length === 0) {
+    if (images.length === 0) {
       return { success: true, deleted: 0 }
     }
 
     const supabase = getSupabaseServerClient()
     const { error: deleteError } = await supabase.storage
       .from(STORAGE_BUCKETS.UPLOADS)
-      .remove(files)
+      .remove(images)
 
     if (deleteError) {
       return { success: false, deleted: 0, error: deleteError.message }
     }
 
-    return { success: true, deleted: files.length }
+    return { success: true, deleted: images.length }
   } catch (error: any) {
     return { success: false, deleted: 0, error: error.message }
   }
