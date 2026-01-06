@@ -165,10 +165,7 @@ export async function POST(request: NextRequest) {
           creditsUsed,
           prompt: body.prompt?.slice(0, 200),
           metadata: {
-            action,
-            model: body.model,
-            width: body.width,
-            height: body.height,
+            success: true,
           }
         })
       } catch (e) {
