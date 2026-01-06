@@ -1,10 +1,11 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import Anthropic from '@anthropic-ai/sdk'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { connectDB } from '@/lib/db'
 import { generateTextFree, FreeAIProvider } from '@/lib/free-ai-providers'
+import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 import {
   User,
   trackUsage,
@@ -1643,6 +1644,21 @@ export async function POST(req: NextRequest) {
   let userId: string | null = null
 
   try {
+    // SECURITY: Require authentication
+    session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    // Rate limit: 20 AI generations per minute
+    try {
+      checkApiRateLimit(req, 'aiGeneration')
+    } catch (error) {
+      const rateLimitResponse = handleRateLimitError(error)
+      if (rateLimitResponse) return rateLimitResponse
+      throw error
+    }
+
     const { prompt, currentHtml, model, apiKey, apiKeys, ingredients, stylePreset, serviceCredentials, outputMode } = await req.json()
 
     // outputMode: 'static' (default) | 'nextjs' | 'react'
@@ -1663,8 +1679,7 @@ export async function POST(req: NextRequest) {
       credits?: number
     }
 
-    // Get user session and check usage limits
-    session = await getServerSession(authOptions)
+    // User session already retrieved above
     let userEmail: string | undefined
 
     if (session?.user?.id) {
@@ -2046,11 +2061,24 @@ export async function POST(req: NextRequest) {
                           model === 'gpt-4o-mini' ? 'gpt-4o-mini' :
                           'gpt-4o'
 
+    // Get max tokens based on model - different models have different limits
+    const getMaxTokens = (modelName: string): number => {
+      switch (modelName) {
+        case 'gpt-4-turbo': return 4096
+        case 'gpt-4': return 4096
+        case 'gpt-3.5-turbo': return 4096
+        case 'gpt-4o': return 16000
+        case 'gpt-4o-mini': return 16000
+        default: return 4096
+      }
+    }
+    const maxTokens = getMaxTokens(selectedModel)
+
     // Detect if this is an e-commerce request for better prompting
     const isEcommerce = isEcommerceRequest(prompt || fullUserPrompt)
     const openaiSystemPrompt = isEcommerce ? ECOMMERCE_SYSTEM_PROMPT : ENHANCED_SYSTEM_PROMPT
 
-    console.log(`[Generate] Using OpenAI ${selectedModel} (${isEcommerce ? 'e-commerce' : 'standard'} mode)`)
+    console.log(`[Generate] Using OpenAI ${selectedModel} (${isEcommerce ? 'e-commerce' : 'standard'} mode, max_tokens: ${maxTokens})`)
 
     const stream = await openai.chat.completions.create({
       model: selectedModel,
@@ -2059,7 +2087,7 @@ export async function POST(req: NextRequest) {
         { role: 'user', content: fullUserPrompt }
       ],
       stream: true,
-      max_tokens: 16000,
+      max_tokens: maxTokens,
       temperature: 0.7
     })
 

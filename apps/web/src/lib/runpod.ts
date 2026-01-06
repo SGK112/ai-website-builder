@@ -468,3 +468,165 @@ export async function getEndpointHealth(endpointId: string): Promise<{
 
   return null
 }
+
+/**
+ * Warm up RunPod endpoints to prevent cold starts
+ * Call this periodically (e.g., every 5 minutes) to keep workers ready
+ */
+export async function warmUpEndpoints(): Promise<{
+  warmedUp: string[]
+  failed: string[]
+  skipped: string[]
+}> {
+  const results = {
+    warmedUp: [] as string[],
+    failed: [] as string[],
+    skipped: [] as string[],
+  }
+
+  if (!RUNPOD_API_KEY) {
+    return results
+  }
+
+  const endpointsToWarm = [
+    { name: 'flux', id: RUNPOD_ENDPOINTS.flux },
+    { name: 'sdxl', id: RUNPOD_ENDPOINTS.sdxl },
+    { name: 'tts', id: RUNPOD_ENDPOINTS.tts },
+  ]
+
+  for (const endpoint of endpointsToWarm) {
+    if (!endpoint.id) {
+      results.skipped.push(endpoint.name)
+      continue
+    }
+
+    try {
+      const health = await getEndpointHealth(endpoint.id)
+
+      // If no workers are ready, send a minimal request to wake them up
+      if (health && health.workers.ready === 0 && health.workers.running === 0) {
+        console.log(`[RunPod] Warming up ${endpoint.name} endpoint...`)
+
+        // Send a minimal async request to trigger worker spin-up
+        const response = await fetch(`${RUNPOD_BASE_URL}/${endpoint.id}/run`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${RUNPOD_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            input: {
+              prompt: 'warmup',
+              width: 64,
+              height: 64,
+              num_inference_steps: 1,
+            }
+          }),
+        })
+
+        if (response.ok) {
+          results.warmedUp.push(endpoint.name)
+        } else {
+          results.failed.push(endpoint.name)
+        }
+      } else {
+        results.skipped.push(endpoint.name) // Already warm
+      }
+    } catch (error) {
+      console.error(`[RunPod] Warm-up failed for ${endpoint.name}:`, error)
+      results.failed.push(endpoint.name)
+    }
+  }
+
+  return results
+}
+
+/**
+ * Get comprehensive health status of all AI providers
+ */
+export async function getAllProvidersHealth(): Promise<{
+  runpod: {
+    configured: boolean
+    endpoints: Record<string, { healthy: boolean; workers?: any; jobs?: any }>
+  }
+  replicate: { configured: boolean }
+  openai: { configured: boolean }
+  anthropic: { configured: boolean }
+}> {
+  const status = {
+    runpod: {
+      configured: isRunpodConfigured(),
+      endpoints: {} as Record<string, { healthy: boolean; workers?: any; jobs?: any }>,
+    },
+    replicate: { configured: !!(process.env.REPLICATE_API_KEY || process.env.REPLICATE_API_TOKEN) },
+    openai: { configured: !!process.env.OPENAI_API_KEY },
+    anthropic: { configured: !!process.env.ANTHROPIC_API_KEY },
+  }
+
+  // Check RunPod endpoints
+  if (status.runpod.configured) {
+    const endpoints = [
+      { name: 'flux', id: RUNPOD_ENDPOINTS.flux },
+      { name: 'sdxl', id: RUNPOD_ENDPOINTS.sdxl },
+      { name: 'tts', id: RUNPOD_ENDPOINTS.tts },
+      { name: 'svd', id: RUNPOD_ENDPOINTS.svd },
+      { name: 'llama', id: RUNPOD_ENDPOINTS.llama },
+    ]
+
+    for (const ep of endpoints) {
+      if (ep.id) {
+        const health = await getEndpointHealth(ep.id)
+        status.runpod.endpoints[ep.name] = {
+          healthy: !!health,
+          workers: health?.workers,
+          jobs: health?.jobs,
+        }
+      }
+    }
+  }
+
+  return status
+}
+
+/**
+ * Smart provider selection based on availability and cost
+ */
+export function selectBestProvider(
+  task: 'image' | 'video' | 'llm' | 'tts',
+  preferredProvider?: string
+): string | null {
+  const providers = {
+    image: ['runpod', 'replicate', 'openai'],
+    video: ['runpod', 'replicate'],
+    llm: ['runpod', 'anthropic', 'openai'],
+    tts: ['runpod', 'openai'],
+  }
+
+  const available = providers[task].filter(p => {
+    switch (p) {
+      case 'runpod':
+        return isRunpodConfigured() && (
+          (task === 'image' && (RUNPOD_ENDPOINTS.flux || RUNPOD_ENDPOINTS.sdxl)) ||
+          (task === 'video' && RUNPOD_ENDPOINTS.svd) ||
+          (task === 'llm' && (RUNPOD_ENDPOINTS.llama || RUNPOD_ENDPOINTS.mistral)) ||
+          (task === 'tts' && RUNPOD_ENDPOINTS.tts)
+        )
+      case 'replicate':
+        return !!(process.env.REPLICATE_API_KEY || process.env.REPLICATE_API_TOKEN)
+      case 'openai':
+        return !!process.env.OPENAI_API_KEY
+      case 'anthropic':
+        return !!process.env.ANTHROPIC_API_KEY
+      default:
+        return false
+    }
+  })
+
+  // Use preferred if available
+  if (preferredProvider && available.includes(preferredProvider)) {
+    return preferredProvider
+  }
+
+  // Return first available (ordered by cost efficiency)
+  return available[0] || null
+}

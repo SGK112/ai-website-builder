@@ -529,9 +529,7 @@ export function WebStewPanel({
       {/* Header */}
       <div className="p-4 border-b border-zinc-700/50">
         <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-lg shadow-orange-500/25">
-            <ChefHat className="w-5 h-5 text-white" />
-          </div>
+          <ChefHat className="w-7 h-7 text-orange-400" />
           <div>
             <h2 className="font-bold text-lg">WebStew</h2>
             <p className={cn('text-xs', mutedClass)}>Upload images, content & data</p>

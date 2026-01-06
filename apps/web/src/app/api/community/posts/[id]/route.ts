@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
 
@@ -39,8 +41,11 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    // SECURITY: Require authentication for likes
+    const session = await getServerSession(authOptions)
+
     const body = await request.json()
-    const { action, userId } = body
+    const { action } = body
 
     const client = await clientPromise
     const db = client.db('ai-website-builder')
@@ -53,6 +58,13 @@ export async function PATCH(
     }
 
     if (action === 'like') {
+      // SECURITY: Require auth for liking
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: 'Authentication required to like posts' }, { status: 401 })
+      }
+
+      const userId = session.user.id  // Use server-side session, not client-provided
+
       // Check if already liked
       const existingLike = await likesCollection.findOne({
         postId: params.id,
@@ -83,6 +95,7 @@ export async function PATCH(
     }
 
     if (action === 'download') {
+      // Downloads don't require auth (tracking only)
       await postsCollection.updateOne(
         { _id: new ObjectId(params.id) },
         { $inc: { downloads: 1 } }
@@ -103,8 +116,11 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('userId')
+    // SECURITY: Require authentication
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
 
     const client = await clientPromise
     const db = client.db('ai-website-builder')
@@ -116,9 +132,9 @@ export async function DELETE(
       return NextResponse.json({ error: 'Post not found' }, { status: 404 })
     }
 
-    // Check ownership
-    if (post.author.id !== userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    // SECURITY: Check ownership using server-side session (not client-provided userId)
+    if (post.author.id !== session.user.id) {
+      return NextResponse.json({ error: 'Unauthorized - you can only delete your own posts' }, { status: 403 })
     }
 
     await collection.deleteOne({ _id: new ObjectId(params.id) })

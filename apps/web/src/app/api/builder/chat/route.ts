@@ -1,4 +1,7 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 import Anthropic from '@anthropic-ai/sdk'
 
 const BUILDER_SYSTEM_PROMPT = `You are Claude, an AI coding assistant integrated into a professional website builder platform. You help users modify and improve their websites through natural conversation.
@@ -162,6 +165,21 @@ function truncateContent(content: string, maxLength: number): string {
 
 export async function POST(req: NextRequest) {
   try {
+    // SECURITY: Require authentication for expensive API calls
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    // Rate limit: 20 AI generations per minute
+    try {
+      checkApiRateLimit(req, 'aiGeneration')
+    } catch (error) {
+      const rateLimitResponse = handleRateLimitError(error)
+      if (rateLimitResponse) return rateLimitResponse
+      throw error
+    }
+
     const { message, files, projectName, conversationHistory, currentFile, selectedElement } = await req.json()
 
     if (!message || typeof message !== 'string') {

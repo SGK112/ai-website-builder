@@ -45,6 +45,8 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '2mb',
     },
+    // Externalize pino and related packages to prevent worker thread issues
+    serverComponentsExternalPackages: ['pino', 'pino-pretty', 'thread-stream'],
   },
   webpack: (config) => {
     config.resolve.alias['@'] = path.resolve(__dirname, 'src')

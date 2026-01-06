@@ -1,0 +1,188 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ============================================
+  # Lint & Type Check
+  # ============================================
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint --if-present
+        continue-on-error: true
+
+      - name: Run TypeScript check
+        run: npx tsc --noEmit
+        working-directory: apps/web
+        continue-on-error: true
+
+  # ============================================
+  # Build
+  # ============================================
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared packages
+        run: npm run build --workspace=@ai-website-builder/shared --if-present
+
+      - name: Build web application
+        run: npm run build --workspace=apps/web
+        env:
+          # Minimal env vars needed for build
+          SKIP_ENV_VALIDATION: true
+          NEXT_TELEMETRY_DISABLED: 1
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: |
+            apps/web/.next
+            apps/web/public
+          retention-days: 1
+
+  # ============================================
+  # Test
+  # ============================================
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test --if-present
+        env:
+          CI: true
+
+  # ============================================
+  # Deploy to Render (only on main branch push)
+  # ============================================
+  deploy:
+    name: Deploy to Render
+    runs-on: ubuntu-latest
+    needs: [build, test]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Render
+        id: deploy
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          # Method 1: Use Deploy Hook (simpler, recommended)
+          if [ -n "$RENDER_DEPLOY_HOOK" ]; then
+            echo "Triggering deploy via webhook..."
+            RESPONSE=$(curl -s -X POST "$RENDER_DEPLOY_HOOK")
+            echo "Deploy triggered: $RESPONSE"
+            echo "url=https://ai-website-builder.onrender.com" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Method 2: Use Render API (more control)
+          if [ -n "$RENDER_API_KEY" ] && [ -n "$RENDER_SERVICE_ID" ]; then
+            echo "Triggering deploy via API..."
+            RESPONSE=$(curl -s -X POST \
+              "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys" \
+              -H "Authorization: Bearer $RENDER_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d '{"clearCache": "do_not_clear"}')
+
+            DEPLOY_ID=$(echo "$RESPONSE" | jq -r '.id // empty')
+            if [ -n "$DEPLOY_ID" ]; then
+              echo "Deploy started: $DEPLOY_ID"
+              echo "url=https://ai-website-builder.onrender.com" >> $GITHUB_OUTPUT
+            else
+              echo "Deploy failed: $RESPONSE"
+              exit 1
+            fi
+          else
+            echo "No deployment credentials configured"
+            echo "Set RENDER_DEPLOY_HOOK or RENDER_API_KEY + RENDER_SERVICE_ID in GitHub Secrets"
+            exit 1
+          fi
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Deployment successful!"
+          else
+            echo "❌ Deployment failed"
+          fi
+
+  # ============================================
+  # Warm up endpoints after deploy
+  # ============================================
+  warmup:
+    name: Warm Up GPU Endpoints
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: success()
+    steps:
+      - name: Wait for deployment to be live
+        run: sleep 60
+
+      - name: Warm up endpoints
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ secrets.APP_URL || 'https://ai-website-builder.onrender.com' }}
+        run: |
+          echo "Warming up GPU endpoints..."
+          RESPONSE=$(curl -s -X GET "$APP_URL/api/cron/warmup" \
+            -H "Authorization: Bearer $CRON_SECRET")
+          echo "Warmup response: $RESPONSE"

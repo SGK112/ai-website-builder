@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN
 
@@ -50,6 +53,21 @@ interface MediaRequest {
 }
 
 export async function POST(request: NextRequest) {
+  // SECURITY: Require authentication for expensive API calls
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
+  // Rate limit: 20 AI generations per minute
+  try {
+    checkApiRateLimit(request, 'aiGeneration')
+  } catch (error) {
+    const rateLimitResponse = handleRateLimitError(error)
+    if (rateLimitResponse) return rateLimitResponse
+    throw error
+  }
+
   if (!REPLICATE_API_TOKEN) {
     // Return demo response for testing
     return NextResponse.json({

@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
+import { trackUsage } from '@ai-website-builder/database'
 
 export const dynamic = 'force-dynamic'
+
+// Cost estimates per operation (in credits)
+const RUNPOD_COSTS = {
+  'generate-image': { sdxl: 2, flux: 3, sd15: 1 },
+  'generate-video': { svd: 10, animateDiff: 8 },
+  'llm-inference': { llama: 1, mistral: 1 },
+  'tts': 1,
+  'custom': 2,
+}
 
 import {
   isRunpodConfigured,
@@ -53,6 +66,21 @@ interface RunpodRequest {
 
 export async function POST(request: NextRequest) {
   try {
+    // SECURITY: Require authentication for GPU-intensive operations
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    // Rate limit: 10 RunPod requests per minute (GPU operations are expensive)
+    try {
+      checkApiRateLimit(request, 'aiGeneration')
+    } catch (error) {
+      const rateLimitResponse = handleRateLimitError(error)
+      if (rateLimitResponse) return rateLimitResponse
+      throw error
+    }
+
     const body: RunpodRequest = await request.json()
     const { action } = body
 
@@ -72,6 +100,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    let response: Response
+    let creditsUsed = 0
+
     switch (action) {
       case 'endpoints':
         return NextResponse.json({
@@ -90,19 +121,29 @@ export async function POST(request: NextRequest) {
         })
 
       case 'generate-image':
-        return handleImageGeneration(body)
+        creditsUsed = RUNPOD_COSTS['generate-image'][body.model as keyof typeof RUNPOD_COSTS['generate-image']] || 2
+        response = await handleImageGeneration(body)
+        break
 
       case 'generate-video':
-        return handleVideoGeneration(body)
+        creditsUsed = RUNPOD_COSTS['generate-video'][body.model as keyof typeof RUNPOD_COSTS['generate-video']] || 10
+        response = await handleVideoGeneration(body)
+        break
 
       case 'llm-inference':
-        return handleLLMInference(body)
+        creditsUsed = RUNPOD_COSTS['llm-inference'][body.model as keyof typeof RUNPOD_COSTS['llm-inference']] || 1
+        response = await handleLLMInference(body)
+        break
 
       case 'tts':
-        return handleTTS(body)
+        creditsUsed = RUNPOD_COSTS['tts']
+        response = await handleTTS(body)
+        break
 
       case 'custom':
-        return handleCustomEndpoint(body)
+        creditsUsed = RUNPOD_COSTS['custom']
+        response = await handleCustomEndpoint(body)
+        break
 
       case 'status':
         return handleJobStatus(body)
@@ -113,6 +154,29 @@ export async function POST(request: NextRequest) {
       default:
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
     }
+
+    // Track usage for billable operations
+    if (response.ok && creditsUsed > 0 && session.user.id) {
+      try {
+        await trackUsage(session.user.id, {
+          type: 'image',
+          provider: 'runpod',
+          model: body.model || action,
+          creditsUsed,
+          prompt: body.prompt?.slice(0, 200),
+          metadata: {
+            action,
+            model: body.model,
+            width: body.width,
+            height: body.height,
+          }
+        })
+      } catch (e) {
+        console.error('[RunPod] Usage tracking failed:', e)
+      }
+    }
+
+    return response
   } catch (error: any) {
     console.error('Runpod API error:', error)
     return NextResponse.json(

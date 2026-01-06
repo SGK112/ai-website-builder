@@ -45,3 +45,21 @@ databases:
     plan: starter
     databaseName: ai_website_builder
     user: ai_website_builder
+
+# Cron Jobs for scheduled tasks
+# Note: Render cron jobs require a paid plan
+# For free tier, use external services like cron-job.org
+cronJobs:
+  - name: gpu-endpoint-warmup
+    schedule: "*/5 * * * *"  # Every 5 minutes
+    command: |
+      curl -X GET "${RENDER_EXTERNAL_URL}/api/cron/warmup" \
+        -H "Authorization: Bearer ${CRON_SECRET}"
+    envVars:
+      - key: CRON_SECRET
+        sync: false
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          type: web
+          name: ai-website-builder
+          property: url

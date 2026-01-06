@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
+
+// Admin emails that can create templates
+const ADMIN_EMAILS = [
+  'admin@webstew.ai',
+  process.env.ADMIN_EMAIL,
+].filter(Boolean)
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -87,6 +95,23 @@ export async function GET(req: NextRequest) {
 // POST /api/templates - Create a new template (admin only)
 export async function POST(req: NextRequest) {
   try {
+    // SECURITY: Require admin authentication
+    const session = await getServerSession(authOptions)
+
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    if (!ADMIN_EMAILS.includes(session.user.email)) {
+      return NextResponse.json(
+        { error: 'Admin access required' },
+        { status: 403 }
+      )
+    }
+
     const body = await req.json()
 
     if (!SUPABASE_URL || !SUPABASE_KEY) {

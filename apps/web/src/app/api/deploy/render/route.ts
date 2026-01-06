@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 
 const RENDER_API_KEY = process.env.RENDER_API_KEY
 const RENDER_API_URL = 'https://api.render.com/v1'
@@ -11,6 +14,21 @@ interface DeployRequest {
 
 export async function POST(request: NextRequest) {
   try {
+    // SECURITY: Require authentication to deploy
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    // Rate limit: 10 deployments per hour
+    try {
+      checkApiRateLimit(request, 'deployment')
+    } catch (error) {
+      const rateLimitResponse = handleRateLimitError(error)
+      if (rateLimitResponse) return rateLimitResponse
+      throw error
+    }
+
     if (!RENDER_API_KEY) {
       return NextResponse.json({ error: 'Render API not configured' }, { status: 500 })
     }

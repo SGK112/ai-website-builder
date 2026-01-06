@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 // Configure for file uploads
 export const runtime = 'nodejs'
@@ -21,6 +23,12 @@ interface UploadResult {
 
 export async function POST(request: NextRequest) {
   try {
+    // SECURITY: Require authentication to upload files
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
     const formData = await request.formData()
     const file = formData.get('file') as File | null
     const projectId = formData.get('projectId') as string | null
@@ -154,6 +162,12 @@ async function uploadToCloudinary(
 // Handle DELETE for removing uploaded files
 export async function DELETE(request: NextRequest) {
   try {
+    // SECURITY: Require authentication to delete files
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
     const { publicId } = await request.json()
 
     if (!publicId) {

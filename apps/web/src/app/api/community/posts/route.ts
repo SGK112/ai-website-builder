@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
 
@@ -91,10 +93,16 @@ export async function GET(request: NextRequest) {
 // POST - Create a new community post
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { type, title, description, html, thumbnail, author, tags, category, isPublic = true } = body
+    // SECURITY: Require authentication
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
 
-    if (!type || !title || !author) {
+    const body = await request.json()
+    const { type, title, description, html, thumbnail, tags, category, isPublic = true } = body
+
+    if (!type || !title) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -102,6 +110,7 @@ export async function POST(request: NextRequest) {
     const db = client.db('ai-website-builder')
     const collection = db.collection('community_posts')
 
+    // SECURITY: Use server-side session for author info (not client-provided)
     const post: CommunityPost = {
       type,
       title,
@@ -109,10 +118,10 @@ export async function POST(request: NextRequest) {
       html,
       thumbnail,
       author: {
-        id: author.id,
-        name: author.name,
-        username: author.username,
-        avatar: author.avatar,
+        id: session.user.id,
+        name: session.user.name || 'Anonymous',
+        username: session.user.email?.split('@')[0] || 'user',
+        avatar: session.user.image || undefined,
       },
       tags: tags || [],
       category: category || 'general',

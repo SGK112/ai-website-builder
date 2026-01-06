@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 import { cookies } from 'next/headers'
 
 // Vertex AI endpoints
@@ -16,6 +19,21 @@ interface VertexRequest {
 
 export async function POST(request: NextRequest) {
   try {
+    // SECURITY: Require authentication for expensive API calls
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    // Rate limit: 20 AI generations per minute
+    try {
+      checkApiRateLimit(request, 'aiGeneration')
+    } catch (error) {
+      const rateLimitResponse = handleRateLimitError(error)
+      if (rateLimitResponse) return rateLimitResponse
+      throw error
+    }
+
     const cookieStore = cookies()
     const accessToken = cookieStore.get('google_access_token')?.value
 

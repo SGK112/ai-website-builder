@@ -137,25 +137,26 @@ export async function DELETE(
   try {
     const session = await getServerSession(authOptions)
 
+    // SECURITY: Require authentication to delete projects
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
     if (!mongoose.Types.ObjectId.isValid(params.id)) {
       return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 })
     }
 
     await connectDB()
 
-    // If logged in, only delete user's own projects
-    // In dev mode (no session), allow deleting any project by ID
-    const query = session?.user?.id
-      ? { _id: params.id, userId: session.user.id }
-      : { _id: params.id }
+    // Only allow users to delete their own projects
+    const query = { _id: params.id, userId: session.user.id }
 
     const result = await Project.deleteOne(query)
 
     if (result.deletedCount === 0) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Project not found or access denied' }, { status: 404 })
     }
 
-    console.log('Project deleted:', params.id)
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('DELETE project error:', error)

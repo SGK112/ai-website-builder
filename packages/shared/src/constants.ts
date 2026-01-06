@@ -21,8 +21,45 @@ export const CREDENTIAL_TYPES = [
   'sendgrid',
   'twilio',
   'cloudinary',
+  'runpod',
+  'replicate',
+  'huggingface',
   'custom',
 ] as const
+
+// AI Provider configurations
+export const AI_PROVIDERS = {
+  runpod: {
+    name: 'RunPod',
+    type: 'gpu',
+    models: ['flux', 'sdxl', 'sd15', 'svd', 'llama', 'mistral'],
+    costTier: 'low', // Self-hosted GPU, pay per second
+  },
+  replicate: {
+    name: 'Replicate',
+    type: 'api',
+    models: ['flux-schnell', 'sdxl', 'stable-video'],
+    costTier: 'medium', // Pay per prediction
+  },
+  openai: {
+    name: 'OpenAI',
+    type: 'api',
+    models: ['dall-e-3', 'gpt-4', 'gpt-4-vision'],
+    costTier: 'high', // Premium pricing
+  },
+  anthropic: {
+    name: 'Anthropic',
+    type: 'api',
+    models: ['claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku'],
+    costTier: 'high',
+  },
+  huggingface: {
+    name: 'Hugging Face',
+    type: 'api',
+    models: ['meta-llama', 'mistral', 'phi'],
+    costTier: 'free', // Free inference API
+  },
+} as const
 
 export const USER_PLANS = ['free', 'pro', 'enterprise'] as const
 

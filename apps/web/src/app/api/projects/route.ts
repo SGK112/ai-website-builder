@@ -10,12 +10,15 @@ export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
 
+    // SECURITY: Require authentication to list projects
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
     await connectDB()
 
-    // If logged in, show user's projects. Otherwise show all recent projects (dev mode)
-    const query = session?.user?.id
-      ? { userId: session.user.id }
-      : {} // Show all in dev mode
+    // Only show user's own projects
+    const query = { userId: session.user.id }
 
     const projects = await Project.find(query)
       .sort({ updatedAt: -1 })

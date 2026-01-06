@@ -288,24 +288,30 @@ export default function HomePage() {
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="flex items-center gap-3"
+                  className="flex items-center gap-2"
                 >
-                  <div className={cn(
-                    "w-10 h-10 rounded-xl flex items-center justify-center shadow-lg relative overflow-hidden group cursor-pointer",
-                    isDark
-                      ? "bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-violet-500/30"
-                      : "bg-gradient-to-br from-orange-400 to-pink-500 shadow-orange-400/30"
-                  )}>
-                    <span className="text-2xl leading-none select-none">🍲</span>
-                    {/* Steam effect on hover */}
-                    <div className="absolute -top-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="w-1 h-2 bg-white/40 rounded-full animate-pulse" />
-                    </div>
-                  </div>
-                  <span className={cn(
-                    "text-xl font-bold tracking-tight",
-                    isDark ? "text-white" : "text-slate-800"
-                  )}>
+                  <span
+                    className="text-6xl leading-none select-none cursor-pointer hover:scale-110 hover:rotate-6 transition-all duration-500 ease-out"
+                    style={{
+                      filter: isDark
+                        ? 'drop-shadow(0 0 20px rgba(167, 139, 250, 0.6))'
+                        : 'drop-shadow(0 0 20px rgba(251, 146, 60, 0.6))',
+                      animation: 'float 4s ease-in-out infinite'
+                    }}
+                  >🍲</span>
+                  <span
+                    className={cn(
+                      "text-3xl tracking-tight",
+                      isDark
+                        ? "bg-gradient-to-r from-white via-violet-200 to-fuchsia-200 bg-clip-text text-transparent"
+                        : "bg-gradient-to-r from-orange-600 via-pink-600 to-purple-600 bg-clip-text text-transparent"
+                    )}
+                    style={{
+                      fontFamily: "'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, system-ui, sans-serif",
+                      fontWeight: 800,
+                      letterSpacing: '-0.03em'
+                    }}
+                  >
                     WebStew
                   </span>
                 </motion.div>

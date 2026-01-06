@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 // Microweber integration endpoint
 // This API bridges our AI website builder with Microweber's visual editor
@@ -36,6 +38,12 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    // SECURITY: Require authentication
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
     const { action, html, projectId } = await request.json()
 
     switch (action) {

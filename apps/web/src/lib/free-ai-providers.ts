@@ -148,8 +148,24 @@ export async function hfGenerateText(
       }
     }
 
-    const result = await response.json()
-    console.log(`[HF] Response received, length: ${JSON.stringify(result).length}`)
+    // Parse response with error handling for malformed JSON
+    let result
+    try {
+      const responseText = await response.text()
+      console.log(`[HF] Response received, length: ${responseText.length}`)
+
+      // Try to parse JSON, with cleanup for common issues
+      try {
+        result = JSON.parse(responseText)
+      } catch {
+        // Try cleaning up the response
+        const cleanedText = responseText.replace(/[\x00-\x1F\x7F]/g, ' ')
+        result = JSON.parse(cleanedText)
+      }
+    } catch (parseError) {
+      console.error('[HF] Failed to parse response:', parseError)
+      return { error: 'Failed to parse HuggingFace response' }
+    }
 
     // Handle OpenAI-compatible chat response format
     if (result.choices?.[0]?.message?.content) {

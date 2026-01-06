@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
+import { useState, useEffect, useRef, useCallback, Suspense, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -9,6 +9,7 @@ import {
   Monitor,
   Tablet,
   Smartphone,
+  Code,
   Code2,
   Eye,
   Layers,
@@ -127,12 +128,18 @@ import {
   Phone,
   Shield,
   Mail,
+  Command,
+  Hash,
+  Maximize,
+  FileDown,
+  Edit3,
+  Link as LinkIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/context/ThemeContext'
 import { useSession } from 'next-auth/react'
 import { useProject as useProjectHook } from '@/hooks/useProject'
-import { StarryNight, SunriseBackground, DayNightCycle } from '@/components/landing/BackgroundEffects'
+import { StarryNight, SunriseBackground } from '@/components/landing/BackgroundEffects'
 import { WebStewPanel, StewIngredient } from '@/components/WebStew'
 import { OnboardingTour } from '@/components/onboarding'
 import { MonacoCodeEditor } from '@/components/editor'
@@ -1105,6 +1112,67 @@ function WorkspaceContent() {
   const [showProjectsDropdown, setShowProjectsDropdown] = useState(false)
   const [editingProjectName, setEditingProjectName] = useState(false)
   const [showChatModelSelector, setShowChatModelSelector] = useState(false)
+  const [showCommandPalette, setShowCommandPalette] = useState(false)
+  const [showShortcuts, setShowShortcuts] = useState(false)
+  const [commandSearch, setCommandSearch] = useState('')
+  const [commandIndex, setCommandIndex] = useState(0)
+  const [focusMode, setFocusMode] = useState(false)
+  const commandInputRef = useRef<HTMLInputElement>(null)
+
+  // Toast notifications
+  interface Toast {
+    id: string
+    type: 'success' | 'error' | 'info' | 'warning'
+    message: string
+    duration?: number
+  }
+  const [toasts, setToasts] = useState<Toast[]>([])
+  const toastIdRef = useRef(0)
+
+  const addToast = useCallback((type: Toast['type'], message: string, duration = 3000) => {
+    const id = `toast-${++toastIdRef.current}`
+    setToasts(prev => [...prev, { id, type, message, duration }])
+
+    // Auto-remove after duration
+    if (duration > 0) {
+      setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== id))
+      }, duration)
+    }
+  }, [])
+
+  const removeToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id))
+  }, [])
+
+  // Context Menu state
+  interface ContextMenuState {
+    show: boolean
+    x: number
+    y: number
+    element: {
+      tagName: string
+      outerHTML: string
+      innerHTML?: string
+      textContent?: string
+      src?: string
+      href?: string
+      className?: string
+      id?: string
+      attributes?: Record<string, string>
+      selector?: string
+      elementIndex?: number
+      isImage: boolean
+      isLink: boolean
+      isText: boolean
+    } | null
+  }
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({
+    show: false,
+    x: 0,
+    y: 0,
+    element: null
+  })
 
   // Terminal state
   const [terminalLines, setTerminalLines] = useState<TerminalLine[]>([])
@@ -1162,6 +1230,14 @@ function WorkspaceContent() {
 
   // Element Selector state
   const [selectMode, setSelectMode] = useState(false)
+  const [selectedMediaElement, setSelectedMediaElement] = useState<{
+    type: 'image' | 'video'
+    src: string
+    outerHTML: string
+    tagName: string
+    index: number
+  } | null>(null)
+  const [showMediaReplacer, setShowMediaReplacer] = useState(false)
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null)
   const [hoveredElement, setHoveredElement] = useState<SelectedElement | null>(null)
 
@@ -1174,6 +1250,24 @@ function WorkspaceContent() {
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null)
   const [videoStatus, setVideoStatus] = useState('')
   const [videoError, setVideoError] = useState('')
+
+  // AI Image Generation state
+  const [imagePrompt, setImagePrompt] = useState('')
+  const [imageGenerating, setImageGenerating] = useState(false)
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null)
+
+  // Smart Image Insertion state
+  const [showImageInsertPanel, setShowImageInsertPanel] = useState(false)
+  const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null)
+  const [pendingImageName, setPendingImageName] = useState('')
+  const [imageInsertSize, setImageInsertSize] = useState<'thumbnail' | 'small' | 'medium' | 'large' | 'full'>('medium')
+  const [imageInsertPosition, setImageInsertPosition] = useState<'hero' | 'after-hero' | 'section' | 'footer' | 'replace'>('section')
+  const [websiteImages, setWebsiteImages] = useState<{ src: string; index: number; context: string }[]>([])
+  const [imageStyle, setImageStyle] = useState<string>('modern')
+  const [imageAspectRatio, setImageAspectRatio] = useState<'1:1' | '16:9' | '9:16'>('16:9')
+  const [imageTabMode, setImageTabMode] = useState<'url' | 'unsplash' | 'ai' | 'upload'>('url')
+  const [unsplashResults, setUnsplashResults] = useState<string[]>([])
+  const [unsplashLoading, setUnsplashLoading] = useState(false)
 
   // Business Integrations state
   const [integrations, setIntegrations] = useState<BusinessIntegration[]>(defaultIntegrations)
@@ -1249,11 +1343,19 @@ function WorkspaceContent() {
   const [deployUrl, setDeployUrl] = useState<string | null>(null)
   const [deployError, setDeployError] = useState<string | null>(null)
 
-  // Welcome chat message state
+  // Conversational chat state
   const [showWelcome, setShowWelcome] = useState(true)
-  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
-    { role: 'assistant', content: '👋 Welcome to WebStew! I\'m your AI builder assistant. Describe your website idea, or upload your content in the Stew panel - I\'ll cook up something amazing!' }
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string; suggestions?: string[] }[]>([
+    { role: 'assistant', content: "Welcome! I'm your AI creative assistant. What would you like to create today?", suggestions: ['Build a website', 'Generate an image', 'Create a video'] }
   ])
+  const [chatSuggestions, setChatSuggestions] = useState<string[]>(['Build a website', 'Generate an image', 'Create a video'])
+  const [conversationIntent, setConversationIntent] = useState<'website' | 'image' | 'video' | 'edit' | null>(null)
+  const [isThinking, setIsThinking] = useState(false)
+  const chatContainerRef = useRef<HTMLDivElement>(null)
+
+  // Drag and drop state for images
+  const [draggedImageUrl, setDraggedImageUrl] = useState<string | null>(null)
+  const [isDraggingImage, setIsDraggingImage] = useState(false)
 
   // Agent Mode state - Manus-like autonomous AI agent
   // Agent mode removed for simplicity
@@ -1543,29 +1645,58 @@ function WorkspaceContent() {
   // Save projects to localStorage
   useEffect(() => {
     if (projects.length > 0) {
-      localStorage.setItem('vibe-projects', JSON.stringify(projects))
+      try {
+        localStorage.setItem('vibe-projects', JSON.stringify(projects))
+      } catch (e) {
+        console.warn('Failed to save projects')
+      }
     }
   }, [projects])
 
   // Save settings
   useEffect(() => {
-    localStorage.setItem('workspace-settings', JSON.stringify(settings))
+    try {
+      localStorage.setItem('workspace-settings', JSON.stringify(settings))
+    } catch (e) {
+      console.warn('Failed to save settings')
+    }
   }, [settings])
 
   useEffect(() => {
-    localStorage.setItem('workspace-skill-level', skillLevel)
+    try {
+      localStorage.setItem('workspace-skill-level', skillLevel)
+    } catch (e) {
+      console.warn('Failed to save skill level')
+    }
   }, [skillLevel])
 
   // Auto-save current work to localStorage (browser refresh protection)
   useEffect(() => {
     if (html && html.length > 100) {
+      // Limit HTML size to prevent quota errors (max ~500KB)
+      const maxSize = 500000
+      const htmlToSave = html.length > maxSize ? html.slice(0, maxSize) : html
       const autoSaveData = {
-        html,
+        html: htmlToSave,
         projectName,
         timestamp: new Date().toISOString(),
         selectedPreset,
+        truncated: html.length > maxSize,
       }
-      localStorage.setItem('webstew-autosave', JSON.stringify(autoSaveData))
+      try {
+        localStorage.setItem('webstew-autosave', JSON.stringify(autoSaveData))
+      } catch (e) {
+        // If quota exceeded, clear old data and try again
+        console.warn('LocalStorage quota exceeded, clearing old data...')
+        try {
+          localStorage.removeItem('webstew-autosave')
+          localStorage.removeItem('webstew-last-generation')
+          localStorage.removeItem('vibe-projects')
+          localStorage.setItem('webstew-autosave', JSON.stringify(autoSaveData))
+        } catch (e2) {
+          console.error('Failed to save even after clearing:', e2)
+        }
+      }
     }
   }, [html, projectName, selectedPreset])
 
@@ -1668,7 +1799,10 @@ function WorkspaceContent() {
 
           if (newHtml !== html) {
             setHtml(newHtml)
-            addToHistory(newHtml, `Edited ${tag}: "${newContent.slice(0, 30)}..."`)
+            // Inline history update to avoid dependency on addToHistory
+            const entry = { html: newHtml, prompt: `Edited ${tag}: "${newContent.slice(0, 30)}..."`, timestamp: new Date() }
+            setHistory(prev => [...prev.slice(-29), entry])
+            setHistoryIndex(prev => Math.min(prev + 1, 29))
             const sectionInfo = element.section ? ` in ${element.section.tagName}` : ''
             addConsoleLog('success', `Live edit saved${sectionInfo}`)
           }
@@ -1676,13 +1810,76 @@ function WorkspaceContent() {
       } else if (event.data?.type === 'element-click' && selectMode) {
         // Simple: just store the element for deletion
         setSelectedElement(event.data.element)
+        setSelectedMediaElement(null) // Clear media selection
         const tag = event.data.element.tagName?.toLowerCase() || 'element'
         addConsoleLog('info', `Selected <${tag}> - Click DELETE to remove`)
+      } else if (event.data?.type === 'media-click' && selectMode) {
+        // Handle image/video selection
+        const { type, src, outerHTML, tagName, index } = event.data.element
+        setSelectedMediaElement({ type, src, outerHTML, tagName, index })
+        setSelectedElement(null) // Clear regular selection
+        setShowMediaReplacer(true) // Show the replacement modal
+        addConsoleLog('info', `Selected ${type} - Choose an action below`)
+      } else if (event.data?.type === 'image-drop') {
+        // Handle image drop from drag-and-drop
+        const { oldSrc, newSrc, imageIndex } = event.data
+        if (oldSrc && newSrc && html) {
+          // Replace the specific image src in the HTML
+          // First, try to find by exact src match
+          const escapedOldSrc = oldSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          const srcRegex = new RegExp(`src=["']${escapedOldSrc}["']`, 'g')
+
+          let newHtml = html
+          if (srcRegex.test(html)) {
+            newHtml = html.replace(srcRegex, `src="${newSrc}"`)
+          } else {
+            // Fallback: replace by image index
+            let imgCount = 0
+            newHtml = html.replace(/<img\s+([^>]*?)src=["']([^"']+)["']([^>]*?)>/gi, (match, before, src, after) => {
+              if (imgCount === imageIndex) {
+                imgCount++
+                return `<img ${before}src="${newSrc}"${after}>`
+              }
+              imgCount++
+              return match
+            })
+          }
+
+          if (newHtml !== html) {
+            setHtml(newHtml)
+            // Inline history update to avoid dependency on addToHistory
+            const entry = { html: newHtml, prompt: 'Replaced image via drag-and-drop', timestamp: new Date() }
+            setHistory(prev => [...prev.slice(-29), entry])
+            setHistoryIndex(prev => Math.min(prev + 1, 29))
+            addConsoleLog('success', `Image ${imageIndex + 1} replaced successfully!`)
+            addToast('success', 'Image replaced!')
+            setChatMessages(prev => [...prev, {
+              role: 'assistant',
+              content: `Replaced image! You can drag more images onto specific images to replace them.`
+            }])
+          }
+        }
+        setIsDraggingImage(false)
+        setDraggedImageUrl(null)
+      } else if (event.data?.type === 'context-menu') {
+        // Handle right-click context menu from iframe
+        const { x, y, element } = event.data
+        // Adjust position relative to iframe location
+        const iframe = document.querySelector('iframe')
+        if (iframe) {
+          const rect = iframe.getBoundingClientRect()
+          setContextMenu({
+            show: true,
+            x: rect.left + x,
+            y: rect.top + y,
+            element: element
+          })
+        }
       }
     }
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [addConsoleLog, selectMode])
+  }, [addConsoleLog, selectMode, html])
 
   // Project management
   const saveProject = async () => {
@@ -1722,14 +1919,17 @@ function WorkspaceContent() {
           setCurrentProject(prev => prev ? { ...prev, id: savedProject.id } : null)
           addTerminalLine('success', `Project "${projectName}" saved to cloud`)
           addConsoleLog('success', `Project synced to cloud: ${projectName}`)
+          addToast('success', `Project saved to cloud`)
         }
       } catch (err) {
         addTerminalLine('error', `Failed to save to cloud: ${err}`)
         addConsoleLog('error', `Cloud save failed: ${err}`)
+        addToast('error', `Failed to save project`)
       }
     } else {
       addTerminalLine('success', `Project "${projectName}" saved locally`)
       addConsoleLog('info', `Project saved locally: ${projectName}`)
+      addToast('success', `Project saved locally`)
     }
   }
 
@@ -2024,6 +2224,163 @@ ${html}
   window.onerror = function(msg, url, line) {
     window.parent.postMessage({ type: 'console', level: 'error', message: msg + ' (line ' + line + ')' }, '*');
   };
+
+  // ========== RIGHT-CLICK CONTEXT MENU (always active) ==========
+  // Generate unique CSS selector for an element
+  function getElementSelector(el) {
+    if (el.id) return '#' + el.id;
+
+    // Build path from element to body
+    const path = [];
+    let current = el;
+    while (current && current !== document.body && current !== document.documentElement) {
+      let selector = current.tagName.toLowerCase();
+
+      // Add class if it exists and is unique enough
+      if (current.className && typeof current.className === 'string') {
+        const classes = current.className.trim().split(/\\s+/).filter(c => c && !c.includes(':'));
+        if (classes.length > 0) {
+          selector += '.' + classes.slice(0, 2).join('.');
+        }
+      }
+
+      // Add nth-child for uniqueness
+      const parent = current.parentElement;
+      if (parent) {
+        const siblings = Array.from(parent.children).filter(c => c.tagName === current.tagName);
+        if (siblings.length > 1) {
+          const index = siblings.indexOf(current) + 1;
+          selector += ':nth-of-type(' + index + ')';
+        }
+      }
+
+      path.unshift(selector);
+      current = current.parentElement;
+    }
+
+    return path.join(' > ');
+  }
+
+  // Get element's position in document order
+  function getElementIndex(el) {
+    const allElements = document.body.querySelectorAll('*');
+    return Array.from(allElements).indexOf(el);
+  }
+
+  document.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const el = e.target;
+    const tagName = el.tagName;
+    const textTags = ['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'SPAN', 'A', 'LI', 'TD', 'TH', 'LABEL', 'BUTTON', 'DIV'];
+
+    // Get a unique signature for this element
+    const selector = getElementSelector(el);
+    const elementIndex = getElementIndex(el);
+
+    // Get attributes for better matching
+    const attrs = {};
+    for (let i = 0; i < el.attributes.length; i++) {
+      const attr = el.attributes[i];
+      attrs[attr.name] = attr.value;
+    }
+
+    window.parent.postMessage({
+      type: 'context-menu',
+      x: e.clientX,
+      y: e.clientY,
+      element: {
+        tagName: tagName,
+        outerHTML: el.outerHTML,
+        innerHTML: el.innerHTML || '',
+        textContent: el.innerText?.slice(0, 200) || '',
+        src: el.src || null,
+        href: el.href || null,
+        className: el.className || '',
+        id: el.id || '',
+        attributes: attrs,
+        selector: selector,
+        elementIndex: elementIndex,
+        isImage: tagName === 'IMG',
+        isLink: tagName === 'A',
+        isText: textTags.includes(tagName)
+      }
+    }, '*');
+  }, true);
+
+  // ========== DRAG AND DROP FOR IMAGES ==========
+  // Listen for parent to notify us about dragging state
+  let parentIsDragging = false;
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'drag-state') {
+      parentIsDragging = e.data.isDragging;
+      // Add/remove visual indicators on all images
+      document.querySelectorAll('img').forEach(function(img, index) {
+        if (parentIsDragging) {
+          img.style.outline = '3px dashed #a855f7';
+          img.style.outlineOffset = '4px';
+          img.style.cursor = 'copy';
+          img.setAttribute('data-drop-index', index);
+        } else {
+          img.style.outline = '';
+          img.style.outlineOffset = '';
+          img.style.cursor = '';
+        }
+      });
+    }
+  });
+
+  // Make images droppable
+  document.addEventListener('dragover', function(e) {
+    if (e.target.tagName === 'IMG') {
+      e.preventDefault();
+      e.stopPropagation();
+      e.target.style.outline = '4px solid #22c55e';
+      e.target.style.transform = 'scale(1.02)';
+      e.target.style.transition = 'transform 0.15s';
+    }
+  }, true);
+
+  document.addEventListener('dragleave', function(e) {
+    if (e.target.tagName === 'IMG') {
+      e.target.style.outline = parentIsDragging ? '3px dashed #a855f7' : '';
+      e.target.style.transform = '';
+    }
+  }, true);
+
+  document.addEventListener('drop', function(e) {
+    if (e.target.tagName === 'IMG') {
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Get the image URL from dataTransfer
+      const imageUrl = e.dataTransfer.getData('image-url') || e.dataTransfer.getData('text/plain');
+
+      if (imageUrl) {
+        const oldSrc = e.target.src;
+        // Get the index of this image
+        const allImages = [...document.querySelectorAll('img')];
+        const imageIndex = allImages.indexOf(e.target);
+
+        // Send message to parent with the old src and new src
+        window.parent.postMessage({
+          type: 'image-drop',
+          oldSrc: oldSrc,
+          newSrc: imageUrl,
+          imageIndex: imageIndex
+        }, '*');
+
+        // Update the image immediately for visual feedback
+        e.target.src = imageUrl;
+        e.target.style.outline = '4px solid #22c55e';
+        setTimeout(function() {
+          e.target.style.outline = '';
+          e.target.style.transform = '';
+        }, 500);
+      }
+    }
+  }, true);
 })();
 </script>`
 
@@ -2035,37 +2392,63 @@ ${html}
   const style = document.createElement('style');
   style.textContent = \`
     *:hover { outline: 2px dashed #a855f7 !important; outline-offset: -2px; cursor: pointer !important; }
+    img:hover, video:hover { outline: 3px solid #3b82f6 !important; outline-offset: 2px; cursor: pointer !important; }
     .__selected__ { outline: 3px solid #ef4444 !important; outline-offset: -3px; background: rgba(239,68,68,0.1) !important; }
+    .__media-selected__ { outline: 4px solid #10b981 !important; outline-offset: 4px; box-shadow: 0 0 20px rgba(16,185,129,0.4) !important; }
   \`;
   document.head.appendChild(style);
 
   let selected = null;
+
+  // Index all images and videos
+  const mediaElements = [...document.querySelectorAll('img, video')];
 
   document.addEventListener('click', function(e) {
     e.preventDefault();
     e.stopPropagation();
 
     // Remove previous selection
-    if (selected) selected.classList.remove('__selected__');
+    if (selected) {
+      selected.classList.remove('__selected__');
+      selected.classList.remove('__media-selected__');
+    }
 
     // IMPORTANT: Get outerHTML BEFORE adding class so it matches original HTML
     const outerHTML = e.target.outerHTML;
     const textContent = e.target.innerText?.slice(0, 100) || '';
     const tagName = e.target.tagName;
 
-    // Select new element (this changes outerHTML, so we captured it above)
-    selected = e.target;
-    selected.classList.add('__selected__');
+    // Check if it's an image or video
+    const isMedia = tagName === 'IMG' || tagName === 'VIDEO';
+    const mediaIndex = isMedia ? mediaElements.indexOf(e.target) : -1;
 
-    // Send to parent with the ORIGINAL outerHTML for deletion
-    window.parent.postMessage({
-      type: 'element-click',
-      element: {
-        tagName: tagName,
-        outerHTML: outerHTML,
-        textContent: textContent
-      }
-    }, '*');
+    // Select new element
+    selected = e.target;
+    selected.classList.add(isMedia ? '__media-selected__' : '__selected__');
+
+    if (isMedia) {
+      // Send media-specific message
+      window.parent.postMessage({
+        type: 'media-click',
+        element: {
+          type: tagName === 'IMG' ? 'image' : 'video',
+          src: e.target.src || e.target.querySelector('source')?.src || '',
+          outerHTML: outerHTML,
+          tagName: tagName,
+          index: mediaIndex
+        }
+      }, '*');
+    } else {
+      // Send regular element message
+      window.parent.postMessage({
+        type: 'element-click',
+        element: {
+          tagName: tagName,
+          outerHTML: outerHTML,
+          textContent: textContent
+        }
+      }, '*');
+    }
   }, true);
 })();
 </script>` : '';
@@ -2225,6 +2608,7 @@ ${html}
       // Now reveal the preview
       setIsGenerating(false)
       setViewMode('preview')
+      addToast('success', 'Website generated!')
 
       // Refresh credits after generation
       fetchCredits()
@@ -2236,6 +2620,7 @@ ${html}
       console.error('Generation error:', error)
       addTerminalLine('error', '└ Build failed. Please try again.')
       addConsoleLog('error', 'Build failed')
+      addToast('error', 'Generation failed. Please try again.')
       setBuildPhase('idle')
       setIsGenerating(false)
     }
@@ -2307,11 +2692,59 @@ ${html}
   // Keyboard: Delete/Backspace to delete, Escape to deselect
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!selectedElement) return
-
       // Don't interfere with typing
       const activeEl = document.activeElement
-      if (activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA') return
+      if (activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA' || (activeEl as HTMLElement)?.isContentEditable) return
+
+      // Global shortcuts (work without selected element)
+      if (e.metaKey || e.ctrlKey) {
+        // Cmd/Ctrl + Z = Undo
+        if (e.key === 'z' && !e.shiftKey) {
+          e.preventDefault()
+          handleUndo()
+          return
+        }
+        // Cmd/Ctrl + Shift + Z or Cmd/Ctrl + Y = Redo
+        if ((e.key === 'z' && e.shiftKey) || e.key === 'y') {
+          e.preventDefault()
+          handleRedo()
+          return
+        }
+        // Cmd/Ctrl + S = Save
+        if (e.key === 's') {
+          e.preventDefault()
+          saveProject?.()
+          return
+        }
+        // Cmd/Ctrl + P = Preview (toggle)
+        if (e.key === 'p') {
+          e.preventDefault()
+          setViewMode(prev => prev === 'preview' ? 'split' : 'preview')
+          return
+        }
+        // Cmd/Ctrl + Shift + P = Code mode
+        if (e.key === 'P' || (e.key === 'p' && e.shiftKey)) {
+          e.preventDefault()
+          setViewMode('code')
+          return
+        }
+        // Cmd/Ctrl + / = Show keyboard shortcuts
+        if (e.key === '/') {
+          e.preventDefault()
+          setShowShortcuts(prev => !prev)
+          return
+        }
+      }
+
+      // ? key (without modifier) = Show shortcuts
+      if (e.key === '?' && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault()
+        setShowShortcuts(prev => !prev)
+        return
+      }
+
+      // Selected element shortcuts
+      if (!selectedElement) return
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault()
@@ -2321,36 +2754,980 @@ ${html}
         setSelectedElement(null)
         setSelectMode(false)
       }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedElement, deleteSelectedElement])
-
-  const handleCommandSubmit = () => {
-    if (!commandInput.trim() || isGenerating) return
-    const command = commandInput
-    setCommandInput('')
-
-    // Check if this is a simple text replacement for selected element
-    if (selectedElement) {
-      const tag = selectedElement.tagName.toLowerCase()
-
-      // Check for patterns like 'Change this heading "X" to: Y'
-      const textReplaceMatch = command.match(/^(?:Change this (?:heading|button|link|text)[^"]*"[^"]*"[^:]*:\s*)?(.+)$/i)
-      if (textReplaceMatch) {
-        const newText = textReplaceMatch[1].trim()
-        // If new text is short and simple, try quick edit
-        if (newText.length > 0 && newText.length < 200 && !newText.includes('<')) {
-          if (handleQuickEdit(newText)) {
-            return // Quick edit succeeded, no need for full generation
+      // Cmd/Ctrl + D = Duplicate
+      if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
+        e.preventDefault()
+        if (selectedElement?.outerHTML && html) {
+          const newHtml = html.replace(selectedElement.outerHTML, selectedElement.outerHTML + selectedElement.outerHTML)
+          if (newHtml !== html) {
+            setHtml(newHtml)
+            addToHistory(newHtml, 'Duplicated element')
+            addToast('success', 'Element duplicated')
           }
         }
       }
     }
 
-    // Fall back to full generation
-    handleGenerate(command)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedElement, deleteSelectedElement, handleUndo, handleRedo, saveProject, html, addToHistory, addToast, setHtml])
+
+  // Command Palette Commands
+  interface PaletteCommand {
+    id: string
+    label: string
+    category: 'navigation' | 'view' | 'action' | 'generate' | 'tools'
+    icon: typeof Wand2
+    shortcut?: string
+    action: () => void
+  }
+
+  const paletteCommands: PaletteCommand[] = [
+    // Navigation
+    { id: 'nav-build', label: 'Go to Build', category: 'navigation', icon: Wand2, action: () => setActivePanel('build') },
+    { id: 'nav-templates', label: 'Go to Templates', category: 'navigation', icon: Layout, action: () => setActivePanel('templates') },
+    { id: 'nav-files', label: 'Go to Files', category: 'navigation', icon: FolderOpen, action: () => setActivePanel('projects') },
+    { id: 'nav-images', label: 'Go to Images', category: 'navigation', icon: ImageIcon, action: () => setActivePanel('images') },
+    { id: 'nav-video', label: 'Go to Video', category: 'navigation', icon: Film, action: () => setActivePanel('video') },
+    { id: 'nav-integrations', label: 'Go to APIs', category: 'navigation', icon: Link2, action: () => setActivePanel('integrations') },
+    { id: 'nav-env', label: 'Go to Env Variables', category: 'navigation', icon: Variable, action: () => setActivePanel('env') },
+    { id: 'nav-console', label: 'Go to Console', category: 'navigation', icon: Terminal, action: () => setActivePanel('console') },
+    { id: 'nav-deploy', label: 'Go to Deploy', category: 'navigation', icon: Rocket, action: () => setActivePanel('deploy') },
+
+    // View
+    { id: 'view-preview', label: 'Preview Mode', category: 'view', icon: Eye, action: () => setViewMode('preview') },
+    { id: 'view-code', label: 'Code Mode', category: 'view', icon: Code2, action: () => setViewMode('code') },
+    { id: 'view-split', label: 'Split Mode', category: 'view', icon: Layers, action: () => setViewMode('split') },
+    { id: 'view-desktop', label: 'Desktop View', category: 'view', icon: Monitor, action: () => setDeviceMode('desktop') },
+    { id: 'view-tablet', label: 'Tablet View', category: 'view', icon: Tablet, action: () => setDeviceMode('tablet') },
+    { id: 'view-mobile', label: 'Mobile View', category: 'view', icon: Smartphone, action: () => setDeviceMode('mobile') },
+    { id: 'view-focus', label: 'Toggle Focus Mode', category: 'view', icon: Maximize, shortcut: 'F', action: () => setFocusMode(prev => !prev) },
+    { id: 'view-sidebar', label: 'Toggle Sidebar', category: 'view', icon: PanelLeft, action: () => setSidebarCollapsed(prev => !prev) },
+
+    // Actions
+    { id: 'action-save', label: 'Save Project', category: 'action', icon: Save, shortcut: '⌘S', action: () => saveProject() },
+    { id: 'action-export', label: 'Export Project', category: 'action', icon: FileDown, action: () => setShowExportPanel(true) },
+    { id: 'action-undo', label: 'Undo', category: 'action', icon: Undo2, shortcut: '⌘Z', action: () => handleUndo() },
+    { id: 'action-redo', label: 'Redo', category: 'action', icon: Redo2, shortcut: '⌘Y', action: () => handleRedo() },
+    { id: 'action-refresh', label: 'Refresh Preview', category: 'action', icon: RefreshCw, action: () => iframeRef.current?.contentWindow?.location.reload() },
+    { id: 'action-clear', label: 'Clear All', category: 'action', icon: Trash2, action: () => { if (confirm('Clear all content?')) { setHtml(''); setHistory([]); setHistoryIndex(-1) } } },
+    { id: 'action-copy', label: 'Copy HTML', category: 'action', icon: Copy, action: () => { navigator.clipboard.writeText(html); addToast('success', 'HTML copied to clipboard') } },
+
+    // Generate
+    { id: 'gen-website', label: 'Generate Website...', category: 'generate', icon: Sparkles, action: () => { setActivePanel('build'); setTimeout(() => document.querySelector<HTMLInputElement>('[data-command-input]')?.focus(), 100) } },
+    { id: 'gen-image', label: 'Generate Image...', category: 'generate', icon: ImageIcon, action: () => { setActivePanel('images'); setShowImageInsertPanel(true) } },
+    { id: 'gen-video', label: 'Generate Video...', category: 'generate', icon: Film, action: () => setActivePanel('video') },
+
+    // Tools
+    { id: 'tool-select', label: 'Toggle Select Mode', category: 'tools', icon: MousePointer2, action: () => setSelectMode(prev => !prev) },
+    { id: 'tool-theme', label: 'Open Theme Builder', category: 'tools', icon: Palette, action: () => setShowThemeBuilder(true) },
+    { id: 'tool-components', label: 'Component Library', category: 'tools', icon: Package, action: () => setActivePanel('templates') },
+    { id: 'tool-dark', label: 'Toggle Dark Mode', category: 'tools', icon: Moon, action: () => toggleTheme() },
+  ]
+
+  // Filter commands based on search
+  const filteredCommands = commandSearch.trim()
+    ? paletteCommands.filter(cmd =>
+        cmd.label.toLowerCase().includes(commandSearch.toLowerCase()) ||
+        cmd.category.toLowerCase().includes(commandSearch.toLowerCase())
+      )
+    : paletteCommands
+
+  // Execute command
+  const executeCommand = (command: PaletteCommand) => {
+    command.action()
+    setShowCommandPalette(false)
+    setCommandSearch('')
+    setCommandIndex(0)
+  }
+
+  // Command Palette keyboard shortcut
+  useEffect(() => {
+    const handleCommandPalette = (e: KeyboardEvent) => {
+      // Cmd+K or Ctrl+K to open
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setShowCommandPalette(prev => !prev)
+        setCommandSearch('')
+        setCommandIndex(0)
+      }
+
+      // F for focus mode (when not typing)
+      if (e.key === 'f' && !showCommandPalette) {
+        const activeEl = document.activeElement
+        if (activeEl?.tagName !== 'INPUT' && activeEl?.tagName !== 'TEXTAREA') {
+          e.preventDefault()
+          setFocusMode(prev => !prev)
+        }
+      }
+
+      // Escape to close command palette or context menu
+      if (e.key === 'Escape') {
+        if (contextMenu.show) {
+          setContextMenu(prev => ({ ...prev, show: false }))
+        } else if (showCommandPalette) {
+          setShowCommandPalette(false)
+          setCommandSearch('')
+        }
+      }
+
+      // Arrow navigation in command palette
+      if (showCommandPalette) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          setCommandIndex(prev => Math.min(prev + 1, filteredCommands.length - 1))
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          setCommandIndex(prev => Math.max(prev - 1, 0))
+        }
+        if (e.key === 'Enter' && filteredCommands[commandIndex]) {
+          e.preventDefault()
+          executeCommand(filteredCommands[commandIndex])
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleCommandPalette)
+    return () => window.removeEventListener('keydown', handleCommandPalette)
+  }, [showCommandPalette, commandIndex, filteredCommands])
+
+  // Focus command input when palette opens
+  useEffect(() => {
+    if (showCommandPalette && commandInputRef.current) {
+      commandInputRef.current.focus()
+    }
+  }, [showCommandPalette])
+
+  // Close context menu when clicking outside
+  useEffect(() => {
+    if (!contextMenu.show) return
+
+    const handleClick = () => {
+      setContextMenu(prev => ({ ...prev, show: false }))
+    }
+
+    // Small delay to prevent immediate close
+    const timer = setTimeout(() => {
+      window.addEventListener('click', handleClick)
+    }, 100)
+
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('click', handleClick)
+    }
+  }, [contextMenu.show])
+
+  // Close context menu helper
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(prev => ({ ...prev, show: false }))
+  }, [])
+
+  // Context menu actions - simplified and robust
+  // Robust element finding and replacement helper
+  const findAndReplaceElement = useCallback((
+    targetHtml: string,
+    element: ContextMenuState['element'],
+    replacement: string | ((found: string) => string)
+  ): string | null => {
+    if (!element) return null
+
+    const outerHTML = element.outerHTML
+    let result = targetHtml
+
+    // Strategy 1: Direct exact match
+    if (targetHtml.includes(outerHTML)) {
+      const newContent = typeof replacement === 'function' ? replacement(outerHTML) : replacement
+      // Only replace the first occurrence
+      const index = targetHtml.indexOf(outerHTML)
+      if (index !== -1) {
+        result = targetHtml.slice(0, index) + newContent + targetHtml.slice(index + outerHTML.length)
+        return result
+      }
+    }
+
+    // Strategy 2: Normalize whitespace and try again
+    const normalizeWs = (s: string) => s.replace(/\s+/g, ' ').replace(/>\s+</g, '><').trim()
+    const normalizedOuter = normalizeWs(outerHTML)
+    const normalizedHtml = normalizeWs(targetHtml)
+
+    if (normalizedHtml.includes(normalizedOuter)) {
+      // Find original position by matching normalized content
+      const lines = targetHtml.split('\n')
+      let found = false
+      for (let i = 0; i < lines.length && !found; i++) {
+        for (let j = i; j < lines.length && !found; j++) {
+          const chunk = lines.slice(i, j + 1).join('\n')
+          if (normalizeWs(chunk) === normalizedOuter || chunk.includes(outerHTML.slice(0, 50))) {
+            const newContent = typeof replacement === 'function' ? replacement(chunk) : replacement
+            const before = lines.slice(0, i).join('\n')
+            const after = lines.slice(j + 1).join('\n')
+            result = before + (before ? '\n' : '') + newContent + (after ? '\n' : '') + after
+            return result
+          }
+        }
+      }
+    }
+
+    // Strategy 3: Match by tag + key attributes
+    const tag = element.tagName.toLowerCase()
+    const attrs = element.attributes || {}
+
+    // Build a regex pattern based on the element's attributes
+    let pattern = `<${tag}`
+
+    // Add key attributes to pattern
+    if (element.id) {
+      pattern += `[^>]*id=["']${element.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`
+    } else if (element.className) {
+      const firstClass = element.className.split(' ')[0]
+      if (firstClass) {
+        pattern += `[^>]*class=["'][^"']*${firstClass.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^"']*["']`
+      }
+    } else if (element.src) {
+      pattern += `[^>]*src=["']${element.src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`
+    } else if (element.href) {
+      pattern += `[^>]*href=["']${element.href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`
+    }
+
+    // Match opening tag and everything until closing tag
+    const selfClosingTags = ['img', 'br', 'hr', 'input', 'meta', 'link']
+    if (selfClosingTags.includes(tag)) {
+      pattern += `[^>]*/?>` // Self-closing
+    } else {
+      pattern += `[^>]*>[\\s\\S]*?</${tag}>`
+    }
+
+    try {
+      const regex = new RegExp(pattern, 'i')
+      const match = targetHtml.match(regex)
+      if (match) {
+        const newContent = typeof replacement === 'function' ? replacement(match[0]) : replacement
+        result = targetHtml.replace(match[0], newContent)
+        return result
+      }
+    } catch (e) {
+      console.error('[Context Menu] Regex failed:', e)
+    }
+
+    // Strategy 4: For text-heavy elements, match by text content
+    if (element.textContent && element.textContent.length > 10) {
+      const escapedText = element.textContent.slice(0, 50).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      try {
+        const textRegex = new RegExp(`<${tag}[^>]*>[^<]*${escapedText}[^<]*</${tag}>`, 'i')
+        const match = targetHtml.match(textRegex)
+        if (match) {
+          const newContent = typeof replacement === 'function' ? replacement(match[0]) : replacement
+          result = targetHtml.replace(match[0], newContent)
+          return result
+        }
+      } catch (e) {
+        console.error('[Context Menu] Text regex failed:', e)
+      }
+    }
+
+    return null // Could not find element
+  }, [])
+
+  const contextMenuActions = useMemo(() => ({
+    editText: () => {
+      if (!contextMenu.element) return
+      const newText = prompt('Edit text:', contextMenu.element.textContent || '')
+      if (newText !== null && newText !== contextMenu.element.textContent) {
+        const result = findAndReplaceElement(html, contextMenu.element, (found) => {
+          // Replace inner text while keeping tags
+          const tag = contextMenu.element!.tagName.toLowerCase()
+          const openTagMatch = found.match(new RegExp(`^<${tag}[^>]*>`))
+          if (openTagMatch) {
+            return openTagMatch[0] + newText + `</${tag}>`
+          }
+          return found.replace(contextMenu.element!.textContent || '', newText)
+        })
+        if (result && result !== html) {
+          setHtml(result)
+          addToHistory(result, `Edited text`)
+          addToast('success', 'Text updated')
+        } else {
+          addToast('error', 'Could not find element to edit')
+        }
+      }
+      closeContextMenu()
+    },
+
+    copyText: () => {
+      if (!contextMenu.element?.textContent) return
+      navigator.clipboard.writeText(contextMenu.element.textContent)
+      addToast('success', 'Text copied to clipboard')
+      closeContextMenu()
+    },
+
+    replaceImage: () => {
+      if (!contextMenu.element?.isImage) return
+      setActivePanel('images')
+      setSelectedMediaElement({
+        type: 'image',
+        src: contextMenu.element.src || '',
+        outerHTML: contextMenu.element.outerHTML,
+        tagName: 'IMG',
+        index: 0
+      })
+      setShowMediaReplacer(true)
+      closeContextMenu()
+    },
+
+    insertImageAfter: () => {
+      if (!contextMenu.element) return
+      setActivePanel('images')
+      const placeholderImg = `<img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800" alt="New image" class="w-full h-48 object-cover rounded-lg my-4" />`
+
+      const containerTags = ['DIV', 'SECTION', 'ARTICLE', 'MAIN', 'ASIDE', 'HEADER', 'FOOTER', 'NAV', 'FIGURE']
+      const isContainer = containerTags.includes(contextMenu.element.tagName)
+
+      const result = findAndReplaceElement(html, contextMenu.element, (found) => {
+        if (isContainer) {
+          // Insert inside container before closing tag
+          const tag = contextMenu.element!.tagName.toLowerCase()
+          const closingTag = `</${tag}>`
+          const lastIndex = found.lastIndexOf(closingTag)
+          if (lastIndex !== -1) {
+            return found.slice(0, lastIndex) + '\n  ' + placeholderImg + '\n' + found.slice(lastIndex)
+          }
+        }
+        // Insert after element
+        return found + '\n' + placeholderImg
+      })
+
+      if (result && result !== html) {
+        setHtml(result)
+        addToHistory(result, 'Inserted image')
+        addToast('info', 'Image added - drag a new image to replace it')
+      } else {
+        addToast('error', 'Could not find element to insert after')
+      }
+      closeContextMenu()
+    },
+
+    copyImageUrl: () => {
+      if (!contextMenu.element?.src) return
+      navigator.clipboard.writeText(contextMenu.element.src)
+      addToast('success', 'Image URL copied')
+      closeContextMenu()
+    },
+
+    openLink: () => {
+      if (!contextMenu.element?.href) return
+      window.open(contextMenu.element.href, '_blank')
+      closeContextMenu()
+    },
+
+    editLink: () => {
+      if (!contextMenu.element?.href) return
+      const newHref = prompt('Edit link URL:', contextMenu.element.href)
+      if (newHref && newHref !== contextMenu.element.href) {
+        const result = findAndReplaceElement(html, contextMenu.element, (found) => {
+          return found.replace(contextMenu.element!.href!, newHref)
+        })
+        if (result && result !== html) {
+          setHtml(result)
+          addToHistory(result, 'Updated link')
+          addToast('success', 'Link updated')
+        } else {
+          addToast('error', 'Could not find link to edit')
+        }
+      }
+      closeContextMenu()
+    },
+
+    copyHtml: () => {
+      if (!contextMenu.element) return
+      navigator.clipboard.writeText(contextMenu.element.outerHTML)
+      addToast('success', 'HTML copied')
+      closeContextMenu()
+    },
+
+    duplicate: () => {
+      if (!contextMenu.element) return
+      const result = findAndReplaceElement(html, contextMenu.element, (found) => {
+        return found + '\n' + found
+      })
+      if (result && result !== html) {
+        setHtml(result)
+        addToHistory(result, `Duplicated element`)
+        addToast('success', 'Element duplicated')
+      } else {
+        addToast('error', 'Could not find element to duplicate')
+      }
+      closeContextMenu()
+    },
+
+    delete: () => {
+      if (!contextMenu.element) return
+      const result = findAndReplaceElement(html, contextMenu.element, '')
+      if (result && result !== html) {
+        setHtml(result)
+        addToHistory(result, `Deleted element`)
+        addToast('success', 'Element deleted')
+      } else {
+        addToast('error', 'Could not find element to delete')
+      }
+      closeContextMenu()
+    }
+  }), [contextMenu.element, html, closeContextMenu, addToHistory, addToast, setHtml, setActivePanel, setSelectedMediaElement, setShowMediaReplacer, findAndReplaceElement])
+
+  // Escape key to close context menu
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && contextMenu.show) {
+        closeContextMenu()
+      }
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [contextMenu.show, closeContextMenu])
+
+  // Calculate smart position for context menu
+  const getContextMenuPosition = useCallback(() => {
+    const menuWidth = 220
+    const menuHeight = 300
+    const padding = 10
+
+    let x = contextMenu.x
+    let y = contextMenu.y
+
+    // Prevent overflow right
+    if (x + menuWidth > window.innerWidth - padding) {
+      x = window.innerWidth - menuWidth - padding
+    }
+
+    // Prevent overflow bottom
+    if (y + menuHeight > window.innerHeight - padding) {
+      y = window.innerHeight - menuHeight - padding
+    }
+
+    // Prevent overflow left/top
+    x = Math.max(padding, x)
+    y = Math.max(padding, y)
+
+    return { x, y }
+  }, [contextMenu.x, contextMenu.y])
+
+  // Handle conversational chat with AI assistant
+  const handleChatMessage = async (message: string) => {
+    if (!message.trim() || isGenerating) return
+
+    // Add user message to chat
+    setChatMessages(prev => [...prev, { role: 'user', content: message }])
+    setChatSuggestions([])
+    setCommandInput('')
+
+    // Check for quick edit if element is selected
+    if (selectedElement) {
+      const newText = message.trim()
+      if (newText.length > 0 && newText.length < 200 && !newText.includes('<')) {
+        if (handleQuickEdit(newText)) {
+          setChatMessages(prev => [...prev, {
+            role: 'assistant',
+            content: `Updated the ${selectedElement.tagName.toLowerCase()} element with your text.`
+          }])
+          return
+        }
+      }
+    }
+
+    try {
+      // Call the conversational API with selected model
+      const response = await fetch('/api/builder/converse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message,
+          history: chatMessages.slice(-10), // Last 10 messages for context
+          currentHtml: html,
+          model: selectedModel.id,
+          apiKey: apiKeys[selectedModel.provider] || undefined,
+          context: {
+            hasWebsite: html.length > 100,
+            selectedElement: selectedElement ? {
+              tagName: selectedElement.tagName,
+              textContent: selectedElement.textContent,
+              outerHTML: selectedElement.outerHTML
+            } : undefined
+          }
+        })
+      })
+
+      if (!response.ok) throw new Error('Conversation failed')
+
+      const data = await response.json()
+
+      if (data.type === 'clarify' || data.type === 'answer') {
+        // AI is asking clarifying questions or answering
+        let assistantMessage = data.message
+
+        // Add suggestions if available
+        if (data.suggestions && data.suggestions.length > 0) {
+          assistantMessage += '\n\n💡 **Suggestions:** ' + data.suggestions.join(', ')
+        }
+
+        setChatMessages(prev => [...prev, {
+          role: 'assistant',
+          content: assistantMessage,
+          suggestions: data.suggestedOptions
+        }])
+        setChatSuggestions(data.suggestedOptions || [])
+        if (data.intent) setConversationIntent(data.intent)
+      } else if (data.type === 'edit') {
+        // AI is making direct edits to the website
+        let editMessage = data.message
+
+        // Apply the updated HTML if provided
+        if (data.updatedHtml && data.updatedHtml !== html) {
+          setHtml(data.updatedHtml)
+          addToHistory(data.updatedHtml, 'AI Edit: ' + (data.codeEdits?.[0]?.description || 'Applied changes'))
+          addToast('success', 'Changes applied!')
+
+          // Add edit details to message
+          if (data.codeEdits && data.codeEdits.length > 0) {
+            editMessage += '\n\n✅ **Changes made:**'
+            data.codeEdits.forEach((edit: { description: string }) => {
+              editMessage += `\n• ${edit.description}`
+            })
+          }
+        } else if (data.codeEdits && data.codeEdits.length > 0) {
+          // Try to apply edits manually if updatedHtml wasn't provided
+          let newHtml = html
+          let appliedCount = 0
+          const appliedEdits: string[] = []
+
+          for (const edit of data.codeEdits) {
+            let applied = false
+
+            if (edit.type === 'replace' && edit.oldCode && edit.newCode) {
+              const oldCode = edit.oldCode
+              const newCode = edit.newCode
+
+              // Strategy 1: Direct exact match
+              if (newHtml.includes(oldCode)) {
+                newHtml = newHtml.replace(oldCode, newCode)
+                applied = true
+              }
+
+              // Strategy 2: Normalized whitespace match
+              if (!applied) {
+                const normalizeWs = (s: string) => s.replace(/\s+/g, ' ').replace(/>\s+</g, '><').trim()
+                const normalizedOld = normalizeWs(oldCode)
+
+                const lines = newHtml.split('\n')
+                for (let i = 0; i < lines.length && !applied; i++) {
+                  for (let j = i; j < Math.min(i + 20, lines.length) && !applied; j++) {
+                    const chunk = lines.slice(i, j + 1).join('\n')
+                    if (normalizeWs(chunk) === normalizedOld) {
+                      const before = lines.slice(0, i).join('\n')
+                      const after = lines.slice(j + 1).join('\n')
+                      newHtml = before + (before ? '\n' : '') + newCode + (after ? '\n' : '') + after
+                      applied = true
+                    }
+                  }
+                }
+              }
+
+              // Strategy 3: Flexible whitespace regex
+              if (!applied) {
+                try {
+                  const escaped = oldCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                  const flexibleRegex = new RegExp(escaped.replace(/\s+/g, '\\s*'), 'i')
+                  const match = newHtml.match(flexibleRegex)
+                  if (match) {
+                    newHtml = newHtml.replace(match[0], newCode)
+                    applied = true
+                  }
+                } catch (e) {
+                  console.error('[Edit] Replace regex failed:', e)
+                }
+              }
+
+              // Strategy 4: Match by tag + key attributes
+              if (!applied) {
+                const tagMatch = oldCode.match(/<(\w+)/)
+                if (tagMatch) {
+                  const tag = tagMatch[1].toLowerCase()
+                  const idMatch = oldCode.match(/id=["']([^"']+)["']/)
+                  const classMatch = oldCode.match(/class=["']([^"']+)["']/)
+                  const srcMatch = oldCode.match(/src=["']([^"']+)["']/)
+
+                  let pattern = `<${tag}`
+
+                  if (idMatch) {
+                    pattern += `[^>]*id=["']${idMatch[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`
+                  } else if (classMatch) {
+                    const firstClass = classMatch[1].split(' ')[0]
+                    pattern += `[^>]*class=["'][^"']*${firstClass.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^"']*["']`
+                  } else if (srcMatch) {
+                    pattern += `[^>]*src=["'][^"']*${srcMatch[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&').split('/').pop()}[^"']*["']`
+                  }
+
+                  const selfClosingTags = ['img', 'br', 'hr', 'input', 'meta', 'link']
+                  if (selfClosingTags.includes(tag)) {
+                    pattern += `[^>]*/?>`
+                  } else {
+                    pattern += `[^>]*>[\\s\\S]*?</${tag}>`
+                  }
+
+                  try {
+                    const regex = new RegExp(pattern, 'i')
+                    const match = newHtml.match(regex)
+                    if (match) {
+                      newHtml = newHtml.replace(match[0], newCode)
+                      applied = true
+                    }
+                  } catch (e) {
+                    console.error('[Edit] Replace attribute regex failed:', e)
+                  }
+                }
+              }
+            } else if (edit.type === 'style' && edit.oldCode && edit.newCode) {
+              // Global class replacement
+              if (newHtml.includes(edit.oldCode)) {
+                newHtml = newHtml.split(edit.oldCode).join(edit.newCode)
+                applied = true
+              }
+            } else if (edit.type === 'insert' && edit.newCode) {
+              const target = edit.target?.toLowerCase() || ''
+
+              if (target.includes('</body>') || target.includes('before body close') || target.includes('end of body')) {
+                newHtml = newHtml.replace('</body>', `${edit.newCode}\n</body>`)
+                applied = true
+              } else if (target.includes('</head>') || target.includes('in head')) {
+                newHtml = newHtml.replace('</head>', `${edit.newCode}\n</head>`)
+                applied = true
+              } else if (target.includes('after header') || target.includes('below header')) {
+                newHtml = newHtml.replace(/<\/header>/i, `</header>\n${edit.newCode}`)
+                applied = true
+              } else if (target.includes('before footer') || target.includes('above footer')) {
+                newHtml = newHtml.replace(/<footer/i, `${edit.newCode}\n<footer`)
+                applied = true
+              } else if (target.includes('after nav')) {
+                newHtml = newHtml.replace(/<\/nav>/i, `</nav>\n${edit.newCode}`)
+                applied = true
+              } else if (target.includes('hero') || target.includes('first section')) {
+                // Insert after first section or header
+                const headerEnd = newHtml.indexOf('</header>')
+                if (headerEnd > -1) {
+                  newHtml = newHtml.slice(0, headerEnd + 9) + '\n' + edit.newCode + newHtml.slice(headerEnd + 9)
+                  applied = true
+                }
+              } else {
+                // Default: insert before </body>
+                newHtml = newHtml.replace('</body>', `${edit.newCode}\n</body>`)
+                applied = true
+              }
+            } else if (edit.type === 'delete' && edit.oldCode) {
+              // Robust delete with multiple strategies
+              const oldCode = edit.oldCode
+
+              // Strategy 1: Direct exact match
+              if (newHtml.includes(oldCode)) {
+                newHtml = newHtml.replace(oldCode, '')
+                applied = true
+              }
+
+              // Strategy 2: Normalized whitespace match
+              if (!applied) {
+                const normalizeWs = (s: string) => s.replace(/\s+/g, ' ').replace(/>\s+</g, '><').trim()
+                const normalizedOld = normalizeWs(oldCode)
+
+                // Split HTML into chunks and find matching section
+                const lines = newHtml.split('\n')
+                for (let i = 0; i < lines.length && !applied; i++) {
+                  for (let j = i; j < Math.min(i + 20, lines.length) && !applied; j++) {
+                    const chunk = lines.slice(i, j + 1).join('\n')
+                    if (normalizeWs(chunk) === normalizedOld) {
+                      const before = lines.slice(0, i).join('\n')
+                      const after = lines.slice(j + 1).join('\n')
+                      newHtml = before + (before && after ? '\n' : '') + after
+                      applied = true
+                    }
+                  }
+                }
+              }
+
+              // Strategy 3: Match by tag and key attributes
+              if (!applied) {
+                const tagMatch = oldCode.match(/<(\w+)/)
+                if (tagMatch) {
+                  const tag = tagMatch[1].toLowerCase()
+
+                  // Extract key attributes
+                  const idMatch = oldCode.match(/id=["']([^"']+)["']/)
+                  const classMatch = oldCode.match(/class=["']([^"']+)["']/)
+                  const srcMatch = oldCode.match(/src=["']([^"']+)["']/)
+
+                  let pattern = `<${tag}`
+
+                  if (idMatch) {
+                    pattern += `[^>]*id=["']${idMatch[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`
+                  } else if (classMatch) {
+                    const firstClass = classMatch[1].split(' ')[0]
+                    pattern += `[^>]*class=["'][^"']*${firstClass.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^"']*["']`
+                  } else if (srcMatch) {
+                    pattern += `[^>]*src=["'][^"']*${srcMatch[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&').split('/').pop()}[^"']*["']`
+                  }
+
+                  // Match opening tag to closing tag
+                  const selfClosingTags = ['img', 'br', 'hr', 'input', 'meta', 'link']
+                  if (selfClosingTags.includes(tag)) {
+                    pattern += `[^>]*/?>`
+                  } else {
+                    pattern += `[^>]*>[\\s\\S]*?</${tag}>`
+                  }
+
+                  try {
+                    const regex = new RegExp(pattern, 'i')
+                    const match = newHtml.match(regex)
+                    if (match) {
+                      newHtml = newHtml.replace(match[0], '')
+                      applied = true
+                    }
+                  } catch (e) {
+                    console.error('[Edit] Delete regex failed:', e)
+                  }
+                }
+              }
+
+              // Strategy 4: Match by text content for text-heavy elements
+              if (!applied) {
+                const textMatch = oldCode.match(/>([^<]{10,50})/)
+                const tagMatch = oldCode.match(/<(\w+)/)
+                if (textMatch && tagMatch) {
+                  const text = textMatch[1].trim()
+                  const tag = tagMatch[1].toLowerCase()
+                  const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                  try {
+                    const textRegex = new RegExp(`<${tag}[^>]*>[^<]*${escapedText}[\\s\\S]*?</${tag}>`, 'i')
+                    const match = newHtml.match(textRegex)
+                    if (match) {
+                      newHtml = newHtml.replace(match[0], '')
+                      applied = true
+                    }
+                  } catch (e) {
+                    console.error('[Edit] Text regex failed:', e)
+                  }
+                }
+              }
+            }
+
+            // Special handling for background image edits
+            const descLower = edit.description?.toLowerCase() || ''
+            if (!applied && (descLower.includes('background') || descLower.includes('hero') || descLower.includes('header'))) {
+              // Try to add/modify background style on hero, header, or first sections
+              const bgImageMatch = edit.newCode?.match(/url\(['"](.*?)['"]\)/) ||
+                                   edit.newCode?.match(/https?:\/\/[^\s"'<>]+\.(jpg|jpeg|png|gif|webp|svg)/i) ||
+                                   edit.newCode?.match(/https?:\/\/images\.unsplash\.com[^\s"'<>]+/)
+              if (bgImageMatch) {
+                const imageUrl = bgImageMatch[1] || bgImageMatch[0]
+
+                // Try multiple selectors: hero section, first section, header
+                const selectors = [
+                  /<section[^>]*class="([^"]*(?:hero|banner)[^"]*)"[^>]*>/i,
+                  /<header[^>]*class="([^"]*)"[^>]*>/i,
+                  /<section[^>]*class="([^"]*)"[^>]*>/i,
+                  /<div[^>]*class="([^"]*(?:hero|banner|header)[^"]*)"[^>]*>/i
+                ]
+
+                for (const selector of selectors) {
+                  const match = newHtml.match(selector)
+                  if (match) {
+                    const fullMatch = match[0]
+                    const oldClass = match[1]
+
+                    // Check if already has background-image
+                    if (fullMatch.includes('background-image')) {
+                      // Replace existing background-image
+                      const updated = fullMatch.replace(/background-image:\s*url\([^)]+\)/, `background-image: url('${imageUrl}')`)
+                      newHtml = newHtml.replace(fullMatch, updated)
+                    } else if (fullMatch.includes('style="')) {
+                      // Add to existing style
+                      const updated = fullMatch.replace(/style="([^"]*)"/, `style="$1; background-image: url('${imageUrl}'); background-size: cover; background-position: center;"`)
+                      newHtml = newHtml.replace(fullMatch, updated)
+                    } else {
+                      // Add new style attribute
+                      const newClass = oldClass.includes('bg-cover') ? oldClass : oldClass + ' bg-cover bg-center relative'
+                      const updated = fullMatch.replace(`class="${oldClass}"`, `class="${newClass}" style="background-image: url('${imageUrl}')"`)
+                      newHtml = newHtml.replace(fullMatch, updated)
+                    }
+                    applied = true
+                    break
+                  }
+                }
+              }
+            }
+
+            if (applied) {
+              appliedCount++
+              appliedEdits.push(edit.description || 'Applied change')
+            }
+          }
+
+          if (newHtml !== html && appliedCount > 0) {
+            setHtml(newHtml)
+            addToHistory(newHtml, 'AI Edit: ' + appliedEdits[0])
+            addToast('success', `Applied ${appliedCount} change${appliedCount > 1 ? 's' : ''}!`)
+
+            editMessage += '\n\n✅ **Changes made:**'
+            appliedEdits.forEach((desc) => {
+              editMessage += `\n• ${desc}`
+            })
+          } else {
+            // If edits failed, offer to regenerate the section
+            editMessage += '\n\n⚠️ I couldn\'t apply the exact edit. Would you like me to regenerate the section instead? Just say "regenerate the hero section" or select the element you want to change.'
+          }
+        }
+
+        setChatMessages(prev => [...prev, {
+          role: 'assistant',
+          content: editMessage
+        }])
+        setConversationIntent(null)
+      } else if (data.type === 'ready') {
+        // We have enough context - proceed with generation
+        const intent = data.intent
+        const enhancedPrompt = data.enhancedPrompt
+
+        setChatMessages(prev => [...prev, {
+          role: 'assistant',
+          content: data.message
+        }])
+        setConversationIntent(null)
+
+        // Trigger the appropriate generation
+        if (intent === 'website' || intent === 'edit') {
+          handleGenerate(enhancedPrompt)
+        } else if (intent === 'image') {
+          // Trigger image generation
+          setActivePanel('images')
+          setImagePrompt(enhancedPrompt)
+          // Auto-trigger image generation
+          setTimeout(() => {
+            handleImageGenerate(enhancedPrompt)
+          }, 500)
+        } else if (intent === 'video') {
+          // Trigger video generation
+          setActivePanel('video')
+          setVideoPrompt(enhancedPrompt)
+          // Auto-trigger video generation
+          setTimeout(() => {
+            handleVideoGenerate(enhancedPrompt)
+          }, 500)
+        }
+      }
+
+    } catch (error) {
+      console.error('Chat error:', error)
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Sorry, I had trouble processing that. Could you try again?'
+      }])
+    }
+
+    // Scroll to bottom of chat
+    setTimeout(() => {
+      chatContainerRef.current?.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      })
+    }, 100)
+  }
+
+  // Image generation handler for conversational flow
+  const handleImageGenerate = async (prompt: string) => {
+    setImageGenerating(true)
+    addConsoleLog('info', `Generating image: ${prompt.slice(0, 50)}...`)
+
+    try {
+      const response = await fetch('/api/ai/image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generate',
+          prompt,
+          style: imageStyle,
+          aspectRatio: imageAspectRatio
+        })
+      })
+
+      if (!response.ok) throw new Error('Image generation failed')
+
+      const data = await response.json()
+      if (data.output) {
+        const imageUrl = Array.isArray(data.output) ? data.output[0] : data.output
+        setGeneratedImageUrl(imageUrl)
+        addConsoleLog('success', 'Image generated successfully!')
+        addToast('success', 'Image generated!')
+        setChatMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `Your image has been generated! Check the Media panel to see it and add it to your site.`
+        }])
+      }
+    } catch (error) {
+      addConsoleLog('error', 'Image generation failed')
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Image generation failed. Please try again with a different prompt.'
+      }])
+    } finally {
+      setImageGenerating(false)
+    }
+  }
+
+  // Video generation handler for conversational flow
+  const handleVideoGenerate = async (prompt: string) => {
+    setVideoGenerating(true)
+    setVideoStatus('Starting video generation...')
+    setVideoError('')
+    addConsoleLog('info', `Generating video: ${prompt.slice(0, 50)}...`)
+
+    try {
+      const response = await fetch('/api/ai/video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'text-to-video',
+          prompt,
+          model: 'animate-diff',
+          duration: 4,
+          fps: 8
+        })
+      })
+
+      if (!response.ok) throw new Error('Video generation failed')
+
+      const data = await response.json()
+      if (data.output) {
+        const videoUrl = Array.isArray(data.output) ? data.output[0] : data.output
+        setGeneratedVideoUrl(videoUrl)
+        setVideoStatus('Video generated successfully!')
+        addConsoleLog('success', 'Video generated successfully!')
+        addToast('success', 'Video generated!')
+        setChatMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `Your video has been generated! Check the Video panel to preview it and add it to your site.`
+        }])
+      }
+    } catch (error) {
+      setVideoError('Video generation failed. Please try again.')
+      addConsoleLog('error', 'Video generation failed')
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Video generation failed. Please try again with a different prompt.'
+      }])
+    } finally {
+      setVideoGenerating(false)
+    }
+  }
+
+  const handleCommandSubmit = () => {
+    if (!commandInput.trim() || isGenerating) return
+    handleChatMessage(commandInput)
   }
 
   const handleExport = () => {
@@ -2367,6 +3744,7 @@ ${html}
     setCodeCopied(true)
     setTimeout(() => setCodeCopied(false), 2000)
     addConsoleLog('info', 'Code copied to clipboard')
+    addToast('success', 'Code copied to clipboard')
   }
 
   const clearConsole = () => {
@@ -2474,48 +3852,164 @@ ${html}
     if (selectedImage?.id === imageId) setSelectedImage(null)
   }
 
-  // Insert image into website HTML
+  // Extract all images from current HTML
+  const extractWebsiteImages = useCallback(() => {
+    if (!html) return []
+    const images: { src: string; index: number; context: string }[] = []
+    const imgRegex = /<img[^>]*src=["']([^"']+)["'][^>]*>/gi
+    let match
+    let index = 0
+    while ((match = imgRegex.exec(html)) !== null) {
+      // Try to determine context from surrounding HTML
+      const start = Math.max(0, match.index - 100)
+      const context = html.slice(start, match.index)
+      let contextLabel = 'Image'
+      if (context.includes('hero') || context.includes('Hero')) contextLabel = 'Hero'
+      else if (context.includes('menu') || context.includes('Menu')) contextLabel = 'Menu'
+      else if (context.includes('product') || context.includes('Product')) contextLabel = 'Product'
+      else if (context.includes('team') || context.includes('Team')) contextLabel = 'Team'
+      else if (context.includes('gallery') || context.includes('Gallery')) contextLabel = 'Gallery'
+      else if (context.includes('footer') || context.includes('Footer')) contextLabel = 'Footer'
+      else if (context.includes('about') || context.includes('About')) contextLabel = 'About'
+      images.push({ src: match[1], index, context: contextLabel })
+      index++
+    }
+    return images
+  }, [html])
+
+  // Get size classes based on selected size
+  const getImageSizeClasses = (size: typeof imageInsertSize) => {
+    switch (size) {
+      case 'thumbnail': return 'w-20 h-20 object-cover rounded'
+      case 'small': return 'w-48 h-auto rounded-lg'
+      case 'medium': return 'w-full max-w-md h-auto rounded-lg shadow-lg'
+      case 'large': return 'w-full max-w-2xl h-auto rounded-xl shadow-xl'
+      case 'full': return 'w-full h-auto'
+      default: return 'w-full max-w-md h-auto rounded-lg'
+    }
+  }
+
+  // Open smart image insertion panel
+  const openImageInsertPanel = (imageUrl: string, imageName: string = 'Image') => {
+    if (!html) {
+      addConsoleLog('warn', 'No website HTML. Generate a website first.')
+      return
+    }
+    setPendingImageUrl(imageUrl)
+    setPendingImageName(imageName)
+    setWebsiteImages(extractWebsiteImages())
+    setShowImageInsertPanel(true)
+  }
+
+  // Perform smart image insertion
+  const performImageInsertion = (replaceIndex?: number) => {
+    if (!html || !pendingImageUrl) return
+
+    const sizeClass = getImageSizeClasses(imageInsertSize)
+    let newHtml = html
+
+    if (replaceIndex !== undefined) {
+      // Replace specific image by index
+      let imgCount = 0
+      newHtml = html.replace(/<img\s+([^>]*?)src=["']([^"']+)["']([^>]*?)>/gi, (match, before, src, after) => {
+        if (imgCount === replaceIndex) {
+          imgCount++
+          // Keep existing classes but update src
+          return `<img ${before}src="${pendingImageUrl}"${after}>`
+        }
+        imgCount++
+        return match
+      })
+      addConsoleLog('success', `Replaced image ${replaceIndex + 1}`)
+    } else {
+      // Insert new image at selected position
+      const imgTag = `<img src="${pendingImageUrl}" alt="${pendingImageName}" class="${sizeClass}" />`
+      const wrapper = `<div class="my-6 flex justify-center">${imgTag}</div>`
+
+      switch (imageInsertPosition) {
+        case 'hero':
+          // Insert at the very beginning of body content
+          const bodyMatch = html.match(/<body[^>]*>/i)
+          if (bodyMatch) {
+            const insertPoint = html.indexOf(bodyMatch[0]) + bodyMatch[0].length
+            newHtml = html.slice(0, insertPoint) + `\n${wrapper}\n` + html.slice(insertPoint)
+          }
+          break
+        case 'after-hero':
+          // Insert after first section
+          const firstSectionEnd = html.indexOf('</section>')
+          if (firstSectionEnd !== -1) {
+            newHtml = html.slice(0, firstSectionEnd + 10) + `\n${wrapper}\n` + html.slice(firstSectionEnd + 10)
+          }
+          break
+        case 'section':
+          // Insert as a new section
+          const sectionHtml = `
+<section class="py-12 px-4">
+  <div class="max-w-4xl mx-auto">
+    ${imgTag}
+  </div>
+</section>`
+          const lastSectionEnd = html.lastIndexOf('</section>')
+          if (lastSectionEnd !== -1) {
+            newHtml = html.slice(0, lastSectionEnd + 10) + sectionHtml + html.slice(lastSectionEnd + 10)
+          } else {
+            newHtml = html.replace('</body>', `${sectionHtml}\n</body>`)
+          }
+          break
+        case 'footer':
+          // Insert just before footer or end of body
+          const footerMatch = html.match(/<footer/i)
+          if (footerMatch) {
+            const insertPoint = html.indexOf(footerMatch[0])
+            newHtml = html.slice(0, insertPoint) + `${wrapper}\n` + html.slice(insertPoint)
+          } else {
+            newHtml = html.replace('</body>', `${wrapper}\n</body>`)
+          }
+          break
+      }
+      addConsoleLog('success', `Added image at ${imageInsertPosition}`)
+    }
+
+    if (newHtml !== html) {
+      setHtml(newHtml)
+      addToHistory(newHtml, `Image: ${pendingImageName}`)
+    }
+
+    // Reset state
+    setShowImageInsertPanel(false)
+    setPendingImageUrl(null)
+    setPendingImageName('')
+    setSelectedMediaElement(null)
+  }
+
+  // Quick insert (legacy support) - now opens panel
   const insertImageIntoWebsite = (imageUrl: string, altText: string = 'Image') => {
     if (!html) {
       addConsoleLog('warn', 'No website HTML to insert image into. Generate a website first.')
       return
     }
 
-    // If there's a selected element that's an image, replace its src
-    if (selectedElement && selectedElement.tagName.toLowerCase() === 'img') {
-      const newHtml = html.replace(
-        new RegExp(`<img[^>]*src=["'][^"']*["'][^>]*>`, 'i'),
-        (match) => {
-          if (match.includes(selectedElement.outerHTML.slice(0, 50))) {
-            return match.replace(/src=["'][^"']*["']/, `src="${imageUrl}"`)
-          }
-          return match
+    // If there's a selected media element, replace it directly
+    if (selectedMediaElement && selectedMediaElement.type === 'image') {
+      let imgCount = 0
+      const newHtml = html.replace(/<img\s+([^>]*?)src=["']([^"']+)["']([^>]*?)>/gi, (match, before, src, after) => {
+        if (imgCount === selectedMediaElement.index) {
+          imgCount++
+          return `<img ${before}src="${imageUrl}"${after}>`
         }
-      )
+        imgCount++
+        return match
+      })
       setHtml(newHtml)
       addToHistory(newHtml, `Replaced image with ${altText}`)
-      addConsoleLog('success', `Replaced selected image with: ${altText}`)
+      addConsoleLog('success', `Replaced image ${(selectedMediaElement.index || 0) + 1}`)
+      setSelectedMediaElement(null)
+      setShowMediaReplacer(false)
     } else {
-      // Insert as a new image element - find a good spot (after first section or in hero)
-      const imgTag = `<img src="${imageUrl}" alt="${altText}" class="w-full h-auto rounded-lg shadow-lg" />`
-
-      // Try to insert after the first <section> opening tag
-      let newHtml = html
-      const sectionMatch = html.match(/<section[^>]*>/i)
-      if (sectionMatch) {
-        const insertPoint = html.indexOf(sectionMatch[0]) + sectionMatch[0].length
-        newHtml = html.slice(0, insertPoint) + `\n  <div class="my-8">${imgTag}</div>\n` + html.slice(insertPoint)
-      } else {
-        // Fallback: insert before closing body tag
-        newHtml = html.replace('</body>', `<div class="my-8">${imgTag}</div>\n</body>`)
-      }
-
-      setHtml(newHtml)
-      addToHistory(newHtml, `Added image: ${altText}`)
-      addConsoleLog('success', `Inserted image: ${altText}`)
+      // Open the smart insertion panel
+      openImageInsertPanel(imageUrl, altText)
     }
-
-    setShowImageLibrary(false)
   }
 
   // Copy image URL to clipboard
@@ -2553,26 +4047,32 @@ ${html}
       isDark ? "bg-[#09090b] text-white" : "bg-white text-slate-900"
     )}>
       {/* Gradient Background Orbs */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-violet-500/10 rounded-full blur-[150px]" />
-        <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-fuchsia-500/10 rounded-full blur-[150px]" />
-      </div>
+      {isDark && (
+        <div className="fixed inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-violet-500/10 rounded-full blur-[150px]" />
+          <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-fuchsia-500/10 rounded-full blur-[150px]" />
+        </div>
+      )}
 
       {/* Sidebar */}
       <motion.aside
         initial={{ width: 380 }}
-        animate={{ width: sidebarCollapsed ? 56 : 380 }}
+        animate={{ width: focusMode ? 0 : sidebarCollapsed ? 56 : 380 }}
         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
         className={cn(
-          "relative h-full border-r flex flex-col backdrop-blur-xl z-10",
-          isDark ? "border-white/[0.08] bg-white/[0.02]" : "border-slate-200 bg-slate-50/80"
+          "relative h-full border-r flex flex-col z-10 overflow-hidden",
+          isDark ? "border-white/[0.08] bg-zinc-900/95 backdrop-blur-xl" : "border-slate-200 bg-white",
+          focusMode && "opacity-0 pointer-events-none"
         )}
       >
         {/* Top accent line */}
         <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-violet-500/50 to-transparent" />
 
         {/* Header */}
-        <div className="h-14 border-b border-white/[0.08] flex items-center justify-between px-3">
+        <div className={cn(
+          "h-14 border-b flex items-center justify-between px-3",
+          isDark ? "border-white/[0.08]" : "border-slate-200"
+        )}>
           {!sidebarCollapsed && (
             <motion.div
               initial={{ opacity: 0 }}
@@ -2581,15 +4081,21 @@ ${html}
             >
               <button
                 onClick={() => router.push('/')}
-                className="p-2 rounded-lg hover:bg-white/5 text-zinc-500 hover:text-white transition-colors"
+                className={cn(
+                  "p-2 rounded-lg transition-colors",
+                  isDark ? "hover:bg-white/5 text-zinc-500 hover:text-white" : "hover:bg-slate-100 text-slate-500 hover:text-slate-900"
+                )}
               >
                 <Home className="w-4 h-4" />
               </button>
-              <div className="h-5 w-px bg-white/10" />
+              <div className={cn("h-5 w-px", isDark ? "bg-white/10" : "bg-slate-200")} />
 
               {/* Project dropdown */}
               <div className="relative flex-1">
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors w-full">
+                <div className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors w-full",
+                  isDark ? "hover:bg-white/5" : "hover:bg-slate-100"
+                )}>
                   <button
                     onClick={() => setShowProjectsDropdown(!showProjectsDropdown)}
                     className="w-6 h-6 rounded bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shrink-0"
@@ -2607,19 +4113,25 @@ ${html}
                         if (e.key === 'Escape') setEditingProjectName(false)
                       }}
                       autoFocus
-                      className="flex-1 bg-white/5 border border-violet-500/50 rounded px-2 py-0.5 text-sm font-medium text-white focus:outline-none"
+                      className={cn(
+                        "flex-1 border border-violet-500/50 rounded px-2 py-0.5 text-sm font-medium focus:outline-none",
+                        isDark ? "bg-white/5 text-white" : "bg-white text-slate-900"
+                      )}
                     />
                   ) : (
                     <button
                       onClick={() => setEditingProjectName(true)}
-                      className="text-sm font-medium text-white truncate flex-1 text-left hover:text-violet-400 transition-colors"
+                      className={cn(
+                        "text-sm font-medium truncate flex-1 text-left transition-colors",
+                        isDark ? "text-white hover:text-violet-400" : "text-slate-900 hover:text-violet-600"
+                      )}
                       title="Click to rename project"
                     >
                       {projectName}
                     </button>
                   )}
                   <button onClick={() => setShowProjectsDropdown(!showProjectsDropdown)}>
-                    <ChevronDown className={cn("w-4 h-4 text-zinc-500 transition-transform", showProjectsDropdown && "rotate-180")} />
+                    <ChevronDown className={cn("w-4 h-4 transition-transform", isDark ? "text-zinc-500" : "text-slate-400", showProjectsDropdown && "rotate-180")} />
                   </button>
                 </div>
 
@@ -2629,12 +4141,18 @@ ${html}
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className="absolute top-full left-0 right-0 mt-1 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50"
+                      className={cn(
+                        "absolute top-full left-0 right-0 mt-1 rounded-xl shadow-2xl overflow-hidden z-50 border",
+                        isDark ? "bg-zinc-900 border-white/10" : "bg-white border-slate-200"
+                      )}
                     >
-                      <div className="p-2 border-b border-white/10">
+                      <div className={cn("p-2 border-b", isDark ? "border-white/10" : "border-slate-100")}>
                         <button
                           onClick={newProject}
-                          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 text-violet-400 text-sm"
+                          className={cn(
+                            "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-violet-500 text-sm",
+                            isDark ? "hover:bg-white/5" : "hover:bg-slate-50"
+                          )}
                         >
                           <Plus className="w-4 h-4" />
                           New Project
@@ -2642,25 +4160,31 @@ ${html}
                       </div>
                       <div className="max-h-64 overflow-y-auto p-2">
                         {projects.length === 0 ? (
-                          <p className="text-xs text-zinc-600 text-center py-4">No saved projects</p>
+                          <p className={cn("text-xs text-center py-4", isDark ? "text-zinc-600" : "text-slate-400")}>No saved projects</p>
                         ) : (
                           projects.map(project => (
                             <div
                               key={project.id}
-                              className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/5 group"
+                              className={cn(
+                                "flex items-center gap-2 px-3 py-2 rounded-lg group",
+                                isDark ? "hover:bg-white/5" : "hover:bg-slate-50"
+                              )}
                             >
                               <button
                                 onClick={() => loadProject(project)}
                                 className="flex-1 text-left"
                               >
-                                <div className="text-sm text-white">{project.name}</div>
-                                <div className="text-[10px] text-zinc-600">
+                                <div className={cn("text-sm", isDark ? "text-white" : "text-slate-900")}>{project.name}</div>
+                                <div className={cn("text-[10px]", isDark ? "text-zinc-600" : "text-slate-400")}>
                                   {new Date(project.updatedAt).toLocaleDateString()}
                                 </div>
                               </button>
                               <button
                                 onClick={() => deleteProject(project.id)}
-                                className="p-1.5 rounded hover:bg-red-500/20 text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                                className={cn(
+                                  "p-1.5 rounded hover:bg-red-500/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all",
+                                  isDark ? "text-zinc-600" : "text-slate-400"
+                                )}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -2679,7 +4203,9 @@ ${html}
                 disabled={!html}
                 className={cn(
                   "p-2 rounded-lg transition-colors",
-                  html ? "hover:bg-white/5 text-zinc-500 hover:text-emerald-400" : "text-zinc-700"
+                  html
+                    ? isDark ? "hover:bg-white/5 text-zinc-500 hover:text-emerald-400" : "hover:bg-slate-100 text-slate-500 hover:text-emerald-600"
+                    : isDark ? "text-zinc-700" : "text-slate-300"
                 )}
               >
                 <Save className="w-4 h-4" />
@@ -2688,7 +4214,10 @@ ${html}
           )}
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="p-2 rounded-lg hover:bg-white/5 text-zinc-500 hover:text-white transition-colors"
+            className={cn(
+              "p-2 rounded-lg transition-colors",
+              isDark ? "hover:bg-white/5 text-zinc-500 hover:text-white" : "hover:bg-slate-100 text-slate-500 hover:text-slate-900"
+            )}
           >
             {sidebarCollapsed ? <PanelLeft className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
           </button>
@@ -2696,8 +4225,11 @@ ${html}
 
         {/* Skill Level Selector */}
         {!sidebarCollapsed && (
-          <div className="p-3 border-b border-white/[0.08]">
-            <div className="grid grid-cols-3 gap-1 p-1 bg-white/[0.02] rounded-xl border border-white/[0.05]">
+          <div className={cn("p-3 border-b", isDark ? "border-white/[0.08]" : "border-slate-200")}>
+            <div className={cn(
+              "grid grid-cols-3 gap-1 p-1 rounded-xl border",
+              isDark ? "bg-white/[0.02] border-white/[0.05]" : "bg-slate-100/50 border-slate-200"
+            )}>
               {(['no-code', 'low-code', 'full-stack'] as SkillLevel[]).map((level) => {
                 const config = promptSuggestions[level]
                 const Icon = config.icon
@@ -2708,8 +4240,12 @@ ${html}
                     className={cn(
                       'flex flex-col items-center gap-0.5 py-2 px-1 rounded-lg text-[10px] font-medium transition-all',
                       skillLevel === level
-                        ? 'bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 text-white border border-violet-500/30'
-                        : 'text-zinc-500 hover:text-white hover:bg-white/5'
+                        ? isDark
+                          ? 'bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 text-white border border-violet-500/30'
+                          : 'bg-white text-violet-700 border border-violet-300 shadow-sm'
+                        : isDark
+                          ? 'text-zinc-500 hover:text-white hover:bg-white/5'
+                          : 'text-slate-500 hover:text-slate-900 hover:bg-white/50'
                     )}
                   >
                     <Icon className="w-4 h-4" />
@@ -2723,10 +4259,16 @@ ${html}
 
         {/* Panel Tabs - Horizontal Scrolling Gallery */}
         {!sidebarCollapsed && (
-          <div className="relative border-b border-white/[0.08]">
+          <div className={cn("relative border-b", isDark ? "border-white/[0.08]" : "border-slate-200")}>
             {/* Scroll gradient indicators */}
-            <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-zinc-900 to-transparent z-10 pointer-events-none opacity-50" />
-            <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-zinc-900 to-transparent z-10 pointer-events-none opacity-50" />
+            <div className={cn(
+              "absolute left-0 top-0 bottom-0 w-4 z-10 pointer-events-none opacity-50",
+              isDark ? "bg-gradient-to-r from-zinc-900 to-transparent" : "bg-gradient-to-r from-slate-50 to-transparent"
+            )} />
+            <div className={cn(
+              "absolute right-0 top-0 bottom-0 w-4 z-10 pointer-events-none opacity-50",
+              isDark ? "bg-gradient-to-l from-zinc-900 to-transparent" : "bg-gradient-to-l from-slate-50 to-transparent"
+            )} />
 
             {/* Scrollable tabs container */}
             <div className="flex gap-1 px-2 py-1.5 overflow-x-auto scrollbar-hide scroll-smooth">
@@ -2750,7 +4292,9 @@ ${html}
                     'flex-shrink-0 px-3 py-1.5 text-[11px] font-medium transition-all flex items-center gap-1.5 rounded-md whitespace-nowrap',
                     activePanel === id
                       ? `text-${color}-400 bg-${color}-500/15 ring-1 ring-${color}-500/30`
-                      : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
+                      : isDark
+                        ? 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
+                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'
                   )}
                   style={activePanel === id ? {
                     color: color === 'violet' ? '#a78bfa' :
@@ -2784,7 +4328,7 @@ ${html}
         )}
 
         {/* Panel Content */}
-        <div className="flex-1 overflow-hidden flex flex-col">
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
           <AnimatePresence mode="wait">
             {/* Build Panel */}
             {!sidebarCollapsed && activePanel === 'build' && (
@@ -2793,7 +4337,7 @@ ${html}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex-1 flex flex-col"
+                className="flex-1 min-h-0 flex flex-col overflow-hidden"
               >
                 {/* Build Progress */}
                 <AnimatePresence>
@@ -2802,7 +4346,10 @@ ${html}
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      className="px-3 py-2 border-b border-white/[0.08] bg-violet-500/5"
+                      className={cn(
+                        "px-3 py-2 border-b",
+                        isDark ? "border-white/[0.08] bg-violet-500/5" : "border-slate-200 bg-violet-50"
+                      )}
                     >
                       <div className="flex items-center justify-center gap-3">
                         {currentSteps.map((step, i) => (
@@ -2811,7 +4358,7 @@ ${html}
                               'w-5 h-5 rounded-full flex items-center justify-center transition-all text-[10px]',
                               step.status === 'complete' ? 'bg-emerald-500/20 text-emerald-400' :
                               step.status === 'active' ? 'bg-violet-500/20 text-violet-400' :
-                              'bg-zinc-800 text-zinc-600'
+                              isDark ? 'bg-zinc-800 text-zinc-600' : 'bg-slate-200 text-slate-400'
                             )}>
                               {step.status === 'complete' ? (
                                 <Check className="w-3 h-3" />
@@ -2824,7 +4371,7 @@ ${html}
                             {i < currentSteps.length - 1 && (
                               <div className={cn(
                                 'w-4 h-0.5 rounded-full',
-                                step.status === 'complete' ? 'bg-emerald-500/50' : 'bg-zinc-800'
+                                step.status === 'complete' ? 'bg-emerald-500/50' : isDark ? 'bg-zinc-800' : 'bg-slate-200'
                               )} />
                             )}
                           </div>
@@ -2834,16 +4381,161 @@ ${html}
                   )}
                 </AnimatePresence>
 
-                {/* Terminal Output */}
+                {/* Conversational Chat Interface */}
                 <div
-                  ref={terminalRef}
-                  className="flex-1 overflow-y-auto p-3 text-xs font-mono"
+                  ref={chatContainerRef}
+                  className={cn(
+                    "flex-1 min-h-0 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-track-transparent",
+                    isDark ? "scrollbar-thumb-zinc-700" : "scrollbar-thumb-slate-300"
+                  )}
                 >
-                  {terminalLines.length === 0 ? (
-                    <div className="h-full overflow-y-auto px-3 py-4 space-y-4">
-                      {/* Quick Start Templates */}
+                  {/* Chat Messages */}
+                  {chatMessages.map((msg, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={cn(
+                        'flex gap-2',
+                        msg.role === 'user' ? 'justify-end' : 'justify-start'
+                      )}
+                    >
+                      {msg.role === 'assistant' && (
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                          <Bot className="w-4 h-4 text-white" />
+                        </div>
+                      )}
+                      <div className={cn(
+                        'max-w-[85%] rounded-2xl px-3 py-2 text-sm',
+                        msg.role === 'user'
+                          ? isDark
+                            ? 'bg-violet-500/20 text-violet-100 rounded-br-sm'
+                            : 'bg-violet-500 text-white rounded-br-sm'
+                          : isDark
+                            ? 'bg-zinc-800/80 text-zinc-100 rounded-bl-sm'
+                            : 'bg-slate-100 text-slate-800 rounded-bl-sm'
+                      )}>
+                        {/* Render markdown-like content */}
+                        <div className="whitespace-pre-wrap text-[13px] leading-relaxed">
+                          {msg.content.split('\n').map((line, lineIdx) => {
+                            // Bold text
+                            const boldParsed = line.replace(/\*\*([^*]+)\*\*/g, `<strong class="${isDark ? 'text-white' : 'text-slate-900'} font-semibold">$1</strong>`)
+                            // Bullet points
+                            if (line.startsWith('• ') || line.startsWith('- ')) {
+                              return (
+                                <div key={lineIdx} className="flex gap-2 ml-1">
+                                  <span className="text-violet-400">•</span>
+                                  <span dangerouslySetInnerHTML={{ __html: boldParsed.replace(/^[•-]\s*/, '') }} />
+                                </div>
+                              )
+                            }
+                            // Numbered list
+                            if (/^\d+\.\s/.test(line)) {
+                              return (
+                                <div key={lineIdx} className="flex gap-2 ml-1">
+                                  <span className="text-violet-400">{line.match(/^\d+/)?.[0]}.</span>
+                                  <span dangerouslySetInnerHTML={{ __html: boldParsed.replace(/^\d+\.\s*/, '') }} />
+                                </div>
+                              )
+                            }
+                            return <div key={lineIdx} dangerouslySetInnerHTML={{ __html: boldParsed }} />
+                          })}
+                        </div>
+
+                        {/* Suggestion buttons for this message */}
+                        {msg.suggestions && msg.suggestions.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-3 pt-2 border-t border-white/10">
+                            {msg.suggestions.map((suggestion, sIdx) => (
+                              <button
+                                key={sIdx}
+                                onClick={() => handleChatMessage(suggestion)}
+                                className="px-2.5 py-1 text-[11px] font-medium rounded-full bg-violet-500/20 text-violet-300 hover:bg-violet-500/30 hover:text-violet-200 transition-all border border-violet-500/20"
+                              >
+                                {suggestion}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {msg.role === 'user' && (
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center flex-shrink-0">
+                          <User className="w-4 h-4 text-white" />
+                        </div>
+                      )}
+                    </motion.div>
+                  ))}
+
+                  {/* Generation Progress */}
+                  {isGenerating && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex gap-2"
+                    >
+                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                        <Loader2 className="w-4 h-4 text-white animate-spin" />
+                      </div>
+                      <div className={cn(
+                        "rounded-2xl rounded-bl-sm px-3 py-2",
+                        isDark ? "bg-zinc-800/80" : "bg-slate-100"
+                      )}>
+                        <div className={cn("flex items-center gap-2 text-sm", isDark ? "text-violet-300" : "text-violet-600")}>
+                          <span className="animate-pulse">Creating your {conversationIntent || 'content'}...</span>
+                        </div>
+                        {/* Build steps */}
+                        <div className="mt-2 space-y-1">
+                          {currentSteps.map((step) => (
+                            <div key={step.phase} className="flex items-center gap-2 text-[11px]">
+                              {step.status === 'complete' ? (
+                                <Check className="w-3 h-3 text-emerald-400" />
+                              ) : step.status === 'active' ? (
+                                <Loader2 className="w-3 h-3 text-violet-400 animate-spin" />
+                              ) : (
+                                <div className={cn("w-3 h-3 rounded-full border", isDark ? "border-zinc-600" : "border-slate-300")} />
+                              )}
+                              <span className={cn(
+                                step.status === 'complete' ? 'text-emerald-400' :
+                                step.status === 'active' ? 'text-violet-300' :
+                                'text-zinc-500'
+                              )}>
+                                {step.label}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Quick action suggestions at bottom */}
+                  {chatSuggestions.length > 0 && !isGenerating && chatMessages.length > 1 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex flex-wrap gap-1.5 pt-2"
+                    >
+                      {chatSuggestions.map((suggestion, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => handleChatMessage(suggestion)}
+                          className={cn(
+                            "px-2.5 py-1 text-[11px] font-medium rounded-full transition-all",
+                            isDark
+                              ? "bg-white/5 text-zinc-400 border border-white/10 hover:bg-violet-500/20 hover:text-violet-300 hover:border-violet-500/30"
+                              : "bg-slate-100 text-slate-600 border border-slate-200 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-300"
+                          )}
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+
+                  {/* Quick Start Templates - Only show initially */}
+                  {(chatMessages.length === 1 || !html) && !isGenerating && (
+                    <div className="pt-4 space-y-4">
                       <div>
-                        <p className="text-zinc-500 text-[10px] uppercase tracking-wider mb-2">Quick Start</p>
+                        <p className={cn("text-[10px] uppercase tracking-wider mb-2", isDark ? "text-zinc-500" : "text-slate-500")}>Quick Start</p>
                         <div className="grid grid-cols-2 gap-2">
                           {quickStartTemplates.slice(0, 4).map((template) => {
                             const Icon = template.icon
@@ -2852,18 +4544,23 @@ ${html}
                                 key={template.id}
                                 onClick={() => {
                                   if (template.htmlTemplate && template.isPremade) {
-                                    // Use pre-made template directly - no AI generation needed
                                     setHtml(template.htmlTemplate)
                                     setViewMode('preview')
-                                    addTerminalLine('success', `✓ Loaded "${template.label}" template`)
-                                    addConsoleLog('success', `Template "${template.label}" loaded successfully`)
+                                    setChatMessages(prev => [...prev, {
+                                      role: 'assistant',
+                                      content: `Loaded the "${template.label}" template! You can now customize it by telling me what changes you'd like to make.`
+                                    }])
                                     addToHistory(template.htmlTemplate, `Loaded ${template.label} template`)
                                   } else {
-                                    setCommandInput(template.prompt)
-                                    handleGenerate(template.prompt)
+                                    handleChatMessage(`Build me a ${template.label.toLowerCase()}`)
                                   }
                                 }}
-                                className="group relative p-3 rounded-xl bg-gradient-to-br from-white/[0.03] to-transparent border border-white/[0.05] hover:border-white/[0.15] transition-all text-left overflow-hidden"
+                                className={cn(
+                                  "group relative p-3 rounded-xl transition-all text-left overflow-hidden border",
+                                  isDark
+                                    ? "bg-gradient-to-br from-white/[0.03] to-transparent border-white/[0.05] hover:border-white/[0.15]"
+                                    : "bg-white border-slate-200 hover:border-violet-300 hover:shadow-md"
+                                )}
                               >
                                 <div className={`absolute inset-0 bg-gradient-to-br ${template.gradient} opacity-0 group-hover:opacity-10 transition-opacity`} />
                                 {template.isPremade && (
@@ -2874,110 +4571,64 @@ ${html}
                                 <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${template.gradient} flex items-center justify-center mb-2`}>
                                   <Icon className="w-4 h-4 text-white" />
                                 </div>
-                                <span className="text-white text-xs font-medium">{template.label}</span>
+                                <span className={cn("text-xs font-medium", isDark ? "text-white" : "text-slate-800")}>{template.label}</span>
                               </button>
                             )
                           })}
                         </div>
                       </div>
 
-                      {/* Skill-based Suggestions */}
-                      <div>
-                        <p className="text-zinc-500 text-[10px] uppercase tracking-wider mb-2">
-                          {currentSuggestions.label}
-                        </p>
-                        <div className="space-y-1.5">
-                          {currentSuggestions.suggestions.slice(0, 4).map(({ icon: Icon, label, prompt }) => (
-                            <button
-                              key={label}
-                              onClick={() => {
-                                setCommandInput(prompt)
-                                inputRef.current?.focus()
-                              }}
-                              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.02] border border-white/[0.05] hover:bg-white/[0.05] hover:border-violet-500/20 transition-all text-left group"
-                            >
-                              <Icon className="w-3.5 h-3.5 text-violet-400 group-hover:text-violet-300" />
-                              <span className="text-zinc-400 text-[11px] group-hover:text-zinc-300">{label}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Template Library from Supabase */}
-                      {supabaseTemplates.length > 0 && (
-                        <div>
-                          <p className="text-zinc-500 text-[10px] uppercase tracking-wider mb-2">Template Library</p>
-                          <div className="grid grid-cols-2 gap-2">
-                            {supabaseTemplates.slice(0, 6).map((template) => (
-                              <button
-                                key={template.id}
-                                onClick={() => loadSupabaseTemplate(template.id, template.name)}
-                                className="group relative p-2 rounded-xl bg-gradient-to-br from-white/[0.03] to-transparent border border-white/[0.05] hover:border-white/[0.15] transition-all text-left overflow-hidden"
-                              >
-                                <div className="aspect-video rounded-lg overflow-hidden mb-2 bg-zinc-800">
-                                  <img
-                                    src={template.thumbnail_url}
-                                    alt={template.name}
-                                    className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-300"
-                                  />
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-white text-[10px] font-medium truncate">{template.name}</span>
-                                  {template.is_premium && (
-                                    <span className="px-1 py-0.5 text-[7px] font-bold bg-amber-500/20 text-amber-400 rounded">PRO</span>
-                                  )}
-                                </div>
-                                <span className="text-zinc-500 text-[9px] capitalize">{template.category}</span>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Pro tip */}
-                      <div className="p-3 rounded-lg bg-violet-500/5 border border-violet-500/10">
-                        <p className="text-violet-400 text-[10px] font-medium mb-1">Pro tip</p>
-                        <p className="text-zinc-500 text-[10px] leading-relaxed">
-                          Click a Quick Start template to generate a full website instantly, or browse the Template Library for pre-made designs.
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-0.5">
-                      {terminalLines.map((line, i) => (
-                        <motion.div
-                          key={i}
-                          initial={{ opacity: 0, x: -5 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          className={cn(
-                            'flex items-start gap-2 py-0.5 px-2 rounded',
-                            // Claude/Gemini terminal colors
-                            line.type === 'command' && 'text-violet-400 bg-violet-500/5',
-                            line.type === 'success' && 'text-emerald-400',
-                            line.type === 'error' && 'text-red-400 bg-red-500/5',
-                            line.type === 'info' && 'text-zinc-300',
-                            line.type === 'output' && 'text-white',
-                            line.type === 'phase' && 'text-blue-400 font-medium bg-blue-500/5',
-                            line.type === 'ai' && 'text-amber-400 bg-amber-500/5',
-                            line.type === 'system' && 'text-zinc-500 italic',
-                          )}
-                        >
-                          {line.type === 'command' && <ChevronRight className="w-3 h-3 mt-0.5 text-violet-500" />}
-                          {line.type === 'ai' && <Cpu className="w-3 h-3 mt-0.5 text-amber-500" />}
-                          {line.type === 'success' && <Check className="w-3 h-3 mt-0.5 text-emerald-500" />}
-                          {line.type === 'error' && <XCircle className="w-3 h-3 mt-0.5 text-red-500" />}
-                          {line.type === 'phase' && <Sparkles className="w-3 h-3 mt-0.5 text-blue-500" />}
-                          <span className="flex-1 break-words">{line.content}</span>
-                        </motion.div>
-                      ))}
-                      {isGenerating && (
-                        <div className="flex items-center gap-2 text-violet-400 py-1">
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                          <span>generating...</span>
-                        </div>
-                      )}
+                      {/* Test Button - Load sample website for testing */}
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetch('/api/test-website')
+                            const data = await res.json()
+                            if (data.html) {
+                              setHtml(data.html)
+                              setViewMode('preview')
+                              setChatMessages(prev => [...prev, {
+                                role: 'assistant',
+                                content: 'Loaded test website! Try dragging images from the Media panel to replace the images in the preview.'
+                              }])
+                              addToHistory(data.html, 'Loaded test website')
+                            }
+                          } catch (e) {
+                            console.error('Failed to load test website:', e)
+                          }
+                        }}
+                        className="w-full mt-3 py-2 px-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2"
+                      >
+                        <Zap className="w-4 h-4" />
+                        Load Test Website (for drag-drop testing)
+                      </button>
                     </div>
                   )}
+
+                  {/* Always visible test button */}
+                  <button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch('/api/test-website')
+                          const data = await res.json()
+                          if (data.html) {
+                            setHtml(data.html)
+                            setViewMode('preview')
+                            setChatMessages(prev => [...prev, {
+                              role: 'assistant',
+                              content: 'Loaded test website! Drag images from Media panel to replace images.'
+                            }])
+                            addToHistory(data.html, 'Loaded test website')
+                          }
+                        } catch (e) {
+                          console.error('Failed to load test website:', e)
+                        }
+                      }}
+                      className="mx-3 mb-3 py-2 px-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2"
+                    >
+                      <Zap className="w-4 h-4" />
+                      Load Test Website
+                    </button>
                 </div>
 
               </motion.div>
@@ -3393,97 +5044,284 @@ ${html}
                   className="hidden"
                 />
 
-                {/* AI Video Generation */}
-                <div className="p-3 rounded-xl bg-gradient-to-br from-violet-500/10 to-pink-500/10 border border-violet-500/20">
-                  <label className="block text-xs text-violet-300 mb-2 flex items-center gap-1.5 font-medium">
-                    <Film className="w-3.5 h-3.5" />
-                    AI Video Generator
+                {/* Selected Image Indicator */}
+                {selectedMediaElement && selectedMediaElement.type === 'image' && (
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                          <Target className="w-4 h-4 text-amber-400" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-amber-300">Image Selected</p>
+                          <p className="text-[10px] text-amber-400/70 truncate">Click Insert to replace image #{(selectedMediaElement.index || 0) + 1}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setSelectedMediaElement(null)
+                          setShowMediaReplacer(false)
+                        }}
+                        className="p-1.5 rounded-lg hover:bg-amber-500/20 text-amber-400"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tip when no image selected */}
+                {!selectedMediaElement && html && (
+                  <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.05] flex items-center gap-2">
+                    <Crosshair className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
+                    <p className="text-[10px] text-zinc-500">Enable <span className="text-violet-400">Select Mode</span> in toolbar, then click an image in preview to replace it</p>
+                  </div>
+                )}
+
+                {/* AI Image Generation */}
+                <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20">
+                  <label className="block text-xs text-blue-300 mb-2 flex items-center gap-1.5 font-medium">
+                    <ImagePlus className="w-3.5 h-3.5" />
+                    AI Image Generator
                   </label>
                   <textarea
-                    value={videoPrompt}
-                    onChange={(e) => setVideoPrompt(e.target.value)}
-                    placeholder="Describe the video you want to create... e.g., 'abstract colorful particles floating in space'"
+                    value={imagePrompt}
+                    onChange={(e) => setImagePrompt(e.target.value)}
+                    placeholder="Describe the image... e.g., 'modern office workspace with plants and natural lighting'"
                     rows={2}
-                    className="w-full px-3 py-2 rounded-lg bg-black/30 border border-white/10 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50 resize-none mb-2"
+                    className="w-full px-3 py-2 rounded-lg bg-black/30 border border-white/10 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/50 resize-none mb-2"
                   />
+
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div>
+                      <label className="block text-[10px] text-zinc-500 mb-1">Style</label>
+                      <select
+                        value={imageStyle}
+                        onChange={(e) => setImageStyle(e.target.value)}
+                        className="w-full px-2 py-1.5 rounded-lg bg-black/30 border border-white/10 text-xs text-white focus:outline-none"
+                      >
+                        <option value="modern">Modern</option>
+                        <option value="professional">Professional</option>
+                        <option value="creative">Creative</option>
+                        <option value="tech">Tech</option>
+                        <option value="nature">Nature</option>
+                        <option value="luxury">Luxury</option>
+                        <option value="minimal">Minimal</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-zinc-500 mb-1">Aspect</label>
+                      <select
+                        value={imageAspectRatio}
+                        onChange={(e) => setImageAspectRatio(e.target.value as '1:1' | '16:9' | '9:16')}
+                        className="w-full px-2 py-1.5 rounded-lg bg-black/30 border border-white/10 text-xs text-white focus:outline-none"
+                      >
+                        <option value="16:9">16:9 Wide</option>
+                        <option value="1:1">1:1 Square</option>
+                        <option value="9:16">9:16 Tall</option>
+                      </select>
+                    </div>
+                  </div>
+
                   <button
                     onClick={async () => {
-                      if (!videoPrompt.trim()) return
-                      setVideoGenerating(true)
-                      setGeneratedVideoUrl(null)
-                      addTerminalLine('info', 'Starting AI video generation...')
+                      if (!imagePrompt.trim()) return
+                      setImageGenerating(true)
+                      setGeneratedImageUrl(null)
+                      addTerminalLine('info', 'Generating AI image...')
                       try {
-                        const response = await fetch('/api/ai/video', {
+                        const response = await fetch('/api/ai/image', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
-                            action: 'text-to-video',
-                            prompt: videoPrompt,
-                            model: 'animate-diff',
+                            action: 'generate',
+                            prompt: imagePrompt,
+                            style: imageStyle,
+                            aspectRatio: imageAspectRatio,
                           })
                         })
                         const data = await response.json()
                         if (data.success && data.output) {
                           const url = Array.isArray(data.output) ? data.output[0] : data.output
-                          setGeneratedVideoUrl(url)
-                          addTerminalLine('success', '✓ Video generated successfully!')
-                          addConsoleLog('info', `Video URL: ${url}`)
+                          setGeneratedImageUrl(url)
+                          addTerminalLine('success', '✓ Image generated!')
                         } else {
-                          throw new Error(data.error || 'Video generation failed')
+                          throw new Error(data.error || 'Image generation failed')
                         }
                       } catch (error) {
                         const msg = error instanceof Error ? error.message : 'Failed'
-                        addTerminalLine('error', `Video generation failed: ${msg}`)
+                        addTerminalLine('error', `Image generation failed: ${msg}`)
                       }
-                      setVideoGenerating(false)
+                      setImageGenerating(false)
                     }}
-                    disabled={videoGenerating || !videoPrompt.trim()}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 disabled:opacity-50 text-white text-xs font-medium transition"
+                    disabled={imageGenerating || !imagePrompt.trim()}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 disabled:opacity-50 text-white text-xs font-medium transition"
                   >
-                    {videoGenerating ? (
+                    {imageGenerating ? (
                       <>
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        Generating (~60s)...
+                        Generating...
                       </>
                     ) : (
                       <>
                         <Sparkles className="w-3.5 h-3.5" />
-                        Generate Video
+                        Generate Image
                       </>
                     )}
                   </button>
-                  {generatedVideoUrl && (
-                    <div className="mt-3">
-                      <video
-                        src={generatedVideoUrl}
-                        controls
-                        autoPlay
-                        loop
-                        muted
-                        className="w-full rounded-lg"
-                      />
-                      <div className="flex gap-2 mt-2">
-                        <a
-                          href={generatedVideoUrl}
-                          download="ai-video.mp4"
-                          className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-zinc-400 hover:text-white transition"
+
+                  {/* Generated Image Preview - Draggable */}
+                  {generatedImageUrl && (
+                    <div className="mt-3 space-y-2">
+                      <div className="relative group">
+                        <img
+                          src={generatedImageUrl}
+                          alt="AI Generated"
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', generatedImageUrl)
+                            e.dataTransfer.setData('image-url', generatedImageUrl)
+                            setDraggedImageUrl(generatedImageUrl)
+                            setIsDraggingImage(true)
+                            // Notify iframe about drag state
+                            iframeRef.current?.contentWindow?.postMessage({ type: 'drag-state', isDragging: true }, '*')
+                          }}
+                          onDragEnd={() => {
+                            setDraggedImageUrl(null)
+                            setIsDraggingImage(false)
+                            iframeRef.current?.contentWindow?.postMessage({ type: 'drag-state', isDragging: false }, '*')
+                          }}
+                          className="w-full rounded-lg cursor-grab active:cursor-grabbing border-2 border-transparent hover:border-violet-500/50 transition-all"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-end justify-center pb-2">
+                          <span className="text-white text-[10px] font-medium bg-black/50 px-2 py-1 rounded">
+                            Drag to replace an image
+                          </span>
+                        </div>
+                        {/* Delete button */}
+                        <button
+                          onClick={() => {
+                            setGeneratedImageUrl(null)
+                            addConsoleLog('info', 'Image removed')
+                          }}
+                          className="absolute top-2 right-2 w-6 h-6 rounded-full bg-red-500/80 hover:bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => insertImageIntoWebsite(generatedImageUrl, 'AI Generated Image')}
+                          disabled={!html}
+                          className={cn(
+                            "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg disabled:opacity-50 text-white text-[10px] font-medium transition",
+                            selectedMediaElement
+                              ? "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400"
+                              : "bg-emerald-600 hover:bg-emerald-500"
+                          )}
+                        >
+                          {selectedMediaElement ? (
+                            <>
+                              <ArrowRight className="w-3 h-3" />
+                              Replace
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-3 h-3" />
+                              Add to Site
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const response = await fetch(generatedImageUrl)
+                              const blob = await response.blob()
+                              const url = window.URL.createObjectURL(blob)
+                              const a = document.createElement('a')
+                              a.href = url
+                              a.download = 'ai-generated-image.webp'
+                              document.body.appendChild(a)
+                              a.click()
+                              document.body.removeChild(a)
+                              window.URL.revokeObjectURL(url)
+                            } catch {
+                              window.open(generatedImageUrl, '_blank')
+                            }
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 text-[10px] font-medium transition"
                         >
                           <Download className="w-3 h-3" />
                           Download
-                        </a>
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(generatedVideoUrl)
-                            addTerminalLine('info', 'Video URL copied!')
-                          }}
-                          className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-zinc-400 hover:text-white transition"
-                        >
-                          <Copy className="w-3 h-3" />
-                          Copy URL
                         </button>
                       </div>
                     </div>
                   )}
+                </div>
+
+                {/* Quick Tools */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => {
+                      const logoPrompt = prompt('Describe your logo (e.g., "minimalist tech startup logo with abstract shapes")')
+                      if (logoPrompt) {
+                        setImagePrompt(`Logo design: ${logoPrompt}, clean vector style, transparent background, professional branding`)
+                        setImageStyle('minimalist')
+                      }
+                    }}
+                    className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 hover:border-emerald-500/40 transition-all"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                      <Star className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <span className="text-[10px] font-medium text-emerald-300">Logo Generator</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      const iconPrompt = prompt('Describe your icon (e.g., "shopping cart icon for e-commerce")')
+                      if (iconPrompt) {
+                        setImagePrompt(`Icon: ${iconPrompt}, flat design, single color, minimal, SVG style`)
+                        setImageStyle('minimalist')
+                      }
+                    }}
+                    className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-all"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                      <Box className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <span className="text-[10px] font-medium text-amber-300">Icon Generator</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      const bannerPrompt = prompt('Describe your banner (e.g., "sale banner with 50% off text")')
+                      if (bannerPrompt) {
+                        setImagePrompt(`Web banner: ${bannerPrompt}, eye-catching, promotional, modern design`)
+                        setImageAspectRatio('16:9')
+                      }
+                    }}
+                    className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-gradient-to-br from-pink-500/10 to-rose-500/10 border border-pink-500/20 hover:border-pink-500/40 transition-all"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-pink-500/20 flex items-center justify-center">
+                      <Layout className="w-4 h-4 text-pink-400" />
+                    </div>
+                    <span className="text-[10px] font-medium text-pink-300">Banner Maker</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      const heroPrompt = prompt('Describe your hero image (e.g., "modern office with happy team")')
+                      if (heroPrompt) {
+                        setImagePrompt(`Hero image: ${heroPrompt}, high quality, professional photography style, website hero section`)
+                        setImageAspectRatio('16:9')
+                        setImageStyle('photographic')
+                      }
+                    }}
+                    className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-gradient-to-br from-violet-500/10 to-purple-500/10 border border-violet-500/20 hover:border-violet-500/40 transition-all"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center">
+                      <ImageIcon className="w-4 h-4 text-violet-400" />
+                    </div>
+                    <span className="text-[10px] font-medium text-violet-300">Hero Image</span>
+                  </button>
                 </div>
 
                 {/* Upload Button */}
@@ -3514,16 +5352,36 @@ ${html}
                             : 'border-white/[0.05] bg-white/[0.02]'
                         )}
                       >
-                        {/* Image Preview */}
+                        {/* Image Preview - Draggable */}
                         <div
-                          className="relative aspect-video cursor-pointer"
+                          className="relative aspect-video cursor-pointer group"
                           onClick={() => setSelectedImage(image)}
                         >
                           <img
                             src={image.result || image.url}
                             alt={image.name}
-                            className="w-full h-full object-cover"
+                            draggable
+                            onDragStart={(e) => {
+                              const imageUrl = image.result || image.url
+                              e.dataTransfer.setData('text/plain', imageUrl)
+                              e.dataTransfer.setData('image-url', imageUrl)
+                              setDraggedImageUrl(imageUrl)
+                              setIsDraggingImage(true)
+                              // Notify iframe about drag state
+                              iframeRef.current?.contentWindow?.postMessage({ type: 'drag-state', isDragging: true }, '*')
+                            }}
+                            onDragEnd={() => {
+                              setDraggedImageUrl(null)
+                              setIsDraggingImage(false)
+                              iframeRef.current?.contentWindow?.postMessage({ type: 'drag-state', isDragging: false }, '*')
+                            }}
+                            className="w-full h-full object-cover cursor-grab active:cursor-grabbing"
                           />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-2 pointer-events-none">
+                            <span className="text-white text-[10px] font-medium bg-black/50 px-2 py-1 rounded">
+                              Drag to replace an image
+                            </span>
+                          </div>
                           {image.status === 'processing' && (
                             <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                               <div className="text-center">
@@ -3582,6 +5440,31 @@ ${html}
                               <span className="text-[9px]">Enhance</span>
                             </button>
                           </div>
+
+                          {/* Insert/Replace Button */}
+                          <button
+                            onClick={() => insertImageIntoWebsite(image.result || image.url, image.name)}
+                            disabled={!html}
+                            className={cn(
+                              "w-full mt-2 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-all",
+                              selectedMediaElement
+                                ? "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white"
+                                : "bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white",
+                              !html && "opacity-50 cursor-not-allowed"
+                            )}
+                          >
+                            {selectedMediaElement ? (
+                              <>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                                Replace Selected Image
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-3.5 h-3.5" />
+                                Insert into Website
+                              </>
+                            )}
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -3718,6 +5601,43 @@ ${html}
                       muted
                       className="w-full rounded-lg mb-3"
                     />
+
+                    {/* Insert into Website Button */}
+                    <button
+                      onClick={() => {
+                        if (!html) {
+                          addTerminalLine('error', 'No website generated yet. Build a website first!')
+                          return
+                        }
+                        const videoHtml = `
+<!-- AI Generated Video -->
+<div style="width: 100%; max-width: 800px; margin: 2rem auto; padding: 0 1rem;">
+  <video
+    src="${generatedVideoUrl}"
+    controls
+    autoplay
+    loop
+    muted
+    playsinline
+    style="width: 100%; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);"
+  >
+    Your browser does not support the video tag.
+  </video>
+</div>
+`
+                        // Insert before closing body tag
+                        const updatedHtml = html.replace('</body>', `${videoHtml}</body>`)
+                        setHtml(updatedHtml)
+                        addTerminalLine('success', '✓ Video inserted into website!')
+                        setVideoStatus('Video added to your website')
+                      }}
+                      disabled={!html}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition mb-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Insert into Website
+                    </button>
+
                     <div className="flex gap-2">
                       <a
                         href={generatedVideoUrl}
@@ -4046,6 +5966,169 @@ ${html}
           </AnimatePresence>
         </div>
 
+        {/* Docked Chat Input - Always Visible */}
+        {!sidebarCollapsed && (
+          <div className={cn(
+            "p-3 border-t",
+            isDark ? "border-white/[0.08] bg-zinc-900/50" : "border-slate-200 bg-slate-50"
+          )}>
+            <div className="flex items-center gap-2">
+              <div className={cn(
+                'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all',
+                isGenerating
+                  ? 'bg-gradient-to-br from-violet-500 to-fuchsia-500 animate-pulse'
+                  : isDark ? 'bg-white/5' : 'bg-slate-200'
+              )}>
+                {isGenerating ? (
+                  <Loader2 className="w-4 h-4 text-white animate-spin" />
+                ) : (
+                  <MessageSquare className={cn("w-4 h-4", isDark ? "text-zinc-400" : "text-slate-500")} />
+                )}
+              </div>
+              <input
+                ref={inputRef}
+                type="text"
+                value={commandInput}
+                onChange={(e) => setCommandInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCommandSubmit()}
+                placeholder={isGenerating ? 'Creating...' : 'Chat with AI...'}
+                disabled={isGenerating}
+                className={cn(
+                  "flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/50 disabled:opacity-50",
+                  isDark
+                    ? "bg-white/5 border-white/10 text-white placeholder-zinc-500"
+                    : "bg-white border-slate-200 text-slate-900 placeholder-slate-400"
+                )}
+              />
+              <button
+                onClick={handleCommandSubmit}
+                disabled={!commandInput.trim() || isGenerating}
+                className={cn(
+                  'w-8 h-8 rounded-lg flex items-center justify-center transition-all',
+                  commandInput.trim() && !isGenerating
+                    ? 'bg-violet-500 hover:bg-violet-400 text-white'
+                    : isDark ? 'bg-white/5 text-zinc-500' : 'bg-slate-200 text-slate-400'
+                )}
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+            {/* Model selector */}
+            <div className="flex items-center justify-between mt-2 relative">
+              <button
+                onClick={() => setShowChatModelSelector(!showChatModelSelector)}
+                className={cn(
+                  "flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all",
+                  isDark ? "bg-white/5 hover:bg-white/10 text-zinc-400" : "bg-slate-200 hover:bg-slate-300 text-slate-600"
+                )}
+              >
+                {selectedModel.provider === 'anthropic' ? <Brain className="w-3 h-3" /> :
+                 selectedModel.provider === 'openai' ? <Bot className="w-3 h-3" /> :
+                 selectedModel.provider === 'huggingface' ? <Sparkles className="w-3 h-3" /> :
+                 <Sparkles className="w-3 h-3" />}
+                <span>{selectedModel.name}</span>
+                {selectedModel.free && <span className="text-emerald-400 text-[9px]">FREE</span>}
+                <ChevronDown className={cn("w-3 h-3 transition-transform", showChatModelSelector && "rotate-180")} />
+              </button>
+
+              {/* Model Dropdown */}
+              <AnimatePresence>
+                {showChatModelSelector && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute bottom-full left-0 mb-2 w-72 max-h-80 overflow-y-auto bg-zinc-900 border border-white/10 rounded-xl shadow-2xl z-50"
+                  >
+                    <div className="p-2 border-b border-white/10">
+                      <p className="text-[10px] font-medium text-zinc-400 px-2">Select AI Model</p>
+                    </div>
+                    <div className="p-1">
+                      {/* Free Models */}
+                      <div className="px-2 py-1">
+                        <p className="text-[9px] font-medium text-emerald-400 uppercase tracking-wide">Free Models</p>
+                      </div>
+                      {aiModels.filter(m => m.free).map(model => (
+                        <button
+                          key={model.id}
+                          onClick={() => {
+                            setSelectedModel(model)
+                            setShowChatModelSelector(false)
+                          }}
+                          className={cn(
+                            "w-full flex items-center gap-2 px-2 py-2 rounded-lg text-left transition-all",
+                            selectedModel.id === model.id
+                              ? "bg-violet-500/20 text-white"
+                              : "hover:bg-white/5 text-zinc-300"
+                          )}
+                        >
+                          <div className="w-6 h-6 rounded-md bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                            <Sparkles className="w-3 h-3 text-emerald-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs font-medium truncate">{model.name}</span>
+                              <span className="text-[8px] px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-400">FREE</span>
+                            </div>
+                            <p className="text-[9px] text-zinc-500 truncate">{model.description}</p>
+                          </div>
+                        </button>
+                      ))}
+
+                      {/* Paid Models */}
+                      <div className="px-2 py-1 mt-2">
+                        <p className="text-[9px] font-medium text-zinc-500 uppercase tracking-wide">Premium Models</p>
+                      </div>
+                      {aiModels.filter(m => !m.free).slice(0, 6).map(model => (
+                        <button
+                          key={model.id}
+                          onClick={() => {
+                            setSelectedModel(model)
+                            setShowChatModelSelector(false)
+                          }}
+                          className={cn(
+                            "w-full flex items-center gap-2 px-2 py-2 rounded-lg text-left transition-all",
+                            selectedModel.id === model.id
+                              ? "bg-violet-500/20 text-white"
+                              : "hover:bg-white/5 text-zinc-300"
+                          )}
+                        >
+                          <div className={cn(
+                            "w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0",
+                            model.provider === 'anthropic' ? "bg-orange-500/20" :
+                            model.provider === 'openai' ? "bg-emerald-500/20" :
+                            "bg-blue-500/20"
+                          )}>
+                            {model.provider === 'anthropic' ? <Brain className="w-3 h-3 text-orange-400" /> :
+                             model.provider === 'openai' ? <Bot className="w-3 h-3 text-emerald-400" /> :
+                             <Sparkles className="w-3 h-3 text-blue-400" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-medium truncate block">{model.name}</span>
+                            <p className="text-[9px] text-zinc-500 truncate">{model.description}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {session?.user && userCredits !== null && (
+                <div className={cn(
+                  'flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium',
+                  userCredits < 10 ? 'bg-red-500/10 text-red-400' :
+                  userCredits < 50 ? 'bg-amber-500/10 text-amber-400' :
+                  'bg-emerald-500/10 text-emerald-400'
+                )}>
+                  <Coins className="w-3 h-3" />
+                  <span>{userCredits}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Status Bar */}
         {!sidebarCollapsed && (
           <div className="h-7 border-t border-white/[0.08] flex items-center justify-between px-3 text-[10px] text-zinc-600 bg-black/20">
@@ -4066,6 +6149,27 @@ ${html}
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden relative">
+        {/* Focus Mode Indicator */}
+        <AnimatePresence>
+          {focusMode && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="absolute top-4 left-4 z-[80] flex items-center gap-2"
+            >
+              <button
+                onClick={() => setFocusMode(false)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-500/30 text-violet-300 text-xs hover:bg-violet-500/30 transition-colors backdrop-blur-sm"
+              >
+                <Maximize className="w-3.5 h-3.5" />
+                <span>Focus Mode</span>
+                <kbd className="px-1.5 py-0.5 rounded bg-black/30 text-[10px]">F</kbd>
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Toolbar - High z-index so dropdowns appear above preview */}
         <header className={cn(
           "h-12 border-b flex items-center justify-between px-4 backdrop-blur-xl relative z-50",
@@ -4073,7 +6177,10 @@ ${html}
         )}>
           <div className="flex items-center gap-3">
             {/* Device toggles */}
-            <div className="flex bg-white/[0.03] rounded-lg p-0.5 border border-white/[0.05]">
+            <div className={cn(
+              "flex rounded-lg p-0.5 border",
+              isDark ? "bg-white/[0.03] border-white/[0.05]" : "bg-slate-100 border-slate-200"
+            )}>
               {([
                 { mode: 'desktop' as DeviceMode, icon: Monitor },
                 { mode: 'tablet' as DeviceMode, icon: Tablet },
@@ -4086,38 +6193,13 @@ ${html}
                     'p-1.5 rounded-md transition-all',
                     deviceMode === mode
                       ? 'bg-violet-500/20 text-violet-400'
-                      : 'text-zinc-600 hover:text-white'
+                      : isDark ? 'text-zinc-600 hover:text-white' : 'text-slate-400 hover:text-slate-900'
                   )}
                 >
                   <Icon className="w-4 h-4" />
                 </button>
               ))}
             </div>
-
-            <div className="h-4 w-px bg-white/10" />
-
-            {/* Element Selector - PROMINENT */}
-            <button
-              onClick={() => {
-                setSelectMode(!selectMode)
-                if (!selectMode) {
-                  addConsoleLog('info', '🎯 Select Mode ON - Click elements to edit or DELETE them')
-                } else {
-                  setSelectedElement(null)
-                  setHoveredElement(null)
-                }
-              }}
-              className={cn(
-                'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200',
-                selectMode
-                  ? 'bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow-lg shadow-violet-500/40 scale-105 ring-2 ring-violet-400/50'
-                  : 'bg-gradient-to-r from-violet-500/20 to-purple-500/20 text-violet-300 hover:from-violet-500 hover:to-purple-500 hover:text-white hover:shadow-lg hover:shadow-violet-500/30 border border-violet-500/30 hover:border-violet-400'
-              )}
-              title="Click to select and delete elements"
-            >
-              <Crosshair className={cn("w-4 h-4", selectMode && "animate-pulse")} />
-              <span>{selectMode ? '✓ Selecting...' : 'Select/Delete'}</span>
-            </button>
 
             {/* Image Library */}
             <button
@@ -4254,6 +6336,16 @@ ${html}
 
             <div className="h-4 w-px bg-white/10 mx-1" />
 
+            {/* Command Palette */}
+            <button
+              onClick={() => setShowCommandPalette(true)}
+              className="p-1.5 rounded-lg hover:bg-violet-500/10 text-zinc-600 hover:text-violet-400 hover:shadow-lg hover:shadow-violet-500/20 transition-all duration-200 flex items-center gap-1"
+              title="Command Palette (⌘K)"
+            >
+              <Command className="w-4 h-4" />
+              <kbd className="hidden sm:inline px-1 py-0.5 rounded bg-white/5 text-[9px] text-zinc-500">K</kbd>
+            </button>
+
             {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
@@ -4369,7 +6461,12 @@ ${html}
                     }
                   }
                 }}
-                className="absolute top-6 right-6 z-10 p-2 rounded-lg bg-zinc-900/80 hover:bg-zinc-800 border border-white/10 text-zinc-400 hover:text-white transition-all"
+                className={cn(
+                  "absolute top-6 right-6 z-10 p-2 rounded-lg border transition-all",
+                  isDark
+                    ? "bg-zinc-900/80 hover:bg-zinc-800 border-white/10 text-zinc-400 hover:text-white"
+                    : "bg-white/80 hover:bg-white border-slate-200 text-slate-400 hover:text-slate-900 shadow-sm"
+                )}
                 title="Toggle fullscreen"
               >
                 <Maximize2 className="w-4 h-4" />
@@ -4382,9 +6479,62 @@ ${html}
                 initial={{ scale: 0.98, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 data-tour="preview"
-                className="bg-white rounded-lg overflow-hidden shadow-2xl shadow-black/50 h-full transition-all duration-300"
+                className={cn(
+                  "bg-white rounded-lg overflow-hidden shadow-2xl shadow-black/50 h-full transition-all duration-300 relative",
+                  isDraggingImage && "ring-4 ring-violet-500/50 ring-offset-2 ring-offset-black"
+                )}
                 style={{ width: getDeviceWidth(), maxWidth: '100%' }}
+                onDragOver={(e) => {
+                  if (isDraggingImage) {
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'copy'
+                  }
+                }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  const imageUrl = e.dataTransfer.getData('image-url') || e.dataTransfer.getData('text/plain')
+                  if (imageUrl && html) {
+                    // Find the first img tag and replace its src (simple replacement)
+                    // In a more advanced version, you would identify which image to replace
+                    const imgRegex = /<img\s+([^>]*?)src=["']([^"']+)["']([^>]*?)>/gi
+                    const matches = [...html.matchAll(imgRegex)]
+                    if (matches.length > 0) {
+                      // Replace the first image src
+                      const newHtml = html.replace(
+                        matches[0][0],
+                        `<img ${matches[0][1]}src="${imageUrl}"${matches[0][3]}>`
+                      )
+                      setHtml(newHtml)
+                      addToHistory(newHtml, 'Replaced image via drag-and-drop')
+                      addConsoleLog('success', 'Image replaced successfully!')
+                      addToast('success', 'Image replaced!')
+                      setChatMessages(prev => [...prev, {
+                        role: 'assistant',
+                        content: 'Image replaced! Drag onto different parts of the preview to replace other images.'
+                      }])
+                    } else {
+                      // No images in the HTML - add the image
+                      const imgHtml = `\n<img src="${imageUrl}" alt="Added Image" style="width: 100%; max-width: 800px; margin: 2rem auto; display: block; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.2);" />\n`
+                      const newHtml = html.replace('</body>', `${imgHtml}</body>`)
+                      setHtml(newHtml)
+                      addToHistory(newHtml, 'Added image via drag-and-drop')
+                      addConsoleLog('success', 'Image added to the website!')
+                    }
+                  }
+                  setDraggedImageUrl(null)
+                  setIsDraggingImage(false)
+                }}
               >
+                {/* Drop overlay */}
+                {isDraggingImage && html && (
+                  <div className="absolute inset-0 z-50 bg-violet-500/20 backdrop-blur-[1px] flex items-center justify-center pointer-events-none">
+                    <div className="bg-zinc-900/90 rounded-2xl px-6 py-4 text-center border border-violet-500/50 shadow-xl">
+                      <ImagePlus className="w-10 h-10 text-violet-400 mx-auto mb-2" />
+                      <p className="text-white font-medium">Drop to replace image</p>
+                      <p className="text-zinc-400 text-xs mt-1">The first image will be replaced</p>
+                    </div>
+                  </div>
+                )}
                 {html ? (
                   <iframe
                     ref={iframeRef}
@@ -4458,332 +6608,6 @@ ${html}
           )}
         </div>
 
-        {/* Floating Command Input - Draggable, Docked at Bottom Center */}
-        <div
-          data-chat-container
-          style={chatPosition ? {
-            position: 'fixed',
-            left: chatPosition.x,
-            top: chatPosition.y,
-            zIndex: 40,
-          } : {
-            position: 'fixed',
-            left: '50%',
-            bottom: 24,
-            transform: 'translateX(-50%)',
-            zIndex: 40,
-          }}
-          className="w-full max-w-2xl px-4"
-        >
-          <motion.div
-            initial={{ y: 50, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.2, duration: 0.3 }}
-            data-tour="chat"
-            className={cn(
-              'flex items-center gap-3 px-4 py-3 rounded-2xl backdrop-blur-xl border shadow-2xl',
-              'focus-within:border-violet-500/50 focus-within:shadow-violet-500/20',
-              !isDraggingChat && 'transition-colors',
-              isDraggingChat && 'cursor-grabbing',
-              isGenerating
-                ? 'bg-zinc-900/90 border-violet-500/40 shadow-violet-500/30'
-                : 'bg-zinc-900/80 border-white/10 hover:border-white/20'
-            )}
-          >
-            {/* Drag Handle */}
-            <div
-              className="flex items-center gap-1 cursor-grab active:cursor-grabbing select-none touch-none"
-              onMouseDown={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-
-                // Get the outer container
-                const container = document.querySelector('[data-chat-container]') as HTMLElement
-                if (!container) return
-
-                const rect = container.getBoundingClientRect()
-
-                // Store offset in ref (cursor position relative to element top-left)
-                dragOffsetRef.current = {
-                  x: e.clientX - rect.left,
-                  y: e.clientY - rect.top,
-                }
-
-                setIsDraggingChat(true)
-
-                const onMouseMove = (moveEvent: MouseEvent) => {
-                  moveEvent.preventDefault()
-                  setChatPosition({
-                    x: moveEvent.clientX - dragOffsetRef.current.x,
-                    y: moveEvent.clientY - dragOffsetRef.current.y,
-                  })
-                }
-
-                const onMouseUp = () => {
-                  setIsDraggingChat(false)
-                  document.removeEventListener('mousemove', onMouseMove)
-                  document.removeEventListener('mouseup', onMouseUp)
-                }
-
-                document.addEventListener('mousemove', onMouseMove)
-                document.addEventListener('mouseup', onMouseUp)
-              }}
-            >
-              <GripVertical className="w-4 h-4 text-zinc-600 hover:text-zinc-400" />
-            </div>
-            <div className={cn(
-              'w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all',
-              isGenerating
-                ? 'bg-gradient-to-br from-violet-500 to-fuchsia-500 animate-pulse'
-                : commandInput
-                  ? 'bg-violet-500/20'
-                  : 'bg-white/5'
-            )}>
-              {isGenerating ? (
-                <Loader2 className="w-4 h-4 text-white animate-spin" />
-              ) : (
-                <Wand2 className={cn(
-                  'w-4 h-4 transition-colors',
-                  commandInput ? 'text-violet-400' : 'text-zinc-500'
-                )} />
-              )}
-            </div>
-            <input
-              ref={inputRef}
-              type="text"
-              value={commandInput}
-              onChange={(e) => setCommandInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCommandSubmit()}
-              placeholder={isGenerating ? 'Cooking up your website...' : 'Describe what to build or change...'}
-              disabled={isGenerating}
-              data-tour="prompt"
-              className="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 focus:outline-none disabled:opacity-50"
-            />
-            <div className="flex items-center gap-2 shrink-0">
-              {/* Credits Display */}
-              {session?.user && userCredits !== null && (
-                <div className={cn(
-                  'hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-medium',
-                  userCredits < 10 ? 'bg-red-500/20 text-red-400' :
-                  userCredits < 50 ? 'bg-amber-500/20 text-amber-400' :
-                  'bg-emerald-500/20 text-emerald-400'
-                )}>
-                  <Coins className="w-3 h-3" />
-                  <span>{userCredits} credits</span>
-                </div>
-              )}
-
-              {/* AI Model Selector Button */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowChatModelSelector(!showChatModelSelector)}
-                  className={cn(
-                    'hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-medium cursor-pointer hover:scale-105 transition-all',
-                    selectedModel.provider === 'anthropic' ? 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20' :
-                    selectedModel.provider === 'openai' ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20' :
-                    selectedModel.provider === 'huggingface' ? 'bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20' :
-                    selectedModel.provider === 'together' ? 'bg-purple-500/10 text-purple-400 hover:bg-purple-500/20' :
-                    selectedModel.provider === 'cloudflare' ? 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20' :
-                    'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'
-                  )}
-                  title="Click to change AI model"
-                >
-                  {selectedModel.provider === 'anthropic' ? <Brain className="w-3 h-3" /> :
-                   selectedModel.provider === 'openai' ? <Bot className="w-3 h-3" /> :
-                   selectedModel.provider === 'huggingface' ? <Sparkles className="w-3 h-3" /> :
-                   selectedModel.provider === 'together' ? <Zap className="w-3 h-3" /> :
-                   selectedModel.provider === 'cloudflare' ? <Cloud className="w-3 h-3" /> :
-                   <Sparkles className="w-3 h-3" />}
-                  <span>{selectedModel.name.split(' ')[0]}</span>
-                  {selectedModel.free && <span className="text-emerald-400">FREE</span>}
-                  <ChevronDown className={cn('w-3 h-3 transition-transform', showChatModelSelector && 'rotate-180')} />
-                </button>
-
-                {/* Chat Model Dropdown */}
-                <AnimatePresence>
-                  {showChatModelSelector && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      className="absolute bottom-full right-0 mb-2 w-64 p-2 rounded-xl bg-zinc-900 border border-white/[0.1] shadow-2xl z-50 max-h-[280px] overflow-y-auto"
-                    >
-                      {/* Free Models */}
-                      <div className="mb-2 pb-2 border-b border-emerald-500/20">
-                        <div className="flex items-center gap-1.5 px-2 py-1 mb-1">
-                          <Sparkles className="w-3 h-3 text-emerald-400" />
-                          <span className="text-[9px] font-medium text-emerald-400 uppercase">Free Models</span>
-                        </div>
-                        {aiModels.filter(m => m.free).map((model) => (
-                          <button
-                            key={model.id}
-                            onClick={() => {
-                              setSelectedModel(model)
-                              setShowChatModelSelector(false)
-                            }}
-                            className={cn(
-                              'w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all text-[10px]',
-                              selectedModel.id === model.id
-                                ? 'bg-emerald-500/20 border border-emerald-500/30'
-                                : 'hover:bg-white/[0.05] border border-transparent'
-                            )}
-                          >
-                            {model.provider === 'huggingface' ? <Sparkles className="w-3 h-3 text-yellow-400" /> :
-                             model.provider === 'together' ? <Zap className="w-3 h-3 text-purple-400" /> :
-                             <Cloud className="w-3 h-3 text-orange-400" />}
-                            <span className="text-white flex-1">{model.name}</span>
-                            <span className="text-[8px] text-emerald-400 px-1 bg-emerald-500/20 rounded">FREE</span>
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Paid Models - Anthropic */}
-                      <div className="mb-2 pb-2 border-b border-white/[0.08]">
-                        <div className="flex items-center gap-1.5 px-2 py-1 mb-1">
-                          <Brain className="w-3 h-3 text-orange-400" />
-                          <span className="text-[9px] font-medium text-zinc-400 uppercase">Claude</span>
-                          {userCredits !== null && userCredits >= 5 && (
-                            <span className="ml-auto text-[8px] text-emerald-400">Uses credits</span>
-                          )}
-                          {(userCredits === null || userCredits < 5) && (
-                            <button onClick={() => { setShowApiKeyModal(true); setShowChatModelSelector(false) }} className="ml-auto text-[8px] text-amber-400 hover:underline">+ Key</button>
-                          )}
-                        </div>
-                        {aiModels.filter(m => m.provider === 'anthropic' && !m.free).map((model) => (
-                          <button
-                            key={model.id}
-                            onClick={() => {
-                              if (userCredits === null || userCredits < 5) {
-                                addConsoleLog('warn', 'You need at least 5 credits to use paid models.')
-                                return
-                              }
-                              setSelectedModel(model)
-                              setShowChatModelSelector(false)
-                            }}
-                            disabled={userCredits === null || userCredits < 5}
-                            className={cn(
-                              'w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all text-[10px]',
-                              selectedModel.id === model.id
-                                ? 'bg-orange-500/20 border border-orange-500/30'
-                                : 'hover:bg-white/[0.05] border border-transparent',
-                              (userCredits === null || userCredits < 5) && 'opacity-50 cursor-not-allowed'
-                            )}
-                          >
-                            <Brain className="w-3 h-3 text-orange-400" />
-                            <span className="text-white flex-1">{model.name}</span>
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* OpenAI */}
-                      <div className="mb-2 pb-2 border-b border-white/[0.08]">
-                        <div className="flex items-center gap-1.5 px-2 py-1 mb-1">
-                          <Bot className="w-3 h-3 text-emerald-400" />
-                          <span className="text-[9px] font-medium text-zinc-400 uppercase">OpenAI</span>
-                          {userCredits !== null && userCredits >= 5 && (
-                            <span className="ml-auto text-[8px] text-emerald-400">Uses credits</span>
-                          )}
-                          {(userCredits === null || userCredits < 5) && (
-                            <button onClick={() => { setShowApiKeyModal(true); setShowChatModelSelector(false) }} className="ml-auto text-[8px] text-amber-400 hover:underline">+ Key</button>
-                          )}
-                        </div>
-                        {aiModels.filter(m => m.provider === 'openai' && !m.free).map((model) => (
-                          <button
-                            key={model.id}
-                            onClick={() => {
-                              if (userCredits === null || userCredits < 5) {
-                                addConsoleLog('warn', 'You need at least 5 credits to use paid models.')
-                                return
-                              }
-                              setSelectedModel(model)
-                              setShowChatModelSelector(false)
-                            }}
-                            disabled={userCredits === null || userCredits < 5}
-                            className={cn(
-                              'w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all text-[10px]',
-                              selectedModel.id === model.id
-                                ? 'bg-emerald-500/20 border border-emerald-500/30'
-                                : 'hover:bg-white/[0.05] border border-transparent',
-                              (userCredits === null || userCredits < 5) && 'opacity-50 cursor-not-allowed'
-                            )}
-                          >
-                            <Bot className="w-3 h-3 text-emerald-400" />
-                            <span className="text-white flex-1">{model.name}</span>
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Google */}
-                      <div>
-                        <div className="flex items-center gap-1.5 px-2 py-1 mb-1">
-                          <Sparkles className="w-3 h-3 text-blue-400" />
-                          <span className="text-[9px] font-medium text-zinc-400 uppercase">Google</span>
-                          {userCredits !== null && userCredits >= 5 && (
-                            <span className="ml-auto text-[8px] text-emerald-400">Uses credits</span>
-                          )}
-                          {(userCredits === null || userCredits < 5) && (
-                            <button onClick={() => { setShowApiKeyModal(true); setShowChatModelSelector(false) }} className="ml-auto text-[8px] text-amber-400 hover:underline">+ Key</button>
-                          )}
-                        </div>
-                        {aiModels.filter(m => m.provider === 'google' && !m.free).map((model) => (
-                          <button
-                            key={model.id}
-                            onClick={() => {
-                              if (userCredits === null || userCredits < 5) {
-                                addConsoleLog('warn', 'You need at least 5 credits to use paid models.')
-                                return
-                              }
-                              setSelectedModel(model)
-                              setShowChatModelSelector(false)
-                            }}
-                            disabled={userCredits === null || userCredits < 5}
-                            className={cn(
-                              'w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all text-[10px]',
-                              selectedModel.id === model.id
-                                ? 'bg-blue-500/20 border border-blue-500/30'
-                                : 'hover:bg-white/[0.05] border border-transparent',
-                              (userCredits === null || userCredits < 5) && 'opacity-50 cursor-not-allowed'
-                            )}
-                          >
-                            <Sparkles className="w-3 h-3 text-blue-400" />
-                            <span className="text-white flex-1">{model.name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-              <button
-                onClick={handleCommandSubmit}
-                disabled={!commandInput.trim() || isGenerating}
-                className={cn(
-                  'p-2 rounded-xl transition-all',
-                  commandInput.trim() && !isGenerating
-                    ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 hover:scale-105'
-                    : 'bg-zinc-800 text-zinc-600'
-                )}
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </div>
-          </motion.div>
-          {/* Keyboard shortcut hint & dock button */}
-          <div className="flex items-center justify-center gap-3 mt-2">
-            <span className="text-[10px] text-zinc-600">
-              Press <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-zinc-500 font-mono">Enter</kbd> to generate
-            </span>
-            {chatPosition && (
-              <button
-                onClick={() => setChatPosition(null)}
-                className="text-[10px] text-zinc-500 hover:text-violet-400 flex items-center gap-1 transition-colors"
-              >
-                <ArrowDown className="w-3 h-3" />
-                Dock
-              </button>
-            )}
-          </div>
-        </div>
       </main>
 
       {/* Export Panel */}
@@ -4840,11 +6664,822 @@ ${html}
                   setHtml(updatedHtml)
                   addToHistory(updatedHtml, `Applied theme: ${theme.name}`)
                   addConsoleLog('success', `Theme "${theme.name}" applied successfully`)
+                  addToast('success', `Theme "${theme.name}" applied`)
                   setShowThemeBuilder(false)
                 }}
                 onClose={() => setShowThemeBuilder(false)}
                 className="h-full"
               />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Command Palette (Cmd+K) */}
+      <AnimatePresence>
+        {showCommandPalette && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-start justify-center pt-[20vh] bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowCommandPalette(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: -20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -20 }}
+              transition={{ duration: 0.15 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-xl mx-4 rounded-xl bg-zinc-900 border border-white/[0.15] shadow-2xl overflow-hidden"
+            >
+              {/* Search Input */}
+              <div className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.08]">
+                <Command className="w-5 h-5 text-violet-400" />
+                <input
+                  ref={commandInputRef}
+                  type="text"
+                  value={commandSearch}
+                  onChange={(e) => { setCommandSearch(e.target.value); setCommandIndex(0) }}
+                  placeholder="Type a command or search..."
+                  className="flex-1 bg-transparent text-white text-sm placeholder-zinc-500 outline-none"
+                />
+                <kbd className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 text-xs font-mono">ESC</kbd>
+              </div>
+
+              {/* Commands List */}
+              <div className="max-h-[50vh] overflow-y-auto p-2">
+                {['navigation', 'view', 'action', 'generate', 'tools'].map(category => {
+                  const categoryCommands = filteredCommands.filter(cmd => cmd.category === category)
+                  if (categoryCommands.length === 0) return null
+
+                  const categoryLabels: Record<string, string> = {
+                    navigation: 'Navigation',
+                    view: 'View',
+                    action: 'Actions',
+                    generate: 'Generate',
+                    tools: 'Tools'
+                  }
+
+                  return (
+                    <div key={category} className="mb-2">
+                      <div className="px-3 py-1.5 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
+                        {categoryLabels[category]}
+                      </div>
+                      {categoryCommands.map((cmd) => {
+                        const globalIndex = filteredCommands.indexOf(cmd)
+                        const isSelected = globalIndex === commandIndex
+                        const Icon = cmd.icon
+
+                        return (
+                          <button
+                            key={cmd.id}
+                            onClick={() => executeCommand(cmd)}
+                            onMouseEnter={() => setCommandIndex(globalIndex)}
+                            className={cn(
+                              "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors",
+                              isSelected
+                                ? "bg-violet-500/20 text-white"
+                                : "text-zinc-300 hover:bg-white/[0.05]"
+                            )}
+                          >
+                            <Icon className={cn("w-4 h-4", isSelected ? "text-violet-400" : "text-zinc-500")} />
+                            <span className="flex-1 text-sm">{cmd.label}</span>
+                            {cmd.shortcut && (
+                              <kbd className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[10px] font-mono">
+                                {cmd.shortcut}
+                              </kbd>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )
+                })}
+
+                {filteredCommands.length === 0 && (
+                  <div className="px-4 py-8 text-center text-zinc-500 text-sm">
+                    No commands found for "{commandSearch}"
+                  </div>
+                )}
+              </div>
+
+              {/* Footer Hint */}
+              <div className="px-4 py-2 border-t border-white/[0.08] flex items-center justify-between text-[10px] text-zinc-500">
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1">
+                    <kbd className="px-1 rounded bg-zinc-800">↑</kbd>
+                    <kbd className="px-1 rounded bg-zinc-800">↓</kbd>
+                    navigate
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <kbd className="px-1.5 rounded bg-zinc-800">↵</kbd>
+                    select
+                  </span>
+                </div>
+                <span className="flex items-center gap-1">
+                  <Command className="w-3 h-3" />
+                  <kbd className="px-1 rounded bg-zinc-800">K</kbd>
+                  toggle
+                </span>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Enhanced Media Replacer Modal */}
+      <AnimatePresence>
+        {showMediaReplacer && selectedMediaElement && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+            onClick={() => {
+              setShowMediaReplacer(false)
+              setSelectedMediaElement(null)
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-3xl mx-4 rounded-2xl bg-zinc-900 border border-white/[0.1] shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-white/[0.08] flex items-center justify-between sticky top-0 bg-zinc-900 z-10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 flex items-center justify-center border border-emerald-500/20">
+                    {selectedMediaElement.type === 'image' ? (
+                      <ImageIcon className="w-5 h-5 text-emerald-400" />
+                    ) : (
+                      <Film className="w-5 h-5 text-emerald-400" />
+                    )}
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-white">
+                      {selectedMediaElement.type === 'image' ? 'Edit Image' : 'Edit Video'}
+                    </h2>
+                    <p className="text-xs text-zinc-500">Replace with URL, stock photos, AI generation, or upload</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowMediaReplacer(false)
+                    setSelectedMediaElement(null)
+                  }}
+                  className="p-2 rounded-lg hover:bg-white/[0.05] transition-colors"
+                >
+                  <X className="w-5 h-5 text-zinc-400" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* Current Media Preview */}
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <label className="block text-sm text-zinc-400 mb-2">Current {selectedMediaElement.type}</label>
+                    <div className="rounded-lg overflow-hidden bg-black/40 border border-white/10 h-40">
+                      {selectedMediaElement.type === 'image' ? (
+                        <img src={selectedMediaElement.src} alt="Selected" className="w-full h-full object-contain" />
+                      ) : (
+                        <video src={selectedMediaElement.src} controls className="w-full h-full object-contain" />
+                      )}
+                    </div>
+                  </div>
+                  {generatedImageUrl && selectedMediaElement.type === 'image' && (
+                    <div className="flex-1">
+                      <label className="block text-sm text-emerald-400 mb-2">New Image Preview</label>
+                      <div className="rounded-lg overflow-hidden bg-black/40 border border-emerald-500/30 h-40">
+                        <img src={generatedImageUrl} alt="Preview" className="w-full h-full object-contain" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Replacement Options - Tabs */}
+                {selectedMediaElement.type === 'image' && (
+                  <div className="space-y-4">
+                    {/* Tab Buttons */}
+                    <div className="flex gap-2 p-1 bg-white/5 rounded-xl">
+                      {[
+                        { id: 'url', label: 'URL', icon: LinkIcon },
+                        { id: 'unsplash', label: 'Stock Photos', icon: ImageIcon },
+                        { id: 'ai', label: 'AI Generate', icon: Sparkles },
+                        { id: 'upload', label: 'Upload', icon: Upload },
+                      ].map((tab) => (
+                        <button
+                          key={tab.id}
+                          onClick={() => setImageTabMode?.(tab.id as 'url' | 'unsplash' | 'ai' | 'upload')}
+                          className={cn(
+                            "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                            (imageTabMode || 'url') === tab.id
+                              ? "bg-violet-600 text-white shadow-lg"
+                              : "text-zinc-400 hover:text-white hover:bg-white/5"
+                          )}
+                        >
+                          <tab.icon className="w-4 h-4" />
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* URL Input Tab */}
+                    {(imageTabMode || 'url') === 'url' && (
+                      <div className="p-4 rounded-xl bg-gradient-to-br from-violet-500/10 to-purple-500/10 border border-violet-500/20">
+                        <label className="block text-sm text-violet-300 mb-3 font-medium">
+                          Replace with Image URL
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="https://example.com/image.jpg"
+                          className="w-full px-3 py-2.5 rounded-lg bg-black/40 border border-white/10 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50 mb-3"
+                          id="image-url-input"
+                        />
+                        <button
+                          onClick={() => {
+                            const input = document.getElementById('image-url-input') as HTMLInputElement
+                            const newUrl = input?.value?.trim()
+                            if (!newUrl) {
+                              addToast('error', 'Please enter an image URL')
+                              return
+                            }
+                            const oldSrc = selectedMediaElement.src
+                            const newHtml = html.replace(oldSrc, newUrl)
+                            if (newHtml !== html) {
+                              setHtml(newHtml)
+                              addToHistory(newHtml, 'Replaced image with URL')
+                              addTerminalLine('success', '✓ Image replaced with URL!')
+                              addToast('success', 'Image replaced successfully!')
+                            }
+                            setShowMediaReplacer(false)
+                            setSelectedMediaElement(null)
+                          }}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white text-sm font-medium transition"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                          Replace Image
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Unsplash Stock Photos Tab */}
+                    {(imageTabMode || 'url') === 'unsplash' && (
+                      <div className="p-4 rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20">
+                        <label className="block text-sm text-amber-300 mb-3 font-medium">
+                          Search Unsplash Stock Photos
+                        </label>
+                        <div className="flex gap-2 mb-4">
+                          <input
+                            type="text"
+                            placeholder="Search for images... (e.g., 'office', 'nature', 'technology')"
+                            className="flex-1 px-3 py-2.5 rounded-lg bg-black/40 border border-white/10 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-amber-500/50"
+                            id="unsplash-search-input"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                const query = (e.target as HTMLInputElement).value.trim()
+                                if (query) {
+                                  setUnsplashResults?.([])
+                                  setUnsplashLoading?.(true)
+                                  // Generate Unsplash URLs directly (no API key needed for source.unsplash.com)
+                                  const results = [
+                                    `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=1`,
+                                    `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=2`,
+                                    `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=3`,
+                                    `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=4`,
+                                    `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=5`,
+                                    `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=6`,
+                                  ]
+                                  setUnsplashResults?.(results)
+                                  setUnsplashLoading?.(false)
+                                }
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={() => {
+                              const input = document.getElementById('unsplash-search-input') as HTMLInputElement
+                              const query = input?.value?.trim()
+                              if (query) {
+                                setUnsplashResults?.([])
+                                setUnsplashLoading?.(true)
+                                const results = [
+                                  `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=1`,
+                                  `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=2`,
+                                  `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=3`,
+                                  `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=4`,
+                                  `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=5`,
+                                  `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=6`,
+                                ]
+                                setUnsplashResults?.(results)
+                                setUnsplashLoading?.(false)
+                              }
+                            }}
+                            className="px-4 py-2.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium transition"
+                          >
+                            <Search className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Quick category buttons */}
+                        <div className="flex flex-wrap gap-2 mb-4">
+                          {['business', 'technology', 'nature', 'office', 'people', 'abstract'].map((cat) => (
+                            <button
+                              key={cat}
+                              onClick={() => {
+                                const results = [
+                                  `https://source.unsplash.com/800x600/?${cat}&sig=${Date.now()}1`,
+                                  `https://source.unsplash.com/800x600/?${cat}&sig=${Date.now()}2`,
+                                  `https://source.unsplash.com/800x600/?${cat}&sig=${Date.now()}3`,
+                                  `https://source.unsplash.com/800x600/?${cat}&sig=${Date.now()}4`,
+                                  `https://source.unsplash.com/800x600/?${cat}&sig=${Date.now()}5`,
+                                  `https://source.unsplash.com/800x600/?${cat}&sig=${Date.now()}6`,
+                                ]
+                                setUnsplashResults?.(results)
+                              }}
+                              className="px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 text-xs text-white capitalize transition"
+                            >
+                              {cat}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Results grid */}
+                        {unsplashResults && unsplashResults.length > 0 && (
+                          <div className="grid grid-cols-3 gap-2">
+                            {unsplashResults.map((url, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => {
+                                  const oldSrc = selectedMediaElement.src
+                                  const newHtml = html.replace(oldSrc, url)
+                                  if (newHtml !== html) {
+                                    setHtml(newHtml)
+                                    addToHistory(newHtml, 'Replaced image with Unsplash photo')
+                                    addTerminalLine('success', '✓ Image replaced with Unsplash photo!')
+                                    addToast('success', 'Image replaced!')
+                                  }
+                                  setShowMediaReplacer(false)
+                                  setSelectedMediaElement(null)
+                                }}
+                                className="relative aspect-video rounded-lg overflow-hidden border-2 border-transparent hover:border-amber-500 transition-all group"
+                              >
+                                <img src={url} alt={`Stock ${idx + 1}`} className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <span className="text-white text-xs font-medium">Select</span>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {!unsplashResults?.length && (
+                          <p className="text-center text-zinc-500 text-sm py-8">
+                            Search or select a category to find stock photos
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* AI Generate Tab */}
+                    {(imageTabMode || 'url') === 'ai' && (
+                      <div className="p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-blue-500/20">
+                        <label className="block text-sm text-blue-300 mb-3 font-medium">
+                          Generate New AI Image
+                        </label>
+                        <textarea
+                          value={imagePrompt}
+                          onChange={(e) => setImagePrompt(e.target.value)}
+                          placeholder="Describe the image... e.g., 'professional team photo in modern office'"
+                          rows={2}
+                          className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/50 resize-none mb-3"
+                        />
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div>
+                            <label className="block text-xs text-zinc-500 mb-1">Style</label>
+                            <select
+                              value={imageStyle}
+                              onChange={(e) => setImageStyle(e.target.value)}
+                              className="w-full px-2 py-1.5 rounded-lg bg-black/40 border border-white/10 text-xs text-white"
+                            >
+                              <option value="modern">Modern</option>
+                              <option value="professional">Professional</option>
+                              <option value="creative">Creative</option>
+                              <option value="tech">Tech</option>
+                              <option value="luxury">Luxury</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-zinc-500 mb-1">Aspect Ratio</label>
+                            <select
+                              value={imageAspectRatio}
+                              onChange={(e) => setImageAspectRatio(e.target.value as '1:1' | '16:9' | '9:16')}
+                              className="w-full px-2 py-1.5 rounded-lg bg-black/40 border border-white/10 text-xs text-white"
+                            >
+                              <option value="16:9">16:9 Wide</option>
+                              <option value="1:1">1:1 Square</option>
+                              <option value="9:16">9:16 Tall</option>
+                            </select>
+                          </div>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            if (!imagePrompt.trim()) {
+                              addToast('error', 'Please enter a prompt')
+                              return
+                            }
+                            setImageGenerating(true)
+                            try {
+                              const response = await fetch('/api/ai/image', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  action: 'generate',
+                                  prompt: imagePrompt,
+                                  style: imageStyle,
+                                  aspectRatio: imageAspectRatio,
+                                })
+                              })
+                              const data = await response.json()
+                              if (data.success && data.output) {
+                                const url = Array.isArray(data.output) ? data.output[0] : data.output
+                                setGeneratedImageUrl(url)
+                                addTerminalLine('success', '✓ New image generated!')
+                              } else {
+                                throw new Error(data.error || 'Generation failed')
+                              }
+                            } catch (err) {
+                              addTerminalLine('error', `Failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
+                              addToast('error', 'Image generation failed')
+                            }
+                            setImageGenerating(false)
+                          }}
+                          disabled={imageGenerating}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:opacity-50 text-white text-sm font-medium transition"
+                        >
+                          {imageGenerating ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-4 h-4" />
+                              Generate AI Image
+                            </>
+                          )}
+                        </button>
+
+                        {/* Apply generated image button */}
+                        {generatedImageUrl && (
+                          <button
+                            onClick={() => {
+                              const oldSrc = selectedMediaElement.src
+                              const newHtml = html.replace(oldSrc, generatedImageUrl)
+                              if (newHtml !== html) {
+                                setHtml(newHtml)
+                                addToHistory(newHtml, 'Replaced image with AI-generated')
+                                addTerminalLine('success', '✓ Image replaced with AI-generated!')
+                                addToast('success', 'Image replaced!')
+                              }
+                              setShowMediaReplacer(false)
+                              setSelectedMediaElement(null)
+                              setGeneratedImageUrl(null)
+                            }}
+                            className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white text-sm font-medium transition"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                            Apply Generated Image
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Upload Tab */}
+                    {(imageTabMode || 'url') === 'upload' && (
+                      <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border border-emerald-500/20">
+                        <label className="block text-sm text-emerald-300 mb-3 font-medium">
+                          Upload Image File
+                        </label>
+                        <div
+                          className="border-2 border-dashed border-emerald-500/30 rounded-xl p-8 text-center hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all cursor-pointer"
+                          onDragOver={(e) => {
+                            e.preventDefault()
+                            e.currentTarget.classList.add('border-emerald-500', 'bg-emerald-500/10')
+                          }}
+                          onDragLeave={(e) => {
+                            e.currentTarget.classList.remove('border-emerald-500', 'bg-emerald-500/10')
+                          }}
+                          onDrop={async (e) => {
+                            e.preventDefault()
+                            e.currentTarget.classList.remove('border-emerald-500', 'bg-emerald-500/10')
+                            const file = e.dataTransfer.files[0]
+                            if (file && file.type.startsWith('image/')) {
+                              const reader = new FileReader()
+                              reader.onload = (ev) => {
+                                const dataUrl = ev.target?.result as string
+                                const oldSrc = selectedMediaElement.src
+                                const newHtml = html.replace(oldSrc, dataUrl)
+                                if (newHtml !== html) {
+                                  setHtml(newHtml)
+                                  addToHistory(newHtml, 'Replaced image with uploaded file')
+                                  addTerminalLine('success', '✓ Image replaced with uploaded file!')
+                                  addToast('success', 'Image uploaded and replaced!')
+                                }
+                                setShowMediaReplacer(false)
+                                setSelectedMediaElement(null)
+                              }
+                              reader.readAsDataURL(file)
+                            }
+                          }}
+                          onClick={() => {
+                            const input = document.createElement('input')
+                            input.type = 'file'
+                            input.accept = 'image/*'
+                            input.onchange = async (e) => {
+                              const file = (e.target as HTMLInputElement).files?.[0]
+                              if (file) {
+                                const reader = new FileReader()
+                                reader.onload = (ev) => {
+                                  const dataUrl = ev.target?.result as string
+                                  const oldSrc = selectedMediaElement.src
+                                  const newHtml = html.replace(oldSrc, dataUrl)
+                                  if (newHtml !== html) {
+                                    setHtml(newHtml)
+                                    addToHistory(newHtml, 'Replaced image with uploaded file')
+                                    addTerminalLine('success', '✓ Image replaced with uploaded file!')
+                                    addToast('success', 'Image uploaded and replaced!')
+                                  }
+                                  setShowMediaReplacer(false)
+                                  setSelectedMediaElement(null)
+                                }
+                                reader.readAsDataURL(file)
+                              }
+                            }
+                            input.click()
+                          }}
+                        >
+                          <Upload className="w-10 h-10 mx-auto mb-3 text-emerald-400/60" />
+                          <p className="text-white font-medium mb-1">Drop image here or click to browse</p>
+                          <p className="text-zinc-500 text-xs">Supports JPG, PNG, GIF, WebP</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Video Tab (simplified) */}
+                {selectedMediaElement.type === 'video' && (
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-blue-500/20">
+                    <label className="block text-sm text-blue-300 mb-3 font-medium">
+                      Generate New AI Video
+                    </label>
+                    <textarea
+                      value={videoPrompt}
+                      onChange={(e) => setVideoPrompt(e.target.value)}
+                      placeholder="Describe the video... e.g., 'smooth camera pan over product'"
+                      rows={2}
+                      className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500/50 resize-none mb-3"
+                    />
+                    <button
+                      onClick={async () => {
+                        if (!videoPrompt.trim()) {
+                          addToast('error', 'Please enter a prompt')
+                          return
+                        }
+                        setVideoGenerating(true)
+                        setVideoStatus('Generating video...')
+                        try {
+                          const response = await fetch('/api/ai/video', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              action: 'text-to-video',
+                              prompt: videoPrompt,
+                              model: 'animate-diff',
+                            })
+                          })
+                          const data = await response.json()
+                          if (data.success && data.output) {
+                            const url = Array.isArray(data.output) ? data.output[0] : data.output
+                            setGeneratedVideoUrl(url)
+                            addTerminalLine('success', '✓ New video generated!')
+                          } else {
+                            throw new Error(data.error || 'Generation failed')
+                          }
+                        } catch (err) {
+                          addTerminalLine('error', `Failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
+                        }
+                        setVideoGenerating(false)
+                        setVideoStatus('')
+                      }}
+                      disabled={videoGenerating}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:opacity-50 text-white text-sm font-medium transition"
+                    >
+                      {videoGenerating ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          Generate Video
+                        </>
+                      )}
+                    </button>
+
+                    {generatedVideoUrl && (
+                      <>
+                        <div className="mt-3 rounded-lg overflow-hidden bg-black/40 border border-white/10">
+                          <video src={generatedVideoUrl} controls autoPlay loop muted className="w-full max-h-48" />
+                        </div>
+                        <button
+                          onClick={() => {
+                            const oldSrc = selectedMediaElement.src
+                            const newHtml = html.replace(oldSrc, generatedVideoUrl)
+                            if (newHtml !== html) {
+                              setHtml(newHtml)
+                              addToHistory(newHtml, 'Replaced video with AI-generated')
+                              addTerminalLine('success', '✓ Video replaced!')
+                            }
+                            setShowMediaReplacer(false)
+                            setSelectedMediaElement(null)
+                            setGeneratedVideoUrl(null)
+                          }}
+                          className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white text-sm font-medium transition"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                          Apply Generated Video
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      const newHtml = html.replace(selectedMediaElement.outerHTML, '')
+                      if (newHtml !== html) {
+                        setHtml(newHtml)
+                        addToHistory(newHtml, `Deleted ${selectedMediaElement.type}`)
+                        addTerminalLine('success', `✓ ${selectedMediaElement.type === 'image' ? 'Image' : 'Video'} deleted!`)
+                      }
+                      setShowMediaReplacer(false)
+                      setSelectedMediaElement(null)
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 text-sm font-medium transition"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowMediaReplacer(false)
+                      setSelectedMediaElement(null)
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 text-sm font-medium transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Keyboard Shortcuts Modal */}
+      <AnimatePresence>
+        {showShortcuts && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+            onClick={() => setShowShortcuts(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-2xl mx-4 rounded-2xl bg-zinc-900 border border-white/[0.1] shadow-2xl overflow-hidden max-h-[80vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-white/[0.08] flex items-center justify-between sticky top-0 bg-zinc-900 z-10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center border border-amber-500/20">
+                    <Command className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-white">Keyboard Shortcuts</h2>
+                    <p className="text-xs text-zinc-500">Press ? to toggle this panel</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowShortcuts(false)}
+                  className="p-2 rounded-lg hover:bg-white/[0.05] transition-colors"
+                >
+                  <X className="w-5 h-5 text-zinc-400" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* General Shortcuts */}
+                <div>
+                  <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                    <span className="w-5 h-5 rounded bg-blue-500/20 flex items-center justify-center text-xs">⌘</span>
+                    General
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { keys: ['⌘', 'K'], desc: 'Open Command Palette' },
+                      { keys: ['⌘', '/'], desc: 'Toggle Shortcuts' },
+                      { keys: ['⌘', 'S'], desc: 'Save Project' },
+                      { keys: ['⌘', 'Z'], desc: 'Undo' },
+                      { keys: ['⌘', '⇧', 'Z'], desc: 'Redo' },
+                      { keys: ['Esc'], desc: 'Close Modal / Deselect' },
+                    ].map((shortcut, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.03] border border-white/[0.05]">
+                        <span className="text-sm text-zinc-400">{shortcut.desc}</span>
+                        <div className="flex gap-1">
+                          {shortcut.keys.map((key, i) => (
+                            <kbd key={i} className="px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-xs font-mono text-zinc-300">{key}</kbd>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* View Shortcuts */}
+                <div>
+                  <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-purple-400" />
+                    View
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { keys: ['⌘', 'P'], desc: 'Toggle Preview Mode' },
+                      { keys: ['⌘', '⇧', 'P'], desc: 'Code Mode' },
+                      { keys: ['F'], desc: 'Toggle Focus Mode' },
+                    ].map((shortcut, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.03] border border-white/[0.05]">
+                        <span className="text-sm text-zinc-400">{shortcut.desc}</span>
+                        <div className="flex gap-1">
+                          {shortcut.keys.map((key, i) => (
+                            <kbd key={i} className="px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-xs font-mono text-zinc-300">{key}</kbd>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Element Shortcuts */}
+                <div>
+                  <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                    <MousePointer2 className="w-4 h-4 text-emerald-400" />
+                    When Element Selected
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { keys: ['Delete'], desc: 'Delete Element' },
+                      { keys: ['Backspace'], desc: 'Delete Element' },
+                      { keys: ['⌘', 'D'], desc: 'Duplicate Element' },
+                      { keys: ['Esc'], desc: 'Deselect Element' },
+                    ].map((shortcut, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.03] border border-white/[0.05]">
+                        <span className="text-sm text-zinc-400">{shortcut.desc}</span>
+                        <div className="flex gap-1">
+                          {shortcut.keys.map((key, i) => (
+                            <kbd key={i} className="px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-xs font-mono text-zinc-300">{key}</kbd>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Pro Tips */}
+                <div className="p-4 rounded-xl bg-gradient-to-br from-violet-500/10 to-purple-500/10 border border-violet-500/20">
+                  <h3 className="text-sm font-semibold text-violet-300 mb-2 flex items-center gap-2">
+                    <Lightbulb className="w-4 h-4" />
+                    Pro Tips
+                  </h3>
+                  <ul className="text-sm text-zinc-400 space-y-1.5">
+                    <li>• Right-click on any element for a context menu with more options</li>
+                    <li>• Use the AI chat to describe changes - it understands natural language</li>
+                    <li>• Press ⌘K to quickly navigate between panels</li>
+                    <li>• Click on text elements in preview to edit them directly</li>
+                  </ul>
+                </div>
+              </div>
             </motion.div>
           </motion.div>
         )}
@@ -5560,12 +8195,399 @@ ${html}
         )}
       </AnimatePresence>
 
+      {/* Smart Image Insertion Panel */}
+      <AnimatePresence>
+        {showImageInsertPanel && pendingImageUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowImageInsertPanel(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-2xl bg-zinc-900 rounded-2xl border border-white/10 shadow-2xl overflow-hidden"
+            >
+              {/* Header */}
+              <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+                    <ImageIcon className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-white">Insert Image</h2>
+                    <p className="text-xs text-zinc-400">{pendingImageName}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowImageInsertPanel(false)}
+                  className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+                >
+                  <X className="w-5 h-5 text-zinc-400" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-5">
+                {/* Preview Image */}
+                <div className="flex justify-center">
+                  <img
+                    src={pendingImageUrl}
+                    alt={pendingImageName}
+                    className="max-h-40 rounded-lg border border-white/10 object-contain"
+                  />
+                </div>
+
+                {/* Size Options */}
+                <div>
+                  <label className="block text-xs font-medium text-zinc-400 mb-2">Image Size</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { value: 'thumbnail' as const, label: 'Thumbnail', desc: '80px' },
+                      { value: 'small' as const, label: 'Small', desc: '192px' },
+                      { value: 'medium' as const, label: 'Medium', desc: '448px' },
+                      { value: 'large' as const, label: 'Large', desc: '672px' },
+                      { value: 'full' as const, label: 'Full Width', desc: '100%' },
+                    ].map(size => (
+                      <button
+                        key={size.value}
+                        onClick={() => setImageInsertSize(size.value)}
+                        className={cn(
+                          "px-3 py-2 rounded-lg text-sm font-medium transition-all flex flex-col items-center",
+                          imageInsertSize === size.value
+                            ? "bg-violet-500/20 text-violet-300 border border-violet-500/50"
+                            : "bg-white/5 text-zinc-400 border border-white/10 hover:bg-white/10"
+                        )}
+                      >
+                        <span>{size.label}</span>
+                        <span className="text-[10px] opacity-60">{size.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Position Options */}
+                <div>
+                  <label className="block text-xs font-medium text-zinc-400 mb-2">Insert Position</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { value: 'hero' as const, label: 'Hero', icon: Rocket },
+                      { value: 'after-hero' as const, label: 'After Hero', icon: ArrowRight },
+                      { value: 'section' as const, label: 'New Section', icon: Layout },
+                      { value: 'footer' as const, label: 'Before Footer', icon: ChevronDown },
+                    ].map(pos => {
+                      const Icon = pos.icon
+                      return (
+                        <button
+                          key={pos.value}
+                          onClick={() => setImageInsertPosition(pos.value)}
+                          className={cn(
+                            "px-3 py-3 rounded-lg text-xs font-medium transition-all flex flex-col items-center gap-1",
+                            imageInsertPosition === pos.value
+                              ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/50"
+                              : "bg-white/5 text-zinc-400 border border-white/10 hover:bg-white/10"
+                          )}
+                        >
+                          <Icon className="w-4 h-4" />
+                          <span>{pos.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Replace Existing Image */}
+                {websiteImages.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-400 mb-2">Or Replace Existing Image</label>
+                    <div className="grid grid-cols-4 gap-2 max-h-32 overflow-y-auto p-2 bg-white/[0.02] rounded-lg border border-white/10">
+                      {websiteImages.map((img, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => performImageInsertion(img.index)}
+                          className="group relative rounded-lg overflow-hidden border border-white/10 hover:border-amber-500/50 transition-all aspect-video"
+                        >
+                          <img
+                            src={img.src}
+                            alt={`Image ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <div className="text-center">
+                              <ArrowRight className="w-4 h-4 text-amber-400 mx-auto" />
+                              <span className="text-[9px] text-white font-medium">Replace</span>
+                            </div>
+                          </div>
+                          <span className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/70 text-[8px] text-white rounded">
+                            {img.context}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setShowImageInsertPanel(false)}
+                    className="flex-1 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 text-sm font-medium transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => performImageInsertion()}
+                    className="flex-1 px-4 py-2.5 rounded-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-400 hover:to-fuchsia-400 text-white text-sm font-medium transition-all flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Insert Image
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Onboarding Tour */}
       <OnboardingTour
         isOpen={showOnboarding}
         onClose={() => setShowOnboarding(false)}
         onComplete={handleOnboardingComplete}
       />
+
+      {/* Right-Click Context Menu */}
+      <AnimatePresence>
+        {contextMenu.show && contextMenu.element && (
+          <>
+            {/* Invisible backdrop to catch clicks */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={closeContextMenu}
+              onContextMenu={(e) => { e.preventDefault(); closeContextMenu() }}
+              className="fixed inset-0 z-[299]"
+            />
+            {/* Context menu */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: -5 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -5 }}
+              transition={{ duration: 0.12, ease: 'easeOut' }}
+              style={{
+                position: 'fixed',
+                left: getContextMenuPosition().x,
+                top: getContextMenuPosition().y,
+                zIndex: 300
+              }}
+              className={cn(
+                "w-52 py-1.5 backdrop-blur-xl border rounded-xl shadow-2xl",
+                isDark
+                  ? "bg-slate-900/95 border-slate-700/50 shadow-black/60 ring-1 ring-white/5"
+                  : "bg-white/95 border-slate-200 shadow-slate-300/50"
+              )}
+            >
+              {/* Compact header */}
+              <div className={cn(
+                "px-3 py-2 border-b flex items-center gap-2",
+                isDark ? "border-slate-700/50 bg-slate-800/30" : "border-slate-100 bg-slate-50/50"
+              )}>
+                <span className={cn(
+                  "text-[10px] px-1.5 py-0.5 rounded font-mono font-medium",
+                  isDark ? "bg-violet-500/20 text-violet-300" : "bg-violet-100 text-violet-600"
+                )}>
+                  {contextMenu.element.tagName.toLowerCase()}
+                </span>
+                {contextMenu.element.textContent && (
+                  <span className={cn("text-[10px] truncate flex-1", isDark ? "text-slate-400" : "text-slate-500")}>
+                    {contextMenu.element.textContent.slice(0, 25)}...
+                  </span>
+                )}
+              </div>
+
+              {/* Menu items */}
+              <div className="py-1">
+                {/* Primary action based on element type */}
+                {contextMenu.element.isImage ? (
+                  <>
+                    <button onClick={contextMenuActions.replaceImage} className={cn("w-full px-3 py-2 flex items-center gap-2.5 transition-colors text-left", isDark ? "hover:bg-violet-500/15" : "hover:bg-violet-50")}>
+                      <ImageIcon className="w-4 h-4 text-violet-400" />
+                      <span className={cn("text-[13px] font-medium", isDark ? "text-slate-100" : "text-slate-800")}>Replace Image</span>
+                    </button>
+                    <button onClick={contextMenuActions.copyImageUrl} className={cn("w-full px-3 py-2 flex items-center gap-2.5 transition-colors text-left", isDark ? "hover:bg-slate-700/50" : "hover:bg-slate-100")}>
+                      <LinkIcon className={cn("w-4 h-4", isDark ? "text-slate-400" : "text-slate-500")} />
+                      <span className={cn("text-[13px]", isDark ? "text-slate-200" : "text-slate-700")}>Copy URL</span>
+                    </button>
+                  </>
+                ) : contextMenu.element.isLink ? (
+                  <>
+                    <button onClick={contextMenuActions.editLink} className={cn("w-full px-3 py-2 flex items-center gap-2.5 transition-colors text-left", isDark ? "hover:bg-blue-500/15" : "hover:bg-blue-50")}>
+                      <Edit3 className="w-4 h-4 text-blue-400" />
+                      <span className={cn("text-[13px] font-medium", isDark ? "text-slate-100" : "text-slate-800")}>Edit Link</span>
+                    </button>
+                    <button onClick={contextMenuActions.openLink} className={cn("w-full px-3 py-2 flex items-center gap-2.5 transition-colors text-left", isDark ? "hover:bg-slate-700/50" : "hover:bg-slate-100")}>
+                      <ExternalLink className={cn("w-4 h-4", isDark ? "text-slate-400" : "text-slate-500")} />
+                      <span className={cn("text-[13px]", isDark ? "text-slate-200" : "text-slate-700")}>Open in New Tab</span>
+                    </button>
+                  </>
+                ) : contextMenu.element.isText ? (
+                  <>
+                    <button onClick={contextMenuActions.editText} className={cn("w-full px-3 py-2 flex items-center gap-2.5 transition-colors text-left", isDark ? "hover:bg-emerald-500/15" : "hover:bg-emerald-50")}>
+                      <Edit3 className="w-4 h-4 text-emerald-400" />
+                      <span className={cn("text-[13px] font-medium", isDark ? "text-slate-100" : "text-slate-800")}>Edit Text</span>
+                    </button>
+                    <button onClick={contextMenuActions.copyText} className={cn("w-full px-3 py-2 flex items-center gap-2.5 transition-colors text-left", isDark ? "hover:bg-slate-700/50" : "hover:bg-slate-100")}>
+                      <Copy className={cn("w-4 h-4", isDark ? "text-slate-400" : "text-slate-500")} />
+                      <span className={cn("text-[13px]", isDark ? "text-slate-200" : "text-slate-700")}>Copy Text</span>
+                    </button>
+                  </>
+                ) : null}
+
+                {/* Divider */}
+                <div className={cn("my-1.5 mx-2 border-t", isDark ? "border-slate-700/50" : "border-slate-200")} />
+
+                {/* Insert image option (for non-image elements) */}
+                {!contextMenu.element.isImage && (
+                  <button onClick={contextMenuActions.insertImageAfter} className={cn("w-full px-3 py-2 flex items-center gap-2.5 transition-colors text-left", isDark ? "hover:bg-violet-500/15" : "hover:bg-violet-50")}>
+                    <ImagePlus className="w-4 h-4 text-violet-400" />
+                    <span className={cn("text-[13px]", isDark ? "text-slate-200" : "text-slate-700")}>Add Image Here</span>
+                  </button>
+                )}
+
+                {/* Quick Color Picker */}
+                {!contextMenu.element.isImage && (
+                  <div className="px-3 py-2">
+                    <div className={cn("text-[11px] mb-1.5 font-medium", isDark ? "text-slate-400" : "text-slate-500")}>Quick Colors</div>
+                    <div className="flex gap-1">
+                      {[
+                        { color: '#f43f5e', name: 'Red' },
+                        { color: '#f97316', name: 'Orange' },
+                        { color: '#eab308', name: 'Yellow' },
+                        { color: '#22c55e', name: 'Green' },
+                        { color: '#3b82f6', name: 'Blue' },
+                        { color: '#8b5cf6', name: 'Purple' },
+                        { color: '#ffffff', name: 'White' },
+                        { color: '#000000', name: 'Black' },
+                      ].map((c) => (
+                        <button
+                          key={c.color}
+                          title={`Change text color to ${c.name}`}
+                          onClick={() => {
+                            if (!contextMenu.element) return
+                            const tagName = contextMenu.element.tagName.toLowerCase()
+                            const outerHTML = contextMenu.element.outerHTML
+                            // Add or update style attribute
+                            let newHtml: string
+                            if (outerHTML.includes('style="')) {
+                              // Has existing style - add/update color
+                              newHtml = outerHTML.replace(/style="([^"]*)"/, (match, styles) => {
+                                if (styles.includes('color:')) {
+                                  return `style="${styles.replace(/color:[^;]+;?/, `color:${c.color};`)}"`
+                                }
+                                return `style="${styles};color:${c.color}"`
+                              })
+                            } else {
+                              // No existing style - add it
+                              newHtml = outerHTML.replace(new RegExp(`<${tagName}`), `<${tagName} style="color:${c.color}"`)
+                            }
+                            const updatedHtml = html.replace(outerHTML, newHtml)
+                            if (updatedHtml !== html) {
+                              setHtml(updatedHtml)
+                              addToHistory(updatedHtml, `Changed text color to ${c.name}`)
+                              addToast('success', `Text color changed to ${c.name}`)
+                            }
+                            closeContextMenu()
+                          }}
+                          className={cn(
+                            "w-5 h-5 rounded-full border-2 transition-transform hover:scale-110",
+                            c.color === '#ffffff' ? "border-slate-400" : "border-transparent",
+                            c.color === '#000000' ? "border-slate-600" : ""
+                          )}
+                          style={{ backgroundColor: c.color }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Common actions */}
+                <button onClick={contextMenuActions.duplicate} className={cn("w-full px-3 py-2 flex items-center gap-2.5 transition-colors text-left", isDark ? "hover:bg-slate-700/50" : "hover:bg-slate-100")}>
+                  <Copy className={cn("w-4 h-4", isDark ? "text-slate-400" : "text-slate-500")} />
+                  <span className={cn("text-[13px]", isDark ? "text-slate-200" : "text-slate-700")}>Duplicate</span>
+                </button>
+                <button onClick={contextMenuActions.copyHtml} className={cn("w-full px-3 py-2 flex items-center gap-2.5 transition-colors text-left", isDark ? "hover:bg-slate-700/50" : "hover:bg-slate-100")}>
+                  <Code className={cn("w-4 h-4", isDark ? "text-slate-400" : "text-slate-500")} />
+                  <span className={cn("text-[13px]", isDark ? "text-slate-200" : "text-slate-700")}>Copy HTML</span>
+                </button>
+
+                {/* Divider */}
+                <div className={cn("my-1.5 mx-2 border-t", isDark ? "border-slate-700/50" : "border-slate-200")} />
+
+                {/* Delete - always last */}
+                <button onClick={contextMenuActions.delete} className={cn("w-full px-3 py-2 flex items-center gap-2.5 transition-colors text-left", isDark ? "hover:bg-red-500/15" : "hover:bg-red-50")}>
+                  <Trash2 className="w-4 h-4 text-red-400" />
+                  <span className={cn("text-[13px] font-medium", isDark ? "text-red-400" : "text-red-500")}>Delete</span>
+                  <span className={cn("ml-auto text-[10px] font-medium", isDark ? "text-slate-500" : "text-slate-400")}>⌫</span>
+                </button>
+              </div>
+
+              {/* Footer hint */}
+              <div className={cn("px-3 py-1.5 border-t", isDark ? "border-slate-700/50 bg-slate-800/20" : "border-slate-100 bg-slate-50/50")}>
+                <span className={cn("text-[10px]", isDark ? "text-slate-500" : "text-slate-400")}>Press <kbd className={cn("px-1 py-0.5 rounded text-[9px] font-mono", isDark ? "bg-slate-700 text-slate-300" : "bg-slate-200 text-slate-600")}>Esc</kbd> to close</span>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Toast Notifications */}
+      <div className="fixed bottom-4 right-4 z-[200] flex flex-col gap-2 pointer-events-none">
+        <AnimatePresence mode="popLayout">
+          {toasts.map((toast) => {
+            const icons = {
+              success: <CheckCircle2 className="w-4 h-4 text-emerald-400" />,
+              error: <XCircle className="w-4 h-4 text-red-400" />,
+              warning: <AlertTriangle className="w-4 h-4 text-amber-400" />,
+              info: <Info className="w-4 h-4 text-blue-400" />
+            }
+            const bgColors = {
+              success: 'bg-emerald-500/10 border-emerald-500/20',
+              error: 'bg-red-500/10 border-red-500/20',
+              warning: 'bg-amber-500/10 border-amber-500/20',
+              info: 'bg-blue-500/10 border-blue-500/20'
+            }
+
+            return (
+              <motion.div
+                key={toast.id}
+                layout
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, x: 100, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                className={cn(
+                  "pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg border backdrop-blur-xl shadow-lg min-w-[280px] max-w-[400px]",
+                  bgColors[toast.type],
+                  "bg-zinc-900/90"
+                )}
+              >
+                {icons[toast.type]}
+                <span className="flex-1 text-sm text-white/90">{toast.message}</span>
+                <button
+                  onClick={() => removeToast(toast.id)}
+                  className="p-1 rounded hover:bg-white/10 text-white/40 hover:text-white/80 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </motion.div>
+            )
+          })}
+        </AnimatePresence>
+      </div>
     </div>
   )
 }

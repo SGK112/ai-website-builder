@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 
 const RENDER_API_KEY = process.env.RENDER_API_KEY
 const GITHUB_TOKEN = process.env.GITHUB_ACCESS_TOKEN
@@ -10,6 +13,21 @@ interface ProjectFile {
 
 export async function POST(req: NextRequest) {
   try {
+    // SECURITY: Require authentication to deploy
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    // Rate limit: 10 deployments per hour
+    try {
+      checkApiRateLimit(req, 'deployment')
+    } catch (error) {
+      const rateLimitResponse = handleRateLimitError(error)
+      if (rateLimitResponse) return rateLimitResponse
+      throw error
+    }
+
     const { projectId, files, name } = await req.json()
 
     if (!files || !name) {

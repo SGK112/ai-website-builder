@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
 
-// GET - List all submissions for a form
+// GET - List all submissions for a form (requires auth - form owner only)
 export async function GET(
   request: NextRequest,
   { params }: { params: { formId: string } }
 ) {
   try {
+    // SECURITY: Require authentication to view form submissions
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
     const { formId } = params
 
     if (!ObjectId.isValid(formId)) {
@@ -16,6 +24,14 @@ export async function GET(
 
     const client = await clientPromise
     const db = client.db('ai-website-builder')
+
+    // SECURITY: Verify user owns this form
+    const formsCollection = db.collection('forms')
+    const form = await formsCollection.findOne({ _id: new ObjectId(formId) })
+    if (!form || form.userId !== session.user.id) {
+      return NextResponse.json({ error: 'Form not found or access denied' }, { status: 404 })
+    }
+
     const collection = db.collection('form_submissions')
 
     const submissions = await collection

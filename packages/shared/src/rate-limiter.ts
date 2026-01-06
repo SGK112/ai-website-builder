@@ -122,6 +122,27 @@ export const rateLimitConfigs = {
     message: 'Free tier AI limit reached. Upgrade to Pro for more generations.',
   },
 
+  // RunPod GPU operations (expensive, cold starts)
+  runpodGpu: {
+    maxRequests: 10,
+    windowMs: 60 * 1000, // 10 GPU operations per minute
+    message: 'GPU processing limit reached. Please wait before running more GPU tasks.',
+  },
+
+  // RunPod image generation
+  runpodImage: {
+    maxRequests: 15,
+    windowMs: 60 * 1000, // 15 images per minute
+    message: 'Image generation limit reached. Please wait before generating more images.',
+  },
+
+  // RunPod video generation (very expensive)
+  runpodVideo: {
+    maxRequests: 3,
+    windowMs: 60 * 60 * 1000, // 3 videos per hour
+    message: 'Video generation limit reached. Videos are resource-intensive, please wait.',
+  },
+
   // Deployment rate limit
   deployment: {
     maxRequests: 10,

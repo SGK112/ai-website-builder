@@ -1,6 +1,11 @@
 import crypto from 'crypto'
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-32-char-encryption-key!!'
+// SECURITY: Require encryption key to be set in environment
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY
+if (!ENCRYPTION_KEY) {
+  console.warn('WARNING: ENCRYPTION_KEY environment variable is not set. Encryption will fail.')
+}
+
 const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 16
 const AUTH_TAG_LENGTH = 16
@@ -10,6 +15,11 @@ const AUTH_TAG_LENGTH = 16
  */
 export function encrypt(text: string): string {
   if (!text) return ''
+
+  // SECURITY: Fail if encryption key is not configured
+  if (!ENCRYPTION_KEY) {
+    throw new Error('Encryption key not configured. Set ENCRYPTION_KEY environment variable.')
+  }
 
   try {
     // Ensure key is exactly 32 bytes
@@ -41,6 +51,11 @@ export function encrypt(text: string): string {
  */
 export function decrypt(encryptedText: string): string {
   if (!encryptedText) return ''
+
+  // SECURITY: Fail if encryption key is not configured
+  if (!ENCRYPTION_KEY) {
+    throw new Error('Encryption key not configured. Set ENCRYPTION_KEY environment variable.')
+  }
 
   try {
     // Split the encrypted text
