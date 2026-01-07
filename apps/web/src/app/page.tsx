@@ -551,6 +551,182 @@ export default function HomePage() {
               </div>
             </main>
 
+            {/* Animated Hero Showcase - Browser Mockup */}
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.5 }}
+              className="relative px-6 py-16 -mt-8"
+            >
+              <div className="max-w-4xl mx-auto">
+                {/* Floating Browser Mockup */}
+                <div className={cn(
+                  "relative rounded-2xl overflow-hidden shadow-2xl",
+                  isDark
+                    ? "bg-zinc-900 ring-1 ring-white/10 shadow-violet-500/10"
+                    : "bg-white ring-1 ring-black/10 shadow-xl"
+                )}>
+                  {/* Browser Header */}
+                  <div className={cn(
+                    "flex items-center gap-2 px-4 py-3 border-b",
+                    isDark ? "bg-zinc-800/50 border-white/5" : "bg-zinc-100 border-zinc-200"
+                  )}>
+                    <div className="flex gap-1.5">
+                      <div className="w-3 h-3 rounded-full bg-red-500/80" />
+                      <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
+                      <div className="w-3 h-3 rounded-full bg-green-500/80" />
+                    </div>
+                    <div className={cn(
+                      "flex-1 mx-4 px-4 py-1.5 rounded-lg text-xs flex items-center gap-2",
+                      isDark ? "bg-zinc-700/50 text-zinc-400" : "bg-white text-zinc-500"
+                    )}>
+                      <Globe className="w-3 h-3" />
+                      <span>your-website.com</span>
+                    </div>
+                  </div>
+
+                  {/* Animated Website Preview */}
+                  <div className="relative aspect-[16/9] overflow-hidden">
+                    {/* Background gradient animation */}
+                    <div className={cn(
+                      "absolute inset-0",
+                      isDark
+                        ? "bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900"
+                        : "bg-gradient-to-br from-zinc-50 via-white to-zinc-100"
+                    )} />
+
+                    {/* Animated content blocks */}
+                    <div className="absolute inset-0 p-6">
+                      {/* Hero section simulation */}
+                      <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 1, duration: 0.5 }}
+                        className="mb-4"
+                      >
+                        <div className={cn(
+                          "h-3 w-32 rounded mb-2",
+                          isDark ? "bg-violet-500/30" : "bg-violet-200"
+                        )} />
+                        <div className={cn(
+                          "h-6 w-64 rounded mb-2",
+                          isDark ? "bg-white/20" : "bg-zinc-300"
+                        )} />
+                        <div className={cn(
+                          "h-3 w-48 rounded",
+                          isDark ? "bg-white/10" : "bg-zinc-200"
+                        )} />
+                      </motion.div>
+
+                      {/* Feature cards simulation */}
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 1.5, duration: 0.5 }}
+                        className="grid grid-cols-3 gap-3 mb-4"
+                      >
+                        {[0, 1, 2].map((i) => (
+                          <motion.div
+                            key={i}
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: 1.7 + i * 0.2, duration: 0.4 }}
+                            className={cn(
+                              "p-3 rounded-lg",
+                              isDark ? "bg-white/5" : "bg-zinc-100"
+                            )}
+                          >
+                            <div className={cn(
+                              "w-8 h-8 rounded-lg mb-2",
+                              i === 0 ? "bg-violet-500/50" : i === 1 ? "bg-fuchsia-500/50" : "bg-pink-500/50"
+                            )} />
+                            <div className={cn("h-2 w-full rounded mb-1", isDark ? "bg-white/20" : "bg-zinc-300")} />
+                            <div className={cn("h-2 w-3/4 rounded", isDark ? "bg-white/10" : "bg-zinc-200")} />
+                          </motion.div>
+                        ))}
+                      </motion.div>
+
+                      {/* Image placeholder */}
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 2.3, duration: 0.5 }}
+                        className={cn(
+                          "relative h-24 rounded-xl overflow-hidden",
+                          isDark ? "bg-gradient-to-r from-violet-600/30 via-fuchsia-600/30 to-pink-600/30" : "bg-gradient-to-r from-violet-200 via-fuchsia-200 to-pink-200"
+                        )}
+                      >
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                            className={cn(
+                              "w-12 h-12 rounded-full border-2 border-dashed",
+                              isDark ? "border-white/20" : "border-zinc-400/30"
+                            )}
+                          />
+                        </div>
+                      </motion.div>
+                    </div>
+
+                    {/* Sparkle effects */}
+                    <motion.div
+                      animate={{
+                        opacity: [0.3, 0.6, 0.3],
+                        scale: [1, 1.2, 1]
+                      }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                      className="absolute top-4 right-4"
+                    >
+                      <Sparkles className={cn("w-6 h-6", isDark ? "text-violet-400" : "text-violet-500")} />
+                    </motion.div>
+
+                    {/* AI Building indicator */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.8 }}
+                      className={cn(
+                        "absolute bottom-4 left-4 flex items-center gap-2 px-3 py-2 rounded-full text-xs font-medium",
+                        isDark
+                          ? "bg-violet-500/20 text-violet-300 border border-violet-500/30"
+                          : "bg-violet-100 text-violet-700 border border-violet-200"
+                      )}
+                    >
+                      <motion.div
+                        animate={{ opacity: [1, 0.5, 1] }}
+                        transition={{ duration: 1.5, repeat: Infinity }}
+                        className="w-2 h-2 rounded-full bg-violet-500"
+                      />
+                      AI is building your site...
+                    </motion.div>
+                  </div>
+                </div>
+
+                {/* Floating decorative elements */}
+                <motion.div
+                  animate={{ y: [0, -10, 0] }}
+                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                  className={cn(
+                    "absolute -left-4 top-1/4 w-20 h-20 rounded-2xl rotate-12",
+                    isDark
+                      ? "bg-gradient-to-br from-violet-600/20 to-fuchsia-600/20 backdrop-blur-sm"
+                      : "bg-gradient-to-br from-violet-200/50 to-fuchsia-200/50"
+                  )}
+                />
+                <motion.div
+                  animate={{ y: [0, 10, 0] }}
+                  transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+                  className={cn(
+                    "absolute -right-4 bottom-1/4 w-16 h-16 rounded-xl -rotate-12",
+                    isDark
+                      ? "bg-gradient-to-br from-pink-600/20 to-orange-600/20 backdrop-blur-sm"
+                      : "bg-gradient-to-br from-pink-200/50 to-orange-200/50"
+                  )}
+                />
+              </div>
+            </motion.div>
+
             {/* Apple-Style Glassmorphic Template Showcase */}
             <div className="relative px-6 pb-32 -mt-24">
               {/* Decorative gradient orbs */}
