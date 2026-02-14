@@ -4,6 +4,9 @@ import { authOptions } from './auth'
 
 const BUILDER_API_KEY = process.env.BUILDER_API_KEY
 
+// Deterministic ObjectId for the Aria service account (24 hex chars)
+const ARIA_SERVICE_ID = 'a41a000000000000000a41a0'
+
 interface ApiUser {
   id: string
   email: string
@@ -29,8 +32,10 @@ export async function getApiSession(req: NextRequest): Promise<ApiSession | null
   // Check API key first (server-to-server from Aria)
   const apiKey = req.headers.get('x-api-key')
   if (apiKey && BUILDER_API_KEY && apiKey === BUILDER_API_KEY) {
-    // Optional: allow caller to specify which user's projects to access
-    const userId = req.headers.get('x-user-id') || 'aria-service'
+    // Use caller-specified user ID if it's a valid ObjectId, otherwise use Aria's fixed ID
+    const requestedId = req.headers.get('x-user-id')
+    const isValidObjectId = requestedId && /^[a-f0-9]{24}$/i.test(requestedId)
+    const userId = isValidObjectId ? requestedId : ARIA_SERVICE_ID
     const userName = req.headers.get('x-user-name') || 'Aria'
 
     return {
