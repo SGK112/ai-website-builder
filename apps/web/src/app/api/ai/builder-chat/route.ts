@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getApiSession } from '@/lib/api-auth'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 import OpenAI from 'openai'
 
@@ -87,8 +86,8 @@ Remember: Keep it conversational and fun! You're helping them bring their vision
 
 export async function POST(request: NextRequest) {
   try {
-    // SECURITY: Require authentication for expensive API calls
-    const session = await getServerSession(authOptions)
+    // SECURITY: Require authentication (supports API key for Aria)
+    const session = await getApiSession(request)
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }

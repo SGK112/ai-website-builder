@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getApiSession } from '@/lib/api-auth'
 import { connectDB } from '@/lib/db'
 import { Project } from '@ai-website-builder/database'
 import mongoose from 'mongoose'
@@ -8,7 +7,7 @@ import mongoose from 'mongoose'
 // GET /api/projects - List all projects for the authenticated user
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getApiSession(req)
 
     // SECURITY: Require authentication to list projects
     if (!session?.user?.id) {
@@ -40,7 +39,7 @@ export async function GET(req: NextRequest) {
 // AI generation happens in the builder via /api/ai/build
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getApiSession(req)
 
     const body = await req.json()
     const { name, description, type, config, preferredAgent } = body

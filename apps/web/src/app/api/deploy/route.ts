@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getApiSession } from '@/lib/api-auth'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 
 const RENDER_API_KEY = process.env.RENDER_API_KEY
@@ -13,8 +12,8 @@ interface ProjectFile {
 
 export async function POST(req: NextRequest) {
   try {
-    // SECURITY: Require authentication to deploy
-    const session = await getServerSession(authOptions)
+    // SECURITY: Require authentication to deploy (supports API key for Aria)
+    const session = await getApiSession(req)
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }

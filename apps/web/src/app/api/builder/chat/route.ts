@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getApiSession } from '@/lib/api-auth'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -165,8 +164,8 @@ function truncateContent(content: string, maxLength: number): string {
 
 export async function POST(req: NextRequest) {
   try {
-    // SECURITY: Require authentication for expensive API calls
-    const session = await getServerSession(authOptions)
+    // SECURITY: Require authentication (supports API key for Aria)
+    const session = await getApiSession(req)
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }

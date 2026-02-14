@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import Anthropic from '@anthropic-ai/sdk'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getApiSession } from '@/lib/api-auth'
 import { connectDB } from '@/lib/db'
 import { generateTextFree, FreeAIProvider } from '@/lib/free-ai-providers'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
@@ -1644,8 +1643,8 @@ export async function POST(req: NextRequest) {
   let userId: string | null = null
 
   try {
-    // SECURITY: Require authentication
-    session = await getServerSession(authOptions)
+    // SECURITY: Require authentication (supports API key for Aria)
+    session = await getApiSession(req)
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
