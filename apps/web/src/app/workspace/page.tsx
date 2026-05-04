@@ -1274,7 +1274,11 @@ function WorkspaceContent() {
   const [integrationFilter, setIntegrationFilter] = useState<string>('all')
 
   // AI Model Selection state
-  const [selectedModel, setSelectedModel] = useState<AIModel>(aiModels[0])
+  const [selectedModel, setSelectedModel] = useState<AIModel>(
+    aiModels.find(m => m.id === 'claude-haiku') ||
+    aiModels.find(m => m.id === 'gpt-4o-mini') ||
+    aiModels[0]
+  )
   const [showApiKeyModal, setShowApiKeyModal] = useState(false)
   const [userCredits, setUserCredits] = useState<number | null>(null)
   const [apiKeys, setApiKeys] = useState<{
