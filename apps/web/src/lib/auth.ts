@@ -2,18 +2,8 @@ import { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
 import GitHubProvider from 'next-auth/providers/github'
-import { createClient } from '@supabase/supabase-js'
-import bcrypt from 'bcryptjs'
-
-// Supabase client for auth operations
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-function getSupabase() {
-  return createClient(supabaseUrl, supabaseServiceKey, {
-    auth: { persistSession: false }
-  })
-}
+import { connectDB } from './db'
+import { User } from '@ai-website-builder/database'
 
 declare module 'next-auth' {
   interface Session {
@@ -50,32 +40,28 @@ const providers: any[] = [
         throw new Error('Email and password required')
       }
 
-      const supabase = getSupabase()
+      await connectDB()
 
-      // Find user by email
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', credentials.email)
-        .single()
+      const user = await User.findOne({ email: credentials.email }).select(
+        '+password'
+      )
 
-      if (error || !user) {
+      if (!user || !user.password) {
         throw new Error('Invalid email or password')
       }
 
-      // Verify password
-      const isValid = await bcrypt.compare(credentials.password, user.password)
+      const isValid = await user.matchPassword(credentials.password)
 
       if (!isValid) {
         throw new Error('Invalid email or password')
       }
 
       return {
-        id: user.id,
+        id: user._id.toString(),
         email: user.email,
         name: user.name,
         image: user.avatar,
-        plan: user.plan || 'free',
+        plan: user.plan,
       }
     },
   }),
@@ -104,48 +90,30 @@ if (process.env.GITHUB_ID && process.env.GITHUB_SECRET) {
 export const authOptions: NextAuthOptions = {
   providers,
   callbacks: {
-    async signIn({ user, account }) {
+    async signIn({ user, account, profile }) {
       if (account?.provider === 'google' || account?.provider === 'github') {
-        const supabase = getSupabase()
+        await connectDB()
 
-        // Check if user exists
-        const { data: existingUser } = await supabase
-          .from('users')
-          .select('*')
-          .eq('email', user.email)
-          .single()
+        const existingUser = await User.findOne({ email: user.email })
 
         if (!existingUser) {
-          // Create new user
-          const { error } = await supabase.from('users').insert({
+          await User.create({
             email: user.email,
             name: user.name || 'User',
             avatar: user.image,
-            google_id: account.provider === 'google' ? account.providerAccountId : null,
-            github_id: account.provider === 'github' ? account.providerAccountId : null,
+            googleId: account.provider === 'google' ? account.providerAccountId : undefined,
+            githubId: account.provider === 'github' ? account.providerAccountId : undefined,
             plan: 'free',
-            created_at: new Date().toISOString(),
           })
-
-          if (error) {
-            console.error('Error creating user:', error)
-            return false
-          }
         } else {
           // Update OAuth IDs if not set
-          const updates: Record<string, string> = {}
-          if (account.provider === 'google' && !existingUser.google_id) {
-            updates.google_id = account.providerAccountId
+          if (account.provider === 'google' && !existingUser.googleId) {
+            existingUser.googleId = account.providerAccountId
+            await existingUser.save()
           }
-          if (account.provider === 'github' && !existingUser.github_id) {
-            updates.github_id = account.providerAccountId
-          }
-
-          if (Object.keys(updates).length > 0) {
-            await supabase
-              .from('users')
-              .update(updates)
-              .eq('id', existingUser.id)
+          if (account.provider === 'github' && !existingUser.githubId) {
+            existingUser.githubId = account.providerAccountId
+            await existingUser.save()
           }
         }
       }
@@ -153,14 +121,9 @@ export const authOptions: NextAuthOptions = {
     },
     async jwt({ token, user, account }) {
       if (user) {
-        const supabase = getSupabase()
-        const { data: dbUser } = await supabase
-          .from('users')
-          .select('id, plan')
-          .eq('email', user.email)
-          .single()
-
-        token.id = dbUser?.id || user.id
+        await connectDB()
+        const dbUser = await User.findOne({ email: user.email })
+        token.id = dbUser?._id.toString() || user.id
         token.plan = dbUser?.plan || 'free'
       }
       // Store GitHub access token when signing in with GitHub

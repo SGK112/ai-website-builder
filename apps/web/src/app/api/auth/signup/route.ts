@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { connectDB } from '@/lib/db'
+import { User } from '@ai-website-builder/database'
 import { z } from 'zod'
-import bcrypt from 'bcryptjs'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-function getSupabase() {
-  return createClient(supabaseUrl, supabaseServiceKey, {
-    auth: { persistSession: false }
-  })
-}
 
 const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -32,15 +23,11 @@ export async function POST(req: NextRequest) {
     }
 
     const { name, email, password } = result.data
-    const supabase = getSupabase()
+
+    await connectDB()
 
     // Check if user already exists
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', email)
-      .single()
-
+    const existingUser = await User.findOne({ email })
     if (existingUser) {
       return NextResponse.json(
         { error: 'An account with this email already exists' },
@@ -48,34 +35,18 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12)
-
     // Create new user
-    const { data: user, error } = await supabase
-      .from('users')
-      .insert({
-        name,
-        email,
-        password: hashedPassword,
-        plan: 'free',
-        created_at: new Date().toISOString(),
-      })
-      .select('id, name, email')
-      .single()
-
-    if (error) {
-      console.error('Supabase error:', error)
-      return NextResponse.json(
-        { error: 'Failed to create account' },
-        { status: 500 }
-      )
-    }
+    const user = await User.create({
+      name,
+      email,
+      password,
+      plan: 'free',
+    })
 
     return NextResponse.json({
       success: true,
       user: {
-        id: user.id,
+        id: user._id.toString(),
         name: user.name,
         email: user.email,
       },
