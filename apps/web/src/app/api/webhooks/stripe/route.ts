@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import Stripe from 'stripe'
-import { getStripe } from '@/lib/stripe'
+import { getStripe, getPlanCredits, type PlanId } from '@/lib/stripe'
 import { connectDB } from '@/lib/db'
 import { User } from '@ai-website-builder/database'
 
@@ -85,19 +85,17 @@ export async function POST(req: NextRequest) {
 
         // Handle subscription
         if (metadata.type === 'subscription' && metadata.planId) {
-          user.plan = metadata.planId as 'free' | 'pro' | 'enterprise'
+          user.plan = metadata.planId as PlanId
           user.stripeCustomerId = session.customer as string
           user.subscriptionStatus = 'active'
 
-          // Add monthly credits based on plan
-          if (metadata.planId === 'pro') {
-            user.credits = (user.credits || 0) + 500
-          } else if (metadata.planId === 'team') {
-            user.credits = (user.credits || 0) + 2000
+          const grant = getPlanCredits(metadata.planId)
+          if (grant > 0) {
+            user.credits = (user.credits || 0) + grant
           }
 
           await user.save()
-          console.log(`Updated user ${user._id} to ${metadata.planId} plan`)
+          console.log(`Updated user ${user._id} to ${metadata.planId} plan (+${grant} credits)`)
         }
 
         break
@@ -138,14 +136,12 @@ export async function POST(req: NextRequest) {
         if (invoice.billing_reason === 'subscription_cycle') {
           const user = await User.findOne({ stripeCustomerId: customerId })
           if (user) {
-            // Add monthly credits based on plan
-            if (user.plan === 'pro') {
-              user.credits = (user.credits || 0) + 500
-            } else if (user.plan === 'team' || user.plan === 'enterprise') {
-              user.credits = (user.credits || 0) + 2000
+            const grant = getPlanCredits(user.plan)
+            if (grant > 0) {
+              user.credits = (user.credits || 0) + grant
+              await user.save()
+              console.log(`Added ${grant} monthly credits to user ${user._id} (${user.plan})`)
             }
-            await user.save()
-            console.log(`Added monthly credits to user ${user._id}`)
           }
         }
         break

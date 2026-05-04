@@ -1,4 +1,22 @@
-// Dynamic import for Stripe to handle module resolution in monorepo
+import {
+  SUBSCRIPTION_PLANS,
+  CREDIT_PACKAGES,
+  CREDIT_COSTS,
+  getPlanCredits,
+  type BillingPeriod,
+  type PlanId,
+  type SubscriptionPlan,
+  type CreditPackage,
+} from './stripe-plans'
+
+export {
+  SUBSCRIPTION_PLANS,
+  CREDIT_PACKAGES,
+  CREDIT_COSTS,
+  getPlanCredits,
+}
+export type { BillingPeriod, PlanId, SubscriptionPlan, CreditPackage }
+
 let stripe: import('stripe').default | null = null
 
 async function initStripe() {
@@ -15,7 +33,6 @@ async function initStripe() {
   }
 }
 
-// Initialize on first use
 const getStripe = async () => {
   if (!stripe && process.env.STRIPE_SECRET_KEY) {
     stripe = await initStripe()
@@ -25,94 +42,6 @@ const getStripe = async () => {
 
 export { getStripe, stripe }
 
-// Credit packages with pricing
-export const CREDIT_PACKAGES = [
-  {
-    id: 'credits_100',
-    name: '100 Credits',
-    credits: 100,
-    price: 999, // $9.99 in cents
-    priceId: process.env.STRIPE_PRICE_100_CREDITS,
-    popular: false,
-  },
-  {
-    id: 'credits_500',
-    name: '500 Credits',
-    credits: 500,
-    price: 3999, // $39.99 in cents
-    priceId: process.env.STRIPE_PRICE_500_CREDITS,
-    popular: true,
-    savings: '20%',
-  },
-  {
-    id: 'credits_1500',
-    name: '1,500 Credits',
-    credits: 1500,
-    price: 9999, // $99.99 in cents
-    priceId: process.env.STRIPE_PRICE_1500_CREDITS,
-    popular: false,
-    savings: '33%',
-  },
-]
-
-// Subscription plans
-export const SUBSCRIPTION_PLANS = [
-  {
-    id: 'free',
-    name: 'Free',
-    price: 0,
-    priceId: null,
-    features: [
-      '3 projects',
-      '100 starting credits',
-      'All integrations',
-      'Community support',
-      'Export code',
-    ],
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    price: 1900, // $19/mo in cents
-    priceId: process.env.STRIPE_PRICE_PRO_MONTHLY,
-    popular: true,
-    features: [
-      'Unlimited projects',
-      '500 credits/month',
-      'Priority AI models',
-      'Priority support',
-      'Custom domains',
-      'Remove branding',
-    ],
-  },
-  {
-    id: 'team',
-    name: 'Team',
-    price: 4900, // $49/mo in cents
-    priceId: process.env.STRIPE_PRICE_TEAM_MONTHLY,
-    features: [
-      'Everything in Pro',
-      '2,000 credits/month',
-      'Team collaboration',
-      'SSO & SAML',
-      'Dedicated support',
-      'SLA guarantee',
-    ],
-  },
-]
-
-// Credit costs for different operations
-export const CREDIT_COSTS = {
-  generate_website: 10,
-  chat_message: 1,
-  image_generation: 5,
-  video_generation: 20,
-  audio_generation: 10,
-  image_enhance: 3,
-  deployment: 0, // Free
-}
-
-// Create checkout session for credit purchase
 export async function createCreditsCheckoutSession(
   userId: string,
   packageId: string,
@@ -129,23 +58,15 @@ export async function createCreditsCheckoutSession(
   if (!creditPackage) {
     throw new Error('Invalid credit package')
   }
+  if (!creditPackage.priceId) {
+    console.error(`Credit package "${packageId}" has no priceId — set STRIPE_CREDIT_${packageId.toUpperCase()}_PRICE_ID`)
+    return null
+  }
 
   const session = await stripeClient.checkout.sessions.create({
     mode: 'payment',
     payment_method_types: ['card'],
-    line_items: [
-      {
-        price_data: {
-          currency: 'usd',
-          product_data: {
-            name: creditPackage.name,
-            description: `${creditPackage.credits} AI generation credits for WebCraft AI`,
-          },
-          unit_amount: creditPackage.price,
-        },
-        quantity: 1,
-      },
-    ],
+    line_items: [{ price: creditPackage.priceId, quantity: 1 }],
     metadata: {
       userId,
       packageId,
@@ -159,13 +80,13 @@ export async function createCreditsCheckoutSession(
   return session.url
 }
 
-// Create checkout session for subscription
 export async function createSubscriptionCheckoutSession(
   userId: string,
   email: string,
   planId: string,
   successUrl: string,
-  cancelUrl: string
+  cancelUrl: string,
+  billingPeriod: BillingPeriod = 'monthly'
 ): Promise<string | null> {
   const stripeClient = await getStripe()
   if (!stripeClient) {
@@ -174,23 +95,25 @@ export async function createSubscriptionCheckoutSession(
   }
 
   const plan = SUBSCRIPTION_PLANS.find((p) => p.id === planId)
-  if (!plan || !plan.priceId) {
+  if (!plan) {
     throw new Error('Invalid subscription plan')
+  }
+
+  const priceId = billingPeriod === 'annual' ? plan.annualPriceId : plan.monthlyPriceId
+  if (!priceId) {
+    console.error(`Plan "${planId}" missing ${billingPeriod} priceId — set STRIPE_${planId.toUpperCase()}_${billingPeriod === 'annual' ? 'ANNUAL_' : ''}PRICE_ID`)
+    return null
   }
 
   const session = await stripeClient.checkout.sessions.create({
     mode: 'subscription',
     payment_method_types: ['card'],
     customer_email: email,
-    line_items: [
-      {
-        price: plan.priceId,
-        quantity: 1,
-      },
-    ],
+    line_items: [{ price: priceId, quantity: 1 }],
     metadata: {
       userId,
       planId,
+      billingPeriod,
       type: 'subscription',
     },
     success_url: successUrl,
@@ -200,7 +123,6 @@ export async function createSubscriptionCheckoutSession(
   return session.url
 }
 
-// Create customer portal session for managing subscription
 export async function createPortalSession(
   customerId: string,
   returnUrl: string

@@ -39,12 +39,15 @@ export async function POST(req: NextRequest) {
         )
       }
 
+      const period = billingPeriod === 'annual' || billingPeriod === 'yearly' ? 'annual' : 'monthly'
+
       const checkoutUrl = await createSubscriptionCheckoutSession(
         session.user.id,
         session.user.email,
         planId,
         successUrl,
-        cancelUrl
+        cancelUrl,
+        period
       )
 
       if (!checkoutUrl) {

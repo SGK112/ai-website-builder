@@ -9,7 +9,7 @@ export interface IUser extends Document {
   avatar?: string
   googleId?: string
   githubId?: string
-  plan: 'free' | 'pro' | 'enterprise'
+  plan: 'free' | 'starter' | 'pro' | 'scale' | 'enterprise'
   stripeCustomerId?: string
   subscriptionStatus: 'active' | 'canceled' | 'past_due' | 'trialing'
   credits: number
@@ -49,7 +49,7 @@ const userSchema = new Schema<IUser>(
     githubId: { type: String, sparse: true, unique: true },
     plan: {
       type: String,
-      enum: ['free', 'pro', 'enterprise'],
+      enum: ['free', 'starter', 'pro', 'scale', 'enterprise'],
       default: 'free',
     },
     stripeCustomerId: String,

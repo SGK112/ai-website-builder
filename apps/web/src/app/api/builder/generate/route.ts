@@ -1639,7 +1639,7 @@ export async function POST(req: NextRequest) {
   // Track generation start time for performance metrics
   const startTime = Date.now()
   let session: any = null
-  let userPlan: 'free' | 'pro' | 'enterprise' = 'free'
+  let userPlan: 'free' | 'starter' | 'pro' | 'scale' | 'enterprise' = 'free'
   let userId: string | null = null
 
   try {
@@ -1674,7 +1674,7 @@ export async function POST(req: NextRequest) {
     interface UserDoc {
       _id: string
       email?: string
-      plan?: 'free' | 'pro' | 'enterprise'
+      plan?: 'free' | 'starter' | 'pro' | 'scale' | 'enterprise'
       credits?: number
     }
 
@@ -1898,12 +1898,13 @@ export async function POST(req: NextRequest) {
         apiKey: apiKey || apiKeys?.anthropic || process.env.ANTHROPIC_API_KEY
       })
 
-      // Map to actual Claude model IDs
-      const claudeModel = model === 'claude-3-opus' ? 'claude-3-opus-20240229' :
-                          model === 'claude-3-sonnet' ? 'claude-3-sonnet-20240229' :
-                          model === 'claude-3-haiku' ? 'claude-3-haiku-20240307' :
-                          model === 'claude-3.5-sonnet' ? 'claude-3-5-sonnet-20241022' :
-                          'claude-3-haiku-20240307' // Default to Haiku (most available)
+      // Map UI model IDs to current Anthropic model snapshots (Claude 4.x family).
+      // Older claude-3-* aliases are kept for backwards compat with existing UI selections.
+      const claudeModel = model === 'claude-opus' || model === 'claude-3-opus' ? 'claude-opus-4-7' :
+                          model === 'claude-sonnet' || model === 'claude-3-sonnet' || model === 'claude-3.5-sonnet' ? 'claude-sonnet-4-6' :
+                          model === 'claude-haiku' || model === 'claude-3-haiku' ? 'claude-haiku-4-5-20251001' :
+                          model === 'claude' ? 'claude-sonnet-4-6' :
+                          'claude-haiku-4-5-20251001' // Default to Haiku (cheapest)
 
       // Set max tokens based on model capabilities
       const maxTokens = claudeModel.includes('haiku') ? 4096 :

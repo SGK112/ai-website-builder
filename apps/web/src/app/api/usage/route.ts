@@ -14,7 +14,7 @@ import {
 // Define user type for lean queries
 interface UserDoc {
   _id: string
-  plan?: 'free' | 'pro' | 'enterprise'
+  plan?: 'free' | 'starter' | 'pro' | 'scale' | 'enterprise'
   credits?: number
 }
 

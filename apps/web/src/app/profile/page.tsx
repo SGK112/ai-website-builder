@@ -42,6 +42,7 @@ import { cn } from '@/lib/utils'
 import { useTheme } from '@/context/ThemeContext'
 import { StarryNight, SunriseBackground } from '@/components/landing/BackgroundEffects'
 import { WebStewNav } from '@/components/shared/WebStewNav'
+import { SUBSCRIPTION_PLANS } from '@/lib/stripe-plans'
 
 interface PricingPlan {
   id: string
@@ -70,54 +71,14 @@ interface BillingHistory {
   invoice: string
 }
 
-const plans: PricingPlan[] = [
-  {
-    id: 'free',
-    name: 'Free',
-    price: 0,
-    interval: 'month',
-    features: [
-      '5 website builds per month',
-      'Basic templates',
-      'Community support',
-      '1GB storage',
-      'WebStew branding',
-    ],
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    price: 19,
-    interval: 'month',
-    popular: true,
-    features: [
-      'Unlimited website builds',
-      'Premium templates',
-      'Priority support',
-      '10GB storage',
-      'No branding',
-      'Custom domains',
-      'Analytics dashboard',
-      'AI chat assistance',
-    ],
-  },
-  {
-    id: 'team',
-    name: 'Team',
-    price: 49,
-    interval: 'month',
-    features: [
-      'Everything in Pro',
-      'Team collaboration',
-      '5 team members',
-      '50GB storage',
-      'API access',
-      'White-label exports',
-      'Custom integrations',
-      'Dedicated support',
-    ],
-  },
-]
+const plans: PricingPlan[] = SUBSCRIPTION_PLANS.map((p) => ({
+  id: p.id,
+  name: p.name,
+  price: p.monthlyPrice / 100,
+  interval: 'month' as const,
+  features: p.features,
+  popular: p.popular,
+}))
 
 // Appearance Settings Component
 function AppearanceSettings() {

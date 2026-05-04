@@ -10,6 +10,8 @@ import {
   Zap,
   Crown,
   Rocket,
+  Gem,
+  TrendingUp,
   ArrowLeft,
   Sparkles,
   Globe,
@@ -18,72 +20,30 @@ import {
   MessageSquare,
   Loader2,
 } from 'lucide-react'
+import { SUBSCRIPTION_PLANS } from '@/lib/stripe-plans'
 
-const PLANS = [
-  {
-    id: 'free',
-    name: 'Free',
-    price: 0,
-    period: 'forever',
-    description: 'Perfect for trying out the platform',
-    icon: Zap,
-    color: 'from-slate-500 to-slate-600',
-    features: [
-      '50 credits/month',
-      '3 AI generations',
-      '1 project',
-      'Basic templates',
-      'Community support',
-    ],
-    limitations: [
-      'WebStew branding',
-      'No custom domain',
-      'Limited exports',
-    ],
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    price: 19,
-    period: 'month',
-    description: 'For creators and small businesses',
-    icon: Crown,
-    color: 'from-violet-500 to-fuchsia-500',
-    popular: true,
-    features: [
-      '500 credits/month',
-      'Unlimited AI generations',
-      '10 projects',
-      'All premium templates',
-      'Custom domains',
-      'Priority support',
-      'No branding',
-      'Export to Next.js',
-    ],
-    limitations: [],
-  },
-  {
-    id: 'enterprise',
-    name: 'Enterprise',
-    price: 99,
-    period: 'month',
-    description: 'For teams and agencies',
-    icon: Rocket,
-    color: 'from-amber-500 to-orange-500',
-    features: [
-      'Unlimited credits',
-      'Unlimited AI generations',
-      'Unlimited projects',
-      'White-label solution',
-      'Custom integrations',
-      'API access',
-      'Dedicated support',
-      'Team collaboration',
-      'Analytics dashboard',
-    ],
-    limitations: [],
-  },
-]
+const PLAN_META: Record<string, { icon: typeof Zap; color: string; description: string }> = {
+  free: { icon: Zap, color: 'from-slate-500 to-slate-600', description: 'Perfect for trying out the platform' },
+  starter: { icon: TrendingUp, color: 'from-emerald-500 to-teal-500', description: 'For solo creators getting started' },
+  pro: { icon: Crown, color: 'from-violet-500 to-fuchsia-500', description: 'For creators and small businesses' },
+  scale: { icon: Rocket, color: 'from-amber-500 to-orange-500', description: 'For growing teams' },
+  enterprise: { icon: Gem, color: 'from-rose-500 to-red-500', description: 'For agencies and large orgs' },
+}
+
+const PLANS = SUBSCRIPTION_PLANS.map((p) => {
+  const meta = PLAN_META[p.id] ?? PLAN_META.pro
+  return {
+    id: p.id,
+    name: p.name,
+    monthlyPrice: p.monthlyPrice / 100,
+    annualPrice: p.annualPrice / 100,
+    popular: p.popular,
+    icon: meta.icon,
+    color: meta.color,
+    description: meta.description,
+    features: p.features,
+  }
+})
 
 const CREDIT_COSTS = [
   { action: 'Generate Website', cost: 10, icon: Globe },
@@ -96,7 +56,7 @@ export default function UpgradePage() {
   const { data: session } = useSession()
   const router = useRouter()
   const [loading, setLoading] = useState<string | null>(null)
-  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly')
+  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly')
 
   const handleUpgrade = async (planId: string) => {
     if (!session) {
@@ -179,9 +139,9 @@ export default function UpgradePage() {
               Monthly
             </button>
             <button
-              onClick={() => setBillingPeriod('yearly')}
+              onClick={() => setBillingPeriod('annual')}
               className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${
-                billingPeriod === 'yearly'
+                billingPeriod === 'annual'
                   ? 'bg-violet-600 text-white'
                   : 'text-slate-400 hover:text-white'
               }`}
@@ -197,10 +157,10 @@ export default function UpgradePage() {
 
       {/* Pricing Cards */}
       <section className="pb-16 px-6">
-        <div className="max-w-6xl mx-auto grid md:grid-cols-3 gap-6">
+        <div className="max-w-7xl mx-auto grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {PLANS.map((plan, index) => {
             const Icon = plan.icon
-            const price = billingPeriod === 'yearly' ? Math.floor(plan.price * 0.8) : plan.price
+            const price = billingPeriod === 'annual' ? Math.floor(plan.annualPrice / 12) : plan.monthlyPrice
             const isCurrentPlan = session?.user && plan.id === 'free' // TODO: Check actual plan
 
             return (
@@ -230,8 +190,8 @@ export default function UpgradePage() {
 
                 <div className="flex items-baseline gap-1 mb-6">
                   <span className="text-4xl font-bold text-white">${price}</span>
-                  {plan.price > 0 && (
-                    <span className="text-slate-400">/{billingPeriod === 'yearly' ? 'mo' : plan.period}</span>
+                  {plan.monthlyPrice > 0 && (
+                    <span className="text-slate-400">/mo</span>
                   )}
                 </div>
 
@@ -248,7 +208,7 @@ export default function UpgradePage() {
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : isCurrentPlan ? (
                     'Current Plan'
-                  ) : plan.price === 0 ? (
+                  ) : plan.monthlyPrice === 0 ? (
                     'Get Started'
                   ) : (
                     'Upgrade Now'
@@ -260,12 +220,6 @@ export default function UpgradePage() {
                     <li key={feature} className="flex items-start gap-3 text-sm">
                       <Check className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
                       <span className="text-slate-300">{feature}</span>
-                    </li>
-                  ))}
-                  {plan.limitations.map((limitation) => (
-                    <li key={limitation} className="flex items-start gap-3 text-sm">
-                      <span className="w-4 h-4 text-slate-600 mt-0.5 shrink-0">-</span>
-                      <span className="text-slate-500">{limitation}</span>
                     </li>
                   ))}
                 </ul>

@@ -17,7 +17,7 @@ export interface Database {
           avatar_url: string | null
           skill_level: 'no-code' | 'low-code' | 'full-stack'
           credits: number
-          subscription_tier: 'free' | 'starter' | 'pro' | 'enterprise'
+          subscription_tier: 'free' | 'starter' | 'pro' | 'scale' | 'enterprise'
           subscription_status: 'active' | 'canceled' | 'past_due' | null
           stripe_customer_id: string | null
           created_at: string
@@ -30,7 +30,7 @@ export interface Database {
           avatar_url?: string | null
           skill_level?: 'no-code' | 'low-code' | 'full-stack'
           credits?: number
-          subscription_tier?: 'free' | 'starter' | 'pro' | 'enterprise'
+          subscription_tier?: 'free' | 'starter' | 'pro' | 'scale' | 'enterprise'
           subscription_status?: 'active' | 'canceled' | 'past_due' | null
           stripe_customer_id?: string | null
           created_at?: string
@@ -43,7 +43,7 @@ export interface Database {
           avatar_url?: string | null
           skill_level?: 'no-code' | 'low-code' | 'full-stack'
           credits?: number
-          subscription_tier?: 'free' | 'starter' | 'pro' | 'enterprise'
+          subscription_tier?: 'free' | 'starter' | 'pro' | 'scale' | 'enterprise'
           subscription_status?: 'active' | 'canceled' | 'past_due' | null
           stripe_customer_id?: string | null
           created_at?: string
@@ -264,7 +264,7 @@ export interface Database {
     }
     Enums: {
       skill_level: 'no-code' | 'low-code' | 'full-stack'
-      subscription_tier: 'free' | 'starter' | 'pro' | 'enterprise'
+      subscription_tier: 'free' | 'starter' | 'pro' | 'scale' | 'enterprise'
       project_status: 'draft' | 'published' | 'archived'
       ingredient_type: 'image' | 'document' | 'spreadsheet' | 'text' | 'video'
       transaction_type: 'purchase' | 'usage' | 'refund' | 'bonus'

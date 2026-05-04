@@ -216,8 +216,16 @@ export function isAdminEmail(email: string): boolean {
   return ADMIN_EMAILS.includes(email.toLowerCase())
 }
 
+export type UserPlan = 'free' | 'starter' | 'pro' | 'scale' | 'enterprise'
+
 // Plan limits
-export const PLAN_LIMITS = {
+export const PLAN_LIMITS: Record<UserPlan, {
+  dailyGenerations: number
+  dailyImages: number
+  monthlyCredits: number
+  models: string[]
+  maxTokensPerRequest: number
+}> = {
   free: {
     dailyGenerations: 5,
     dailyImages: 10,
@@ -225,12 +233,26 @@ export const PLAN_LIMITS = {
     models: ['llama-3.2-3b', 'mistral-7b', 'gpt-3.5-turbo'],
     maxTokensPerRequest: 4000,
   },
+  starter: {
+    dailyGenerations: 20,
+    dailyImages: 40,
+    monthlyCredits: 200,
+    models: ['gpt-4o', 'gpt-4-turbo', 'claude-3.5-sonnet', 'claude-3-haiku', 'llama-3.2-3b', 'mistral-7b', 'gpt-3.5-turbo'],
+    maxTokensPerRequest: 8000,
+  },
   pro: {
     dailyGenerations: 50,
     dailyImages: 100,
-    monthlyCredits: 1000,
+    monthlyCredits: 500,
     models: ['gpt-4', 'gpt-4o', 'gpt-4-turbo', 'claude-3.5-sonnet', 'claude-3-haiku', 'llama-3.2-3b', 'mistral-7b'],
     maxTokensPerRequest: 16000,
+  },
+  scale: {
+    dailyGenerations: 200,
+    dailyImages: 500,
+    monthlyCredits: 2000,
+    models: ['gpt-4', 'gpt-4o', 'gpt-4-turbo', 'claude-3-opus', 'claude-3.5-sonnet', 'claude-3-sonnet', 'claude-3-haiku', 'llama-3.2-3b', 'mistral-7b'],
+    maxTokensPerRequest: 24000,
   },
   enterprise: {
     dailyGenerations: -1, // unlimited
@@ -243,7 +265,7 @@ export const PLAN_LIMITS = {
 
 export async function checkUsageLimits(
   userId: string | mongoose.Types.ObjectId,
-  plan: 'free' | 'pro' | 'enterprise',
+  plan: UserPlan,
   type: 'generation' | 'image',
   userEmail?: string
 ): Promise<{ allowed: boolean; reason?: string; remaining?: number | string }> {

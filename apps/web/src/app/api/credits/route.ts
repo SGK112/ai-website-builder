@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
           id: p.id,
           name: p.name,
           credits: p.credits,
-          price: p.price / 100,
+          price: p.priceUsd / 100,
           popular: p.popular,
           savings: p.savings,
         })),
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
         id: p.id,
         name: p.name,
         credits: p.credits,
-        price: p.price / 100, // Convert to dollars
+        price: p.priceUsd / 100,
         popular: p.popular,
         savings: p.savings,
       })),

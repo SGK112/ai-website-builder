@@ -61,7 +61,7 @@ export const AI_PROVIDERS = {
   },
 } as const
 
-export const USER_PLANS = ['free', 'pro', 'enterprise'] as const
+export const USER_PLANS = ['free', 'starter', 'pro', 'scale', 'enterprise'] as const
 
 export const WIZARD_STEPS = [
   { id: 1, key: 'project-type', title: 'Project Type' },
