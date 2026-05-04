@@ -1643,11 +1643,9 @@ export async function POST(req: NextRequest) {
   let userId: string | null = null
 
   try {
-    // SECURITY: Require authentication (supports API key for Aria)
+    // Auth is optional — anon users can generate (freemium). Rate limiting
+    // by IP keeps it from being abused. Save/deploy still require sign-in.
     session = await getApiSession(req)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
 
     // Rate limit: 20 AI generations per minute
     try {
@@ -1656,6 +1654,36 @@ export async function POST(req: NextRequest) {
       const rateLimitResponse = handleRateLimitError(error)
       if (rateLimitResponse) return rateLimitResponse
       throw error
+    }
+
+    // Anon usage cap — 3 free generations per browser, then prompt sign-up.
+    // Tracked via a non-HttpOnly cookie so the UI can also read it for prompts.
+    const ANON_FREE_LIMIT = 3
+    const cookieHeader = req.headers.get('cookie') || ''
+    const anonMatch = cookieHeader.match(/aiwb_anon_gens=(\d+)/)
+    const anonCount = anonMatch ? parseInt(anonMatch[1], 10) : 0
+    if (!session?.user?.id && anonCount >= ANON_FREE_LIMIT) {
+      return NextResponse.json(
+        {
+          error: 'Free generation limit reached',
+          requireAuth: true,
+          limit: ANON_FREE_LIMIT,
+          message: `You've used your ${ANON_FREE_LIMIT} free generations. Sign in to keep building, save your work, and buy more credits.`,
+        },
+        { status: 402 }
+      )
+    }
+
+    // Build the response headers, incrementing the anon counter when applicable
+    const streamHeaders: Record<string, string> = {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    }
+    if (!session?.user?.id) {
+      // 30-day max-age, readable from JS (not HttpOnly) so the workspace UI
+      // can show the user how many free generations they have left.
+      streamHeaders['Set-Cookie'] = `aiwb_anon_gens=${anonCount + 1}; Path=/; Max-Age=2592000; SameSite=Lax`
     }
 
     const { prompt, currentHtml, model, apiKey, apiKeys, ingredients, stylePreset, serviceCredentials, outputMode } = await req.json()
@@ -1879,13 +1907,7 @@ export async function POST(req: NextRequest) {
         }
       })
 
-      return new Response(readable, {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive'
-        }
-      })
+      return new Response(readable, { headers: streamHeaders })
     }
 
     // Check if using Claude/Anthropic model
@@ -2038,13 +2060,7 @@ export async function POST(req: NextRequest) {
         }
       })
 
-      return new Response(readable, {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive'
-        }
-      })
+      return new Response(readable, { headers: streamHeaders })
     }
 
     // Use OpenAI for GPT models
@@ -2212,13 +2228,7 @@ export async function POST(req: NextRequest) {
       }
     })
 
-    return new Response(readable, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive'
-      }
-    })
+    return new Response(readable, { headers: streamHeaders })
   } catch (error) {
     console.error('Generate error:', error)
     return new Response(JSON.stringify({ error: 'Generation failed' }), {

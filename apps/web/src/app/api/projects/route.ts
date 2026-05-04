@@ -9,9 +9,10 @@ export async function GET(req: NextRequest) {
   try {
     const session = await getApiSession(req)
 
-    // SECURITY: Require authentication to list projects
+    // Anon users get an empty list — UI renders cleanly without console errors.
+    // Auth still required to *create* projects (POST handler below).
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+      return NextResponse.json({ projects: [] })
     }
 
     await connectDB()
