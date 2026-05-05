@@ -1275,8 +1275,9 @@ function WorkspaceContent() {
 
   // AI Model Selection state
   const [selectedModel, setSelectedModel] = useState<AIModel>(
-    aiModels.find(m => m.id === 'claude-haiku') ||
-    aiModels.find(m => m.id === 'gpt-4o-mini') ||
+    aiModels.find(m => m.id === 'claude-haiku-3.5') ||
+    aiModels.find(m => m.id === 'gpt-4o') ||
+    aiModels.find(m => m.provider === 'anthropic' || m.provider === 'openai') ||
     aiModels[0]
   )
   const [showApiKeyModal, setShowApiKeyModal] = useState(false)
