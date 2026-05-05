@@ -500,11 +500,8 @@ function detectIntent(message: string, hasWebsite: boolean): 'website' | 'image'
 export async function POST(request: NextRequest) {
   console.log('[Converse] POST request received')
   try {
-    // SECURITY: Require authentication
+    // Auth optional — anon users can refine generations. Save/deploy still gated.
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
 
     // Rate limit: 20 AI generations per minute
     try {
@@ -513,6 +510,31 @@ export async function POST(request: NextRequest) {
       const rateLimitResponse = handleRateLimitError(error)
       if (rateLimitResponse) return rateLimitResponse
       throw error
+    }
+
+    // Anon usage cap — 3 free conversations per browser, then prompt sign-up.
+    const ANON_FREE_LIMIT = 3
+    const cookieHeader = request.headers.get('cookie') || ''
+    const anonMatch = cookieHeader.match(/aiwb_anon_chats=(\d+)/)
+    const anonCount = anonMatch ? parseInt(anonMatch[1], 10) : 0
+    if (!session?.user?.id && anonCount >= ANON_FREE_LIMIT) {
+      return NextResponse.json(
+        {
+          error: 'Free chat limit reached',
+          requireAuth: true,
+          limit: ANON_FREE_LIMIT,
+          message: `You've used your ${ANON_FREE_LIMIT} free chat refinements. Sign in to keep iterating.`,
+        },
+        { status: 402 }
+      )
+    }
+
+    // Wrap responses with anon cookie increment
+    const wrap = (res: NextResponse): NextResponse => {
+      if (!session?.user?.id) {
+        res.headers.set('Set-Cookie', `aiwb_anon_chats=${anonCount + 1}; Path=/; Max-Age=2592000; SameSite=Lax`)
+      }
+      return res
     }
 
     const body: ConversationRequest = await request.json()
@@ -618,7 +640,7 @@ export async function POST(request: NextRequest) {
       // If we handled it directly, return immediately
       if (directResponse) {
         console.log('[Converse] Handled selected element command directly:', lower.slice(0, 50))
-        return NextResponse.json(directResponse)
+        return wrap(NextResponse.json(directResponse))
       }
     }
 
@@ -770,7 +792,7 @@ export async function POST(request: NextRequest) {
       // If we handled it directly, return immediately
       if (directResponse) {
         console.log('[Converse] Handled section addition directly:', lower.slice(0, 50))
-        return NextResponse.json(directResponse)
+        return wrap(NextResponse.json(directResponse))
       }
     }
 
@@ -1305,7 +1327,7 @@ ${context.selectedElement.outerHTML ? `HTML: ${context.selectedElement.outerHTML
       hasUpdatedHtml: !!parsed.updatedHtml
     })
 
-    return NextResponse.json(parsed)
+    return wrap(NextResponse.json(parsed))
 
   } catch (error) {
     console.error('Conversation API error:', error)
