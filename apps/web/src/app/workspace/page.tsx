@@ -2479,8 +2479,12 @@ ${html}
   }, [selectMode])
 
   // Layered generation with phases
-  const handleGenerate = async (promptText: string, ingredients?: StewIngredient[]) => {
-    if (!promptText.trim() && (!ingredients || ingredients.length === 0)) return
+  const handleGenerate = async (promptText: string | undefined, ingredients?: StewIngredient[]) => {
+    if (!promptText?.trim() && (!ingredients || ingredients.length === 0)) {
+      addTerminalLine('error', 'No prompt provided — please describe what you want to build')
+      return
+    }
+    promptText = promptText || ''
 
     // Check and deduct credits before generation
     const creditCheck = await checkAndDeductCredits('generate_website')
@@ -3261,6 +3265,14 @@ ${html}
         })
       })
 
+      if (response.status === 402) {
+        const errBody = await response.json().catch(() => ({}))
+        setChatMessages(prev => [...prev, {
+          role: 'assistant',
+          content: errBody.message || `You've used your free chat limit. Sign in to keep iterating.`
+        }])
+        return
+      }
       if (!response.ok) throw new Error('Conversation failed')
 
       const data = await response.json()
@@ -6049,11 +6061,13 @@ ${html}
                       <p className="text-[10px] font-medium text-zinc-400 px-2">Select AI Model</p>
                     </div>
                     <div className="p-1">
-                      {/* Free Models */}
-                      <div className="px-2 py-1">
-                        <p className="text-[9px] font-medium text-emerald-400 uppercase tracking-wide">Free Models</p>
-                      </div>
-                      {aiModels.filter(m => m.free).map(model => (
+                      {/* Free Models — only shown when user has the corresponding provider key configured. Many free providers (HuggingFace, Together, Cloudflare) require user-supplied tokens and frequently have model-deprecation issues, so we hide them by default to avoid silent failures. */}
+                      {aiModels.some(m => m.free && apiKeys[m.provider]) && (
+                        <div className="px-2 py-1">
+                          <p className="text-[9px] font-medium text-emerald-400 uppercase tracking-wide">Free (via your API key)</p>
+                        </div>
+                      )}
+                      {aiModels.filter(m => m.free && apiKeys[m.provider]).map(model => (
                         <button
                           key={model.id}
                           onClick={() => {
@@ -6084,7 +6098,7 @@ ${html}
                       <div className="px-2 py-1 mt-2">
                         <p className="text-[9px] font-medium text-zinc-500 uppercase tracking-wide">Premium Models</p>
                       </div>
-                      {aiModels.filter(m => !m.free).slice(0, 6).map(model => (
+                      {aiModels.filter(m => !m.free).map(model => (
                         <button
                           key={model.id}
                           onClick={() => {

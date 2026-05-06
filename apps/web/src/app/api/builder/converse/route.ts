@@ -218,9 +218,24 @@ async function getAIResponse(
   apiKey?: string,
   systemPrompt: string = CONVERSATION_SYSTEM_PROMPT
 ): Promise<string> {
-  const isAnthropicModel = model.startsWith('claude')
-  const isOpenAIModel = model.startsWith('gpt') || model.startsWith('o1') || model.startsWith('o3')
-  const isFreeModel = model.startsWith('hf-') || model.startsWith('together-') || model.startsWith('cf-')
+  let isAnthropicModel = model.startsWith('claude')
+  let isOpenAIModel = model.startsWith('gpt') || model.startsWith('o1') || model.startsWith('o3')
+  let isFreeModel = model.startsWith('hf-') || model.startsWith('together-') || model.startsWith('cf-')
+
+  // The converse "brain" needs reliable reasoning. Free-tier providers (HF
+  // Llama, Together, CF) frequently 400 with model_not_supported errors and
+  // cause chat loops. Force-fallback to Anthropic if available, OpenAI if not.
+  if (isFreeModel) {
+    if (process.env.ANTHROPIC_API_KEY) {
+      console.log(`[Converse] Routing ${model} -> Anthropic (free providers unreliable for chat brain)`)
+      isFreeModel = false
+      isAnthropicModel = true
+    } else if (process.env.OPENAI_API_KEY) {
+      console.log(`[Converse] Routing ${model} -> OpenAI (no Anthropic key, free providers unreliable)`)
+      isFreeModel = false
+      isOpenAIModel = true
+    }
+  }
 
   if (isFreeModel) {
     const hfKey = apiKey || process.env.HUGGINGFACE_API_KEY || process.env.HF_TOKEN
