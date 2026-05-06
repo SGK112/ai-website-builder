@@ -2489,8 +2489,15 @@ ${html}
     // Check and deduct credits before generation
     const creditCheck = await checkAndDeductCredits('generate_website')
     if (!creditCheck.success) {
-      addTerminalLine('error', creditCheck.error || 'Insufficient credits')
+      const msg = creditCheck.error || 'Insufficient credits'
+      addTerminalLine('error', msg)
       addConsoleLog('error', creditCheck.error || 'Please upgrade to continue generating')
+      // Make the failure visible in chat too — otherwise the converse-side
+      // optimistic "Changes made" message looks like success when it isn't.
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `I wasn't able to apply those changes — ${msg.toLowerCase()}. The page wasn't updated.`,
+      }])
       return
     }
 
@@ -3222,12 +3229,13 @@ ${html}
 
   // Handle conversational chat with AI assistant
   const handleChatMessage = async (message: string) => {
-    if (!message.trim() || isGenerating) return
+    if (!message.trim() || isGenerating || isThinking) return
 
     // Add user message to chat
     setChatMessages(prev => [...prev, { role: 'user', content: message }])
     setChatSuggestions([])
     setCommandInput('')
+    setIsThinking(true)
 
     // Check for quick edit if element is selected
     if (selectedElement) {
@@ -3644,6 +3652,8 @@ ${html}
         role: 'assistant',
         content: 'Sorry, I had trouble processing that. Could you try again?'
       }])
+    } finally {
+      setIsThinking(false)
     }
 
     // Scroll to bottom of chat
@@ -4482,6 +4492,30 @@ ${html}
                     </motion.div>
                   ))}
 
+                  {/* Chat thinking indicator (shown while converse API is in flight, before generation starts) */}
+                  {isThinking && !isGenerating && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex gap-2"
+                    >
+                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                        <Loader2 className="w-4 h-4 text-white animate-spin" />
+                      </div>
+                      <div className={cn(
+                        "rounded-2xl rounded-bl-sm px-3 py-2 flex items-center gap-2",
+                        isDark ? "bg-zinc-800/80 text-violet-300" : "bg-slate-100 text-violet-600"
+                      )}>
+                        <span className="flex gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '300ms' }} />
+                        </span>
+                        <span className="text-sm">Thinking…</span>
+                      </div>
+                    </motion.div>
+                  )}
+
                   {/* Generation Progress */}
                   {isGenerating && (
                     <motion.div
@@ -4622,8 +4656,10 @@ ${html}
                     </div>
                   )}
 
-                  {/* Always visible test button */}
-                  <button
+                  {/* Load Test Website — only useful before any prompt has been sent. Hide
+                      once the user has started a conversation or there's already HTML. */}
+                  {chatMessages.length <= 1 && !html && (
+                    <button
                       onClick={async () => {
                         try {
                           const res = await fetch('/api/test-website')
@@ -4646,6 +4682,7 @@ ${html}
                       <Zap className="w-4 h-4" />
                       Load Test Website
                     </button>
+                  )}
                 </div>
 
               </motion.div>
