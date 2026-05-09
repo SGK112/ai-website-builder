@@ -23,6 +23,8 @@ interface ConversationRequest {
   context?: {
     hasWebsite: boolean
     selectedElement?: { tagName: string; textContent?: string; outerHTML?: string }
+    siblingPages?: Array<{ name: string; slug: string; isHome?: boolean }>
+    currentPage?: { name: string; slug: string; isHome?: boolean }
   }
 }
 
@@ -282,8 +284,8 @@ async function getAIResponse(
 
     const client = new Anthropic({ apiKey: anthropicKey })
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
+      model: 'claude-sonnet-4-6',
+      max_tokens: 8192,
       system: systemPrompt,
       messages: messages.map(m => ({ role: m.role, content: m.content }))
     })
@@ -299,7 +301,7 @@ async function getAIResponse(
     const client = new OpenAI({ apiKey: openaiKey })
     const response = await client.chat.completions.create({
       model: 'gpt-4o',
-      max_tokens: 2000,
+      max_tokens: 8192,
       messages: [
         { role: 'system', content: systemPrompt },
         ...messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
@@ -315,14 +317,83 @@ async function getAIResponse(
 
   const client = new Anthropic({ apiKey: anthropicKey })
   const response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 2000,
+    model: 'claude-sonnet-4-6',
+    max_tokens: 8192,
     system: systemPrompt,
     messages: messages.map(m => ({ role: m.role, content: m.content }))
   })
 
   const textBlock = response.content.find(b => b.type === 'text')
   return textBlock?.text || ''
+}
+
+// Regenerate a single HTML section with Claude. Used by the iterative-edit
+// path so users can say "rewrite the hero" or "redesign this section" and get
+// a real new section back, instead of the AI hallucinating codeEdits whose
+// oldCode doesn't match the live HTML.
+async function regenerateSection(
+  currentSectionHtml: string,
+  request: string,
+  model?: string,
+  apiKey?: string
+): Promise<string> {
+  const anthropicKey = apiKey || process.env.ANTHROPIC_API_KEY
+  if (!anthropicKey) throw new Error('No Anthropic API key for section regen')
+
+  const claudeModel = ((model || '').toLowerCase().includes('haiku') ? 'claude-haiku-4-5-20251001' :
+                       (model || '').toLowerCase().includes('opus') ? 'claude-opus-4-7' :
+                       'claude-sonnet-4-6')
+
+  const client = new Anthropic({ apiKey: anthropicKey })
+  const response = await client.messages.create({
+    model: claudeModel,
+    max_tokens: 4096,
+    system: `You are an elite web designer. The user wants to update one HTML section. Output ONLY the new section HTML — no markdown fences, no commentary, no surrounding document. Match the existing Tailwind dark-theme styling of the input. Keep the SAME outer tag (section / nav / footer / header) so the splice fits cleanly. Use real content, not "Lorem ipsum" or placeholder text. Preserve any IDs on the outer tag.`,
+    messages: [{
+      role: 'user',
+      content: `Current section HTML:
+\`\`\`html
+${currentSectionHtml}
+\`\`\`
+
+User's change request: ${request}
+
+Return ONLY the new section HTML — no fences, no explanation.`
+    }]
+  })
+
+  const textBlock = response.content.find(b => b.type === 'text') as any
+  let html: string = textBlock?.text || ''
+  html = html.trim()
+  if (html.startsWith('```html')) html = html.slice(7).trim()
+  else if (html.startsWith('```')) html = html.slice(3).trim()
+  if (html.endsWith('```')) html = html.slice(0, -3).trim()
+  return html
+}
+
+// Locate a section in the current HTML by its semantic name. Returns the
+// matched outer-tag-to-outer-tag block, or null if no match.
+function findSectionByName(html: string, sectionKey: string): string | null {
+  const patterns: Record<string, RegExp[]> = {
+    nav:        [/<nav\b[\s\S]*?<\/nav>/i],
+    hero:       [/<section[^>]*(?:id=["']hero["']|class=["'][^"']*hero[^"']*["'])[\s\S]*?<\/section>/i,
+                 /<section[^>]*min-h-screen[^>]*>[\s\S]*?<\/section>/i],
+    features:   [/<section[^>]*(?:id=["']features["']|class=["'][^"']*features?[^"']*["'])[\s\S]*?<\/section>/i],
+    pricing:    [/<section[^>]*(?:id=["']pricing["']|class=["'][^"']*pricing[^"']*["'])[\s\S]*?<\/section>/i],
+    testimonial:[/<section[^>]*(?:id=["']testimonials?["']|class=["'][^"']*testimonial[^"']*["'])[\s\S]*?<\/section>/i],
+    contact:    [/<section[^>]*(?:id=["']contact["']|class=["'][^"']*contact[^"']*["'])[\s\S]*?<\/section>/i],
+    faq:        [/<section[^>]*(?:id=["']faq["']|class=["'][^"']*faq[^"']*["'])[\s\S]*?<\/section>/i],
+    cta:        [/<section[^>]*(?:id=["']cta["']|class=["'][^"']*cta[^"']*["'])[\s\S]*?<\/section>/i],
+    footer:     [/<footer\b[\s\S]*?<\/footer>/i],
+    team:       [/<section[^>]*(?:id=["']team["']|class=["'][^"']*team[^"']*["'])[\s\S]*?<\/section>/i],
+    gallery:    [/<section[^>]*(?:id=["'](?:gallery|portfolio)["']|class=["'][^"']*(?:gallery|portfolio)[^"']*["'])[\s\S]*?<\/section>/i],
+  }
+  const list = patterns[sectionKey] || []
+  for (const pat of list) {
+    const m = html.match(pat)
+    if (m) return m[0]
+  }
+  return null
 }
 
 // Apply code edits to HTML
@@ -659,6 +730,79 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // EARLY HANDLER: Section regeneration. When the user says "rewrite the hero",
+    // "redesign this section", "make pricing more aggressive", etc. — find the target
+    // section, ask Claude to produce a new version, splice it in. This is the
+    // Lovable-style iterative path. Runs BEFORE the section-add handler because
+    // "redo the hero" should regenerate, not append a new hero.
+    if (currentHtml && hasWebsite) {
+      const lower = message.toLowerCase()
+      const regenVerbs = /\b(rewrite|redesign|redo|regenerate|remake|reimagine|improve|polish|refresh|overhaul|update|change|replace|modernize|tighten|simplify)\b/
+      const addVerb = /\b(add|insert|append|create a new|include a)\b/
+      const wantsRegen = regenVerbs.test(lower) && !addVerb.test(lower)
+
+      if (wantsRegen) {
+        let targetHtml: string | null = null
+        let targetLabel = ''
+
+        // 1. Selected element wins if present and matches
+        if (context?.selectedElement?.outerHTML && currentHtml.includes(context.selectedElement.outerHTML)) {
+          targetHtml = context.selectedElement.outerHTML
+          targetLabel = `the selected ${context.selectedElement.tagName.toLowerCase()}`
+        } else {
+          // 2. Look for a section name in the message
+          const nameMap: Array<[string, string[]]> = [
+            ['nav',         ['nav', 'navigation', 'navbar', 'header menu']],
+            ['hero',        ['hero', 'banner', 'top section']],
+            ['features',    ['features', 'feature section', 'feature grid']],
+            ['pricing',     ['pricing', 'plans', 'price section']],
+            ['testimonial', ['testimonial', 'reviews', 'social proof']],
+            ['contact',     ['contact', 'contact section', 'contact form']],
+            ['faq',         ['faq', 'questions', 'q&a']],
+            ['cta',         ['cta', 'call to action']],
+            ['team',        ['team section', 'meet the team', 'about the team']],
+            ['gallery',     ['gallery', 'portfolio', 'showcase']],
+            ['footer',      ['footer']],
+          ]
+          for (const [key, words] of nameMap) {
+            if (words.some(w => lower.includes(w))) {
+              const found = findSectionByName(currentHtml, key)
+              if (found) {
+                targetHtml = found
+                targetLabel = `the ${key} section`
+                break
+              }
+            }
+          }
+        }
+
+        if (targetHtml) {
+          try {
+            console.log(`[Converse] Regenerating ${targetLabel} (${targetHtml.length} chars)`)
+            const newSection = await regenerateSection(targetHtml, message, model, apiKey)
+            if (newSection && newSection.length > 50) {
+              const updatedHtml = currentHtml.replace(targetHtml, newSection)
+              if (updatedHtml !== currentHtml && updatedHtml.length > 100) {
+                return wrap(NextResponse.json({
+                  type: 'edit',
+                  message: `Done — rewrote ${targetLabel}.`,
+                  codeEdits: [{
+                    type: 'replace',
+                    description: `Rewrote ${targetLabel}`,
+                  }],
+                  updatedHtml,
+                } as ConversationResponse))
+              }
+            }
+            console.warn('[Converse] Section regen produced unusable output — falling through to AI path')
+          } catch (e: any) {
+            console.warn('[Converse] Section regen error:', e?.message || e)
+            // Fall through to existing AI path
+          }
+        }
+      }
+    }
+
     // EARLY HANDLER: Direct section additions (bypass AI for common requests)
     if (currentHtml && context?.hasWebsite) {
       const lower = message.toLowerCase()
@@ -850,6 +994,23 @@ ${context.selectedElement.outerHTML ? `HTML: ${context.selectedElement.outerHTML
       })
     }
 
+    // Add multi-page context so nav/footer edits link to all sibling pages
+    if (context?.siblingPages && context.siblingPages.length > 1) {
+      const pageList = context.siblingPages
+        .map(p => `- ${p.name} → href="${p.isHome ? '/' : `/${p.slug}`}"`)
+        .join('\n')
+      const cur = context.currentPage
+      messages.push({
+        role: 'user',
+        content: `[MULTI-PAGE SITE]
+This site has ${context.siblingPages.length} pages:
+${pageList}
+
+${cur ? `The user is currently editing the "${cur.name}" page (slug: ${cur.slug}).` : ''}
+When the user asks to edit nav, header, or footer, link to each sibling page using its real /slug href above — not anchor links like #about. Style the link for the current page (${cur?.slug || 'this page'}) as active.`
+      })
+    }
+
     // Add history
     for (const msg of history.slice(-8)) {
       messages.push({ role: msg.role, content: msg.content })
@@ -881,6 +1042,14 @@ ${context.selectedElement.outerHTML ? `HTML: ${context.selectedElement.outerHTML
       const updatedHtml = applyCodeEdits(currentHtml, parsed.codeEdits)
       if (updatedHtml !== currentHtml) {
         parsed.updatedHtml = updatedHtml
+      } else {
+        // The AI returned codeEdits whose oldCode didn't match the live HTML.
+        // applyCodeEdits silently no-ops in that case. We must NOT pass through
+        // the model's "Done!" message — the preview hasn't changed. Downgrade to
+        // a clarify response so the UI surfaces honest feedback to the user.
+        console.warn('[Converse] codeEdits did not match — no HTML change. Downgrading edit→clarify.')
+        parsed.type = 'clarify'
+        parsed.message = "I couldn't find the exact code to change. Could you select the element in the preview, or describe it more specifically (e.g., 'the blue button in the hero')?"
       }
     }
 
@@ -1332,6 +1501,20 @@ ${context.selectedElement.outerHTML ? `HTML: ${context.selectedElement.outerHTML
         message: parsed.message || "Let's build it! I've gathered your requirements.",
         enhancedPrompt,
         requirements: { ...parsed.requirements, completeness: 75 }
+      }
+    }
+
+    // Final honesty guard: if we're about to return an "edit" response but
+    // nothing actually changed (no updatedHtml AND no codeEdits, OR updatedHtml
+    // is identical to currentHtml), downgrade to clarify so the UI doesn't
+    // display a "Done!" bubble for work we didn't do.
+    if (parsed.type === 'edit') {
+      const htmlChanged = !!parsed.updatedHtml && parsed.updatedHtml !== currentHtml
+      const hasUsableEdits = !!parsed.codeEdits && parsed.codeEdits.length > 0
+      if (!htmlChanged && !hasUsableEdits) {
+        console.warn('[Converse] edit response had no effect — downgrading to clarify')
+        parsed.type = 'clarify'
+        parsed.message = "I wasn't able to make that change automatically. Could you select the element you want to edit, or be more specific about what to change?"
       }
     }
 

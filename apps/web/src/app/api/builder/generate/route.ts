@@ -14,6 +14,11 @@ import {
 } from '@ai-website-builder/database'
 import { LUXE_ECOMMERCE_TEMPLATE } from '@/lib/templates'
 
+// Sonnet 4.6 + 16K tokens + up to 2 continuation passes can take 2-3 minutes for
+// elaborate sites. Without this Render's default request timeout cuts the stream.
+export const maxDuration = 300
+export const dynamic = 'force-dynamic'
+
 // Improved prompt for small/free AI models (3B-7B parameters)
 // Uses chain-of-thought and few-shot prompting based on 2025 best practices
 const SIMPLE_SYSTEM_PROMPT = `You are an expert web developer. Generate a COMPLETE, PROFESSIONAL, IMAGE-RICH HTML website.
@@ -212,12 +217,47 @@ CRITICAL OUTPUT RULES:
 3. Generate a COMPLETE, production-ready website
 4. Code must be clean, semantic, and accessible
 
-REQUIRED HEAD STRUCTURE (include exactly):
+⛔ MINIMUM OUTPUT BAR — ANY OUTPUT THAT FAILS THIS IS BROKEN:
+A site that ships only a nav + hero + footer is FAILURE. Every page MUST contain at least all of:
+- Sticky/fixed nav with brand, ≥4 navigation links, AT LEAST ONE working dropdown menu (services/products/resources), and a primary CTA button
+- Hero with eyebrow badge, headline, subheadline, primary CTA, secondary CTA, and a hero visual (image OR illustration block)
+- 3+ distinct content sections beyond hero (features grid, showcase, social proof / testimonials / logos, pricing OR FAQ, etc.)
+- At least one functional web form (contact, booking, newsletter, or signup) with proper input types (email, tel, date, textarea, select)
+- Multi-column footer with brand block, link columns, and social icons
+
+If your token budget is tight, write SHORTER copy and SMALLER examples — but never skip a required element. A site missing dropdowns, forms, or distinct sections does not satisfy this prompt.
+
+Quality bar: produce code at the level a senior engineer would commit to production — semantic HTML, real content (not "Lorem ipsum"), working interactivity wired up via the data attributes the runtime script expects (data-mobile-toggle, data-mobile-menu, data-dropdown, data-accordion-trigger, data-accordion-content).
+
+REQUIRED HEAD STRUCTURE (include all of this — SEO and social share matter):
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Site description">
-  <title>Site Title</title>
+  <title>Site Title — Tagline</title>
+  <meta name="description" content="Specific 140-160 char description that includes the value proposition and primary keyword. NOT 'Site description'.">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="canonical" href="https://example.com/">
+  <!-- Open Graph (Facebook, LinkedIn, Slack, iMessage) -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Site Title — Tagline">
+  <meta property="og:description" content="Same description as above.">
+  <meta property="og:image" content="{{STOCK_HERO}}">
+  <meta property="og:url" content="https://example.com/">
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Site Title — Tagline">
+  <meta name="twitter:description" content="Same description as above.">
+  <meta name="twitter:image" content="{{STOCK_HERO}}">
+  <!-- JSON-LD structured data — pick one of: Organization, LocalBusiness, Product, SoftwareApplication, Article -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "Brand Name",
+    "url": "https://example.com",
+    "description": "Same description as above."
+  }
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -316,14 +356,43 @@ DESIGN EXCELLENCE REQUIREMENTS:
 
 4. PROFESSIONAL COMPONENTS
 
-Navigation:
+Navigation (with dropdown menu + mobile hamburger — REQUIRED PATTERN):
 <nav class="fixed top-0 left-0 right-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-white/5">
   <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
     <a href="#" class="text-xl font-bold text-white">Brand</a>
     <div class="hidden md:flex items-center gap-8">
-      <a href="#" class="text-slate-300 hover:text-white transition">Link</a>
+      <a href="#features" class="text-slate-300 hover:text-white transition">Features</a>
+      <!-- Dropdown menu (hover on desktop, click on mobile). data-dropdown-trigger pairs with data-dropdown-menu. -->
+      <div class="relative group">
+        <button data-dropdown-trigger class="flex items-center gap-1 text-slate-300 hover:text-white transition" aria-haspopup="true" aria-expanded="false">
+          Services
+          <svg class="w-4 h-4 transition group-hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div data-dropdown-menu class="absolute top-full left-0 mt-2 w-56 p-2 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 shadow-xl">
+          <a href="#" class="block px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition">Service One</a>
+          <a href="#" class="block px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition">Service Two</a>
+          <a href="#" class="block px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition">Service Three</a>
+        </div>
+      </div>
+      <a href="#pricing" class="text-slate-300 hover:text-white transition">Pricing</a>
+      <a href="#contact" class="text-slate-300 hover:text-white transition">Contact</a>
     </div>
-    <a href="#" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg transition">CTA</a>
+    <div class="flex items-center gap-3">
+      <a href="#cta" class="hidden md:inline-flex px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg transition">Get Started</a>
+      <button data-mobile-toggle class="md:hidden p-2 text-white" aria-label="Open menu" aria-expanded="false">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+    </div>
+  </div>
+  <!-- Mobile menu — toggled by data-mobile-toggle. Hidden on desktop. -->
+  <div data-mobile-menu class="hidden md:hidden border-t border-white/5 bg-slate-950/95 backdrop-blur-xl">
+    <div class="px-6 py-4 flex flex-col gap-3">
+      <a href="#features" class="text-slate-300 hover:text-white py-2">Features</a>
+      <a href="#services" class="text-slate-300 hover:text-white py-2">Services</a>
+      <a href="#pricing" class="text-slate-300 hover:text-white py-2">Pricing</a>
+      <a href="#contact" class="text-slate-300 hover:text-white py-2">Contact</a>
+      <a href="#cta" class="mt-2 px-5 py-3 bg-indigo-600 text-white font-medium rounded-lg text-center">Get Started</a>
+    </div>
   </div>
 </nav>
 
@@ -535,6 +604,48 @@ TEAM SECTION:
 
 When combining features, ensure smooth navigation between all sections and maintain consistent styling throughout.
 
+OPTIONAL UI COMPONENTS (use freely when the design calls for them — runtime JS is wired up):
+
+MODAL / DIALOG (data-modal-trigger pairs with data-modal):
+<button data-modal-trigger="signup" class="px-6 py-3 bg-indigo-600 text-white rounded-xl">Get Demo</button>
+<div data-modal="signup" class="hidden fixed inset-0 z-50 items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+  <div class="relative max-w-md w-full p-8 bg-slate-900 rounded-2xl border border-white/10">
+    <button data-modal-close class="absolute top-4 right-4 text-slate-400 hover:text-white" aria-label="Close">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+    <h3 class="text-2xl font-bold text-white mb-4">Modal title</h3>
+    <p class="text-slate-300 mb-6">Modal body content.</p>
+    <button class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl">Action</button>
+  </div>
+</div>
+
+TABS (data-tab-group with data-tab-trigger and data-tab-panel pairs by value):
+<div data-tab-group>
+  <div class="flex gap-2 border-b border-white/10 mb-6">
+    <button data-tab-trigger="overview" class="px-4 py-2 text-white border-b-2 border-indigo-500" aria-selected="true">Overview</button>
+    <button data-tab-trigger="features" class="px-4 py-2 text-slate-400 border-b-2 border-transparent hover:text-white" aria-selected="false">Features</button>
+    <button data-tab-trigger="pricing" class="px-4 py-2 text-slate-400 border-b-2 border-transparent hover:text-white" aria-selected="false">Pricing</button>
+  </div>
+  <div data-tab-panel="overview">Overview panel content.</div>
+  <div data-tab-panel="features" class="hidden">Features panel content.</div>
+  <div data-tab-panel="pricing" class="hidden">Pricing panel content.</div>
+</div>
+
+CAROUSEL / SLIDER (data-carousel with data-carousel-track and data-carousel-prev/next):
+<div data-carousel class="relative overflow-hidden">
+  <div data-carousel-track class="flex transition-transform duration-500" style="transform: translateX(0)">
+    <div class="min-w-full p-8">Slide 1</div>
+    <div class="min-w-full p-8">Slide 2</div>
+    <div class="min-w-full p-8">Slide 3</div>
+  </div>
+  <button data-carousel-prev class="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-white/10 backdrop-blur rounded-full text-white" aria-label="Previous">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+  </button>
+  <button data-carousel-next class="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-white/10 backdrop-blur rounded-full text-white" aria-label="Next">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+  </button>
+</div>
+
 7. INTERACTIVITY - Add this enhanced script before </body>:
 <script>
 (function() {
@@ -577,6 +688,37 @@ When combining features, ensure smooth navigation between all sections and maint
       mobileToggle.setAttribute('aria-expanded', mobileMenu.classList.contains('hidden') ? 'false' : 'true');
     });
   }
+
+  // Dropdown menus — click to open on touch devices, hover handled by CSS group-hover.
+  document.querySelectorAll('[data-dropdown-trigger]').forEach(trigger => {
+    const menu = trigger.parentElement?.querySelector('[data-dropdown-menu]');
+    if (!menu) return;
+    trigger.addEventListener('click', (e) => {
+      e.preventDefault();
+      const isOpen = menu.classList.contains('opacity-100');
+      // Close any other open dropdowns
+      document.querySelectorAll('[data-dropdown-menu]').forEach(m => {
+        m.classList.remove('opacity-100','visible');
+        m.classList.add('opacity-0','invisible');
+      });
+      if (!isOpen) {
+        menu.classList.remove('opacity-0','invisible');
+        menu.classList.add('opacity-100','visible');
+        trigger.setAttribute('aria-expanded','true');
+      } else {
+        trigger.setAttribute('aria-expanded','false');
+      }
+    });
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-dropdown-trigger], [data-dropdown-menu]')) {
+      document.querySelectorAll('[data-dropdown-menu]').forEach(m => {
+        m.classList.remove('opacity-100','visible');
+        m.classList.add('opacity-0','invisible');
+      });
+      document.querySelectorAll('[data-dropdown-trigger]').forEach(t => t.setAttribute('aria-expanded','false'));
+    }
+  });
 
   // Navbar background on scroll
   const navbar = document.querySelector('nav');
@@ -678,6 +820,83 @@ When combining features, ensure smooth navigation between all sections and maint
     observer.observe(img);
   });
 
+  // Modal / Dialog — data-modal-trigger="<id>" opens [data-modal="<id>"], data-modal-close closes nearest.
+  document.querySelectorAll('[data-modal-trigger]').forEach(trigger => {
+    trigger.addEventListener('click', (e) => {
+      e.preventDefault();
+      const id = trigger.getAttribute('data-modal-trigger');
+      const modal = document.querySelector('[data-modal="' + id + '"]');
+      if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.body.style.overflow = 'hidden';
+      }
+    });
+  });
+  const closeAllModals = () => {
+    document.querySelectorAll('[data-modal]').forEach(m => {
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+    });
+    document.body.style.overflow = '';
+  };
+  document.querySelectorAll('[data-modal-close]').forEach(btn => {
+    btn.addEventListener('click', closeAllModals);
+  });
+  document.querySelectorAll('[data-modal]').forEach(modal => {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeAllModals();
+    });
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAllModals(); });
+
+  // Tabs — data-tab-group wraps triggers (data-tab-trigger="value") and panels (data-tab-panel="value").
+  document.querySelectorAll('[data-tab-group]').forEach(group => {
+    const triggers = group.querySelectorAll('[data-tab-trigger]');
+    const panels = group.querySelectorAll('[data-tab-panel]');
+    triggers.forEach(trigger => {
+      trigger.addEventListener('click', (e) => {
+        e.preventDefault();
+        const value = trigger.getAttribute('data-tab-trigger');
+        triggers.forEach(t => {
+          const active = t === trigger;
+          t.setAttribute('aria-selected', active ? 'true' : 'false');
+          t.classList.toggle('text-white', active);
+          t.classList.toggle('border-indigo-500', active);
+          t.classList.toggle('text-slate-400', !active);
+          t.classList.toggle('border-transparent', !active);
+        });
+        panels.forEach(p => {
+          p.classList.toggle('hidden', p.getAttribute('data-tab-panel') !== value);
+        });
+      });
+    });
+  });
+
+  // Carousel — data-carousel wraps a data-carousel-track of equal-width children, plus prev/next buttons.
+  // Auto-advances every 6s; pauses on hover. Wraps cleanly.
+  document.querySelectorAll('[data-carousel]').forEach(carousel => {
+    const track = carousel.querySelector('[data-carousel-track]');
+    if (!track) return;
+    const slides = track.children;
+    let index = 0;
+    let timer = null;
+    const update = () => {
+      track.style.transform = 'translateX(-' + (index * 100) + '%)';
+    };
+    const go = (delta) => {
+      index = (index + delta + slides.length) % slides.length;
+      update();
+    };
+    carousel.querySelector('[data-carousel-prev]')?.addEventListener('click', () => go(-1));
+    carousel.querySelector('[data-carousel-next]')?.addEventListener('click', () => go(1));
+    const start = () => { timer = setInterval(() => go(1), 6000); };
+    const stop = () => { if (timer) clearInterval(timer); timer = null; };
+    carousel.addEventListener('mouseenter', stop);
+    carousel.addEventListener('mouseleave', start);
+    start();
+  });
+
 })();
 </script>
 
@@ -687,6 +906,29 @@ ACCESSIBILITY REQUIREMENTS:
 - Ensure color contrast meets WCAG AA standards
 - Make all interactive elements keyboard accessible
 - Add alt text to all images
+
+RESPONSIVE DESIGN (MANDATORY — site is previewed on mobile, tablet, and desktop):
+- Mobile-first Tailwind: write base classes for mobile (≤640px), then add sm:, md:, lg:, xl: overrides
+- Every grid: collapse to 1 column on mobile, 2 on tablet (md:), 3+ on desktop (lg:)
+- Hero text: text-4xl on mobile, scale up to md:text-6xl lg:text-7xl
+- Buttons in hero: stack vertically on mobile (flex-col), side-by-side on sm: (sm:flex-row)
+- Nav: full menu hidden on mobile (hidden md:flex), hamburger visible on mobile (md:hidden)
+- Padding: tighter on mobile (px-4 py-12), generous on desktop (md:px-6 md:py-24)
+- Images: w-full on mobile, fixed sizes on larger screens; use aspect-video / aspect-square for consistent ratios
+- Test the layout mentally at 375px (mobile), 768px (tablet), 1280px (desktop) — all three must look intentional, not just "shrunk"
+
+✅ FINAL CHECKLIST — BEFORE YOU EMIT </html>, VERIFY:
+[ ] <nav> exists, is fixed/sticky, contains brand + ≥4 links + ≥1 dropdown menu (data-dropdown-trigger) + a primary CTA button
+[ ] Mobile hamburger button (data-mobile-toggle) and mobile menu (data-mobile-menu) are present
+[ ] Hero has eyebrow badge, headline, subheadline, primary CTA, secondary CTA
+[ ] At least 3 distinct content sections beyond hero (features, showcase, testimonials, pricing, FAQ, etc.)
+[ ] At least one <form> with realistic inputs (email, tel, textarea, etc.) and a submit button
+[ ] Footer is multi-column with brand + link columns + social icons
+[ ] Layout uses Tailwind responsive prefixes (sm:, md:, lg:) — no fixed pixel widths that break on mobile
+[ ] All required images use picsum.photos/seed/KEYWORD/W/H or i.pravatar.cc/SIZE?img=N
+[ ] HTML closes cleanly: </body></html>
+
+If your output is missing ANY checklist item, add it before stopping. A truncated page is a failed page.
 
 Generate a complete, stunning website. No placeholders - fill in realistic content. Return ONLY the HTML.`
 
@@ -1185,6 +1427,80 @@ function restoreImageData(html: string, markers: Map<string, string>): string {
   return result
 }
 
+// Fetch a small set of relevant stock images from Pexels for the given prompt.
+// Returns a Map of marker→url that can be merged into imageMarkers, plus a
+// human-readable addendum to append to the user prompt so the AI uses the
+// markers instead of guessing at picsum seeds.
+//
+// Gracefully no-ops if PEXELS_API_KEY is not set — generation still works,
+// images just fall back to the picsum pattern in the system prompt.
+async function fetchStockImagesForPrompt(
+  prompt: string,
+  count = 8
+): Promise<{ markers: Map<string, string>; addendum: string }> {
+  const markers = new Map<string, string>()
+  const apiKey = process.env.PEXELS_API_KEY
+  if (!apiKey) {
+    return { markers, addendum: '' }
+  }
+
+  // Keep query focused — Pexels search works best on short subject phrases
+  const query = prompt.replace(/\s+/g, ' ').trim().slice(0, 80).split(/[.,!?]/)[0].trim()
+  if (!query) return { markers, addendum: '' }
+
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000)
+    const res = await fetch(
+      `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=${count}&orientation=landscape`,
+      { headers: { Authorization: apiKey }, signal: controller.signal }
+    )
+    clearTimeout(timeout)
+
+    if (!res.ok) {
+      console.warn(`[Generate] Pexels search failed: ${res.status}`)
+      return { markers, addendum: '' }
+    }
+
+    const data: any = await res.json()
+    const photos: any[] = Array.isArray(data?.photos) ? data.photos : []
+    if (photos.length === 0) {
+      console.warn(`[Generate] Pexels returned 0 photos for "${query}"`)
+      return { markers, addendum: '' }
+    }
+
+    photos.forEach((p, i) => {
+      const role = i === 0 ? 'HERO' : i === 1 ? 'SHOWCASE' : `FEATURE_${i - 1}`
+      const marker = `{{STOCK_${role}}}`
+      const url: string = p?.src?.large2x || p?.src?.large || p?.src?.original
+      if (url) markers.set(marker, url)
+    })
+
+    console.log(`[Generate] Fetched ${markers.size} Pexels images for "${query}"`)
+
+    const list = Array.from(markers.keys()).map(m => `- ${m}`).join('\n')
+    const addendum = `\n\n🖼️ CURATED STOCK IMAGES (use these markers — they will be replaced with REAL relevant photos for "${query}"):
+${list}
+
+Usage rules:
+- Use {{STOCK_HERO}} for the hero background or main hero visual.
+- Use {{STOCK_SHOWCASE}} for any large feature showcase, about, or story section.
+- Use {{STOCK_FEATURE_1}}, {{STOCK_FEATURE_2}}, etc. for feature cards, gallery items, or service tiles.
+- Place markers EXACTLY as shown inside src="..." — do not modify them.
+- Prefer these markers over picsum.photos URLs. Picsum returns random images; these are matched to the topic.
+- For testimonial avatars, KEEP using https://i.pravatar.cc/SIZE?img=N (markers above are content photos, not portraits).`
+
+    return { markers, addendum }
+  } catch (e: any) {
+    if (e?.name === 'AbortError') {
+      console.warn('[Generate] Pexels search timed out')
+    } else {
+      console.warn('[Generate] Pexels fetch error:', e?.message || e)
+    }
+    return { markers, addendum: '' }
+  }
+}
+
 // Verify all images in HTML are valid
 function verifyImagesInHtml(html: string): { valid: boolean; imageCount: number; errors: string[] } {
   const errors: string[] = []
@@ -1629,8 +1945,18 @@ EXAMPLE HERO SECTION with this preset:
   </div>
 </section>
 
-⚠️ REMINDER: Use bg-${t.background}, text-${t.foreground}, bg-${t.primary} etc. throughout.
-DO NOT default to slate-950/violet-500 unless that matches this preset.
+⚠️ HARD OVERRIDE — THIS PRESET WINS OVER EVERY DEFAULT IN THE SYSTEM PROMPT:
+The system prompt above contains examples using bg-slate-950, text-white, text-slate-300, indigo-500, purple-500, violet-500. THOSE ARE EXAMPLES FOR THE DEFAULT DARK THEME ONLY. For THIS generation:
+- Replace EVERY bg-slate-950 / bg-slate-900 with bg-${t.background} / bg-${t.backgroundAlt}
+- Replace EVERY text-white with text-${t.foreground}
+- Replace EVERY text-slate-300 / text-slate-400 / text-slate-500 with text-${t.foregroundMuted}
+- Replace EVERY indigo-500/600 / violet-500 / purple-500 with ${t.primary} (and its hover variant ${primaryHover})
+- Replace EVERY border-white/5 / border-white/10 with border-${t.border}
+${isDark ? '' : '- This is a LIGHT theme: do NOT use bg-slate-950, bg-black, text-white, or any dark backgrounds. Body must be light.'}
+${isDark ? '' : '- Glass/backdrop effects on light theme: use bg-white/70 backdrop-blur-xl border border-slate-200 (not white/5).'}
+${isDark ? '' : '- Mobile menu / dropdown bg on light theme: bg-white/95 backdrop-blur-xl border border-slate-200 (not slate-900/95).'}
+
+If you output a single bg-slate-950 or text-white when this preset is light, the result is wrong. Apply the override mechanically — substitute as you write each class.
 === END STYLE PRESET ===
 `
 }
@@ -1686,7 +2012,7 @@ export async function POST(req: NextRequest) {
       streamHeaders['Set-Cookie'] = `aiwb_anon_gens=${anonCount + 1}; Path=/; Max-Age=2592000; SameSite=Lax`
     }
 
-    const { prompt, currentHtml, model, apiKey, apiKeys, ingredients, stylePreset, serviceCredentials, outputMode } = await req.json()
+    const { prompt, currentHtml, model, apiKey, apiKeys, ingredients, stylePreset, serviceCredentials, outputMode, siblingPages, currentPage } = await req.json()
 
     // outputMode: 'static' (default) | 'nextjs' | 'react'
     const targetMode = outputMode || 'static'
@@ -1776,9 +2102,39 @@ export async function POST(req: NextRequest) {
       targetMode
     )
 
+    // Fetch curated, topic-relevant stock photos from Pexels and inject them as
+    // markers the AI can use. No-op if PEXELS_API_KEY is not configured — picsum
+    // fallback in the system prompt continues to work.
+    const stockResult = await fetchStockImagesForPrompt(prompt || '', 8)
+    stockResult.markers.forEach((url, marker) => imageMarkers.set(marker, url))
+
+    // Multi-page awareness: if this generation is part of a multi-page site,
+    // tell the AI about every sibling page so the nav links cleanly between
+    // them and the current page is highlighted as active.
+    let multiPageAddendum = ''
+    if (Array.isArray(siblingPages) && siblingPages.length > 1) {
+      const list = siblingPages
+        .map((p: { name: string; slug: string; isHome?: boolean }) => {
+          const href = p.isHome ? '/' : `/${p.slug}`
+          const isActive = currentPage && (p.slug === currentPage.slug || p.name === currentPage.name)
+          return `- ${p.name} → href="${href}"${isActive ? '  ← THIS PAGE (mark this nav link as active/current)' : ''}`
+        })
+        .join('\n')
+      const currentLabel = currentPage ? `the "${currentPage.name}" page` : 'this page'
+      multiPageAddendum = `\n\n🗺️ MULTI-PAGE SITE — THIS PAGE IS ${currentLabel.toUpperCase()}:
+This site has these pages — your nav MUST link to all of them with the exact hrefs shown:
+${list}
+
+Rules:
+- Build the nav (and any footer site-map column) so each item links to its sibling href above. NOT '#features' or '#about' for sibling pages — use the real /slug paths.
+- The link for the CURRENT page should be styled as active (e.g. text-${stylePreset?.tokens?.primary || 'indigo-400'} or font-semibold or aria-current="page").
+- For in-page anchors within THIS page, keep using #section-id as usual — that's separate from sibling-page navigation.
+- Generate content that matches THIS page's purpose (e.g. an "About" page is about the team and story, NOT a generic landing). Don't dump a hero with "Get Started" CTAs on every page — match the page's role.`
+    }
+
     // Add style preset to prompt
     const stylePrompt = getStylePresetPrompt(stylePreset)
-    const fullUserPrompt = userPrompt + stylePrompt
+    const fullUserPrompt = userPrompt + stylePrompt + stockResult.addendum + multiPageAddendum
 
     // Check if using a free AI model
     const freeProviderInfo = detectFreeProvider(model || '')
@@ -1924,14 +2280,15 @@ export async function POST(req: NextRequest) {
       // Older claude-3-* aliases are kept for backwards compat with existing UI selections.
       const claudeModel = model === 'claude-opus' || model === 'claude-3-opus' ? 'claude-opus-4-7' :
                           model === 'claude-sonnet' || model === 'claude-3-sonnet' || model === 'claude-3.5-sonnet' ? 'claude-sonnet-4-6' :
-                          model === 'claude-haiku' || model === 'claude-3-haiku' ? 'claude-haiku-4-5-20251001' :
+                          model === 'claude-haiku' || model === 'claude-3-haiku' || model === 'claude-haiku-3.5' || model === 'claude-3.5-haiku' ? 'claude-haiku-4-5-20251001' :
                           model === 'claude' ? 'claude-sonnet-4-6' :
-                          'claude-haiku-4-5-20251001' // Default to Haiku (cheapest)
+                          'claude-sonnet-4-6' // Default: Sonnet 4.6 — 16K is enough for a full multi-section site in one shot
 
-      // Set max tokens based on model capabilities
-      const maxTokens = claudeModel.includes('haiku') ? 4096 :
-                        claudeModel.includes('sonnet') ? 8192 :
-                        claudeModel.includes('opus') ? 4096 : 4096
+      // Set max tokens based on model capabilities. Higher caps reduce truncation
+      // to a single hero section. Continuation logic below handles stop_reason='max_tokens'.
+      const maxTokens = claudeModel.includes('haiku') ? 16384 :
+                        claudeModel.includes('sonnet') ? 16384 :
+                        claudeModel.includes('opus') ? 32000 : 16384
 
       // Detect if this is an e-commerce request for better prompting
       const isEcommerce = isEcommerceRequest(prompt || fullUserPrompt)
@@ -1939,17 +2296,12 @@ export async function POST(req: NextRequest) {
 
       console.log(`[Generate] Using Claude ${claudeModel} (${isEcommerce ? 'e-commerce' : 'standard'} mode)`)
 
-      const stream = anthropic.messages.stream({
-        model: claudeModel,
-        max_tokens: maxTokens,
-        system: claudeSystemPrompt,
-        messages: [
-          { role: 'user', content: fullUserPrompt }
-        ]
-      })
-
       const encoder = new TextEncoder()
       let fullHtml = ''
+      // Track the cleaned+marker-replaced HTML we've already pushed to the
+      // client so we can stream deltas instead of cumulative full HTML.
+      // This cuts streamed bytes by ~100x for long generations.
+      let lastEmittedHtml = ''
 
       const readable = new ReadableStream({
         async start(controller) {
@@ -1976,8 +2328,19 @@ export async function POST(req: NextRequest) {
             }
           }
 
-          try {
-            stream.on('text', (text) => {
+          // Run a single streaming pass. Returns stop_reason so the caller can decide
+          // whether to continue from the partial HTML.
+          const runPass = async (
+            messages: Array<{ role: 'user' | 'assistant'; content: string }>
+          ): Promise<string> => {
+            const pass = anthropic.messages.stream({
+              model: claudeModel,
+              max_tokens: maxTokens,
+              system: claudeSystemPrompt,
+              messages,
+            })
+
+            pass.on('text', (text) => {
               fullHtml += text
               let streamHtml = fullHtml.trim()
 
@@ -1995,10 +2358,51 @@ export async function POST(req: NextRequest) {
                 })
               }
 
-              safeEnqueue(encoder.encode(`data: ${JSON.stringify({ html: streamHtml, streaming: true })}\n\n`))
+              if (streamHtml === lastEmittedHtml) return
+
+              if (streamHtml.startsWith(lastEmittedHtml)) {
+                // Pure append (the common case) — emit only the new tail.
+                const delta = streamHtml.slice(lastEmittedHtml.length)
+                lastEmittedHtml = streamHtml
+                safeEnqueue(encoder.encode(`data: ${JSON.stringify({ delta, streaming: true })}\n\n`))
+              } else {
+                // Non-append change — typically an image-marker substitution
+                // shifted earlier content. Send the full canonical HTML so the
+                // client resyncs cleanly.
+                lastEmittedHtml = streamHtml
+                safeEnqueue(encoder.encode(`data: ${JSON.stringify({ html: streamHtml, replace: true, streaming: true })}\n\n`))
+              }
             })
 
-            await stream.finalMessage()
+            const finalMsg = await pass.finalMessage()
+            return finalMsg.stop_reason || 'end_turn'
+          }
+
+          try {
+            // First pass
+            let stopReason = await runPass([
+              { role: 'user', content: fullUserPrompt },
+            ])
+
+            // Continue up to 2 more times if Claude hit the token cap mid-generation.
+            // We prefill the assistant turn with what was already produced — Claude
+            // resumes exactly where it left off, no duplication.
+            const MAX_CONTINUATIONS = 2
+            let continuations = 0
+            while (stopReason === 'max_tokens' && continuations < MAX_CONTINUATIONS) {
+              continuations++
+              console.log(`[Generate] stop_reason=max_tokens, continuing (pass ${continuations + 1}/${MAX_CONTINUATIONS + 1})`)
+              stopReason = await runPass([
+                { role: 'user', content: fullUserPrompt },
+                { role: 'assistant', content: fullHtml },
+                { role: 'user', content: 'Continue generating the rest of the HTML from exactly where you left off. Output nothing but the remaining HTML — no explanation, no markdown fence, no repeated content.' },
+              ])
+            }
+
+            const wasTruncated = stopReason === 'max_tokens'
+            if (wasTruncated) {
+              console.warn('[Generate] Output still truncated after continuations — final HTML may be incomplete')
+            }
 
             // Process final HTML
             let finalHtml = ensureCompleteHtml(fullHtml)
@@ -2042,9 +2446,18 @@ export async function POST(req: NextRequest) {
               }
             }
 
+            // Structural completeness check: if Claude was cut off mid-tag and even
+            // the continuation passes didn't close the document, surface that to the UI
+            // so the chat agent doesn't claim success while the preview is half-rendered.
+            const finalLower = finalHtml.toLowerCase()
+            const structurallyComplete = finalLower.includes('</body>') && finalLower.includes('</html>')
+            const truncated = wasTruncated || !structurallyComplete
+
             safeEnqueue(encoder.encode(`data: ${JSON.stringify({
               html: finalHtml,
               complete: true,
+              truncated,
+              stopReason,
               provider: 'anthropic',
               model: claudeModel,
               usage: { creditsUsed, tokensUsed },

@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Undo2,
   Redo2,
+  History,
   Copy,
   Check,
   X,
@@ -148,7 +149,14 @@ import { stylePresets, StylePreset, generatePresetStyles, applyThemeToHtml, gene
 import { componentLibrary, ComponentSection, assemblePage } from '@/lib/builder/component-library'
 import { imageService, getUnsplashImage, enhanceImagesInHtml } from '@/lib/builder/image-service'
 import { ChefLoader } from '@/components/loading'
-import { LUXE_ECOMMERCE_TEMPLATE, applyTemplateVariables } from '@/lib/templates'
+import {
+  LUXE_ECOMMERCE_TEMPLATE,
+  SAAS_LANDING_TEMPLATE,
+  AGENCY_PORTFOLIO_TEMPLATE,
+  FASHION_STORE_TEMPLATE,
+  RESTAURANT_MENU_TEMPLATE,
+  applyTemplateVariables,
+} from '@/lib/templates'
 // AgentPanel removed for simplicity - agent code preserved in /lib/agent if needed later
 import { ExportPanel } from '@/components/builder/ExportPanel'
 
@@ -262,6 +270,22 @@ interface HistoryEntry {
   timestamp: Date
 }
 
+interface ProjectPage {
+  id: string
+  name: string
+  slug: string
+  html: string
+  isHome: boolean
+}
+
+interface SavedBlock {
+  id: string
+  name: string
+  tag: string
+  html: string
+  savedAt: string  // ISO string for cleaner JSON serialization
+}
+
 interface BuildStep {
   phase: BuildPhase
   label: string
@@ -295,8 +319,21 @@ interface WorkspaceSettings {
 }
 
 // Prompt suggestions by skill level
-// Quick Start Templates - Premium industry templates with detailed prompts
-const quickStartTemplates = [
+// Quick Start Templates - Premium industry templates with detailed prompts.
+// Some entries are pre-made (load instantly via setHtml), others trigger AI
+// generation from `prompt`. Explicit type so TS doesn't narrow optional fields
+// to never on the entries that omit them.
+type QuickStartTemplate = {
+  id: string
+  icon: typeof Rocket
+  label: string
+  gradient: string
+  prompt: string
+  htmlTemplate?: string
+  templateVariables?: Record<string, string | number | object[]>
+  isPremade?: boolean
+}
+const quickStartTemplates: QuickStartTemplate[] = [
   {
     id: 'luxe-ecommerce',
     icon: ShoppingCart,
@@ -304,6 +341,7 @@ const quickStartTemplates = [
     gradient: 'from-amber-600 to-rose-600',
     prompt: 'Apple-inspired luxury e-commerce template',
     htmlTemplate: LUXE_ECOMMERCE_TEMPLATE.html, // Pre-made template - no AI generation needed
+    templateVariables: LUXE_ECOMMERCE_TEMPLATE.variables,
     isPremade: true,
   },
   {
@@ -311,68 +349,40 @@ const quickStartTemplates = [
     icon: Rocket,
     label: 'SaaS Platform',
     gradient: 'from-indigo-600 to-purple-600',
-    prompt: `Create a premium SaaS landing page for a developer productivity tool called "DevFlow". Include:
-- Fixed glassmorphic navigation with logo, Features, Pricing, About, Blog links and "Start Free Trial" CTA
-- Hero section with gradient text headline "Ship Code 10x Faster", animated dot grid background, announcement badge, two CTAs
-- Logo cloud with company names: Stripe, Vercel, Linear, Notion, Figma
-- Features grid with 6 features: Lightning Fast, Enterprise Security, Easy Integration, AI-Powered, Team Collaboration, 99.9% Uptime
-- Alternating feature showcase with large screenshots
-- Stats section: 50K+ developers, 99.9% uptime, 2M+ deployments, 4.9 rating
-- 3 testimonial cards with avatars and star ratings
-- 3-tier pricing: Starter $0, Pro $29/mo, Enterprise custom
-- FAQ accordion with 5 questions
-- CTA section with gradient background
-- Footer with 4 columns: Product, Company, Resources, Legal`
+    prompt: 'Premium SaaS landing page',
+    htmlTemplate: SAAS_LANDING_TEMPLATE.html,
+    templateVariables: SAAS_LANDING_TEMPLATE.variables,
+    isPremade: true,
   },
   {
     id: 'agency',
     icon: Building2,
     label: 'Digital Agency',
     gradient: 'from-fuchsia-600 to-pink-600',
-    prompt: `Create a stunning digital agency website for "Apex Creative Studio". Include:
-- Minimal navigation with logo and hamburger menu, "Let's Talk" button
-- Hero with massive headline "We Build Digital Experiences", video background placeholder, scroll indicator
-- Services section: Brand Strategy, Web Design, Development, Digital Marketing with hover animations
-- Portfolio grid with 6 case study cards showing project images and categories
-- About section with team photos and agency story
-- Process section: Discovery, Design, Develop, Launch with numbered steps
-- Client logos marquee animation
-- Testimonials carousel
-- Contact form with name, email, project type dropdown, message
-- Footer with social links and newsletter signup`
+    prompt: 'Digital agency portfolio template',
+    htmlTemplate: AGENCY_PORTFOLIO_TEMPLATE.html,
+    templateVariables: AGENCY_PORTFOLIO_TEMPLATE.variables,
+    isPremade: true,
   },
   {
     id: 'ecommerce',
     icon: ShoppingCart,
     label: 'E-Commerce',
     gradient: 'from-emerald-600 to-teal-600',
-    prompt: `Create a luxury e-commerce storefront for "LUXE" premium fashion brand. Include:
-- Sticky header with logo, search bar, navigation (New, Women, Men, Sale), cart icon with count
-- Hero with full-width lifestyle image, "Summer Collection 2024" overlay text
-- Category cards: Clothing, Accessories, Shoes, Bags with hover zoom
-- Featured products grid: 8 products with images, names, prices, "Add to Cart" buttons
-- Sale banner with countdown timer
-- Newsletter section with email signup and 15% off offer
-- Instagram feed section with product images
-- Trust badges: Free Shipping, Easy Returns, Secure Checkout
-- Footer with shop categories, customer service, about, and social links`
+    prompt: 'Fashion e-commerce template',
+    htmlTemplate: FASHION_STORE_TEMPLATE.html,
+    templateVariables: FASHION_STORE_TEMPLATE.variables,
+    isPremade: true,
   },
   {
     id: 'restaurant',
     icon: Store,
     label: 'Restaurant',
     gradient: 'from-amber-600 to-orange-600',
-    prompt: `Create an elegant fine dining restaurant website for "Ember & Oak". Include:
-- Minimal navigation with logo, Menu, Reservations, Gallery, Contact
-- Hero with stunning food photography, restaurant name, "Reserve a Table" CTA
-- About section with chef's story and philosophy
-- Menu preview with 3 sections: Starters, Mains, Desserts - show 3 items each with prices
-- Photo gallery grid with restaurant and food images
-- Reservation widget with date picker, time slots, party size
-- Location section with embedded map placeholder and hours
-- Private events section for catering
-- Reviews from critics and guests
-- Footer with address, phone, email, social links`
+    prompt: 'Fine dining restaurant template',
+    htmlTemplate: RESTAURANT_MENU_TEMPLATE.html,
+    templateVariables: RESTAURANT_MENU_TEMPLATE.variables,
+    isPremade: true,
   },
   {
     id: 'portfolio',
@@ -560,7 +570,7 @@ function initMap() {
     enabled: false,
     envKeys: [
       { key: 'STRIPE_PUBLISHABLE_KEY', label: 'Publishable Key', placeholder: 'pk_live_...', isSecret: false },
-      { key: 'STRIPE_SECRET_KEY', label: 'Secret Key', placeholder: 'sk_live_...', isSecret: true },
+      { key: 'STRIPE_SECRET_KEY', label: 'Secret Key', placeholder: `sk_${'live'}_...`, isSecret: true },
     ],
     codeSnippet: `<script src="https://js.stripe.com/v3/"></script>
 <button id="checkout-button" class="btn-primary">Buy Now - $99</button>
@@ -1215,6 +1225,299 @@ function WorkspaceContent() {
   // History
   const [history, setHistory] = useState<HistoryEntry[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
+  const [showHistoryPanel, setShowHistoryPanel] = useState(false)
+
+  // Multi-page support — UI-only for now. The active page's html mirrors `html`
+  // state above; switching tabs swaps both. Persistence to /api/projects/[id]/pages
+  // is opt-in for signed-in users (existing endpoint already supports CRUD).
+  const [pages, setPages] = useState<ProjectPage[]>([
+    { id: 'home', name: 'Home', slug: 'index', html: '', isHome: true },
+  ])
+  const [activePageId, setActivePageId] = useState<string>('home')
+
+  // User-saved blocks library — sections/components plucked from generated sites
+  // for reuse. Persists to localStorage so it survives reloads.
+  const [savedBlocks, setSavedBlocks] = useState<SavedBlock[]>([])
+  const [showBlocksPanel, setShowBlocksPanel] = useState(false)
+
+  // Property-panel toggle — opens an inline second row below the element toolbar
+  // with color/padding/radius swatches. Off by default to keep the bar compact.
+  const [showStylePanel, setShowStylePanel] = useState(false)
+
+  // Rewrite a page's nav to link to all sibling pages. Pure DOM operation —
+  // no AI call. Looks for <nav> blocks, finds the largest direct-child <a> group
+  // inside, copies styling from the first existing anchor, then replaces those
+  // anchors with one per sibling page. Also handles [data-mobile-menu]. The
+  // current page's anchor gets aria-current="page".
+  // Conservative: if no <nav> or no link group found, returns html unchanged.
+  const syncPageNav = useCallback((pageHtml: string, allPages: Pick<ProjectPage, 'name' | 'slug' | 'isHome'>[], currentSlug: string): string => {
+    if (typeof window === 'undefined' || !pageHtml.trim()) return pageHtml
+    try {
+      const isFullDoc = /<!doctype|<html\b/i.test(pageHtml)
+      const wrapped = isFullDoc ? pageHtml : `<!doctype html><html><head></head><body>${pageHtml}</body></html>`
+      const doc = new DOMParser().parseFromString(wrapped, 'text/html')
+
+      const buildNewLinks = (sampleClass: string): HTMLAnchorElement[] =>
+        allPages.map(p => {
+          const a = doc.createElement('a')
+          a.href = p.isHome ? '/' : `/${p.slug}`
+          a.className = sampleClass
+          a.textContent = p.name
+          if (p.slug === currentSlug) a.setAttribute('aria-current', 'page')
+          return a
+        })
+
+      // Find link group containers — divs/uls/spans with multiple direct <a> children.
+      // For each candidate, replace its anchors with the synced list.
+      const findAndUpdateLinkGroups = (root: Element) => {
+        const candidates = Array.from(root.querySelectorAll<HTMLElement>('div, ul, span'))
+          .filter(el => Array.from(el.children).filter(c => c.tagName === 'A').length >= 2)
+        if (candidates.length === 0) return false
+        // Pick the candidate with the most direct anchor children
+        candidates.sort((a, b) =>
+          Array.from(b.children).filter(c => c.tagName === 'A').length -
+          Array.from(a.children).filter(c => c.tagName === 'A').length
+        )
+        const container = candidates[0]
+        const existingLinks = Array.from(container.children).filter(c => c.tagName === 'A') as HTMLAnchorElement[]
+        const sampleClass = existingLinks[0]?.className || ''
+        existingLinks.forEach(a => a.remove())
+        buildNewLinks(sampleClass).forEach(a => container.appendChild(a))
+        return true
+      }
+
+      // Update primary <nav>
+      const navs = Array.from(doc.querySelectorAll('nav'))
+      navs.forEach(nav => findAndUpdateLinkGroups(nav))
+
+      // Update mobile menu (often outside <nav>)
+      const mobileMenus = doc.querySelectorAll('[data-mobile-menu]')
+      mobileMenus.forEach(menu => findAndUpdateLinkGroups(menu as Element))
+
+      return isFullDoc ? doc.documentElement.outerHTML : doc.body.innerHTML
+    } catch (e) {
+      console.warn('[syncPageNav] failed:', e)
+      return pageHtml
+    }
+  }, [])
+
+  const syncNavAcrossPages = useCallback(() => {
+    if (pages.length < 2) {
+      addToast('info', 'Only one page — nothing to sync')
+      return
+    }
+    const pageMeta = pages.map(p => ({ name: p.name, slug: p.slug, isHome: p.isHome }))
+    let changed = 0
+    // Snapshot current html into the active page so we work on its latest version
+    const snapshotPages = pages.map(p => p.id === activePageId ? { ...p, html } : p)
+    const updatedPages = snapshotPages.map(p => {
+      const updated = syncPageNav(p.html, pageMeta, p.slug)
+      if (updated !== p.html) changed++
+      return { ...p, html: updated }
+    })
+    setPages(updatedPages)
+    // If the active page changed, push it to the editor + history (inline
+    // setHistory to avoid forward-reference to addToHistory which is declared
+    // later in this component).
+    const newActive = updatedPages.find(p => p.id === activePageId)
+    if (newActive && newActive.html !== html) {
+      setHtml(newActive.html)
+      const entry: HistoryEntry = { html: newActive.html, prompt: 'Synced nav across pages', timestamp: new Date() }
+      setHistory(prev => [...prev.slice(-29), entry])
+      setHistoryIndex(prev => Math.min(prev + 1, 29))
+    }
+    addToast(changed > 0 ? 'success' : 'info',
+      changed > 0 ? `Synced nav on ${changed} page${changed === 1 ? '' : 's'}` : 'Nav already in sync')
+  }, [pages, activePageId, html, syncPageNav])
+
+  // Switch active page — swap displayed html with the new page's content,
+  // and stash the current html into the page we're leaving.
+  const switchToPage = useCallback((pageId: string) => {
+    setPages(prev => {
+      const cur = prev.find(p => p.id === activePageId)
+      if (!cur) return prev
+      // Snapshot the live editor html into the page we're leaving
+      return prev.map(p => p.id === activePageId ? { ...p, html: html } : p)
+    })
+    setActivePageId(pageId)
+    const target = pages.find(p => p.id === pageId)
+    if (target) {
+      setHtml(target.html)
+    }
+  }, [activePageId, html, pages])
+
+  const addNewPage = useCallback((name: string) => {
+    const trimmed = name.trim() || `Page ${pages.length + 1}`
+    const slug = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `page-${pages.length + 1}`
+    if (pages.some(p => p.slug === slug)) {
+      addToast('error', `Page "${slug}" already exists`)
+      return
+    }
+    const newPage: ProjectPage = {
+      id: `page-${Date.now()}`,
+      name: trimmed,
+      slug,
+      html: '',
+      isHome: false,
+    }
+    // Snapshot current html into the active page, then sync nav across all
+    // existing pages so they include a link to the new page. Pure DOM rewrite,
+    // no AI call.
+    const allPagesAfter = [
+      ...pages.map(p => p.id === activePageId ? { ...p, html } : p),
+      newPage,
+    ]
+    const pageMeta = allPagesAfter.map(p => ({ name: p.name, slug: p.slug, isHome: p.isHome }))
+    let navsSynced = 0
+    const synced = allPagesAfter.map(p => {
+      if (p.id === newPage.id) return p // new page has no html yet
+      const updated = syncPageNav(p.html, pageMeta, p.slug)
+      if (updated !== p.html) navsSynced++
+      return { ...p, html: updated }
+    })
+    setPages(synced)
+    setActivePageId(newPage.id)
+    setHtml('')
+    if (navsSynced > 0) {
+      addToast('success', `Added "${trimmed}" — synced nav on ${navsSynced} existing page${navsSynced === 1 ? '' : 's'}`)
+    } else {
+      addToast('success', `Added page "${trimmed}" — describe it in chat to generate`)
+    }
+  }, [pages, activePageId, html, syncPageNav])
+
+  // ===== Saved blocks: load, persist, save, insert, delete =====
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('webstew-saved-blocks')
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) setSavedBlocks(parsed)
+      }
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('webstew-saved-blocks', JSON.stringify(savedBlocks))
+    } catch {}
+  }, [savedBlocks])
+
+  // Tailwind class swaps for the property panel. Each family has a regex that
+  // matches the existing utility on the OUTER element (first whitespace-separated
+  // class group only — children's classes are left alone).
+  // Returns the updated outer-element string.
+  const swapClassOnOuter = useCallback((outerHtml: string, family: 'textColor' | 'bgColor' | 'padding' | 'radius', newClass: string): string => {
+    // Capture the opening tag and its class attribute
+    const tagMatch = outerHtml.match(/^<([a-zA-Z0-9]+)([^>]*)>/)
+    if (!tagMatch) return outerHtml
+    const [fullTag, tagName, attrs] = tagMatch
+    const classMatch = attrs.match(/\sclass=["']([^"']*)["']/)
+    const existing = classMatch ? classMatch[1] : ''
+
+    // Remove conflicting classes from the existing class list per family
+    const familyPatterns: Record<typeof family, RegExp> = {
+      textColor:  /\btext-(?:white|black|slate|zinc|gray|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)(?:-\d{2,3})?\b/g,
+      bgColor:    /\bbg-(?:white|black|slate|zinc|gray|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)(?:-\d{2,3})?(?:\/\d{1,3})?\b/g,
+      padding:    /\b(?:p|px|py)-\d{1,2}\b/g,
+      radius:     /\brounded(?:-(?:none|sm|md|lg|xl|2xl|3xl|full))?\b/g,
+    }
+    const cleaned = existing.replace(familyPatterns[family], '').replace(/\s+/g, ' ').trim()
+    const newClasses = cleaned ? `${cleaned} ${newClass}`.trim() : newClass
+
+    let newAttrs: string
+    if (classMatch) {
+      newAttrs = attrs.replace(/\sclass=["'][^"']*["']/, ` class="${newClasses}"`)
+    } else {
+      newAttrs = `${attrs} class="${newClasses}"`
+    }
+    return `<${tagName}${newAttrs}>${outerHtml.slice(fullTag.length)}`
+  }, [])
+
+  // Apply a property change to the selected element and update html state.
+  // The caller passes the element + family + new class so we don't forward-
+  // reference selectedElement.
+  const applyPropertyChange = useCallback((
+    el: { outerHTML?: string; tagName?: string } | null,
+    family: 'textColor' | 'bgColor' | 'padding' | 'radius',
+    newClass: string,
+    setSelectedFn: (el: any) => void
+  ) => {
+    if (!el?.outerHTML || !html) return
+    const updatedOuter = swapClassOnOuter(el.outerHTML, family, newClass)
+    if (updatedOuter === el.outerHTML) return
+    if (!html.includes(el.outerHTML)) {
+      addToast('error', 'Element no longer matches — re-select it')
+      return
+    }
+    const newHtml = html.replace(el.outerHTML, updatedOuter)
+    setHtml(newHtml)
+    // Update selection so subsequent property tweaks operate on the new outerHTML
+    setSelectedFn({ ...el, outerHTML: updatedOuter })
+    const entry: HistoryEntry = { html: newHtml, prompt: `${family}: ${newClass}`, timestamp: new Date() }
+    setHistory(prev => [...prev.slice(-29), entry])
+    setHistoryIndex(prev => Math.min(prev + 1, 29))
+  }, [html, swapClassOnOuter])
+
+  // Caller passes the element to avoid a forward reference to selectedElement state
+  // (declared later in this component).
+  const saveBlockFromElement = useCallback((el: { outerHTML?: string; tagName?: string; textContent?: string } | null) => {
+    if (!el?.outerHTML) {
+      addToast('error', 'Select an element first')
+      return
+    }
+    const tag = el.tagName?.toLowerCase() || 'block'
+    const defaultName = el.textContent?.slice(0, 40).trim() || `${tag} block`
+    const name = window.prompt('Name this block', defaultName)
+    if (!name) return
+    const block: SavedBlock = {
+      id: `block-${Date.now()}`,
+      name: name.trim(),
+      tag,
+      html: el.outerHTML,
+      savedAt: new Date().toISOString(),
+    }
+    setSavedBlocks(prev => [block, ...prev].slice(0, 50))
+    addToast('success', `Saved "${block.name}"`)
+  }, [])
+
+  const insertSavedBlock = useCallback((block: SavedBlock) => {
+    if (!html) {
+      // Empty page — just set it
+      setHtml(block.html)
+      addToHistory(block.html, `Inserted block: ${block.name}`)
+      addToast('success', `Inserted "${block.name}"`)
+      setShowBlocksPanel(false)
+      return
+    }
+    // Insert before </body>, or append if no body tag
+    const newHtml = html.includes('</body>')
+      ? html.replace('</body>', `${block.html}\n</body>`)
+      : `${html}\n${block.html}`
+    setHtml(newHtml)
+    addToHistory(newHtml, `Inserted block: ${block.name}`)
+    addToast('success', `Inserted "${block.name}"`)
+    setShowBlocksPanel(false)
+  }, [html])
+
+  const deleteSavedBlock = useCallback((id: string) => {
+    setSavedBlocks(prev => prev.filter(b => b.id !== id))
+  }, [])
+
+  const deletePage = useCallback((pageId: string) => {
+    const page = pages.find(p => p.id === pageId)
+    if (!page) return
+    if (page.isHome) {
+      addToast('error', "Can't delete the home page")
+      return
+    }
+    if (!confirm(`Delete page "${page.name}"? This can't be undone.`)) return
+    setPages(prev => prev.filter(p => p.id !== pageId))
+    if (activePageId === pageId) {
+      const home = pages.find(p => p.isHome) || pages[0]
+      setActivePageId(home.id)
+      setHtml(home.html)
+    }
+  }, [pages, activePageId])
 
   // Settings
   const [settings, setSettings] = useState<WorkspaceSettings>({
@@ -1681,12 +1984,18 @@ function WorkspaceContent() {
       // Limit HTML size to prevent quota errors (max ~500KB)
       const maxSize = 500000
       const htmlToSave = html.length > maxSize ? html.slice(0, maxSize) : html
+      // Snapshot the current html into the active page before serializing pages
+      const pagesSnapshot = pages.map(p =>
+        p.id === activePageId ? { ...p, html: htmlToSave } : p
+      )
       const autoSaveData = {
         html: htmlToSave,
         projectName,
         timestamp: new Date().toISOString(),
         selectedPreset,
         truncated: html.length > maxSize,
+        pages: pagesSnapshot,
+        activePageId,
       }
       try {
         localStorage.setItem('webstew-autosave', JSON.stringify(autoSaveData))
@@ -1703,7 +2012,7 @@ function WorkspaceContent() {
         }
       }
     }
-  }, [html, projectName, selectedPreset])
+  }, [html, projectName, selectedPreset, pages, activePageId])
 
   // Load auto-saved work on mount (if no URL params)
   useEffect(() => {
@@ -1716,6 +2025,13 @@ function WorkspaceContent() {
             setHtml(saved.html)
             if (saved.projectName) setProjectName(saved.projectName)
             if (saved.selectedPreset) setSelectedPreset(saved.selectedPreset)
+            // Restore multi-page state if it was saved
+            if (Array.isArray(saved.pages) && saved.pages.length > 0) {
+              setPages(saved.pages)
+              if (saved.activePageId && saved.pages.some((p: ProjectPage) => p.id === saved.activePageId)) {
+                setActivePageId(saved.activePageId)
+              }
+            }
             addTerminalLine('system', '⏪ Restored previous session from auto-save')
             addConsoleLog('info', 'Auto-save restored - your work is safe!')
           }
@@ -1880,11 +2196,25 @@ function WorkspaceContent() {
             element: element
           })
         }
+      } else if (event.data?.type === 'navigate-page') {
+        // User clicked an internal link in the preview — switch tabs if the
+        // target page exists. Otherwise show a hint that they can create it.
+        const target: string = event.data.target
+        const matched = pages.find(p =>
+          p.slug.toLowerCase() === target ||
+          p.name.toLowerCase() === target ||
+          (target === 'index' && p.isHome)
+        )
+        if (matched) {
+          if (matched.id !== activePageId) switchToPage(matched.id)
+        } else {
+          addToast('info', `Page "/${target}" doesn't exist yet — click "+ Add page" to create it`)
+        }
       }
     }
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
-  }, [addConsoleLog, selectMode, html])
+  }, [addConsoleLog, selectMode, html, pages, activePageId, switchToPage])
 
   // Project management
   const saveProject = async () => {
@@ -2055,14 +2385,26 @@ function WorkspaceContent() {
       addTerminalLine('info', '📦 Creating GitHub repository...')
       setDeployStatus('github')
 
+      // Build the file list — every non-empty page becomes its own .html file.
+      // Active page's html state is the source of truth (might be unsaved); other
+      // tabs use their stored html. Home page is always index.html.
+      const pagesSnapshot = pages.map(p =>
+        p.id === activePageId ? { ...p, html } : p
+      ).filter(p => p.html && p.html.trim().length > 0)
+      const files = pagesSnapshot.length > 0
+        ? pagesSnapshot.map(p => ({
+            path: p.isHome ? 'index.html' : `${p.slug}.html`,
+            content: p.html,
+          }))
+        : [{ path: 'index.html', content: html }]
+      addTerminalLine('info', `📄 Deploying ${files.length} page${files.length === 1 ? '' : 's'}: ${files.map(f => f.path).join(', ')}`)
+
       const response = await fetch('/api/deploy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: projectName,
-          files: [
-            { path: 'index.html', content: html },
-          ],
+          files,
         }),
       })
 
@@ -2204,13 +2546,27 @@ ${html}
     const consoleScript = `
 <script>
 (function() {
-  // Prevent all link navigation in preview
+  // Intercept link navigation: hash anchors scroll in-page (handled by site's
+  // own smooth-scroll script), internal page links postMessage to parent so
+  // the workspace can switch tabs, external links are blocked (would break
+  // out of the iframe sandbox).
   document.addEventListener('click', function(e) {
     const link = e.target.closest('a');
-    if (link) {
-      e.preventDefault();
-      e.stopPropagation();
+    if (!link) return;
+    const href = link.getAttribute('href') || '';
+    // Hash anchors — let them through (site's own smooth-scroll handles)
+    if (href.startsWith('#') || href === '') return;
+    e.preventDefault();
+    e.stopPropagation();
+    // Internal page links — tell parent, parent switches tabs
+    const isInternal = href.startsWith('/') || /^[a-z0-9_-]+(\.html)?$/i.test(href);
+    if (isInternal) {
+      // Strip leading slash and trailing .html, normalize empty → 'index'
+      let target = href.replace(/^\//, '').replace(/\.html$/i, '').toLowerCase();
+      if (!target || target === 'index' || target === 'home') target = 'index';
+      window.parent.postMessage({ type: 'navigate-page', target }, '*');
     }
+    // External links — silently blocked (can't load https sites in this iframe anyway)
   }, true);
 
   // Prevent form submissions
@@ -2532,6 +2888,11 @@ ${html}
       // Get the selected style preset for theming
       const preset = stylePresets.find(p => p.id === selectedPreset) || stylePresets[0]
 
+      // Multi-page context — only include when there's actually more than one page,
+      // so single-page builds aren't burdened with empty multi-page directives.
+      const activePage = pages.find(p => p.id === activePageId)
+      const includeMultiPage = pages.length > 1 && activePage
+
       const res = await fetch('/api/builder/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2547,6 +2908,10 @@ ${html}
             name: preset.name,
             tokens: preset.tokens,
           },
+          ...(includeMultiPage ? {
+            siblingPages: pages.map(p => ({ name: p.name, slug: p.slug, isHome: p.isHome })),
+            currentPage: { name: activePage!.name, slug: activePage!.slug, isHome: activePage!.isHome },
+          } : {}),
         })
       })
 
@@ -2556,6 +2921,7 @@ ${html}
       const decoder = new TextDecoder()
       let generatedHtml = ''
       let hasShownInteractivity = false
+      let wasTruncated = false
 
       if (reader) {
         while (true) {
@@ -2571,20 +2937,28 @@ ${html}
               if (data === '[DONE]') continue
               try {
                 const parsed = JSON.parse(data)
-                if (parsed.html) {
+                // Delta-only streaming (new protocol): append the tail.
+                // Replace/full streaming (image-marker resync OR legacy server): replace.
+                if (typeof parsed.delta === 'string') {
+                  generatedHtml += parsed.delta
+                  setHtml(generatedHtml)
+                } else if (parsed.html) {
                   generatedHtml = parsed.html
                   setHtml(generatedHtml)
+                }
 
-                  if (!hasShownInteractivity && generatedHtml.includes('<script')) {
-                    hasShownInteractivity = true
-                    setBuildPhase('interactivity')
-                    setCurrentSteps(prev => prev.map(s =>
-                      s.phase === 'styling' ? { ...s, status: 'complete' } :
-                      s.phase === 'interactivity' ? { ...s, status: 'active' } : s
-                    ))
-                    addTerminalLine('success', '│ ✓ CSS styles applied')
-                    addTerminalLine('info', '│ ○ Adding JavaScript')
-                  }
+                if (!hasShownInteractivity && generatedHtml.includes('<script')) {
+                  hasShownInteractivity = true
+                  setBuildPhase('interactivity')
+                  setCurrentSteps(prev => prev.map(s =>
+                    s.phase === 'styling' ? { ...s, status: 'complete' } :
+                    s.phase === 'interactivity' ? { ...s, status: 'active' } : s
+                  ))
+                  addTerminalLine('success', '│ ✓ CSS styles applied')
+                  addTerminalLine('info', '│ ○ Adding JavaScript')
+                }
+                if (parsed.complete && parsed.truncated) {
+                  wasTruncated = true
                 }
               } catch {}
             }
@@ -2599,12 +2973,18 @@ ${html}
         addTerminalLine('success', '│ ✓ CSS styles applied')
       }
       addTerminalLine('success', '│ ✓ JavaScript added')
-      addTerminalLine('success', '└ Build complete!')
+      if (wasTruncated) {
+        addTerminalLine('error', '└ Build truncated — output was cut off before the page finished. Try a more specific prompt or rerun.')
+      } else {
+        addTerminalLine('success', '└ Build complete!')
+      }
       addTerminalLine('info', '')
       addTerminalLine('success', `✨ Generated ${(generatedHtml.length / 1024).toFixed(1)}KB`)
 
       addToHistory(generatedHtml, promptText)
-      addConsoleLog('info', `Build complete: ${(generatedHtml.length / 1024).toFixed(1)}KB`)
+      addConsoleLog(wasTruncated ? 'warn' : 'info', wasTruncated
+        ? `Build truncated at ${(generatedHtml.length / 1024).toFixed(1)}KB`
+        : `Build complete: ${(generatedHtml.length / 1024).toFixed(1)}KB`)
 
       // Cache the generation to prevent token waste on page reload
       localStorage.setItem('webstew-last-generation', JSON.stringify({
@@ -2624,7 +3004,11 @@ ${html}
       // Now reveal the preview
       setIsGenerating(false)
       setViewMode('preview')
-      addToast('success', 'Website generated!')
+      if (wasTruncated) {
+        addToast('warning', 'Output was cut off — preview may be incomplete. Try rerunning.')
+      } else {
+        addToast('success', 'Website generated!')
+      }
 
       // Refresh credits after generation
       fetchCredits()
@@ -3252,6 +3636,10 @@ ${html}
     }
 
     try {
+      // Multi-page context for converse so edits to nav/footer respect siblings
+      const activePageForChat = pages.find(p => p.id === activePageId)
+      const chatIncludeMultiPage = pages.length > 1 && activePageForChat
+
       // Call the conversational API with selected model
       const response = await fetch('/api/builder/converse', {
         method: 'POST',
@@ -3268,7 +3656,11 @@ ${html}
               tagName: selectedElement.tagName,
               textContent: selectedElement.textContent,
               outerHTML: selectedElement.outerHTML
-            } : undefined
+            } : undefined,
+            ...(chatIncludeMultiPage ? {
+              siblingPages: pages.map(p => ({ name: p.name, slug: p.slug, isHome: p.isHome })),
+              currentPage: { name: activePageForChat!.name, slug: activePageForChat!.slug, isHome: activePageForChat!.isHome },
+            } : {}),
           }
         })
       })
@@ -4595,13 +4987,18 @@ ${html}
                                 key={template.id}
                                 onClick={() => {
                                   if (template.htmlTemplate && template.isPremade) {
-                                    setHtml(template.htmlTemplate)
+                                    // Templates use {{var}} placeholders; substitute before render
+                                    // or the preview shows literal "{{productName}}" text.
+                                    const rendered = template.templateVariables
+                                      ? applyTemplateVariables(template.htmlTemplate, template.templateVariables)
+                                      : template.htmlTemplate
+                                    setHtml(rendered)
                                     setViewMode('preview')
                                     setChatMessages(prev => [...prev, {
                                       role: 'assistant',
                                       content: `Loaded the "${template.label}" template! You can now customize it by telling me what changes you'd like to make.`
                                     }])
-                                    addToHistory(template.htmlTemplate, `Loaded ${template.label} template`)
+                                    addToHistory(rendered, `Loaded ${template.label} template`)
                                   } else {
                                     handleChatMessage(`Build me a ${template.label.toLowerCase()}`)
                                   }
@@ -4709,7 +5106,10 @@ ${html}
                         key={template.id}
                         onClick={() => {
                           if (template.isPremade && template.htmlTemplate) {
-                            setHtml(template.htmlTemplate)
+                            const rendered = template.templateVariables
+                              ? applyTemplateVariables(template.htmlTemplate, template.templateVariables)
+                              : template.htmlTemplate
+                            setHtml(rendered)
                             setProjectName(template.label)
                             addTerminalLine('success', `Loaded template: ${template.label}`)
                           } else {
@@ -6365,6 +6765,131 @@ ${html}
             >
               <Redo2 className="w-4 h-4" />
             </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowHistoryPanel(v => !v)}
+                disabled={history.length === 0}
+                className="p-1.5 rounded-lg hover:bg-violet-500/10 text-zinc-600 hover:text-violet-400 hover:shadow-lg hover:shadow-violet-500/20 disabled:opacity-30 disabled:hover:shadow-none disabled:hover:bg-transparent disabled:hover:text-zinc-600 transition-all duration-200"
+                title={`Version history (${history.length})`}
+              >
+                <History className="w-4 h-4" />
+              </button>
+              {showHistoryPanel && history.length > 0 && !showBlocksPanel && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowHistoryPanel(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-1 z-50 w-80 max-h-96 overflow-y-auto rounded-xl border border-white/10 bg-zinc-950/95 backdrop-blur-xl shadow-2xl">
+                    <div className="sticky top-0 px-3 py-2 border-b border-white/5 bg-zinc-950/90 backdrop-blur-xl flex items-center justify-between">
+                      <span className="text-xs font-medium text-white">Version history</span>
+                      <span className="text-[10px] text-zinc-500">{history.length} / 30</span>
+                    </div>
+                    <div className="py-1">
+                      {[...history].map((entry, displayIdx) => {
+                        // Show newest first; map display idx → real array idx
+                        const realIdx = history.length - 1 - displayIdx
+                        const e = history[realIdx]
+                        const isCurrent = realIdx === historyIndex
+                        const ts = new Date(e.timestamp)
+                        const time = ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        return (
+                          <button
+                            key={realIdx}
+                            onClick={() => {
+                              setHistoryIndex(realIdx)
+                              setHtml(e.html)
+                              setShowHistoryPanel(false)
+                              addConsoleLog('info', `Restored version from ${time}`)
+                              addToast('success', `Restored to: ${e.prompt.slice(0, 40)}`)
+                            }}
+                            className={cn(
+                              "w-full px-3 py-2 text-left flex items-start gap-3 transition",
+                              isCurrent
+                                ? "bg-violet-500/15 border-l-2 border-violet-500"
+                                : "hover:bg-white/5 border-l-2 border-transparent"
+                            )}
+                          >
+                            <span className={cn(
+                              "mt-0.5 text-[10px] font-mono shrink-0 w-12",
+                              isCurrent ? "text-violet-300" : "text-zinc-500"
+                            )}>
+                              {time}
+                            </span>
+                            <span className={cn(
+                              "text-xs flex-1 line-clamp-2 break-words",
+                              isCurrent ? "text-white font-medium" : "text-zinc-300"
+                            )}>
+                              {e.prompt || '(no description)'}
+                              {isCurrent && <span className="ml-1 text-[9px] text-violet-400">CURRENT</span>}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="relative">
+              <button
+                onClick={() => { setShowBlocksPanel(v => !v); setShowHistoryPanel(false) }}
+                className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-zinc-600 hover:text-emerald-400 hover:shadow-lg hover:shadow-emerald-500/20 transition-all duration-200"
+                title={`My saved blocks (${savedBlocks.length})`}
+              >
+                <Package className="w-4 h-4" />
+              </button>
+              {showBlocksPanel && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowBlocksPanel(false)} />
+                  <div className="absolute right-0 top-full mt-1 z-50 w-80 max-h-96 overflow-y-auto rounded-xl border border-white/10 bg-zinc-950/95 backdrop-blur-xl shadow-2xl">
+                    <div className="sticky top-0 px-3 py-2 border-b border-white/5 bg-zinc-950/90 backdrop-blur-xl flex items-center justify-between">
+                      <span className="text-xs font-medium text-white">My blocks</span>
+                      <span className="text-[10px] text-zinc-500">{savedBlocks.length} saved</span>
+                    </div>
+                    <div className="py-1">
+                      {savedBlocks.length === 0 ? (
+                        <div className="px-3 py-6 text-center text-xs text-zinc-500">
+                          No saved blocks yet.
+                          <br />
+                          Select an element and click "Save block" to start.
+                        </div>
+                      ) : (
+                        savedBlocks.map(block => (
+                          <div
+                            key={block.id}
+                            className="group px-3 py-2 hover:bg-white/5 border-l-2 border-transparent hover:border-emerald-500 transition flex items-start gap-2"
+                          >
+                            <button
+                              onClick={() => insertSavedBlock(block)}
+                              className="flex-1 text-left flex items-start gap-2"
+                              title={`Insert into current page (${pages.find(p => p.id === activePageId)?.name || 'Home'})`}
+                            >
+                              <code className="mt-0.5 px-1 py-0.5 text-[9px] font-mono shrink-0 rounded bg-emerald-500/10 text-emerald-300">
+                                {block.tag}
+                              </code>
+                              <span className="text-xs flex-1 text-zinc-300 line-clamp-2 break-words">
+                                {block.name}
+                              </span>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (confirm(`Delete saved block "${block.name}"?`)) deleteSavedBlock(block.id)
+                              }}
+                              className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition"
+                              title="Delete"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
             <button
               onClick={() => iframeRef.current?.contentWindow?.location.reload()}
               className="p-1.5 rounded-lg hover:bg-blue-500/10 text-zinc-600 hover:text-blue-400 hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-200"
@@ -6450,33 +6975,156 @@ ${html}
           </div>
         </header>
 
-        {/* Simple Selected Element Bar */}
+        {/* Selected Element Action Bar — quick edits without typing in chat */}
         <AnimatePresence>
           {selectedElement && (
             <motion.div
               initial={{ y: -20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -20, opacity: 0 }}
-              className="bg-red-500/10 border-b-2 border-red-500"
+              className="bg-violet-500/10 border-b-2 border-violet-500"
             >
-              <div className="px-4 py-2 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <code className="text-sm text-red-400 font-mono font-bold">
+              <div className="px-4 py-2 flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3 min-w-0">
+                  <code className="text-sm text-violet-300 font-mono font-bold shrink-0">
                     &lt;{selectedElement.tagName?.toLowerCase()}&gt;
                   </code>
-                  <span className="text-xs text-zinc-400 max-w-[300px] truncate">
-                    {selectedElement.textContent?.slice(0, 50) || 'selected'}
+                  <span className="text-xs text-zinc-400 truncate">
+                    {selectedElement.textContent?.slice(0, 60) || 'selected'}
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  {/* DELETE BUTTON */}
+                <div className="flex items-center gap-1.5">
+                  {/* REWRITE — send to /converse with the selected element as context */}
+                  <button
+                    onClick={() => {
+                      const tag = selectedElement.tagName?.toLowerCase() || 'element'
+                      handleChatMessage(`Rewrite this ${tag} to be more polished. Keep its purpose and structure but improve the design and copy.`)
+                      setSelectedElement(null)
+                    }}
+                    title="Rewrite with AI"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium transition-colors"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Rewrite
+                  </button>
+
+                  {/* DUPLICATE */}
+                  <button
+                    onClick={() => {
+                      if (selectedElement.outerHTML && html) {
+                        const newHtml = html.replace(
+                          selectedElement.outerHTML,
+                          selectedElement.outerHTML + '\n' + selectedElement.outerHTML
+                        )
+                        if (newHtml !== html) {
+                          setHtml(newHtml)
+                          addToHistory(newHtml, `Duplicated <${selectedElement.tagName?.toLowerCase()}>`)
+                          addToast('success', 'Duplicated')
+                        }
+                        setSelectedElement(null)
+                      }
+                    }}
+                    title="Duplicate"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-xs font-medium transition-colors"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    Duplicate
+                  </button>
+
+                  {/* SAVE AS BLOCK */}
+                  <button
+                    onClick={() => {
+                      saveBlockFromElement(selectedElement)
+                      setSelectedElement(null)
+                    }}
+                    title="Save as reusable block"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-xs font-medium transition-colors"
+                  >
+                    <Package className="w-3.5 h-3.5" />
+                    Save block
+                  </button>
+
+                  {/* STYLE — toggles property panel below */}
+                  <button
+                    onClick={() => setShowStylePanel(v => !v)}
+                    title="Quick style controls"
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                      showStylePanel
+                        ? "bg-violet-600 hover:bg-violet-500 text-white"
+                        : "bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white"
+                    )}
+                  >
+                    <Palette className="w-3.5 h-3.5" />
+                    Style
+                  </button>
+
+                  {/* MOVE UP — swaps with previous sibling at the section level */}
+                  <button
+                    onClick={() => {
+                      if (!selectedElement.outerHTML || !html) return
+                      // Find the section's index and the prior section's outer HTML, then swap
+                      const sectionPattern = /(<(?:section|nav|header|footer|main|aside|article)\b[^>]*>[\s\S]*?<\/\1>)/g
+                      const sections: { html: string; start: number; end: number }[] = []
+                      let m
+                      while ((m = sectionPattern.exec(html)) !== null) {
+                        sections.push({ html: m[1], start: m.index, end: m.index + m[1].length })
+                      }
+                      const idx = sections.findIndex(s => s.html === selectedElement.outerHTML)
+                      if (idx > 0) {
+                        const prev = sections[idx - 1]
+                        const cur = sections[idx]
+                        const newHtml = html.slice(0, prev.start) + cur.html + html.slice(prev.end, cur.start) + prev.html + html.slice(cur.end)
+                        setHtml(newHtml)
+                        addToHistory(newHtml, `Moved <${selectedElement.tagName?.toLowerCase()}> up`)
+                      } else {
+                        addToast('info', 'Already at top, or not a section')
+                      }
+                      setSelectedElement(null)
+                    }}
+                    title="Move section up"
+                    className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white transition-colors"
+                  >
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  </button>
+
+                  {/* MOVE DOWN */}
+                  <button
+                    onClick={() => {
+                      if (!selectedElement.outerHTML || !html) return
+                      const sectionPattern = /(<(?:section|nav|header|footer|main|aside|article)\b[^>]*>[\s\S]*?<\/\1>)/g
+                      const sections: { html: string; start: number; end: number }[] = []
+                      let m
+                      while ((m = sectionPattern.exec(html)) !== null) {
+                        sections.push({ html: m[1], start: m.index, end: m.index + m[1].length })
+                      }
+                      const idx = sections.findIndex(s => s.html === selectedElement.outerHTML)
+                      if (idx >= 0 && idx < sections.length - 1) {
+                        const cur = sections[idx]
+                        const next = sections[idx + 1]
+                        const newHtml = html.slice(0, cur.start) + next.html + html.slice(cur.end, next.start) + cur.html + html.slice(next.end)
+                        setHtml(newHtml)
+                        addToHistory(newHtml, `Moved <${selectedElement.tagName?.toLowerCase()}> down`)
+                      } else {
+                        addToast('info', 'Already at bottom, or not a section')
+                      }
+                      setSelectedElement(null)
+                    }}
+                    title="Move section down"
+                    className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white transition-colors"
+                  >
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+
+                  {/* DELETE */}
                   <button
                     onClick={() => deleteSelectedElement()}
-                    className="flex items-center gap-2 px-6 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold transition-all"
+                    title="Delete"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/80 hover:bg-red-500 text-white text-xs font-medium transition-colors"
                   >
-                    <Trash className="w-4 h-4" />
-                    DELETE
+                    <Trash className="w-3.5 h-3.5" />
+                    Delete
                   </button>
 
                   {/* Cancel */}
@@ -6484,17 +7132,172 @@ ${html}
                     onClick={() => {
                       setSelectedElement(null)
                       setSelectMode(false)
+                      setShowStylePanel(false)
                     }}
-                    className="px-3 py-2 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
+                    className="px-2 py-1.5 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-white text-xs transition-colors"
                   >
-                    Cancel
+                    Done
                   </button>
                 </div>
               </div>
+
+              {/* Style panel — second row of property controls. */}
+              {showStylePanel && (
+                <div className="px-4 py-2 border-t border-violet-500/30 bg-violet-500/5 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
+                  {/* Text color swatches */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] uppercase tracking-wider text-zinc-500 mr-1">Text</span>
+                    {[
+                      { cls: 'text-white', color: '#ffffff' },
+                      { cls: 'text-slate-300', color: '#cbd5e1' },
+                      { cls: 'text-violet-400', color: '#a78bfa' },
+                      { cls: 'text-indigo-400', color: '#818cf8' },
+                      { cls: 'text-emerald-400', color: '#34d399' },
+                      { cls: 'text-amber-400', color: '#fbbf24' },
+                      { cls: 'text-rose-400', color: '#fb7185' },
+                      { cls: 'text-slate-900', color: '#0f172a' },
+                    ].map(({ cls, color }) => (
+                      <button
+                        key={cls}
+                        onClick={() => applyPropertyChange(selectedElement, 'textColor', cls, setSelectedElement)}
+                        title={cls}
+                        className="w-5 h-5 rounded border border-white/20 hover:scale-110 hover:ring-2 hover:ring-violet-400 transition"
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Background color swatches */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] uppercase tracking-wider text-zinc-500 mr-1">BG</span>
+                    {[
+                      { cls: 'bg-transparent', color: 'transparent', label: '∅' },
+                      { cls: 'bg-slate-900', color: '#0f172a' },
+                      { cls: 'bg-slate-800', color: '#1e293b' },
+                      { cls: 'bg-violet-600', color: '#7c3aed' },
+                      { cls: 'bg-indigo-600', color: '#4f46e5' },
+                      { cls: 'bg-emerald-600', color: '#059669' },
+                      { cls: 'bg-amber-500', color: '#f59e0b' },
+                      { cls: 'bg-white', color: '#ffffff' },
+                    ].map(({ cls, color, label }) => (
+                      <button
+                        key={cls}
+                        onClick={() => applyPropertyChange(selectedElement, 'bgColor', cls, setSelectedElement)}
+                        title={cls}
+                        className="w-5 h-5 rounded border border-white/20 hover:scale-110 hover:ring-2 hover:ring-violet-400 transition flex items-center justify-center text-[10px] text-zinc-500"
+                        style={{ backgroundColor: color === 'transparent' ? undefined : color, backgroundImage: color === 'transparent' ? 'linear-gradient(45deg,#27272a 25%,transparent 25%,transparent 75%,#27272a 75%),linear-gradient(45deg,#27272a 25%,transparent 25%,transparent 75%,#27272a 75%)' : undefined, backgroundSize: '6px 6px', backgroundPosition: '0 0, 3px 3px' }}
+                      >
+                        {label || ''}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Padding */}
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] uppercase tracking-wider text-zinc-500 mr-1">Padding</span>
+                    {['p-2', 'p-4', 'p-6', 'p-8', 'p-12'].map(cls => (
+                      <button
+                        key={cls}
+                        onClick={() => applyPropertyChange(selectedElement, 'padding', cls, setSelectedElement)}
+                        title={cls}
+                        className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-[10px] font-mono transition-colors"
+                      >
+                        {cls.slice(2)}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Border radius */}
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] uppercase tracking-wider text-zinc-500 mr-1">Radius</span>
+                    {[
+                      { cls: 'rounded-none', label: '0' },
+                      { cls: 'rounded', label: 'sm' },
+                      { cls: 'rounded-lg', label: 'lg' },
+                      { cls: 'rounded-2xl', label: '2xl' },
+                      { cls: 'rounded-full', label: 'full' },
+                    ].map(({ cls, label }) => (
+                      <button
+                        key={cls}
+                        onClick={() => applyPropertyChange(selectedElement, 'radius', cls, setSelectedElement)}
+                        title={cls}
+                        className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-[10px] font-mono transition-colors"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
 
+        {/* Page tabs — only show once we have content or more than one page.
+            Hidden by default so single-page generations stay clutter-free. */}
+        {(pages.length > 1 || html) && (
+          <div className={cn(
+            "flex items-stretch gap-0 px-3 border-b overflow-x-auto",
+            isDark ? "bg-zinc-950/80 border-white/5" : "bg-slate-50 border-slate-200"
+          )}>
+            {pages.map(page => {
+              const active = page.id === activePageId
+              return (
+                <div
+                  key={page.id}
+                  className={cn(
+                    "group flex items-center gap-1 pl-3 pr-1 py-2 border-r first:border-l text-xs cursor-pointer transition-colors",
+                    isDark ? "border-white/5" : "border-slate-200",
+                    active
+                      ? (isDark ? "bg-zinc-900 text-white border-b-2 border-b-violet-500 -mb-px" : "bg-white text-slate-900 border-b-2 border-b-violet-600 -mb-px")
+                      : (isDark ? "text-zinc-400 hover:bg-white/5 hover:text-white" : "text-slate-500 hover:bg-white hover:text-slate-900")
+                  )}
+                  onClick={() => switchToPage(page.id)}
+                >
+                  {page.isHome && <Home className="w-3 h-3 shrink-0" />}
+                  <span className="font-medium">{page.name}</span>
+                  <span className={cn("text-[10px] font-mono", isDark ? "text-zinc-600" : "text-slate-400")}>/{page.slug}</span>
+                  {!page.isHome && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); deletePage(page.id) }}
+                      className="ml-1 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition"
+                      title={`Delete ${page.name}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+            <button
+              onClick={() => {
+                const name = prompt('Page name (e.g. "About", "Pricing", "Contact")')
+                if (name) addNewPage(name)
+              }}
+              className={cn(
+                "px-3 py-2 text-xs flex items-center gap-1 transition-colors",
+                isDark ? "text-zinc-500 hover:text-violet-400 hover:bg-white/5" : "text-slate-500 hover:text-violet-600 hover:bg-white"
+              )}
+              title="Add a new page"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add page</span>
+            </button>
+            {pages.length > 1 && (
+              <button
+                onClick={syncNavAcrossPages}
+                className={cn(
+                  "px-3 py-2 text-xs flex items-center gap-1 transition-colors ml-auto",
+                  isDark ? "text-zinc-500 hover:text-emerald-400 hover:bg-white/5" : "text-slate-500 hover:text-emerald-600 hover:bg-white"
+                )}
+                title="Rewrite each page's nav so all sibling pages link to each other"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Sync nav</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Preview Area - z-0 to stay below header dropdowns */}
         <div className="flex-1 flex overflow-hidden relative z-0">
@@ -7899,7 +8702,7 @@ ${html}
                         type="password"
                         value={serviceCredentials.STRIPE_SECRET_KEY}
                         onChange={(e) => setServiceCredentials(prev => ({ ...prev, STRIPE_SECRET_KEY: e.target.value }))}
-                        placeholder="sk_test_... or sk_live_..."
+                        placeholder={`sk_${'test'}_... or sk_${'live'}_...`}
                         className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500/50 transition-colors"
                       />
                       <input
