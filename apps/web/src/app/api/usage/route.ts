@@ -62,7 +62,13 @@ export async function GET(req: NextRequest) {
 
     const todayUsage = await getUserUsageToday(userId)
     const monthUsage = await getUserUsageThisMonth(userId)
-    const userPlan = user.plan || 'free'
+    const rawPlan = (user.plan || 'free') as keyof typeof PLAN_LIMITS
+    // Records can hold legacy plan ids ('professional', 'team', etc.) that
+    // were dropped from PLAN_LIMITS — fall back to free instead of 500ing.
+    const userPlan = (PLAN_LIMITS[rawPlan] ? rawPlan : 'free') as keyof typeof PLAN_LIMITS
+    if (userPlan !== rawPlan) {
+      console.warn(`User ${userId} has unknown plan "${rawPlan}" — falling back to free`)
+    }
     const limits = PLAN_LIMITS[userPlan]
 
     // Get recent usage history

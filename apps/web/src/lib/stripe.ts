@@ -46,7 +46,8 @@ export async function createCreditsCheckoutSession(
   userId: string,
   packageId: string,
   successUrl: string,
-  cancelUrl: string
+  cancelUrl: string,
+  email?: string
 ): Promise<string | null> {
   const stripeClient = await getStripe()
   if (!stripeClient) {
@@ -66,6 +67,7 @@ export async function createCreditsCheckoutSession(
   const session = await stripeClient.checkout.sessions.create({
     mode: 'payment',
     payment_method_types: ['card'],
+    customer_email: email,
     line_items: [{ price: creditPackage.priceId, quantity: 1 }],
     metadata: {
       userId,

@@ -1,9 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
+import mongoose from 'mongoose'
 import Stripe from 'stripe'
 import { getStripe, getPlanCredits, type PlanId } from '@/lib/stripe'
 import { connectDB } from '@/lib/db'
 import { User } from '@ai-website-builder/database'
+
+// session.user.id from NextAuth can be a provider account id (legacy OAuth)
+// rather than a Mongo _id, so findById fails silently. Resolve by trying _id
+// first, then customer email from the Stripe session as a fallback.
+async function resolveUser(metadataUserId: string | undefined, email: string | undefined) {
+  if (metadataUserId && mongoose.Types.ObjectId.isValid(metadataUserId)) {
+    const byId = await User.findById(metadataUserId)
+    if (byId) return byId
+  }
+  if (email) {
+    const byEmail = await User.findOne({ email: email.toLowerCase() })
+    if (byEmail) return byEmail
+  }
+  return null
+}
 
 // Track processed event IDs to prevent duplicate processing (in production, use Redis/DB)
 const processedEvents = new Set<string>()
@@ -69,9 +85,10 @@ export async function POST(req: NextRequest) {
           break
         }
 
-        const user = await User.findById(metadata.userId)
+        const email = session.customer_details?.email || session.customer_email || undefined
+        const user = await resolveUser(metadata.userId, email)
         if (!user) {
-          console.error('User not found:', metadata.userId)
+          console.error('User not found for session', session.id, 'metadata.userId=', metadata.userId, 'email=', email)
           break
         }
 

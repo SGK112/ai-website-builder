@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
+import mongoose from 'mongoose'
 import { authOptions } from '@/lib/auth'
 import { createSubscriptionCheckoutSession, createCreditsCheckoutSession, SUBSCRIPTION_PLANS, CREDIT_PACKAGES } from '@/lib/stripe'
+import { connectDB } from '@/lib/db'
+import { User } from '@ai-website-builder/database'
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,6 +15,17 @@ export async function POST(req: NextRequest) {
         { error: 'Authentication required' },
         { status: 401 }
       )
+    }
+
+    // session.user.id may be a provider account id (legacy OAuth) — resolve to
+    // the canonical Mongo _id BEFORE handing it to Stripe so the webhook can
+    // find the user. Without this, the webhook stores an invalid id in
+    // metadata, fails findById, and never adds credits.
+    await connectDB()
+    let canonicalUserId = session.user.id
+    if (!mongoose.Types.ObjectId.isValid(canonicalUserId)) {
+      const u = await User.findOne({ email: session.user.email.toLowerCase() }).select('_id').lean() as { _id: any } | null
+      if (u?._id) canonicalUserId = u._id.toString()
     }
 
     const body = await req.json()
@@ -42,7 +56,7 @@ export async function POST(req: NextRequest) {
       const period = billingPeriod === 'annual' || billingPeriod === 'yearly' ? 'annual' : 'monthly'
 
       const checkoutUrl = await createSubscriptionCheckoutSession(
-        session.user.id,
+        canonicalUserId,
         session.user.email,
         planId,
         successUrl,
@@ -72,10 +86,11 @@ export async function POST(req: NextRequest) {
       }
 
       const checkoutUrl = await createCreditsCheckoutSession(
-        session.user.id,
+        canonicalUserId,
         packageId,
         successUrl,
-        cancelUrl
+        cancelUrl,
+        session.user.email
       )
 
       if (!checkoutUrl) {

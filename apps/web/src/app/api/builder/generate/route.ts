@@ -2103,7 +2103,7 @@ export async function POST(req: NextRequest) {
           }
 
           // Check if selected model is allowed for user's plan (admins can use all models)
-          const limits = PLAN_LIMITS[userPlan]
+          const limits = PLAN_LIMITS[userPlan as keyof typeof PLAN_LIMITS] || PLAN_LIMITS.free
           const modelKey = model?.replace(/^(hf-|together-|cf-)/, '') || 'default'
 
           // Premium models require pro/enterprise plan (admins bypass this)

@@ -1,9 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
+import mongoose from 'mongoose'
 import { authOptions } from '@/lib/auth'
 import { connectDB } from '@/lib/db'
 import { User } from '@ai-website-builder/database'
 import { createCreditsCheckoutSession, CREDIT_PACKAGES, CREDIT_COSTS } from '@/lib/stripe'
+
+// session.user.id may be a provider account id (legacy OAuth) — try _id first
+// then fall back to email so we don't 404 on real, signed-in users.
+async function findSessionUser(sessionUserId: string | undefined, email: string | undefined) {
+  if (sessionUserId && mongoose.Types.ObjectId.isValid(sessionUserId)) {
+    const u = await User.findById(sessionUserId)
+    if (u) return u
+  }
+  if (email) {
+    const u = await User.findOne({ email: email.toLowerCase() })
+    if (u) return u
+  }
+  return null
+}
 
 // GET - Get user credits and usage info
 export async function GET(req: NextRequest) {
@@ -30,7 +45,7 @@ export async function GET(req: NextRequest) {
     }
 
     await connectDB()
-    const user = await User.findById(session.user.id)
+    const user = await findSessionUser(session.user.id, session.user.email || undefined)
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
@@ -74,11 +89,18 @@ export async function POST(req: NextRequest) {
     const successUrl = `${origin}/dashboard?credits_success=true`
     const cancelUrl = `${origin}/upgrade?canceled=true`
 
+    await connectDB()
+    const dbUser = await findSessionUser(session.user.id, session.user.email || undefined)
+    if (!dbUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
     const checkoutUrl = await createCreditsCheckoutSession(
-      session.user.id,
+      dbUser._id.toString(),
       packageId,
       successUrl,
-      cancelUrl
+      cancelUrl,
+      session.user.email || undefined
     )
 
     if (!checkoutUrl) {
