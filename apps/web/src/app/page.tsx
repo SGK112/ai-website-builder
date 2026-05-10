@@ -321,7 +321,7 @@ export default function HomePage() {
                       letterSpacing: '-0.03em'
                     }}
                   >
-                    WebStew
+                    AI Website Builder
                   </span>
                 </motion.div>
 
