@@ -208,7 +208,7 @@ export default function CommunityPage() {
               )}>
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
-              <span className="font-bold">WebStew</span>
+              <span className="font-bold">AI Website Builder</span>
             </Link>
             <ChevronRight className="w-4 h-4 text-zinc-500" />
             <div className="flex items-center gap-2">

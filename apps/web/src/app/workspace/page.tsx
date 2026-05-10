@@ -1244,6 +1244,50 @@ function WorkspaceContent() {
   // with color/padding/radius swatches. Off by default to keep the bar compact.
   const [showStylePanel, setShowStylePanel] = useState(false)
 
+  // Low-credit nudge — slides in from the right when monthly credits get low.
+  // Only shows if the user is signed in AND credits are <= 30% of their plan
+  // OR <= 30 absolute. Dismissable for 24h via localStorage. Pulses on entry
+  // to grab attention; settles into a quiet glow.
+  const [creditNudge, setCreditNudge] = useState<{
+    show: boolean
+    remaining?: number
+    plan?: string
+  }>({ show: false })
+
+  useEffect(() => {
+    if (!session?.user?.id) return
+    let cancelled = false
+
+    const checkCredits = async () => {
+      try {
+        // Honor a 24h dismissal cooldown
+        const dismissedAt = parseInt(localStorage.getItem('webstew-credit-nudge-dismissed') || '0', 10)
+        if (dismissedAt && Date.now() - dismissedAt < 24 * 60 * 60 * 1000) return
+
+        const res = await fetch('/api/usage')
+        if (!res.ok) return
+        const data = await res.json()
+        if (cancelled) return
+
+        const planLimitCredits = data?.limits?.monthlyCredits ?? data?.limits?.credits ?? 100
+        const usedThisMonth = data?.month?.credits ?? ((data?.month?.generations || 0) * 10)
+        const remaining = Math.max(0, planLimitCredits - usedThisMonth)
+
+        // Trigger when below 30% of plan OR below 30 credits absolute
+        if (remaining <= 30 || remaining <= planLimitCredits * 0.3) {
+          setCreditNudge({ show: true, remaining, plan: data?.user?.plan })
+        }
+      } catch {
+        // Silent — usage endpoint failure shouldn't bother the user
+      }
+    }
+
+    // Check on mount + every 60s
+    checkCredits()
+    const interval = setInterval(checkCredits, 60_000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [session?.user?.id])
+
   // Credit wall — modal that appears when /api/builder/generate or /converse
   // returns 402 (anon trial cap) or 429 (signed-in plan limit).
   const [creditWall, setCreditWall] = useState<{
@@ -9681,6 +9725,74 @@ ${html}
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* Low-credits slide-in nudge — non-obtrusive but attention-grabbing.
+          Only appears when the user's monthly credits are running low (< 30
+          remaining or under 30% of their plan). Slides in with bounce, then
+          a quiet pulsing glow so it stays in your peripheral vision until
+          dismissed. Stays dismissed for 24h via localStorage. */}
+      <AnimatePresence>
+        {creditNudge.show && (
+          <motion.div
+            initial={{ x: 420, opacity: 0, scale: 0.9 }}
+            animate={{
+              x: 0,
+              opacity: 1,
+              scale: 1,
+            }}
+            exit={{ x: 420, opacity: 0, scale: 0.9 }}
+            transition={{ type: 'spring', stiffness: 240, damping: 18, mass: 0.7 }}
+            className="fixed bottom-6 right-6 z-[150] max-w-sm"
+            style={{
+              filter: creditNudge.remaining === 0
+                ? 'drop-shadow(0 0 28px rgba(244,63,94,0.45))'
+                : 'drop-shadow(0 0 24px rgba(245,158,11,0.4))',
+            }}
+          >
+            <div className="relative p-4 pr-3 rounded-2xl bg-gradient-to-br from-amber-500/15 via-zinc-950/95 to-zinc-950/95 backdrop-blur-xl border border-amber-500/30 shadow-2xl shadow-amber-500/20">
+              <button
+                onClick={() => {
+                  setCreditNudge({ show: false })
+                  try { localStorage.setItem('webstew-credit-nudge-dismissed', String(Date.now())) } catch {}
+                }}
+                className="absolute top-2 right-2 p-1 rounded-md text-zinc-500 hover:text-white hover:bg-white/5 transition"
+                aria-label="Dismiss"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+              <div className="flex items-start gap-3 pr-5">
+                <div className="shrink-0 w-9 h-9 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
+                  <Zap className="w-4 h-4 text-amber-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-white mb-0.5">
+                    {creditNudge.remaining === 0 ? 'Out of credits' : `${creditNudge.remaining} credits left`}
+                  </div>
+                  <div className="text-[11px] text-zinc-400 leading-relaxed mb-3">
+                    {creditNudge.remaining === 0
+                      ? "You've used your monthly credits. Top up to keep building."
+                      : `That's about ${Math.floor((creditNudge.remaining || 0) / 10)} more sites this month. Top up anytime.`}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => router.push('/upgrade')}
+                      className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white text-[11px] font-semibold transition"
+                    >
+                      Buy 50 credits — $4.99
+                    </button>
+                    <button
+                      onClick={() => router.push('/upgrade')}
+                      className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-[11px] font-medium transition"
+                    >
+                      See plans
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
