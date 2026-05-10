@@ -87,14 +87,39 @@ export default function LoginPage() {
             <p className="text-zinc-400">Sign in to continue building</p>
           </div>
 
-          {/* Error message */}
+          {/* Error message — surface NextAuth's error code so we can debug
+              what's actually failing instead of hiding it behind "An error
+              occurred". Common codes:
+              - CredentialsSignin: wrong email/password
+              - OAuthAccountNotLinked: an account with this email already
+                exists but was created with a different sign-in method
+              - OAuthSignin/OAuthCallback: OAuth provider rejected the request
+                (most often: callback URL on the OAuth app doesn't match the
+                deployed URL, or env vars not set on the server)
+              - Configuration: NextAuth itself is misconfigured (NEXTAUTH_SECRET,
+                NEXTAUTH_URL, or DB unreachable)
+              - Default: catch-all */}
           {error && (
-            <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm text-center">
-              {error === 'CredentialsSignin'
-                ? 'Invalid email or password'
-                : error === 'auth_callback_failed'
-                ? 'Authentication failed. Please try again.'
-                : 'An error occurred. Please try again.'}
+            <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+              <div className="font-medium mb-1">
+                {error === 'CredentialsSignin' && 'Invalid email or password'}
+                {error === 'OAuthAccountNotLinked' && 'This email is already registered with a different sign-in method'}
+                {(error === 'OAuthSignin' || error === 'OAuthCallback') && 'OAuth provider rejected the sign-in'}
+                {error === 'Configuration' && 'Server misconfigured — contact admin'}
+                {error === 'AccessDenied' && 'Access denied'}
+                {error === 'auth_callback_failed' && 'Authentication failed. Please try again.'}
+                {!['CredentialsSignin','OAuthAccountNotLinked','OAuthSignin','OAuthCallback','Configuration','AccessDenied','auth_callback_failed'].includes(error) && 'Sign-in failed'}
+              </div>
+              <div className="text-xs text-red-400/70 font-mono">
+                Error code: {error}
+              </div>
+              {(error === 'OAuthSignin' || error === 'OAuthCallback' || error === 'Configuration') && (
+                <div className="text-xs text-red-400/80 mt-2 leading-relaxed">
+                  Likely fix: confirm the OAuth callback URL on the provider matches{' '}
+                  <code className="px-1 py-0.5 bg-red-500/10 rounded">https://&lt;your-domain&gt;/api/auth/callback/&lt;provider&gt;</code>
+                  {' '}and that GITHUB_ID / GITHUB_SECRET (or Google equivalents) are set on the server.
+                </div>
+              )}
             </div>
           )}
 
