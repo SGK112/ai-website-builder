@@ -94,27 +94,46 @@ export const authOptions: NextAuthOptions = {
       if (account?.provider === 'google' || account?.provider === 'github') {
         await connectDB()
 
-        const existingUser = await User.findOne({ email: user.email })
+        const providerIdField = account.provider === 'google' ? 'googleId' : 'githubId'
+        const providerId = account.providerAccountId
+
+        // Look up by provider ID FIRST (it's unique per OAuth provider, more
+        // reliable than email which GitHub doesn't always return). Fall back
+        // to email match for users who signed up with credentials and are
+        // now linking an OAuth provider.
+        let existingUser = await User.findOne({ [providerIdField]: providerId })
+        if (!existingUser && user.email) {
+          existingUser = await User.findOne({ email: user.email })
+        }
 
         if (!existingUser) {
+          // Truly new user — create. Email may be missing if the GitHub
+          // account has no public email; that's fine, NextAuth still gives
+          // us providerAccountId which is unique.
           await User.create({
-            email: user.email,
+            email: user.email || `${providerId}@${account.provider}.oauth`,
             name: user.name || 'User',
             avatar: user.image,
-            googleId: account.provider === 'google' ? account.providerAccountId : undefined,
-            githubId: account.provider === 'github' ? account.providerAccountId : undefined,
+            googleId: account.provider === 'google' ? providerId : undefined,
+            githubId: account.provider === 'github' ? providerId : undefined,
             plan: 'free',
           })
         } else {
-          // Update OAuth IDs if not set
-          if (account.provider === 'google' && !existingUser.googleId) {
-            existingUser.googleId = account.providerAccountId
-            await existingUser.save()
+          // Backfill missing fields without overwriting existing data
+          let dirty = false
+          if (!existingUser[providerIdField]) {
+            existingUser[providerIdField] = providerId
+            dirty = true
           }
-          if (account.provider === 'github' && !existingUser.githubId) {
-            existingUser.githubId = account.providerAccountId
-            await existingUser.save()
+          if (!existingUser.email && user.email) {
+            existingUser.email = user.email
+            dirty = true
           }
+          if (!existingUser.avatar && user.image) {
+            existingUser.avatar = user.image
+            dirty = true
+          }
+          if (dirty) await existingUser.save()
         }
       }
       return true
@@ -122,7 +141,19 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, account }) {
       if (user) {
         await connectDB()
-        const dbUser = await User.findOne({ email: user.email })
+        // Match the same lookup priority as signIn: provider ID first, then
+        // email. Otherwise users without a public email lose their plan info.
+        let dbUser = null
+        if (account?.providerAccountId) {
+          const field = account.provider === 'google' ? 'googleId' :
+                        account.provider === 'github' ? 'githubId' : null
+          if (field) {
+            dbUser = await User.findOne({ [field]: account.providerAccountId })
+          }
+        }
+        if (!dbUser && user.email) {
+          dbUser = await User.findOne({ email: user.email })
+        }
         token.id = dbUser?._id.toString() || user.id
         token.plan = dbUser?.plan || 'free'
       }
