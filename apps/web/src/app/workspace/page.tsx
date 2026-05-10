@@ -2523,19 +2523,26 @@ ${html}
     try {
       addTerminalLine('info', `Loading template: ${templateName}...`)
       const res = await fetch(`/api/templates?id=${templateId}`)
-      if (res.ok) {
-        const data = await res.json()
-        const template = data.templates?.[0]
-        if (template?.html_content) {
-          setHtml(template.html_content)
-          setViewMode('preview')
-          addTerminalLine('success', `✓ Loaded "${templateName}" template`)
-          addConsoleLog('success', `Template "${templateName}" loaded successfully`)
-          addToHistory(template.html_content, `Loaded ${templateName} template`)
-        } else {
-          addTerminalLine('error', `Template content not found`)
-        }
+      if (!res.ok) {
+        addTerminalLine('error', `Template fetch failed (${res.status})`)
+        return
       }
+      const data = await res.json()
+      const template = data.templates?.[0]
+      const content: string = template?.html_content || ''
+      // Guard against stub/empty templates that just render as a near-blank page.
+      // These were the "test" entries that confused users — show a clear message
+      // instead of loading 50 chars of placeholder HTML and pretending it worked.
+      if (!content.trim() || content.trim().length < 500) {
+        addTerminalLine('error', `Template "${templateName}" is incomplete (${content.length} chars). Use a Quick Start tile instead.`)
+        addToast('error', `Template "${templateName}" appears to be a stub — try a Quick Start tile`)
+        return
+      }
+      setHtml(content)
+      setViewMode('preview')
+      addTerminalLine('success', `✓ Loaded "${templateName}" template`)
+      addConsoleLog('success', `Template "${templateName}" loaded successfully`)
+      addToHistory(content, `Loaded ${templateName} template`)
     } catch (error) {
       addTerminalLine('error', `Failed to load template: ${error}`)
     }
@@ -5134,15 +5141,22 @@ ${html}
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 text-violet-400 animate-spin" />
                   </div>
-                ) : supabaseTemplates.length > 0 ? (
+                ) : supabaseTemplates.filter(t =>
+                    // Filter out obvious stubs / test entries that confuse users
+                    !/^(test|stub|untitled|sample|temp)\b/i.test(t.name?.trim() || '')
+                  ).length > 0 ? (
                   <div>
                     <div className="flex items-center gap-2 mb-3">
                       <Layout className="w-4 h-4 text-fuchsia-400" />
                       <h3 className="text-sm font-medium text-white">Template Library</h3>
-                      <span className="text-[10px] text-zinc-500">({supabaseTemplates.length})</span>
+                      <span className="text-[10px] text-zinc-500">
+                        ({supabaseTemplates.filter(t => !/^(test|stub|untitled|sample|temp)\b/i.test(t.name?.trim() || '')).length})
+                      </span>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      {supabaseTemplates.map((template) => (
+                      {supabaseTemplates
+                        .filter(t => !/^(test|stub|untitled|sample|temp)\b/i.test(t.name?.trim() || ''))
+                        .map((template) => (
                         <button
                           key={template.id}
                           onClick={() => loadSupabaseTemplate(template.id, template.name)}
@@ -5188,7 +5202,7 @@ ${html}
                 <div className="p-3 rounded-lg bg-violet-500/5 border border-violet-500/10">
                   <p className="text-violet-400 text-[10px] font-medium mb-1">💡 Pro tip</p>
                   <p className="text-zinc-500 text-[10px] leading-relaxed">
-                    Quick Start templates generate with AI. Template Library contains pre-made designs that load instantly.
+                    Quick Start tiles load full-design templates instantly — no AI wait. Type a prompt or click an element after loading to customize.
                   </p>
                 </div>
               </motion.div>
@@ -6719,7 +6733,10 @@ ${html}
             <div className="h-4 w-px bg-white/10" />
 
             {/* View mode */}
-            <div className="flex bg-white/[0.03] rounded-lg p-0.5 border border-white/[0.05]">
+            <div className={cn(
+              "flex rounded-lg p-0.5 border",
+              isDark ? "bg-white/[0.03] border-white/[0.05]" : "bg-slate-100 border-slate-200"
+            )}>
               {([
                 { mode: 'preview' as ViewMode, icon: Eye, label: 'Preview', tour: undefined, color: 'emerald' },
                 { mode: 'code' as ViewMode, icon: Code2, label: 'Code', tour: 'code', color: 'blue' },
@@ -6733,11 +6750,13 @@ ${html}
                     'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200',
                     viewMode === mode
                       ? color === 'emerald'
-                        ? 'bg-emerald-500/20 text-emerald-400 shadow-sm shadow-emerald-500/20'
+                        ? (isDark ? 'bg-emerald-500/20 text-emerald-400 shadow-sm shadow-emerald-500/20' : 'bg-emerald-100 text-emerald-700 shadow-sm')
                         : color === 'blue'
-                          ? 'bg-blue-500/20 text-blue-400 shadow-sm shadow-blue-500/20'
-                          : 'bg-violet-500/20 text-violet-400 shadow-sm shadow-violet-500/20'
-                      : 'text-zinc-600 hover:text-white hover:bg-white/5'
+                          ? (isDark ? 'bg-blue-500/20 text-blue-400 shadow-sm shadow-blue-500/20' : 'bg-blue-100 text-blue-700 shadow-sm')
+                          : (isDark ? 'bg-violet-500/20 text-violet-400 shadow-sm shadow-violet-500/20' : 'bg-violet-100 text-violet-700 shadow-sm')
+                      : (isDark
+                          ? 'text-zinc-400 hover:text-white hover:bg-white/5'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-white')
                   )}
                   title={`Switch to ${label} view`}
                 >
