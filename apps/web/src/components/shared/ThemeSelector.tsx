@@ -80,7 +80,7 @@ export function ThemeSelector() {
             </div>
             <span className={`text-3xl font-bold tracking-tight transition-colors duration-500 ${
               hoveredTheme === 'light' ? 'text-slate-900' : 'text-white'
-            }`}>WebCraft</span>
+            }`}>AI Website Builder</span>
           </motion.div>
 
           {/* Heading */}

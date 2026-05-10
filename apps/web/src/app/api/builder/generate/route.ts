@@ -1428,56 +1428,83 @@ function restoreImageData(html: string, markers: Map<string, string>): string {
   return result
 }
 
-// Fetch a small set of relevant stock images from Pexels for the given prompt.
-// Returns a Map of marker→url that can be merged into imageMarkers, plus a
-// human-readable addendum to append to the user prompt so the AI uses the
-// markers instead of guessing at picsum seeds.
+// Fetch a small set of relevant stock images for the given prompt. Tries
+// Pixabay first (configured on Render), falls back to Pexels if PEXELS_API_KEY
+// is set instead. Returns a Map of marker→url that can be merged into
+// imageMarkers, plus a human-readable addendum to append to the user prompt
+// so the AI uses the markers instead of guessing at picsum seeds.
 //
-// Gracefully no-ops if PEXELS_API_KEY is not set — generation still works,
-// images just fall back to the picsum pattern in the system prompt.
+// Gracefully no-ops if neither PIXABAY_API_KEY nor PEXELS_API_KEY is set —
+// generation still works, images just fall back to picsum in the system prompt.
 async function fetchStockImagesForPrompt(
   prompt: string,
   count = 8
 ): Promise<{ markers: Map<string, string>; addendum: string }> {
   const markers = new Map<string, string>()
-  const apiKey = process.env.PEXELS_API_KEY
-  if (!apiKey) {
+  const pixabayKey = process.env.PIXABAY_API_KEY
+  const pexelsKey = process.env.PEXELS_API_KEY
+  if (!pixabayKey && !pexelsKey) {
     return { markers, addendum: '' }
   }
 
-  // Keep query focused — Pexels search works best on short subject phrases
+  // Keep query focused — search engines work best on short subject phrases
   const query = prompt.replace(/\s+/g, ' ').trim().slice(0, 80).split(/[.,!?]/)[0].trim()
   if (!query) return { markers, addendum: '' }
+
+  type Photo = { url: string }
+  let photos: Photo[] = []
+  let provider = ''
 
   try {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 5000)
-    const res = await fetch(
-      `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=${count}&orientation=landscape`,
-      { headers: { Authorization: apiKey }, signal: controller.signal }
-    )
-    clearTimeout(timeout)
 
-    if (!res.ok) {
-      console.warn(`[Generate] Pexels search failed: ${res.status}`)
-      return { markers, addendum: '' }
+    if (pixabayKey) {
+      const res = await fetch(
+        `https://pixabay.com/api/?key=${pixabayKey}&q=${encodeURIComponent(query)}&per_page=${Math.max(count, 3)}&image_type=photo&orientation=horizontal&safesearch=true&editors_choice=true`,
+        { signal: controller.signal }
+      )
+      clearTimeout(timeout)
+      if (res.ok) {
+        const data: any = await res.json()
+        const hits: any[] = Array.isArray(data?.hits) ? data.hits : []
+        photos = hits.slice(0, count).map(h => ({
+          url: h.largeImageURL || h.webformatURL || h.previewURL,
+        })).filter(p => p.url)
+        provider = 'Pixabay'
+        if (photos.length === 0) {
+          console.warn(`[Generate] Pixabay returned 0 photos for "${query}"`)
+        }
+      } else {
+        console.warn(`[Generate] Pixabay search failed: ${res.status}`)
+      }
+    } else if (pexelsKey) {
+      const res = await fetch(
+        `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=${count}&orientation=landscape`,
+        { headers: { Authorization: pexelsKey }, signal: controller.signal }
+      )
+      clearTimeout(timeout)
+      if (res.ok) {
+        const data: any = await res.json()
+        const hits: any[] = Array.isArray(data?.photos) ? data.photos : []
+        photos = hits.map(p => ({
+          url: p?.src?.large2x || p?.src?.large || p?.src?.original,
+        })).filter(p => p.url)
+        provider = 'Pexels'
+      } else {
+        console.warn(`[Generate] Pexels search failed: ${res.status}`)
+      }
     }
 
-    const data: any = await res.json()
-    const photos: any[] = Array.isArray(data?.photos) ? data.photos : []
-    if (photos.length === 0) {
-      console.warn(`[Generate] Pexels returned 0 photos for "${query}"`)
-      return { markers, addendum: '' }
-    }
+    if (photos.length === 0) return { markers, addendum: '' }
 
     photos.forEach((p, i) => {
       const role = i === 0 ? 'HERO' : i === 1 ? 'SHOWCASE' : `FEATURE_${i - 1}`
       const marker = `{{STOCK_${role}}}`
-      const url: string = p?.src?.large2x || p?.src?.large || p?.src?.original
-      if (url) markers.set(marker, url)
+      markers.set(marker, p.url)
     })
 
-    console.log(`[Generate] Fetched ${markers.size} Pexels images for "${query}"`)
+    console.log(`[Generate] Fetched ${markers.size} ${provider} images for "${query}"`)
 
     const list = Array.from(markers.keys()).map(m => `- ${m}`).join('\n')
     const addendum = `\n\n🖼️ CURATED STOCK IMAGES (use these markers — they will be replaced with REAL relevant photos for "${query}"):
@@ -1494,9 +1521,9 @@ Usage rules:
     return { markers, addendum }
   } catch (e: any) {
     if (e?.name === 'AbortError') {
-      console.warn('[Generate] Pexels search timed out')
+      console.warn('[Generate] Stock image search timed out')
     } else {
-      console.warn('[Generate] Pexels fetch error:', e?.message || e)
+      console.warn('[Generate] Stock image fetch error:', e?.message || e)
     }
     return { markers, addendum: '' }
   }

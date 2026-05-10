@@ -1562,6 +1562,11 @@ function WorkspaceContent() {
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null)
   const [videoStatus, setVideoStatus] = useState('')
   const [videoError, setVideoError] = useState('')
+  // Image-to-video: when set, the Generate button switches to animating this image.
+  const [videoSourceImage, setVideoSourceImage] = useState<string | null>(null)
+  const [videoSourceUploading, setVideoSourceUploading] = useState(false)
+  // Model dropdown — animate-diff for text-to-vid, svd for image-to-vid (auto-picked).
+  const [videoModel, setVideoModel] = useState<'animate-diff' | 'zeroscope' | 'svd'>('animate-diff')
 
   // AI Image Generation state
   const [imagePrompt, setImagePrompt] = useState('')
@@ -6075,15 +6080,80 @@ ${html}
                   <span className="font-medium">AI Video Generator</span>
                 </div>
 
-                {/* Text to Video */}
+                {/* Image-to-Video: upload an image and animate it (Stable Video Diffusion) */}
+                <div className="p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20">
+                  <label className="block text-sm text-blue-300 mb-3 font-medium flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4" />
+                    Image to Video — bring a still photo to life
+                  </label>
+                  {videoSourceImage ? (
+                    <div className="mb-3 relative">
+                      <img src={videoSourceImage} alt="Source" className="w-full rounded-lg border border-blue-500/30" />
+                      <button
+                        onClick={() => setVideoSourceImage(null)}
+                        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 hover:bg-black/90 text-white"
+                        title="Remove image"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="block mb-3">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={videoSourceUploading}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          setVideoSourceUploading(true)
+                          setVideoError('')
+                          try {
+                            const formData = new FormData()
+                            formData.append('file', file)
+                            const res = await fetch('/api/upload', { method: 'POST', body: formData })
+                            const data = await res.json()
+                            if (!res.ok) throw new Error(data.error || `Upload failed (${res.status})`)
+                            const url = data.url || data.secure_url
+                            if (!url) throw new Error('Upload succeeded but no URL returned')
+                            setVideoSourceImage(url)
+                            addTerminalLine('success', `✓ Source image uploaded`)
+                          } catch (err) {
+                            const msg = err instanceof Error ? err.message : 'Upload failed'
+                            setVideoError(`Image upload: ${msg}`)
+                            addTerminalLine('error', `Image upload failed: ${msg}`)
+                          } finally {
+                            setVideoSourceUploading(false)
+                          }
+                        }}
+                      />
+                      <div className="flex flex-col items-center justify-center w-full p-6 rounded-lg border-2 border-dashed border-blue-500/30 hover:border-blue-500/50 cursor-pointer transition">
+                        {videoSourceUploading ? (
+                          <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+                        ) : (
+                          <>
+                            <ImageIcon className="w-6 h-6 text-blue-400/60 mb-2" />
+                            <span className="text-xs text-zinc-400">Click to upload image</span>
+                            <span className="text-[10px] text-zinc-600 mt-1">JPG, PNG, WebP</span>
+                          </>
+                        )}
+                      </div>
+                    </label>
+                  )}
+                </div>
+
+                {/* Text to Video — only enabled when no source image is set */}
                 <div className="p-4 rounded-xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20">
                   <label className="block text-sm text-purple-300 mb-3 font-medium">
-                    Text to Video
+                    {videoSourceImage ? 'Optional motion prompt' : 'Text to Video'}
                   </label>
                   <textarea
                     value={videoPrompt}
                     onChange={(e) => setVideoPrompt(e.target.value)}
-                    placeholder="Describe your video... e.g., 'ocean waves crashing on a beach at sunset'"
+                    placeholder={videoSourceImage
+                      ? "Optional: describe the motion (e.g. 'gentle camera pan, leaves rustling')"
+                      : "Describe your video... e.g., 'ocean waves crashing on a beach at sunset'"}
                     rows={3}
                     className="w-full px-3 py-2.5 rounded-lg bg-black/40 border border-white/10 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-purple-500/50 resize-none mb-3"
                   />
@@ -6091,44 +6161,61 @@ ${html}
                   <div className="mb-3">
                     <label className="block text-xs text-zinc-400 mb-1.5">Model</label>
                     <select
-                      value="animate-diff"
-                      className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm text-white focus:outline-none focus:border-purple-500/50"
+                      value={videoSourceImage ? 'svd' : videoModel}
+                      onChange={(e) => setVideoModel(e.target.value as any)}
+                      disabled={!!videoSourceImage}
+                      className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-sm text-white focus:outline-none focus:border-purple-500/50 disabled:opacity-60"
                     >
-                      <option value="animate-diff">AnimateDiff (Fast, ~60s)</option>
-                      <option value="zeroscope">Zeroscope (Quality)</option>
+                      {videoSourceImage ? (
+                        <option value="svd">Stable Video Diffusion (image → 4s clip)</option>
+                      ) : (
+                        <>
+                          <option value="animate-diff">AnimateDiff (Fast, ~60s)</option>
+                          <option value="zeroscope">Zeroscope (Higher quality)</option>
+                        </>
+                      )}
                     </select>
                   </div>
 
                   <button
                     onClick={async () => {
-                      if (!videoPrompt.trim()) return
+                      const isImageMode = !!videoSourceImage
+                      if (!isImageMode && !videoPrompt.trim()) return
                       setVideoGenerating(true)
                       setGeneratedVideoUrl(null)
                       setVideoError('')
-                      setVideoStatus('Starting video generation...')
+                      setVideoStatus(isImageMode ? 'Animating your image...' : 'Starting video generation...')
 
                       try {
-                        setVideoStatus('Connecting to AI model...')
                         const response = await fetch('/api/ai/video', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            action: 'text-to-video',
-                            prompt: videoPrompt,
-                            model: 'animate-diff',
-                          })
+                          body: JSON.stringify(
+                            isImageMode
+                              ? {
+                                  action: 'image-to-video',
+                                  imageUrl: videoSourceImage,
+                                  prompt: videoPrompt || undefined,
+                                  model: 'svd',
+                                }
+                              : {
+                                  action: 'text-to-video',
+                                  prompt: videoPrompt,
+                                  model: videoModel,
+                                }
+                          )
                         })
 
-                        setVideoStatus('Processing... this takes ~60 seconds')
+                        setVideoStatus(isImageMode ? 'Animating... ~60-90 seconds' : 'Processing... this takes ~60 seconds')
                         const data = await response.json()
 
-                        if (data.success && data.output) {
+                        if (response.ok && data.success && data.output) {
                           const url = Array.isArray(data.output) ? data.output[0] : data.output
                           setGeneratedVideoUrl(url)
                           setVideoStatus('✓ Video ready!')
-                          addTerminalLine('success', '✓ Video generated successfully!')
+                          addTerminalLine('success', isImageMode ? '✓ Image animated!' : '✓ Video generated!')
                         } else {
-                          throw new Error(data.error || 'Video generation failed')
+                          throw new Error(data.error || `Video generation failed (HTTP ${response.status})`)
                         }
                       } catch (error) {
                         const msg = error instanceof Error ? error.message : 'Failed'
@@ -6138,7 +6225,7 @@ ${html}
                       }
                       setVideoGenerating(false)
                     }}
-                    disabled={videoGenerating || !videoPrompt.trim()}
+                    disabled={videoGenerating || (!videoSourceImage && !videoPrompt.trim())}
                     className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition"
                   >
                     {videoGenerating ? (
@@ -6149,7 +6236,7 @@ ${html}
                     ) : (
                       <>
                         <Sparkles className="w-4 h-4" />
-                        Generate Video
+                        {videoSourceImage ? 'Animate Image' : 'Generate Video'}
                       </>
                     )}
                   </button>

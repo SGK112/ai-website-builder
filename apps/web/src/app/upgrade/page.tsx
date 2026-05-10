@@ -20,7 +20,7 @@ import {
   MessageSquare,
   Loader2,
 } from 'lucide-react'
-import { SUBSCRIPTION_PLANS } from '@/lib/stripe-plans'
+import { SUBSCRIPTION_PLANS, CREDIT_PACKAGES } from '@/lib/stripe-plans'
 
 const PLAN_META: Record<string, { icon: typeof Zap; color: string; description: string }> = {
   free: { icon: Zap, color: 'from-slate-500 to-slate-600', description: 'Perfect for trying out the platform' },
@@ -58,40 +58,52 @@ export default function UpgradePage() {
   const [loading, setLoading] = useState<string | null>(null)
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly')
 
-  const handleUpgrade = async (planId: string) => {
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  // Unified handler for both subscription plan and one-time credit pack purchases.
+  // mode='plan' sends planId; mode='credits' sends packageId.
+  const handlePurchase = async (mode: 'plan' | 'credits', id: string) => {
+    setErrorMsg(null)
     if (!session) {
-      router.push('/login?redirect=/upgrade')
+      router.push('/login?next=/upgrade')
       return
     }
+    if (mode === 'plan' && id === 'free') return
 
-    if (planId === 'free') return
-
-    setLoading(planId)
-
+    setLoading(`${mode}-${id}`)
     try {
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          planId,
-          billingPeriod,
-        }),
+        body: JSON.stringify(
+          mode === 'plan'
+            ? { planId: id, billingPeriod }
+            : { packageId: id }
+        ),
       })
 
       const data = await res.json()
 
       if (data.url) {
         window.location.href = data.url
-      } else {
-        throw new Error(data.error || 'Failed to create checkout session')
+        return
       }
+      // Surface the real error so we can fix the actual problem (Stripe not
+      // configured, missing price ID, auth issue, etc.) instead of a vague alert.
+      const reason = data.error || `Checkout failed (HTTP ${res.status})`
+      setErrorMsg(reason)
+      console.error('Upgrade error:', reason)
     } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Network error'
+      setErrorMsg(msg)
       console.error('Upgrade error:', error)
-      alert('Failed to start checkout. Please try again.')
     } finally {
       setLoading(null)
     }
   }
+
+  // Backwards-compat name used in older inline calls
+  const handleUpgrade = (planId: string) => handlePurchase('plan', planId)
 
   return (
     <div className="min-h-screen bg-slate-950">
@@ -196,15 +208,15 @@ export default function UpgradePage() {
                 </div>
 
                 <button
-                  onClick={() => handleUpgrade(plan.id)}
-                  disabled={loading === plan.id || isCurrentPlan}
+                  onClick={() => handlePurchase('plan', plan.id)}
+                  disabled={loading === `plan-${plan.id}` || isCurrentPlan}
                   className={`w-full py-3 rounded-xl font-medium transition flex items-center justify-center gap-2 ${
                     plan.popular
                       ? 'bg-violet-600 hover:bg-violet-500 text-white'
                       : 'bg-white/10 hover:bg-white/20 text-white border border-white/10'
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
-                  {loading === plan.id ? (
+                  {loading === `plan-${plan.id}` ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : isCurrentPlan ? (
                     'Current Plan'
@@ -226,6 +238,84 @@ export default function UpgradePage() {
               </motion.div>
             )
           })}
+        </div>
+      </section>
+
+      {/* Inline error surfaced from /api/checkout failures */}
+      {errorMsg && (
+        <section className="px-6 -mt-4 mb-4">
+          <div className="max-w-3xl mx-auto p-4 rounded-xl bg-red-500/10 border border-red-500/30">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-red-400 text-sm font-medium mb-1">Checkout failed</div>
+                <div className="text-red-400/80 text-xs font-mono break-words">{errorMsg}</div>
+              </div>
+              <button onClick={() => setErrorMsg(null)} className="text-red-400/60 hover:text-red-400 text-xs">Dismiss</button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* One-time Credit Packs — for users who don't want to subscribe */}
+      <section className="pb-16 px-6 border-t border-white/10 pt-16">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full mb-4">
+              <Zap className="w-4 h-4 text-emerald-400" />
+              <span className="text-emerald-400 text-sm font-medium">No subscription required</span>
+            </div>
+            <h2 className="text-3xl font-bold text-white mb-2">Or just buy credits</h2>
+            <p className="text-slate-400">One-time purchase, never expires. Use anytime.</p>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {CREDIT_PACKAGES.map((pack) => (
+              <motion.div
+                key={pack.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`relative p-6 rounded-2xl border ${
+                  pack.popular
+                    ? 'border-emerald-500 bg-emerald-500/5'
+                    : 'border-white/10 bg-white/[0.02]'
+                }`}
+              >
+                {pack.popular && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-emerald-600 text-white text-xs font-medium rounded-full">
+                    Best Value
+                  </div>
+                )}
+                {pack.savings && !pack.popular && (
+                  <div className="absolute top-3 right-3 px-2 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] font-bold rounded">
+                    SAVE {pack.savings}
+                  </div>
+                )}
+                <h3 className="text-lg font-bold text-white mb-1">{pack.name}</h3>
+                <div className="flex items-baseline gap-1 mb-1">
+                  <span className="text-3xl font-bold text-white">${(pack.priceUsd / 100).toFixed(0)}</span>
+                  <span className="text-xs text-slate-500">.{((pack.priceUsd % 100) || 0).toString().padStart(2,'0')}</span>
+                </div>
+                <p className="text-emerald-400 text-sm font-medium mb-4">{pack.credits.toLocaleString()} credits</p>
+                <p className="text-xs text-slate-500 mb-4">
+                  ≈ {Math.floor(pack.credits / 10)} websites · {Math.floor(pack.credits / 5)} AI images
+                </p>
+                <button
+                  onClick={() => handlePurchase('credits', pack.id)}
+                  disabled={loading === `credits-${pack.id}`}
+                  className={`w-full py-2.5 rounded-xl font-medium transition flex items-center justify-center gap-2 ${
+                    pack.popular
+                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                      : 'bg-white/10 hover:bg-white/20 text-white border border-white/10'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {loading === `credits-${pack.id}` ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    'Buy credits'
+                  )}
+                </button>
+              </motion.div>
+            ))}
+          </div>
         </div>
       </section>
 
