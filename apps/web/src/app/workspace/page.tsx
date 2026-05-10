@@ -1920,7 +1920,11 @@ function WorkspaceContent() {
     fetchTemplates()
   }, [])
 
-  // Load initial prompt from URL params - with caching to prevent token waste on reload
+  // Load initial prompt from URL params. We pre-fill the chat input but DO NOT
+  // auto-fire generation — auto-firing has caused stale-prompt bugs after the
+  // signup detour (the user's old prompt rides through ?next= and fires on
+  // every workspace load until cleared). Instead, the prompt sits in the input
+  // ready for the user to review, edit, or clear, then explicitly submit.
   useEffect(() => {
     if (hasInitialized) return
 
@@ -1932,28 +1936,14 @@ function WorkspaceContent() {
       if (project) {
         loadProject(project)
       }
-    } else if (promptFromUrl) {
-      // Check if we have a cached result for this exact prompt
-      const cachedResult = localStorage.getItem('webstew-last-generation')
-      if (cachedResult) {
-        try {
-          const cached = JSON.parse(cachedResult)
-          // If the prompt matches and we have HTML, use the cached version
-          if (cached.prompt === promptFromUrl && cached.html) {
-            setHtml(cached.html)
-            setHasInitialized(true)
-            addTerminalLine('info', '✓ Loaded from cache (reload detected)')
-            addConsoleLog('info', 'Loaded cached generation - no tokens used')
-            // Clear the prompt from URL to prevent future reloads from re-checking
-            router.replace('/workspace', { scroll: false })
-            return
-          }
-        } catch (e) {
-          // Invalid cache, proceed with generation
-        }
-      }
       setHasInitialized(true)
-      handleGenerate(promptFromUrl)
+    } else if (promptFromUrl) {
+      // Pre-fill the chat input only — user submits when ready
+      setCommandInput(promptFromUrl)
+      addTerminalLine('info', '💡 Saved your earlier prompt — review and submit, or clear to start fresh')
+      // Clear the URL so reloading doesn't re-fire this branch
+      router.replace('/workspace', { scroll: false })
+      setHasInitialized(true)
     } else {
       setHasInitialized(true)
     }
