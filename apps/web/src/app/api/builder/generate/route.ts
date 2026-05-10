@@ -19,36 +19,6 @@ import { LUXE_ECOMMERCE_TEMPLATE } from '@/lib/templates'
 export const maxDuration = 300
 export const dynamic = 'force-dynamic'
 
-// IP-based generation counter (in-memory). Survives cookie clearing because it's
-// keyed by IP, not browser. Resets on server restart, which is acceptable: a
-// determined user with a VPN can still bypass — this is a "raise the floor"
-// gate, not a hard paywall. Cap is intentionally higher than the cookie cap so
-// the cookie still triggers the friendly modal first; IP only catches bypass
-// attempts. {ip → {count, firstSeenMs}}.
-const ipGenCounts = new Map<string, { count: number; firstSeenMs: number }>()
-const IP_GEN_LIMIT = 8                            // 8 generations per IP per window
-const IP_GEN_WINDOW_MS = 24 * 60 * 60 * 1000      // 24 hours
-const IP_GEN_MAX_KEYS = 50_000                    // cap memory; reaped lazily
-
-function checkIpGenLimit(ip: string): { allowed: boolean; count: number } {
-  if (!ip || ip === 'unknown') return { allowed: true, count: 0 }
-  const now = Date.now()
-  const entry = ipGenCounts.get(ip)
-  if (!entry || now - entry.firstSeenMs > IP_GEN_WINDOW_MS) {
-    ipGenCounts.set(ip, { count: 1, firstSeenMs: now })
-    // Lazy reap to bound memory
-    if (ipGenCounts.size > IP_GEN_MAX_KEYS) {
-      for (const [k, v] of ipGenCounts.entries()) {
-        if (now - v.firstSeenMs > IP_GEN_WINDOW_MS) ipGenCounts.delete(k)
-        if (ipGenCounts.size <= IP_GEN_MAX_KEYS) break
-      }
-    }
-    return { allowed: true, count: 1 }
-  }
-  entry.count++
-  if (entry.count > IP_GEN_LIMIT) return { allowed: false, count: entry.count }
-  return { allowed: true, count: entry.count }
-}
 
 // Improved prompt for small/free AI models (3B-7B parameters)
 // Uses chain-of-thought and few-shot prompting based on 2025 best practices
@@ -2023,9 +1993,9 @@ export async function POST(req: NextRequest) {
       throw error
     }
 
-    // Parse body up-front so we can check for BYOK before applying the anon cap.
-    // BYOK users are paying Anthropic/OpenAI directly — they shouldn't count
-    // against the free-tier cap; they're not costing the platform anything.
+    // Parse body. Auth is enforced by middleware (or by Bearer token via
+    // BYOK), so we don't need an anon cap here anymore. The signed-in user's
+    // plan limits are enforced via trackUsage / checkUsageLimits below.
     const { prompt, currentHtml, model, apiKey, apiKeys, ingredients, stylePreset, serviceCredentials, outputMode, siblingPages, currentPage } = await req.json()
 
     const hasOwnKey = !!(
@@ -2035,58 +2005,23 @@ export async function POST(req: NextRequest) {
       apiKeys?.google
     )
 
-    // Anon usage cap — 3 free generations per browser, then prompt sign-up.
-    // Tracked via a non-HttpOnly cookie so the UI can also read it for prompts.
-    // Bypassed when the user brings their own AI provider key (BYOK).
-    const ANON_FREE_LIMIT = 3
-    const cookieHeader = req.headers.get('cookie') || ''
-    const anonMatch = cookieHeader.match(/aiwb_anon_gens=(\d+)/)
-    const anonCount = anonMatch ? parseInt(anonMatch[1], 10) : 0
-    if (!session?.user?.id && !hasOwnKey && anonCount >= ANON_FREE_LIMIT) {
+    // Hard requirement: either a logged-in session or BYOK. Middleware should
+    // catch this for browser requests, but defensive check for direct API hits.
+    if (!session?.user?.id && !hasOwnKey) {
       return NextResponse.json(
         {
-          error: 'Free generation limit reached',
+          error: 'Authentication required',
           requireAuth: true,
-          limit: ANON_FREE_LIMIT,
-          message: `You've used your ${ANON_FREE_LIMIT} free generations. Sign in to keep building, or paste your own Anthropic / OpenAI API key in Settings to bypass the limit.`,
+          message: 'Sign up to start building, or include your own API key in the request.',
         },
-        { status: 402 }
+        { status: 401 }
       )
     }
 
-    // Server-side IP cap — catches users clearing cookies to bypass the anon
-    // limit. 24-hour window, higher cap (8) so it doesn't fire for legitimate
-    // users with shared IPs. Bypassed by BYOK and signed-in users.
-    if (!session?.user?.id && !hasOwnKey) {
-      const ip = (req.headers.get('x-forwarded-for')?.split(',')[0] ||
-                  req.headers.get('x-real-ip') ||
-                  'unknown').trim()
-      const ipCheck = checkIpGenLimit(ip)
-      if (!ipCheck.allowed) {
-        console.warn(`[Generate] IP ${ip} hit daily cap (${ipCheck.count} generations in 24h)`)
-        return NextResponse.json(
-          {
-            error: 'Daily generation limit reached',
-            requireAuth: true,
-            limit: IP_GEN_LIMIT,
-            message: `This network has reached its daily free-generation limit. Sign in for more, or paste your own API key to keep building.`,
-          },
-          { status: 402 }
-        )
-      }
-    }
-
-    // Build the response headers, incrementing the anon counter when applicable.
-    // Don't increment for BYOK — they're not consuming the free quota.
     const streamHeaders: Record<string, string> = {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
-    }
-    if (!session?.user?.id && !hasOwnKey) {
-      // 30-day max-age, readable from JS (not HttpOnly) so the workspace UI
-      // can show the user how many free generations they have left.
-      streamHeaders['Set-Cookie'] = `aiwb_anon_gens=${anonCount + 1}; Path=/; Max-Age=2592000; SameSite=Lax`
     }
 
     // outputMode: 'static' (default) | 'nextjs' | 'react'

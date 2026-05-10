@@ -598,33 +598,24 @@ export async function POST(request: NextRequest) {
       throw error
     }
 
-    // Anon usage cap — 3 free conversations per browser, then prompt sign-up.
-    const ANON_FREE_LIMIT = 3
-    const cookieHeader = request.headers.get('cookie') || ''
-    const anonMatch = cookieHeader.match(/aiwb_anon_chats=(\d+)/)
-    const anonCount = anonMatch ? parseInt(anonMatch[1], 10) : 0
-    if (!session?.user?.id && anonCount >= ANON_FREE_LIMIT) {
+    const body: ConversationRequest = await request.json()
+    const { message, history, currentHtml, model = 'hf-llama-3.2-3b', apiKey, context } = body
+
+    // Auth is enforced by middleware for browser requests. Defensive check
+    // here for direct API hits — accept session OR BYOK.
+    if (!session?.user?.id && !apiKey) {
       return NextResponse.json(
         {
-          error: 'Free chat limit reached',
+          error: 'Authentication required',
           requireAuth: true,
-          limit: ANON_FREE_LIMIT,
-          message: `You've used your ${ANON_FREE_LIMIT} free chat refinements. Sign in to keep iterating.`,
+          message: 'Sign up to keep iterating, or include your own API key in the request.',
         },
-        { status: 402 }
+        { status: 401 }
       )
     }
 
-    // Wrap responses with anon cookie increment
-    const wrap = (res: NextResponse): NextResponse => {
-      if (!session?.user?.id) {
-        res.headers.set('Set-Cookie', `aiwb_anon_chats=${anonCount + 1}; Path=/; Max-Age=2592000; SameSite=Lax`)
-      }
-      return res
-    }
-
-    const body: ConversationRequest = await request.json()
-    const { message, history, currentHtml, model = 'hf-llama-3.2-3b', apiKey, context } = body
+    // No-op response wrapper kept for API stability with existing callers.
+    const wrap = (res: NextResponse): NextResponse => res
 
     if (!message?.trim()) {
       return NextResponse.json({ error: 'Message required' }, { status: 400 })

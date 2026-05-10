@@ -18,6 +18,7 @@ import {
   Check,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { useTheme } from '@/context/ThemeContext'
 import { cn } from '@/lib/utils'
 import { StarryNight, SunriseBackground } from '@/components/landing/BackgroundEffects'
@@ -187,6 +188,7 @@ const templateGallery = [
 
 export default function HomePage() {
   const router = useRouter()
+  const { status: sessionStatus } = useSession()
   const { theme, setTheme } = useTheme()
   const isDark = theme === 'dark'
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -221,14 +223,21 @@ export default function HomePage() {
     return () => clearInterval(interval)
   }, [])
 
-  // Navigate to workspace with prompt as URL param
+  // Navigate to workspace with prompt as URL param. If the user isn't signed
+  // in yet, route through /signup with the intended workspace URL preserved
+  // in ?next= so they land on their generation immediately after auth.
   const navigateToWorkspace = (projectPrompt: string) => {
     setIsTransitioning(true)
     const params = new URLSearchParams({
       prompt: projectPrompt,
       theme: projectTheme,
     })
-    router.push(`/workspace?${params.toString()}`)
+    const workspaceUrl = `/workspace?${params.toString()}`
+    if (sessionStatus === 'authenticated') {
+      router.push(workspaceUrl)
+    } else {
+      router.push(`/signup?next=${encodeURIComponent(workspaceUrl)}`)
+    }
   }
 
   const handleSubmit = () => {
@@ -344,7 +353,7 @@ export default function HomePage() {
                     Sign in
                   </a>
                   <a
-                    href="/workspace"
+                    href={sessionStatus === 'authenticated' ? '/workspace' : '/signup?next=%2Fworkspace'}
                     className={cn(
                       "px-4 py-2 rounded-lg text-sm font-medium transition-all",
                       isDark
@@ -352,7 +361,7 @@ export default function HomePage() {
                         : "bg-orange-500 hover:bg-orange-400 text-white"
                     )}
                   >
-                    Start Building
+                    {sessionStatus === 'authenticated' ? 'Open Workspace' : 'Start Building'}
                   </a>
                   <button
                     onClick={() => setTheme(isDark ? 'light' : 'dark')}

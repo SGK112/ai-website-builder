@@ -5,10 +5,17 @@ import { signIn } from 'next-auth/react'
 import { motion } from 'framer-motion'
 import { Sparkles, Mail, Lock, User, Loader2, ArrowLeft, Check } from 'lucide-react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 export default function SignupPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // Where to send the user after they sign up — defaults to /workspace.
+  // Validated to be a same-origin path so we can't be open-redirected.
+  const rawNext = searchParams.get('next') || '/workspace'
+  const callbackUrl = rawNext.startsWith('/') && !rawNext.startsWith('//')
+    ? rawNext
+    : '/workspace'
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -52,7 +59,7 @@ export default function SignupPage() {
         await signIn('credentials', {
           email,
           password,
-          callbackUrl: '/workspace',
+          callbackUrl,
         })
       }, 1500)
     } catch (err) {
@@ -65,7 +72,7 @@ export default function SignupPage() {
   const handleOAuthSignup = async (provider: 'google' | 'github') => {
     setIsLoading(provider)
     try {
-      await signIn(provider, { callbackUrl: '/workspace' })
+      await signIn(provider, { callbackUrl })
     } catch (err) {
       console.error(err)
     }

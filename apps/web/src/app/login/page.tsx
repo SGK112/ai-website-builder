@@ -9,7 +9,12 @@ import { useSearchParams } from 'next/navigation'
 
 export default function LoginPage() {
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get('callbackUrl') || '/workspace'
+  // Honor either ?callbackUrl= (NextAuth's own param) or ?next= (used by our
+  // middleware redirects). Validated to be same-origin to prevent open redirect.
+  const rawNext = searchParams.get('callbackUrl') || searchParams.get('next') || '/workspace'
+  const callbackUrl = rawNext.startsWith('/') && !rawNext.startsWith('//')
+    ? rawNext
+    : '/workspace'
   const error = searchParams.get('error')
 
   const [email, setEmail] = useState('')

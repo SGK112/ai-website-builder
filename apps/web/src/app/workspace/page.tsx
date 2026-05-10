@@ -4586,7 +4586,7 @@ ${html}
                   <span className="text-xs opacity-75">Free, unlimited</span>
                 </button>
                 <button
-                  onClick={() => router.push('/auth/signin')}
+                  onClick={() => router.push('/login?next=%2Fworkspace')}
                   className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 text-white font-medium transition"
                 >
                   <UserPlus className="w-4 h-4" />
