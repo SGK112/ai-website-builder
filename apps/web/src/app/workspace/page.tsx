@@ -2210,6 +2210,13 @@ function WorkspaceContent() {
         } else {
           addToast('info', `Page "/${target}" doesn't exist yet — click "+ Add page" to create it`)
         }
+      } else if (event.data?.type === 'open-external') {
+        // External link from preview — open in a new tab so it doesn't blow up
+        // the workspace iframe.
+        const href: string = event.data.href || ''
+        if (/^https?:\/\//i.test(href)) {
+          window.open(href, '_blank', 'noopener,noreferrer')
+        }
       }
     }
     window.addEventListener('message', handleMessage)
@@ -2553,27 +2560,43 @@ ${html}
     const consoleScript = `
 <script>
 (function() {
-  // Intercept link navigation: hash anchors scroll in-page (handled by site's
-  // own smooth-scroll script), internal page links postMessage to parent so
-  // the workspace can switch tabs, external links are blocked (would break
-  // out of the iframe sandbox).
+  // Intercept link navigation. Original hrefs were rewritten to javascript:void(0)
+  // before the HTML reached this iframe (parent did href→data-href swap), so the
+  // iframe can never navigate itself. We read data-href, then route:
+  //   - hash anchors scroll in-page (smooth-scroll script handles)
+  //   - internal page paths postMessage to parent → parent switches tabs
+  //   - external https URLs open in a new tab via parent
   document.addEventListener('click', function(e) {
     const link = e.target.closest('a');
     if (!link) return;
-    const href = link.getAttribute('href') || '';
-    // Hash anchors — let them through (site's own smooth-scroll handles)
-    if (href.startsWith('#') || href === '') return;
+    // Always prevent default — hrefs are now javascript:void(0) anyway, but
+    // we don't want any action while the user is editing.
+    var href = link.getAttribute('data-href') || link.getAttribute('href') || '';
+    // Hash anchors run their own smooth-scroll behavior; for those we manually
+    // scroll to the target since the original href was replaced.
+    if (href.startsWith('#') && href.length > 1) {
+      e.preventDefault();
+      try {
+        var target = document.querySelector(href);
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } catch (_) {}
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
-    // Internal page links — tell parent, parent switches tabs
-    const isInternal = href.startsWith('/') || /^[a-z0-9_-]+(\.html)?$/i.test(href);
-    if (isInternal) {
-      // Strip leading slash and trailing .html, normalize empty → 'index'
-      let target = href.replace(/^\//, '').replace(/\.html$/i, '').toLowerCase();
-      if (!target || target === 'index' || target === 'home') target = 'index';
-      window.parent.postMessage({ type: 'navigate-page', target }, '*');
+    if (!href || href === '#' || href.toLowerCase().startsWith('javascript:')) return;
+    // External — open in a new tab (parent decides; iframe can't open windows)
+    if (/^https?:\/\//i.test(href)) {
+      window.parent.postMessage({ type: 'open-external', href: href }, '*');
+      return;
     }
-    // External links — silently blocked (can't load https sites in this iframe anyway)
+    // Internal page links — tell parent, parent switches tabs
+    var isInternal = href.startsWith('/') || /^[a-z0-9_-]+(\.html)?$/i.test(href);
+    if (isInternal) {
+      var slug = href.replace(/^\//, '').replace(/\.html$/i, '').toLowerCase();
+      if (!slug || slug === 'index' || slug === 'home') slug = 'index';
+      window.parent.postMessage({ type: 'navigate-page', target: slug }, '*');
+    }
   }, true);
 
   // Prevent form submissions
@@ -2823,6 +2846,25 @@ ${html}
 
     // Inject console script in head, selector script before </body> so DOM is ready
     let result = originalHtml
+
+    // Neutralize anchor hrefs so the iframe can't navigate itself away. The
+    // sandbox can't block within-iframe nav, and inline onclick or scripts in
+    // generated HTML routinely bypass our preventDefault. Stash the original
+    // href in data-href; the in-iframe click handler reads it and postMessages
+    // to the parent, which switches tabs (or opens external in a new tab).
+    // Hash anchors (#section) stay live so smooth-scroll still works.
+    result = result.replace(
+      /<a\b([^>]*?)\shref=(["'])([^"']*)\2([^>]*)>/gi,
+      (match, before, quote, href, after) => {
+        // Leave hash-only and javascript: hrefs alone
+        if (!href || href.startsWith('#') || href.toLowerCase().startsWith('javascript:')) {
+          return match
+        }
+        // Skip if already neutralized (avoid double-processing)
+        if (/data-href=/.test(before + after)) return match
+        return `<a${before} href=${quote}javascript:void(0)${quote} data-href=${quote}${href}${quote}${after}>`
+      }
+    )
 
     if (result.includes('</head>')) {
       result = result.replace('</head>', `${consoleScript}</head>`)

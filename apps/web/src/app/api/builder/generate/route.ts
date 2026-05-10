@@ -1576,10 +1576,15 @@ function buildPromptWithIngredients(
     const spreadsheets = ingredients.filter(i => i.type === 'spreadsheet')
     const links = ingredients.filter(i => i.type === 'link')
 
-    // Group images by category
+    // Group images by category. If the user uploaded images but never
+    // explicitly tagged one as 'hero', promote the FIRST image to hero —
+    // otherwise the AI buries it in a gallery section, which is rarely the
+    // user's intent when they drop an image into the builder.
+    const hasExplicitHero = images.some(img => img.category === 'hero')
     const imagesByCategory: Record<string, (StewIngredient & { marker: string })[]> = {}
     images.forEach((img, globalIdx) => {
-      const cat = img.category || 'gallery'
+      const isAutoHero = !hasExplicitHero && globalIdx === 0
+      const cat = isAutoHero ? 'hero' : (img.category || 'gallery')
       if (!imagesByCategory[cat]) imagesByCategory[cat] = []
 
       // Create a unique marker for this image
@@ -1591,10 +1596,15 @@ function buildPromptWithIngredients(
 
     enhancedPrompt = `${prompt}
 
-=== WEBSTEW INGREDIENTS - USE THESE IMAGE PLACEHOLDERS ===
+=== ⭐ USER-UPLOADED IMAGES — USE THESE FIRST, PROMINENTLY ===
 
-IMPORTANT: I have uploaded ${images.length} image(s). Use the EXACT placeholder markers below in your HTML.
-After generation, these markers will be automatically replaced with the actual image data.
+The user uploaded ${images.length} image(s) and EXPECTS to see them in the result.
+These markers WILL be replaced with the user's actual photos at render time:
+
+- USE THE USER'S IMAGES PROMINENTLY (especially the hero — that's the first thing they'll look for).
+- If only one image was uploaded, it should be the HERO visual (full-bleed background or featured image in the hero section).
+- Do NOT default to placeholder URLs (picsum.photos / unsplash) when a user image is available for that role.
+- Place markers EXACTLY as shown below, inside src="..." attributes. Do not modify them.
 
 `
 
@@ -2102,11 +2112,20 @@ export async function POST(req: NextRequest) {
       targetMode
     )
 
-    // Fetch curated, topic-relevant stock photos from Pexels and inject them as
-    // markers the AI can use. No-op if PEXELS_API_KEY is not configured — picsum
-    // fallback in the system prompt continues to work.
-    const stockResult = await fetchStockImagesForPrompt(prompt || '', 8)
+    // Fetch curated stock photos from Pexels — but ONLY if the user didn't
+    // upload their own ingredient images. When a user drops an image in Stew,
+    // their intent is "use my image", so we skip Pexels to avoid the AI
+    // picking stock over the user's upload.
+    const userUploadedImages = Array.isArray(ingredients)
+      ? ingredients.filter((i: any) => i?.type === 'image').length
+      : 0
+    const stockResult = userUploadedImages > 0
+      ? { markers: new Map<string, string>(), addendum: '' }
+      : await fetchStockImagesForPrompt(prompt || '', 8)
     stockResult.markers.forEach((url, marker) => imageMarkers.set(marker, url))
+    if (userUploadedImages > 0) {
+      console.log(`[Generate] Skipping Pexels — user uploaded ${userUploadedImages} image(s); their content wins`)
+    }
 
     // Multi-page awareness: if this generation is part of a multi-page site,
     // tell the AI about every sibling page so the nav links cleanly between
