@@ -1245,12 +1245,14 @@ function WorkspaceContent() {
   const [showStylePanel, setShowStylePanel] = useState(false)
 
   // Credit wall — modal that appears when /api/builder/generate or /converse
-  // returns 402 (free generation cap reached or out of credits).
+  // returns 402 (anon trial cap) or 429 (signed-in plan limit).
   const [creditWall, setCreditWall] = useState<{
     show: boolean
     title?: string
     message?: string
     limit?: number
+    isPlanLimit?: boolean
+    plan?: string
   }>({ show: false })
 
   // Rewrite a page's nav to link to all sibling pages. Pure DOM operation —
@@ -2968,17 +2970,23 @@ ${html}
         })
       })
 
-      if (res.status === 402) {
-        // Free generation limit hit — show a proper modal with options instead
-        // of a generic "Generation failed" toast.
+      if (res.status === 402 || res.status === 429) {
+        // Either anon trial cap (402) or signed-in plan limit (429). Both go
+        // through the same credit-wall modal but with messaging tuned to which
+        // case it is — 429 also flags `upgrade: true` so we can route to /upgrade.
         const errBody = await res.json().catch(() => ({} as any))
+        const isPlanLimit = res.status === 429
         setCreditWall({
           show: true,
-          title: 'Out of free generations',
-          message: errBody.message || `You've used your ${errBody.limit || 3} free generations on this browser.`,
-          limit: errBody.limit || 3,
+          title: isPlanLimit ? 'Out of credits this month' : 'Out of free generations',
+          message: errBody.error || errBody.message ||
+            (isPlanLimit
+              ? `You're on the ${errBody.plan || 'free'} plan and used all your monthly credits. Upgrade or buy credits to keep building.`
+              : `You've used your ${errBody.limit || 3} free generations on this browser.`),
+          limit: errBody.limit || (isPlanLimit ? 100 : 3),
+          isPlanLimit,
+          plan: errBody.plan,
         })
-        // Reset build phase so the UI doesn't sit in "generating" forever
         setIsGenerating(false)
         setBuildPhase('idle')
         return
@@ -3733,13 +3741,19 @@ ${html}
         })
       })
 
-      if (response.status === 402) {
+      if (response.status === 402 || response.status === 429) {
         const errBody = await response.json().catch(() => ({} as any))
+        const isPlanLimit = response.status === 429
         setCreditWall({
           show: true,
-          title: 'Out of free chat refinements',
-          message: errBody.message || `You've used your ${errBody.limit || 3} free chat refinements on this browser.`,
-          limit: errBody.limit || 3,
+          title: isPlanLimit ? 'Out of credits this month' : 'Out of free chat refinements',
+          message: errBody.error || errBody.message ||
+            (isPlanLimit
+              ? `You're on the ${errBody.plan || 'free'} plan and used all your monthly credits. Upgrade or buy credits to keep iterating.`
+              : `You've used your ${errBody.limit || 3} free chat refinements on this browser.`),
+          limit: errBody.limit || (isPlanLimit ? 100 : 3),
+          isPlanLimit,
+          plan: errBody.plan,
         })
         setIsThinking(false)
         return
@@ -4568,30 +4582,69 @@ ${html}
                 {creditWall.message || `You've used your free generations on this browser.`}
               </p>
               <div className="space-y-2">
-                <button
-                  onClick={() => {
-                    setCreditWall({ show: false })
-                    setActivePanel('build')
-                    addToast('info', 'Paste your Anthropic or OpenAI key in the model picker (bottom of left sidebar) — it will bypass the limit.')
-                  }}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-medium transition"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  <span className="flex-1 text-left">Use my own API key</span>
-                  <span className="text-xs opacity-75">Free, unlimited</span>
-                </button>
-                <button
-                  onClick={() => router.push('/login?next=%2Fworkspace')}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 text-white font-medium transition"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  <span className="flex-1 text-left">Sign in / Sign up</span>
-                  <span className="text-xs text-zinc-500">Save your work + more credits</span>
-                </button>
+                {creditWall.isPlanLimit ? (
+                  <>
+                    {/* Signed-in user out of monthly credits — push to /upgrade */}
+                    <button
+                      onClick={() => { setCreditWall({ show: false }); router.push('/upgrade') }}
+                      className="w-full flex items-center gap-3 p-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition"
+                    >
+                      <Zap className="w-4 h-4" />
+                      <span className="flex-1 text-left">Buy credits — from $9.99</span>
+                      <span className="text-xs opacity-75">No subscription</span>
+                    </button>
+                    <button
+                      onClick={() => { setCreditWall({ show: false }); router.push('/upgrade') }}
+                      className="w-full flex items-center gap-3 p-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-medium transition"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span className="flex-1 text-left">Upgrade plan</span>
+                      <span className="text-xs opacity-75">More credits monthly</span>
+                    </button>
+                    <button
+                      onClick={() => { setCreditWall({ show: false }); setActivePanel('build') }}
+                      className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 text-white font-medium transition"
+                    >
+                      <Code2 className="w-4 h-4" />
+                      <span className="flex-1 text-left">Use my own API key</span>
+                      <span className="text-xs text-zinc-500">Free, unlimited</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {/* Anonymous trial cap — push BYOK + signup */}
+                    <button
+                      onClick={() => {
+                        setCreditWall({ show: false })
+                        setActivePanel('build')
+                        addToast('info', 'Paste your Anthropic or OpenAI key in the model picker (bottom of left sidebar) — it will bypass the limit.')
+                      }}
+                      className="w-full flex items-center gap-3 p-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-medium transition"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span className="flex-1 text-left">Use my own API key</span>
+                      <span className="text-xs opacity-75">Free, unlimited</span>
+                    </button>
+                    <button
+                      onClick={() => router.push('/login?next=%2Fworkspace')}
+                      className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 text-white font-medium transition"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      <span className="flex-1 text-left">Sign in / Sign up</span>
+                      <span className="text-xs text-zinc-500">Save your work + more credits</span>
+                    </button>
+                  </>
+                )}
               </div>
-              <p className="text-[10px] text-zinc-600 mt-5 leading-relaxed">
-                <span className="text-zinc-500">Tip:</span> Don't clear all browser data — that wipes your saved pages, blocks, and history along with the counter. Use a private window for a fresh trial that won't touch your work.
-              </p>
+              {creditWall.isPlanLimit ? (
+                <p className="text-[10px] text-zinc-600 mt-5 leading-relaxed">
+                  <span className="text-zinc-500">Each website generation uses 10 credits.</span> Free plan ships with 100 credits/month — that's ~10 generations. Buy a 100-credit pack for $9.99 (no subscription) or upgrade to a paid plan for monthly credits.
+                </p>
+              ) : (
+                <p className="text-[10px] text-zinc-600 mt-5 leading-relaxed">
+                  <span className="text-zinc-500">Tip:</span> Don't clear all browser data — that wipes your saved pages, blocks, and history along with the counter. Use a private window for a fresh trial that won't touch your work.
+                </p>
+              )}
             </motion.div>
           </motion.div>
         )}

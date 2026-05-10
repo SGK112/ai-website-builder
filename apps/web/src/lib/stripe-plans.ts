@@ -112,6 +112,13 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
 
 export const CREDIT_PACKAGES: CreditPackage[] = [
   {
+    id: 'mini',
+    name: 'Mini Pack',
+    credits: 50,
+    priceUsd: 499,
+    priceId: process.env.STRIPE_CREDIT_MINI_PRICE_ID,
+  },
+  {
     id: 'starter',
     name: 'Starter Pack',
     credits: 100,
