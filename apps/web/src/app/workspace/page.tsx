@@ -2591,15 +2591,17 @@ ${html}
     e.preventDefault();
     e.stopPropagation();
     if (!href || href === '#' || href.toLowerCase().startsWith('javascript:')) return;
-    // External — open in a new tab (parent decides; iframe can't open windows)
-    if (/^https?:\/\//i.test(href)) {
+    // External — open in a new tab (parent decides; iframe can't open windows).
+    // NOTE: backslashes in regexes inside this template literal must be doubled
+    // (\\/, \\.) so the literal in the iframe still has a single backslash.
+    if (/^https?:\\/\\//i.test(href)) {
       window.parent.postMessage({ type: 'open-external', href: href }, '*');
       return;
     }
     // Internal page links — tell parent, parent switches tabs
-    var isInternal = href.startsWith('/') || /^[a-z0-9_-]+(\.html)?$/i.test(href);
+    var isInternal = href.startsWith('/') || /^[a-z0-9_-]+(\\.html)?$/i.test(href);
     if (isInternal) {
-      var slug = href.replace(/^\//, '').replace(/\.html$/i, '').toLowerCase();
+      var slug = href.replace(/^\\//, '').replace(/\\.html$/i, '').toLowerCase();
       if (!slug || slug === 'index' || slug === 'home') slug = 'index';
       window.parent.postMessage({ type: 'navigate-page', target: slug }, '*');
     }

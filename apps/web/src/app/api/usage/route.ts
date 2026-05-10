@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { connectDB } from '@/lib/db'
+import mongoose from 'mongoose'
 import {
   User,
   Usage,
@@ -32,21 +33,40 @@ export async function GET(req: NextRequest) {
 
     await connectDB()
 
-    const user = await User.findById(session.user.id).lean() as UserDoc | null
-    if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      )
+    // session.user.id may be the Mongo _id (normal) OR a provider's account id
+    // (legacy OAuth flow leftover before the providerId-first signIn fix).
+    // Look up by _id only if it's a valid ObjectId; fall back to email so
+    // legacy OAuth sessions don't 500 the layout's usage badge.
+    let user: UserDoc | null = null
+    const sessionId = session.user.id
+    if (sessionId && mongoose.Types.ObjectId.isValid(sessionId)) {
+      user = (await User.findById(sessionId).lean()) as UserDoc | null
     }
+    if (!user && session.user.email) {
+      user = (await User.findOne({ email: session.user.email }).lean()) as UserDoc | null
+    }
+    if (!user) {
+      // Don't 500 — return a safe default so the layout's usage badge stops
+      // hammering this endpoint when the session is detached from a real user.
+      return NextResponse.json({
+        user: { plan: 'free', credits: 0 },
+        today: { generations: 0, images: 0, tokens: 0 },
+        month: { generations: 0, images: 0, tokens: 0 },
+        limits: PLAN_LIMITS['free'],
+        recent: [],
+        warning: 'Session detached from user record',
+      })
+    }
+    // Use the resolved user's _id from here on so downstream queries match.
+    const userId = (user as any)._id?.toString() || sessionId
 
-    const todayUsage = await getUserUsageToday(session.user.id)
-    const monthUsage = await getUserUsageThisMonth(session.user.id)
+    const todayUsage = await getUserUsageToday(userId)
+    const monthUsage = await getUserUsageThisMonth(userId)
     const userPlan = user.plan || 'free'
     const limits = PLAN_LIMITS[userPlan]
 
     // Get recent usage history
-    const recentUsage = await Usage.find({ userId: session.user.id })
+    const recentUsage = await Usage.find({ userId })
       .sort({ createdAt: -1 })
       .limit(20)
       .lean()
