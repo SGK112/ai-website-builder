@@ -1244,6 +1244,15 @@ function WorkspaceContent() {
   // with color/padding/radius swatches. Off by default to keep the bar compact.
   const [showStylePanel, setShowStylePanel] = useState(false)
 
+  // Credit wall — modal that appears when /api/builder/generate or /converse
+  // returns 402 (free generation cap reached or out of credits).
+  const [creditWall, setCreditWall] = useState<{
+    show: boolean
+    title?: string
+    message?: string
+    limit?: number
+  }>({ show: false })
+
   // Rewrite a page's nav to link to all sibling pages. Pure DOM operation —
   // no AI call. Looks for <nav> blocks, finds the largest direct-child <a> group
   // inside, copies styling from the first existing anchor, then replaces those
@@ -2964,6 +2973,21 @@ ${html}
         })
       })
 
+      if (res.status === 402) {
+        // Free generation limit hit — show a proper modal with options instead
+        // of a generic "Generation failed" toast.
+        const errBody = await res.json().catch(() => ({} as any))
+        setCreditWall({
+          show: true,
+          title: 'Out of free generations',
+          message: errBody.message || `You've used your ${errBody.limit || 3} free generations on this browser.`,
+          limit: errBody.limit || 3,
+        })
+        // Reset build phase so the UI doesn't sit in "generating" forever
+        setIsGenerating(false)
+        setBuildPhase('idle')
+        return
+      }
       if (!res.ok) throw new Error('Generation failed')
 
       const reader = res.body?.getReader()
@@ -3715,11 +3739,14 @@ ${html}
       })
 
       if (response.status === 402) {
-        const errBody = await response.json().catch(() => ({}))
-        setChatMessages(prev => [...prev, {
-          role: 'assistant',
-          content: errBody.message || `You've used your free chat limit. Sign in to keep iterating.`
-        }])
+        const errBody = await response.json().catch(() => ({} as any))
+        setCreditWall({
+          show: true,
+          title: 'Out of free chat refinements',
+          message: errBody.message || `You've used your ${errBody.limit || 3} free chat refinements on this browser.`,
+          limit: errBody.limit || 3,
+        })
+        setIsThinking(false)
         return
       }
       if (!response.ok) throw new Error('Conversation failed')
@@ -4514,6 +4541,67 @@ ${html}
       "h-screen flex overflow-hidden transition-colors duration-300",
       isDark ? "bg-[#09090b] text-white" : "bg-white text-slate-900"
     )}>
+      {/* Credit wall modal — shown when /api/builder/generate or /converse hits 402 */}
+      <AnimatePresence>
+        {creditWall.show && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setCreditWall({ show: false })}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative max-w-md w-full p-8 rounded-2xl bg-zinc-950 border border-violet-500/30 shadow-2xl shadow-violet-500/20"
+            >
+              <button
+                onClick={() => setCreditWall({ show: false })}
+                className="absolute top-4 right-4 p-1 rounded-lg text-zinc-500 hover:text-white hover:bg-white/5 transition"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <div className="w-12 h-12 mb-4 rounded-xl bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 border border-violet-500/30 flex items-center justify-center">
+                <Sparkles className="w-6 h-6 text-violet-400" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">{creditWall.title || 'Out of free generations'}</h3>
+              <p className="text-sm text-zinc-400 leading-relaxed mb-6">
+                {creditWall.message || `You've used your free generations on this browser.`}
+              </p>
+              <div className="space-y-2">
+                <button
+                  onClick={() => {
+                    setCreditWall({ show: false })
+                    setActivePanel('build')
+                    addToast('info', 'Paste your Anthropic or OpenAI key in the model picker (bottom of left sidebar) — it will bypass the limit.')
+                  }}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-medium transition"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span className="flex-1 text-left">Use my own API key</span>
+                  <span className="text-xs opacity-75">Free, unlimited</span>
+                </button>
+                <button
+                  onClick={() => router.push('/auth/signin')}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 text-white font-medium transition"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span className="flex-1 text-left">Sign in / Sign up</span>
+                  <span className="text-xs text-zinc-500">Save your work + more credits</span>
+                </button>
+              </div>
+              <p className="text-[10px] text-zinc-600 mt-5 leading-relaxed">
+                <span className="text-zinc-500">Tip:</span> Don't clear all browser data — that wipes your saved pages, blocks, and history along with the counter. Use a private window for a fresh trial that won't touch your work.
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Gradient Background Orbs */}
       {isDark && (
         <div className="fixed inset-0 pointer-events-none overflow-hidden">
