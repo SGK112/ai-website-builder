@@ -4,9 +4,9 @@ import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Smartphone, Loader2, FileCode, Download, Sparkles, AlertCircle, Globe, Code2 } from 'lucide-react'
+import { ArrowLeft, Smartphone, Loader2, FileCode, Download, Sparkles, AlertCircle, Globe, Code2, Boxes, FileText } from 'lucide-react'
 
-type Target = 'expo' | 'nextjs'
+type Target = 'expo' | 'nextjs' | 'react' | 'astro'
 
 interface AppResult {
   files: Record<string, string>
@@ -42,7 +42,7 @@ const TARGETS: Record<Target, {
   },
   nextjs: {
     label: 'Next.js Web App',
-    description: 'Next.js 14 App Router + Tailwind + TypeScript. Deploy to Vercel in one click.',
+    description: 'Next.js 14 App Router + Tailwind + TypeScript. Best for full-stack apps with API routes.',
     apiPath: '/api/builder/nextjs',
     icon: Globe,
     examples: [
@@ -52,6 +52,36 @@ const TARGETS: Record<Target, {
       'A documentation site with versioned docs, search, and code highlighting',
       'A portfolio with project case studies, animated transitions, and a contact form',
       'An e-commerce storefront with product grid, cart drawer, and Stripe checkout placeholder',
+    ],
+    runHint: 'cd <slug> && npm install && npm run dev',
+  },
+  react: {
+    label: 'React SPA',
+    description: 'Vite + React + TypeScript + Tailwind. Single-page app with React Router. Fast dev server.',
+    apiPath: '/api/builder/react',
+    icon: Boxes,
+    examples: [
+      'A kanban board with drag-and-drop columns, task cards, and local persistence',
+      'A multi-page expense tracker with categories, charts, and CSV import/export',
+      'A chat UI shell with sidebar conversations, message thread, and typing indicator',
+      'A simple admin panel with sortable users table, role filter, and inline edit',
+      'A markdown notes app with sidebar list, search, and live preview pane',
+      'A photo gallery with masonry layout, lightbox, and tag filtering',
+    ],
+    runHint: 'cd <slug> && npm install && npm run dev',
+  },
+  astro: {
+    label: 'Astro Site',
+    description: 'Astro 4 + Tailwind. Ships near-zero JS. Best for marketing pages, blogs, docs.',
+    apiPath: '/api/builder/astro',
+    icon: FileText,
+    examples: [
+      'A startup marketing site with hero, features grid, customer logos, pricing, FAQ, and footer',
+      'A personal blog with Astro Content Collections, tag pages, and an RSS feed',
+      'A documentation site with sidebar nav, prose styling, and a search box',
+      'A photography portfolio with full-bleed image grid and project case studies',
+      'A landing page for a launch with countdown, waitlist email form, and social proof',
+      'A restaurant site with menu, hours, location embed, and reservation CTA',
     ],
     runHint: 'cd <slug> && npm install && npm run dev',
   },
