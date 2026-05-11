@@ -24,6 +24,7 @@ import { useSession } from 'next-auth/react'
 import { useTheme } from '@/context/ThemeContext'
 import { cn } from '@/lib/utils'
 import { TECH_ICONS } from '@/lib/tech-icons'
+import { DEMO_SITES } from '@/lib/demo-sites'
 
 const examplePrompts = [
   "A modern SaaS landing page for a project management tool",
@@ -229,6 +230,9 @@ export default function HomePage() {
   const rotatingWord = rotatingWords[rotatingWordIdx]
   // Typewriter placeholder state
   const [typedText, setTypedText] = useState('')
+  // Live demo iframe state
+  const [demoIdx, setDemoIdx] = useState(0)
+  const [demoGenerating, setDemoGenerating] = useState(false)
 
   // Handle client-side mounting for animations
   useEffect(() => {
@@ -254,6 +258,20 @@ export default function HomePage() {
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prompt])
+
+  // Cycle the demo iframe through DEMO_SITES every ~7s with a brief
+  // "generating" overlay so it looks like Webstew is rebuilding each time.
+  useEffect(() => {
+    const tick = () => {
+      setDemoGenerating(true)
+      setTimeout(() => {
+        setDemoIdx(i => (i + 1) % DEMO_SITES.length)
+        setDemoGenerating(false)
+      }, 1100)
+    }
+    const t = setInterval(tick, 7000)
+    return () => clearInterval(t)
+  }, [])
 
   // Typewriter for the placeholder — types out one example, holds, deletes,
   // types the next. Pauses entirely when the user starts typing. Examples
@@ -552,8 +570,8 @@ export default function HomePage() {
             </header>
 
             {/* Main Content */}
-            <main className="min-h-[80vh] flex items-center justify-center px-6 pb-16 pt-8">
-              <div className="w-full max-w-2xl">
+            <main className="px-6 pb-12 pt-6">
+              <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-10 items-center min-h-[80vh]">
                 {/* Hero — mixed type weights, serif-italic on a ROTATING word.
                     Word swaps every 2.5s with a smooth slide. Lovable's
                     signature trick. */}
@@ -561,7 +579,7 @@ export default function HomePage() {
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6 }}
-                  className="text-center mb-8 relative"
+                  className="text-center lg:text-left mb-8 relative"
                 >
                   {/* Floating sparkles around the brand mark */}
                   <div className="relative inline-block">
@@ -631,7 +649,7 @@ export default function HomePage() {
                     </span>
                   </h1>
                   <p className={cn(
-                    "text-base md:text-lg max-w-xl mx-auto leading-relaxed",
+                    "text-base md:text-lg max-w-xl mx-auto lg:mx-0 leading-relaxed",
                     isDark ? "text-slate-300" : "text-slate-600"
                   )}>
                     Tell Webstew what to build. AI ships you a working <span className="font-semibold">website, web app, or mobile app</span> — real code, yours to keep.
@@ -721,7 +739,7 @@ export default function HomePage() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.2 }}
-                  className="mt-4 flex flex-wrap justify-center gap-2"
+                  className="mt-4 flex flex-wrap justify-start gap-2"
                 >
                   {examplePromptsByTarget[buildTarget].slice(0, 4).map((ex) => (
                     <button
@@ -737,6 +755,138 @@ export default function HomePage() {
                       {ex.length > 50 ? ex.slice(0, 48) + '…' : ex}
                     </button>
                   ))}
+                </motion.div>
+
+                </div>{/* end left column */}
+
+                {/* Right column — live demo. Browser frame with iframe srcDoc
+                    cycling through 3 actual generated sites. Brief generating
+                    overlay between switches. This is the demo. */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.96, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ duration: 0.8, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                  className="relative w-full max-w-xl mx-auto lg:max-w-none"
+                >
+                  {/* Glow under the mockup */}
+                  <div className="absolute -inset-4 rounded-[2.5rem] opacity-60 blur-2xl bg-gradient-to-br from-violet-500/30 via-pink-500/30 to-amber-500/30 pointer-events-none" />
+                  <div className={cn(
+                    "relative rounded-2xl overflow-hidden border shadow-2xl",
+                    isDark ? "bg-slate-950 border-white/10 shadow-black/60" : "bg-white border-slate-200 shadow-slate-400/30"
+                  )}>
+                    {/* Browser chrome */}
+                    <div className={cn(
+                      "flex items-center gap-2 px-4 py-3 border-b",
+                      isDark ? "bg-slate-900 border-white/5" : "bg-slate-50 border-slate-200"
+                    )}>
+                      <div className="flex gap-1.5">
+                        <div className="w-3 h-3 rounded-full bg-red-400" />
+                        <div className="w-3 h-3 rounded-full bg-yellow-400" />
+                        <div className="w-3 h-3 rounded-full bg-green-400" />
+                      </div>
+                      <div className={cn(
+                        "flex-1 mx-3 px-3 py-1 rounded-md text-xs flex items-center gap-2",
+                        isDark ? "bg-slate-800 text-slate-400" : "bg-white text-slate-500 border border-slate-200"
+                      )}>
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span className="font-mono truncate">webstew.ai/preview/{DEMO_SITES[demoIdx].id}</span>
+                      </div>
+                      <div className={cn(
+                        "text-[10px] uppercase tracking-wider font-semibold px-2 py-1 rounded",
+                        isDark ? "bg-violet-500/20 text-violet-300" : "bg-violet-100 text-violet-600"
+                      )}>
+                        LIVE
+                      </div>
+                    </div>
+
+                    {/* Live iframe — the actual demo render */}
+                    <div className={cn("relative aspect-[16/11]", isDark ? "bg-slate-950" : "bg-white")}>
+                      <AnimatePresence mode="wait">
+                        <motion.iframe
+                          key={demoIdx}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.4 }}
+                          srcDoc={DEMO_SITES[demoIdx].html}
+                          sandbox="allow-scripts"
+                          className="absolute inset-0 w-full h-full"
+                          title={`Webstew demo: ${DEMO_SITES[demoIdx].label}`}
+                        />
+                      </AnimatePresence>
+                      {/* Generating overlay */}
+                      <AnimatePresence>
+                        {demoGenerating && (
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className={cn(
+                              "absolute inset-0 flex items-center justify-center backdrop-blur-md",
+                              isDark ? "bg-slate-950/85" : "bg-white/85"
+                            )}
+                          >
+                            <div className="text-center">
+                              <div className="flex items-center justify-center gap-2 mb-3">
+                                <motion.div
+                                  className="w-2 h-2 rounded-full bg-violet-500"
+                                  animate={{ scale: [1, 1.5, 1], opacity: [0.4, 1, 0.4] }}
+                                  transition={{ duration: 0.8, repeat: Infinity }}
+                                />
+                                <motion.div
+                                  className="w-2 h-2 rounded-full bg-fuchsia-500"
+                                  animate={{ scale: [1, 1.5, 1], opacity: [0.4, 1, 0.4] }}
+                                  transition={{ duration: 0.8, repeat: Infinity, delay: 0.15 }}
+                                />
+                                <motion.div
+                                  className="w-2 h-2 rounded-full bg-pink-500"
+                                  animate={{ scale: [1, 1.5, 1], opacity: [0.4, 1, 0.4] }}
+                                  transition={{ duration: 0.8, repeat: Infinity, delay: 0.3 }}
+                                />
+                              </div>
+                              <div className={cn("text-xs font-mono", isDark ? "text-slate-400" : "text-slate-600")}>
+                                Generating with Claude…
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    {/* Prompt strip below — shows what prompt produced this site */}
+                    <div className={cn(
+                      "px-4 py-3 border-t flex items-center gap-3",
+                      isDark ? "bg-slate-900/80 border-white/5" : "bg-slate-50 border-slate-200"
+                    )}>
+                      <div className={cn(
+                        "shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs",
+                        isDark ? "bg-violet-500/20 text-violet-300" : "bg-violet-100 text-violet-600"
+                      )}>
+                        ✦
+                      </div>
+                      <div className={cn("text-xs font-mono italic truncate", isDark ? "text-slate-400" : "text-slate-600")}>
+                        &ldquo;{DEMO_SITES[demoIdx].prompt}&rdquo;
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dot indicators */}
+                  <div className="flex items-center justify-center gap-2 mt-5">
+                    {DEMO_SITES.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => { setDemoGenerating(true); setTimeout(() => { setDemoIdx(i); setDemoGenerating(false) }, 800) }}
+                        aria-label={`Show demo ${i + 1}`}
+                        className={cn(
+                          "rounded-full transition-all",
+                          i === demoIdx
+                            ? "w-8 h-2 bg-gradient-to-r from-violet-500 to-fuchsia-500"
+                            : isDark ? "w-2 h-2 bg-white/20 hover:bg-white/30" : "w-2 h-2 bg-slate-300 hover:bg-slate-400"
+                        )}
+                      />
+                    ))}
+                  </div>
                 </motion.div>
 
               </div>
