@@ -1995,6 +1995,11 @@ function WorkspaceContent() {
       router.replace('/workspace', { scroll: false })
       // Show the prompt in the chat so the user sees what's being built
       setChatMessages(prev => [...prev, { role: 'user', content: promptFromUrl }])
+      // User just submitted a real prompt — they don't need the onboarding tour.
+      // Without this, the tour pops up ~1.5s after we clear the URL and
+      // interrupts the generation flow.
+      try { localStorage.setItem('webstew-onboarding-complete', 'true') } catch {}
+      setHasCompletedOnboarding(true)
       setHasInitialized(true)
       // Fire generation immediately — this is the user's request from the landing page
       handleGenerate(promptFromUrl)
@@ -2095,20 +2100,24 @@ function WorkspaceContent() {
     }
   }, [hasInitialized, searchParams])
 
-  // Check onboarding status on mount
+  // Check onboarding status on mount. Only show for users who landed here with
+  // no prompt and no existing project — otherwise the tour interrupts an
+  // in-progress generation kicked off from the landing-page submit.
   useEffect(() => {
     const hasSeenOnboarding = localStorage.getItem('webstew-onboarding-complete')
-    if (!hasSeenOnboarding && hasInitialized && !searchParams.get('prompt')) {
-      // Show onboarding for new users after a short delay
+    const isMidGeneration = isGenerating || html.length > 0
+    if (!hasSeenOnboarding && hasInitialized && !searchParams.get('prompt') && !isMidGeneration) {
       const timer = setTimeout(() => {
-        setShowOnboarding(true)
+        // Re-check at timer fire so a generation that started during the delay
+        // still suppresses the tour.
+        if (!isGenerating && html.length === 0) setShowOnboarding(true)
       }, 1500)
       return () => clearTimeout(timer)
     }
     if (hasSeenOnboarding) {
       setHasCompletedOnboarding(true)
     }
-  }, [hasInitialized, searchParams])
+  }, [hasInitialized, searchParams, isGenerating, html])
 
   // Save onboarding completion
   const handleOnboardingComplete = () => {
@@ -7683,13 +7692,28 @@ ${html}
                     title="Preview"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-zinc-900/50">
-                    <div className="text-center">
+                  <div className="w-full h-full flex items-center justify-center bg-zinc-900/50 p-6">
+                    <div className="text-center max-w-md">
                       <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 flex items-center justify-center border border-violet-500/20">
                         <Eye className="w-7 h-7 text-violet-400/50" />
                       </div>
-                      <p className="text-zinc-500 font-medium text-sm">Preview</p>
-                      <p className="text-zinc-700 text-xs mt-1">Your website appears here</p>
+                      {pages.length > 1 && !pages.find(p => p.id === activePageId)?.isHome ? (
+                        <>
+                          <p className="text-white font-medium text-sm">
+                            "{pages.find(p => p.id === activePageId)?.name || 'New page'}" is empty
+                          </p>
+                          <p className="text-zinc-400 text-xs mt-2">
+                            Describe what should go on this page in the chat
+                            <br />
+                            (e.g. "Add an about section with our story and team")
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-zinc-500 font-medium text-sm">Preview</p>
+                          <p className="text-zinc-700 text-xs mt-1">Your website appears here</p>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}
