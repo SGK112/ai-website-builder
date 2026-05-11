@@ -1274,11 +1274,10 @@ export default function HomePage() {
               </div>
             </motion.section>
 
-            {/* Showcase — masonry-ish gallery of what people are building.
-                Real Unsplash imagery as stand-ins for project hero shots.
-                Hover lifts the card and reveals the project meta. The big
-                "look what's possible" moment — Webflow / Lovable both have
-                this kind of section after their explainer. */}
+            {/* Recipe templates — Lovable's "Discover templates" pattern.
+                Heading left, "View all" on right. Clean cards with image on
+                top, name + description BELOW (not overlaid). 4-col grid on
+                desktop, 2-col on tablet, 1-col on mobile. */}
             <motion.section
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -1287,67 +1286,78 @@ export default function HomePage() {
               className="px-6 py-20"
             >
               <div className="max-w-6xl mx-auto">
-                <div className="text-center mb-12">
-                  <p className={cn(
-                    "text-xs uppercase tracking-[0.25em] mb-3 font-semibold",
-                    isDark ? "text-violet-300/80" : "text-violet-600/80"
-                  )}>
-                    Today's specials
-                  </p>
-                  <h2 className={cn(
-                    "text-3xl md:text-5xl font-bold tracking-tight",
-                    isDark ? "text-white" : "text-slate-900"
-                  )}>
-                    Fresh out of the
-                    <span
-                      className={cn(
-                        "italic font-normal ml-3 bg-clip-text text-transparent",
-                        isDark
-                          ? "bg-gradient-to-r from-amber-200 to-pink-300"
-                          : "bg-gradient-to-r from-orange-500 to-pink-500"
-                      )}
-                      style={{ fontFamily: 'var(--font-playfair), Georgia, serif' }}
-                    >
-                      kitchen.
-                    </span>
-                  </h2>
+                <div className="flex items-end justify-between mb-10 gap-4">
+                  <div>
+                    <h2 className={cn(
+                      "text-4xl md:text-5xl font-bold tracking-tight mb-2",
+                      isDark ? "text-white" : "text-slate-900"
+                    )}>
+                      Discover recipes
+                    </h2>
+                    <p className={cn(
+                      "text-base md:text-lg",
+                      isDark ? "text-slate-400" : "text-slate-600"
+                    )}>
+                      Order from a template, customize anything you taste.
+                    </p>
+                  </div>
+                  <a
+                    href="/templates"
+                    className={cn(
+                      "shrink-0 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors",
+                      isDark
+                        ? "border-white/10 hover:border-white/20 text-slate-300 hover:text-white bg-white/[0.03]"
+                        : "border-slate-300 hover:border-slate-400 text-slate-700 hover:text-slate-900 bg-white"
+                    )}
+                  >
+                    View all
+                  </a>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                   {[
-                    { title: 'Aurora Analytics', kind: 'SaaS Dashboard', stack: 'Next.js · Tailwind', img: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1200&q=80' },
-                    { title: 'Folio', kind: 'Designer Portfolio', stack: 'React · Vite', img: 'https://images.unsplash.com/photo-1561070791-2526d30994b8?w=1200&q=80' },
-                    { title: 'Pace Run', kind: 'Mobile App', stack: 'Expo · iOS · Android', img: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=1200&q=80' },
-                    { title: 'Lumen Bistro', kind: 'Restaurant Site', stack: 'Astro · Tailwind', img: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&q=80' },
-                    { title: 'Vault', kind: 'Crypto Tracker', stack: 'Next.js · Recharts', img: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=1200&q=80' },
-                    { title: 'Quill', kind: 'Markdown Blog', stack: 'Astro · MDX', img: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=1200&q=80' },
+                    { title: 'Personal portfolio', sub: 'Designer/dev work showcase', img: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800&q=80' },
+                    { title: 'SaaS dashboard', sub: 'Analytics, KPIs, charts', img: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80' },
+                    { title: 'Restaurant site', sub: 'Menu, hours, reservations', img: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80' },
+                    { title: 'Fitness mobile app', sub: 'Workouts, stats, streaks', img: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&q=80' },
+                    { title: 'E-commerce store', sub: 'Product grid, cart, checkout', img: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=800&q=80' },
+                    { title: 'Markdown blog', sub: 'Posts, tags, search, RSS', img: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=800&q=80' },
+                    { title: 'Photography portfolio', sub: 'Masonry gallery, lightbox', img: 'https://images.unsplash.com/photo-1452587925148-ce544e77e70d?w=800&q=80' },
+                    { title: 'Documentation site', sub: 'Sidebar, search, code blocks', img: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&q=80' },
                   ].map((p, i) => (
-                    <motion.div
+                    <motion.button
                       key={p.title}
-                      initial={{ opacity: 0, y: 24 }}
+                      onClick={() => { setPrompt(`Build me a ${p.title.toLowerCase()} — ${p.sub.toLowerCase()}`); inputRef.current?.focus(); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+                      initial={{ opacity: 0, y: 16 }}
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true, margin: "-50px" }}
-                      transition={{ duration: 0.6, delay: i * 0.06, ease: [0.22, 1, 0.36, 1] }}
-                      whileHover={{ y: -4 }}
-                      className={cn(
-                        "group relative rounded-3xl overflow-hidden border",
-                        isDark ? "border-white/10" : "border-slate-200 shadow-sm hover:shadow-2xl"
-                      )}
+                      transition={{ duration: 0.5, delay: i * 0.04, ease: [0.22, 1, 0.36, 1] }}
+                      whileHover={{ y: -3 }}
+                      className="group text-left"
                     >
-                      <div className="aspect-[4/3] overflow-hidden">
+                      <div className={cn(
+                        "aspect-[4/3] rounded-2xl overflow-hidden border mb-3 transition-shadow",
+                        isDark ? "border-white/10 group-hover:border-white/20" : "border-slate-200 group-hover:shadow-lg"
+                      )}>
                         <img
                           src={p.img}
                           alt={p.title}
                           loading="lazy"
-                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
                       </div>
-                      <div className="absolute inset-x-0 bottom-0 p-5">
-                        <p className="text-[10px] uppercase tracking-[0.2em] text-white/70 font-semibold mb-1">{p.kind}</p>
-                        <h3 className="text-xl font-bold text-white mb-1">{p.title}</h3>
-                        <p className="text-xs text-white/80">{p.stack}</p>
-                      </div>
-                    </motion.div>
+                      <h3 className={cn(
+                        "font-semibold text-base mb-0.5 transition-colors",
+                        isDark ? "text-white group-hover:text-violet-300" : "text-slate-900 group-hover:text-violet-600"
+                      )}>
+                        {p.title}
+                      </h3>
+                      <p className={cn(
+                        "text-sm",
+                        isDark ? "text-slate-400" : "text-slate-500"
+                      )}>
+                        {p.sub}
+                      </p>
+                    </motion.button>
                   ))}
                 </div>
               </div>
@@ -1444,77 +1454,122 @@ export default function HomePage() {
               </div>
             </motion.section>
 
-            {/* Closing CTA — full-bleed gradient panel, single confident
-                button. The "second hero" pattern Lovable / Vercel use to
-                close out the marketing flow. */}
-            <motion.section initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} className="px-6 pb-20 pt-4">
-              <div
-                className={cn(
-                  "max-w-5xl mx-auto rounded-3xl overflow-hidden relative border",
-                  isDark ? "border-white/10" : "border-white/40"
-                )}
-              >
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    background: isDark
-                      ? 'linear-gradient(135deg, #1e1b4b 0%, #4c1d95 30%, #831843 70%, #7c2d12 100%)'
-                      : 'linear-gradient(135deg, #fed7aa 0%, #fbcfe8 30%, #ddd6fe 70%, #fef3c7 100%)',
-                  }}
-                />
-                {/* Soft blob accents inside the panel */}
-                <div className="absolute inset-0 overflow-hidden">
-                  <div
-                    className="absolute -top-20 -left-20 w-80 h-80 rounded-full"
-                    style={{
-                      filter: 'blur(80px)',
-                      background: isDark
-                        ? 'radial-gradient(circle, rgba(244,114,182,0.4), transparent 70%)'
-                        : 'radial-gradient(circle, rgba(251,146,60,0.5), transparent 70%)',
-                    }}
-                  />
-                  <div
-                    className="absolute -bottom-20 -right-20 w-80 h-80 rounded-full"
-                    style={{
-                      filter: 'blur(80px)',
-                      background: isDark
-                        ? 'radial-gradient(circle, rgba(167,139,250,0.4), transparent 70%)'
-                        : 'radial-gradient(circle, rgba(168,85,247,0.4), transparent 70%)',
-                    }}
-                  />
-                </div>
-                <div className="relative px-8 md:px-16 py-16 md:py-20 text-center">
-                  <h2 className={cn(
-                    "text-4xl md:text-6xl font-bold tracking-tight mb-4",
-                    isDark ? "text-white" : "text-slate-900"
-                  )}>
-                    Hungry to ship?
-                    <span
-                      className="block italic font-normal mt-1"
-                      style={{ fontFamily: 'var(--font-playfair), Georgia, serif' }}
-                    >
-                      Pull up a chair.
-                    </span>
-                  </h2>
-                  <p className={cn(
-                    "text-base md:text-lg mb-9 max-w-xl mx-auto",
-                    isDark ? "text-white/80" : "text-slate-800/80"
-                  )}>
-                    Free to try. No credit card. Your first build is on us.
-                  </p>
-                  <a
-                    href={sessionStatus === 'authenticated' ? '/workspace' : '/signup?next=%2Fworkspace'}
+            {/* Closing CTA — second prompt input, Lovable pattern. Same
+                animated typewriter + dropdown + send arrow as the hero,
+                with a "Ready to build?" headline above. Scrolls back to
+                the same submit handler. */}
+            <motion.section
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+              className="px-6 pb-24 pt-12"
+            >
+              <div className="max-w-2xl mx-auto text-center">
+                <p className={cn(
+                  "text-xs uppercase tracking-[0.25em] mb-3 font-semibold",
+                  isDark ? "text-violet-300/80" : "text-violet-600/80"
+                )}>
+                  Webstew AI Builder
+                </p>
+                <h2 className={cn(
+                  "text-5xl md:text-6xl font-bold tracking-tight leading-[1.05] mb-8",
+                  isDark ? "text-white" : "text-slate-900"
+                )}>
+                  Ready to
+                  <span
                     className={cn(
-                      "inline-flex items-center gap-2 px-8 py-4 rounded-2xl text-base font-semibold transition-all duration-300 hover:scale-[1.04] shadow-xl",
+                      "italic font-normal ml-3 bg-clip-text text-transparent",
                       isDark
-                        ? "bg-white text-slate-900 hover:bg-slate-100 shadow-pink-500/20"
-                        : "bg-slate-900 text-white hover:bg-slate-800 shadow-slate-900/30"
+                        ? "bg-gradient-to-br from-amber-200 to-pink-300"
+                        : "bg-gradient-to-br from-orange-500 to-pink-500"
                     )}
+                    style={{ fontFamily: 'var(--font-playfair), Georgia, serif' }}
                   >
-                    {sessionStatus === 'authenticated' ? 'Open Workspace' : 'Start cooking, free'}
-                    <ArrowRight className="w-5 h-5" />
-                  </a>
+                    cook?
+                  </span>
+                </h2>
+
+                {/* Same input component as the hero — animated typewriter,
+                    dropdown picker, send arrow. Wired to the same submit. */}
+                <div
+                  className={cn(
+                    "rounded-2xl backdrop-blur-xl border transition-all duration-300 text-left",
+                    isDark
+                      ? "bg-slate-900/70 border-white/10 shadow-xl shadow-black/30"
+                      : "bg-white/90 border-slate-200/80 shadow-xl shadow-slate-300/30",
+                    prompt && (isDark ? "ring-1 ring-violet-500/40" : "ring-1 ring-violet-400/40")
+                  )}
+                >
+                  <div className="px-4 pt-3 pb-0">
+                    <textarea
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder={typedText || (
+                        buildTarget === 'mobile'
+                          ? `Ask Webstew to build a mobile app...`
+                          : buildTarget === 'webapp'
+                            ? `Ask Webstew to build a web app...`
+                            : `Ask Webstew to build a website for...`
+                      )}
+                      rows={1}
+                      className={cn(
+                        "w-full resize-none bg-transparent text-base leading-snug focus:outline-none min-h-[44px]",
+                        isDark
+                          ? "text-white placeholder-slate-500"
+                          : "text-slate-900 placeholder-slate-400"
+                      )}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between px-3 pb-3">
+                    <div className="relative">
+                      <select
+                        value={buildTarget}
+                        onChange={(e) => setBuildTarget(e.target.value as typeof buildTarget)}
+                        aria-label="Build target"
+                        className={cn(
+                          "appearance-none pl-2.5 pr-8 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors",
+                          isDark
+                            ? "bg-white/5 hover:bg-white/10 text-white border border-white/10"
+                            : "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200"
+                        )}
+                      >
+                        <option value="website">🌐  Website</option>
+                        <option value="webapp">⚛️  Web App</option>
+                        <option value="mobile">📱  Mobile App</option>
+                      </select>
+                      <ChevronDown className={cn(
+                        "absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none",
+                        isDark ? "text-slate-400" : "text-slate-500"
+                      )} />
+                    </div>
+
+                    <button
+                      onClick={handleSubmit}
+                      disabled={!prompt.trim() || isTransitioning}
+                      aria-label="Build it"
+                      className={cn(
+                        "flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-200",
+                        prompt.trim()
+                          ? "bg-gradient-to-br from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white shadow-md shadow-violet-500/30 hover:scale-105"
+                          : isDark
+                            ? "bg-white/5 text-slate-600 cursor-not-allowed"
+                            : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                      )}
+                    >
+                      {isTransitioning ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
+
+                <p className={cn(
+                  "text-xs mt-4",
+                  isDark ? "text-slate-500" : "text-slate-500"
+                )}>
+                  Free to start · No credit card · Your first build is on us
+                </p>
               </div>
             </motion.section>
 
