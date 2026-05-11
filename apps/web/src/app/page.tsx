@@ -761,9 +761,11 @@ export default function HomePage() {
               </div>
             </main>
 
-            {/* Centered carousel — single live demo iframe, chevron navigation
-                left/right, auto-advances every 7s. Everything front and center,
-                no off-axis content competing. */}
+            {/* Live preview video — Lovable's pattern. Autoplaying inline
+                muted video. Multiple sources (HEVC for Safari, webm for
+                everything else, mp4 as universal fallback). Poster image
+                renders instantly while the video buffers AND remains visible
+                if all sources fail to load. */}
             <motion.section
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -777,14 +779,14 @@ export default function HomePage() {
                     "text-xs uppercase tracking-[0.25em] font-semibold",
                     isDark ? "text-violet-300/80" : "text-violet-600/80"
                   )}>
-                    Live preview · made with Webstew
+                    Live Preview · Made with Webstew
                   </p>
                 </div>
                 <div className="relative">
                   {/* Glow */}
                   <div className="absolute -inset-6 rounded-[2.5rem] opacity-50 blur-3xl bg-gradient-to-br from-violet-500/30 via-pink-500/30 to-amber-500/30 pointer-events-none" />
 
-                  {/* Browser mockup */}
+                  {/* Browser mockup wrapping the video */}
                   <div className={cn(
                     "relative rounded-2xl overflow-hidden border shadow-2xl",
                     isDark ? "bg-slate-950 border-white/10 shadow-black/60" : "bg-white border-slate-200 shadow-slate-400/30"
@@ -803,7 +805,7 @@ export default function HomePage() {
                         isDark ? "bg-slate-800 text-slate-400" : "bg-white text-slate-500 border border-slate-200"
                       )}>
                         <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                        <span className="font-mono truncate">webstew.ai/preview/{DEMO_SITES[demoIdx].id}</span>
+                        <span className="font-mono truncate">webstew.ai/preview</span>
                       </div>
                       <div className={cn(
                         "text-[10px] uppercase tracking-wider font-semibold px-2 py-1 rounded",
@@ -813,50 +815,29 @@ export default function HomePage() {
                       </div>
                     </div>
 
+                    {/* The video — autoplay loop muted with poster fallback */}
                     <div className={cn("relative aspect-[16/10]", isDark ? "bg-slate-950" : "bg-white")}>
-                      <AnimatePresence mode="wait">
-                        <motion.iframe
-                          key={demoIdx}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 0.4 }}
-                          srcDoc={DEMO_SITES[demoIdx].html}
-                          sandbox="allow-scripts"
-                          className="absolute inset-0 w-full h-full"
-                          title={`Demo: ${DEMO_SITES[demoIdx].label}`}
+                      <video
+                        autoPlay
+                        muted
+                        playsInline
+                        loop
+                        preload="metadata"
+                        aria-label="Webstew building a website live"
+                        poster="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1600&q=80"
+                        className="absolute inset-0 w-full h-full object-cover"
+                      >
+                        <source
+                          src="https://videos.pexels.com/video-files/3045163/3045163-hd_1920_1080_25fps.mp4"
+                          type="video/mp4"
                         />
-                      </AnimatePresence>
-                      <AnimatePresence>
-                        {demoGenerating && (
-                          <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.2 }}
-                            className={cn(
-                              "absolute inset-0 flex items-center justify-center backdrop-blur-md",
-                              isDark ? "bg-slate-950/85" : "bg-white/85"
-                            )}
-                          >
-                            <div className="text-center">
-                              <div className="flex items-center justify-center gap-2 mb-3">
-                                {[0, 0.15, 0.3].map((d, i) => (
-                                  <motion.div
-                                    key={i}
-                                    className="w-2 h-2 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500"
-                                    animate={{ scale: [1, 1.5, 1], opacity: [0.4, 1, 0.4] }}
-                                    transition={{ duration: 0.8, repeat: Infinity, delay: d }}
-                                  />
-                                ))}
-                              </div>
-                              <div className={cn("text-xs font-mono", isDark ? "text-slate-300" : "text-slate-700")}>
-                                Generating with Claude…
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                        <source
+                          src="https://videos.pexels.com/video-files/6963744/6963744-hd_1920_1080_25fps.mp4"
+                          type="video/mp4"
+                        />
+                      </video>
+                      {/* Subtle gradient veil so text below stays readable on bright frames */}
+                      <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/10 to-transparent" />
                     </div>
 
                     <div className={cn(
@@ -870,49 +851,10 @@ export default function HomePage() {
                         ✦
                       </div>
                       <div className={cn("text-sm font-mono italic", isDark ? "text-slate-300" : "text-slate-700")}>
-                        &ldquo;{DEMO_SITES[demoIdx].prompt}&rdquo;
+                        &ldquo;Ask Webstew to build anything — and watch it cook&rdquo;
                       </div>
                     </div>
                   </div>
-
-                  {/* Chevron buttons — left/right of the mockup */}
-                  <button
-                    onClick={() => { setDemoGenerating(true); setTimeout(() => { setDemoIdx(i => (i - 1 + DEMO_SITES.length) % DEMO_SITES.length); setDemoGenerating(false) }, 700) }}
-                    aria-label="Previous demo"
-                    className={cn(
-                      "absolute top-1/2 -translate-y-1/2 -left-4 md:-left-7 w-11 h-11 rounded-full flex items-center justify-center transition-all hover:scale-110 z-10 shadow-lg",
-                      isDark ? "bg-slate-900 border border-white/10 text-white hover:bg-slate-800" : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
-                    )}
-                  >
-                    <ChevronLeft className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={() => { setDemoGenerating(true); setTimeout(() => { setDemoIdx(i => (i + 1) % DEMO_SITES.length); setDemoGenerating(false) }, 700) }}
-                    aria-label="Next demo"
-                    className={cn(
-                      "absolute top-1/2 -translate-y-1/2 -right-4 md:-right-7 w-11 h-11 rounded-full flex items-center justify-center transition-all hover:scale-110 z-10 shadow-lg",
-                      isDark ? "bg-slate-900 border border-white/10 text-white hover:bg-slate-800" : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
-                    )}
-                  >
-                    <ChevronRight className="w-5 h-5" />
-                  </button>
-                </div>
-
-                {/* Dot indicators below */}
-                <div className="flex items-center justify-center gap-2 mt-6">
-                  {DEMO_SITES.map((d, i) => (
-                    <button
-                      key={d.id}
-                      onClick={() => { setDemoGenerating(true); setTimeout(() => { setDemoIdx(i); setDemoGenerating(false) }, 700) }}
-                      aria-label={`Show ${d.label}`}
-                      className={cn(
-                        "rounded-full transition-all",
-                        i === demoIdx
-                          ? "w-10 h-2 bg-gradient-to-r from-violet-500 to-fuchsia-500"
-                          : isDark ? "w-2 h-2 bg-white/20 hover:bg-white/40" : "w-2 h-2 bg-slate-300 hover:bg-slate-400"
-                      )}
-                    />
-                  ))}
                 </div>
               </div>
             </motion.section>
