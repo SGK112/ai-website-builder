@@ -597,378 +597,91 @@ export default function HomePage() {
                   </div>
                 </motion.div>
 
-                {/* Templates */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.2 }}
-                  className="mt-6 flex flex-wrap justify-center gap-2"
-                >
-                  {quickTemplates.map((t) => (
-                    <button
-                      key={t.label}
-                      onClick={() => { setPrompt(t.prompt); inputRef.current?.focus() }}
-                      className={cn(
-                        "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium backdrop-blur-sm transition-all duration-200 hover:scale-105",
-                        isDark
-                          ? "bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10"
-                          : "bg-white/60 hover:bg-white/80 text-slate-700 border border-white/50 shadow-sm"
-                      )}
-                    >
-                      <t.icon className="w-4 h-4" />
-                      {t.label}
-                    </button>
-                  ))}
-                </motion.div>
-
-                {/* Features */}
+                {/* Tech stack — what Webstew builds with. Mix that signals to
+                    devs (Next.js, TS, Tailwind), mobile devs (Expo, RN, iOS,
+                    Android), and non-tech users (Apple, Python). */}
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 0.4 }}
-                  className="mt-16 flex justify-center gap-10"
+                  transition={{ duration: 0.6, delay: 0.3 }}
+                  className="mt-16 mb-2"
                 >
-                  {[
-                    { icon: Zap, text: "AI-Powered" },
-                    { icon: Code2, text: "Production Ready" },
-                    { icon: Palette, text: "Fully Custom" },
-                  ].map((item) => (
-                    <div
-                      key={item.text}
-                      className={cn(
-                        "flex items-center gap-2 text-sm",
-                        isDark ? "text-slate-500" : "text-slate-500"
-                      )}
-                    >
-                      <item.icon className="w-4 h-4" />
-                      {item.text}
-                    </div>
-                  ))}
+                  <p className={cn(
+                    "text-center text-xs uppercase tracking-[0.2em] mb-6",
+                    isDark ? "text-slate-500" : "text-slate-400"
+                  )}>
+                    Ships real code in your stack
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-5">
+                    {[
+                      { slug: 'nextdotjs', name: 'Next.js' },
+                      { slug: 'react', name: 'React' },
+                      { slug: 'typescript', name: 'TypeScript' },
+                      { slug: 'tailwindcss', name: 'Tailwind CSS' },
+                      { slug: 'expo', name: 'Expo' },
+                      { slug: 'apple', name: 'iOS' },
+                      { slug: 'android', name: 'Android' },
+                      { slug: 'python', name: 'Python', soon: true },
+                      { slug: 'nodedotjs', name: 'Node.js' },
+                      { slug: 'vercel', name: 'Vercel' },
+                    ].map((tech) => (
+                      <div
+                        key={tech.slug}
+                        title={tech.soon ? `${tech.name} — coming soon` : tech.name}
+                        className={cn(
+                          "group flex items-center gap-2 transition-all",
+                          tech.soon ? "opacity-40" : isDark ? "opacity-50 hover:opacity-100" : "opacity-60 hover:opacity-100"
+                        )}
+                      >
+                        <img
+                          src={`https://cdn.simpleicons.org/${tech.slug}/${isDark ? 'ffffff' : '475569'}`}
+                          alt={tech.name}
+                          loading="lazy"
+                          className="w-5 h-5 transition-transform group-hover:scale-110"
+                        />
+                        <span className={cn(
+                          "text-sm font-medium",
+                          isDark ? "text-slate-300" : "text-slate-600"
+                        )}>
+                          {tech.name}
+                          {tech.soon && <span className={cn(
+                            "ml-1.5 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded",
+                            isDark ? "bg-white/10 text-slate-400" : "bg-slate-200 text-slate-500"
+                          )}>soon</span>}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className={cn(
+                    "text-center text-xs mt-8",
+                    isDark ? "text-slate-600" : "text-slate-400"
+                  )}>
+                    Export the source, push to GitHub, deploy to Vercel / Render / TestFlight.
+                  </p>
                 </motion.div>
 
               </div>
             </main>
 
-            {/* Animated Hero Showcase - Browser Mockup */}
-            <motion.div
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.5 }}
-              className="relative px-6 py-16 -mt-8"
-            >
-              <div className="max-w-4xl mx-auto">
-                {/* Floating Browser Mockup */}
-                <div className={cn(
-                  "relative rounded-2xl overflow-hidden shadow-2xl",
-                  isDark
-                    ? "bg-zinc-900 ring-1 ring-white/10 shadow-violet-500/10"
-                    : "bg-white ring-1 ring-black/10 shadow-xl"
-                )}>
-                  {/* Browser Header */}
-                  <div className={cn(
-                    "flex items-center gap-2 px-4 py-3 border-b",
-                    isDark ? "bg-zinc-800/50 border-white/5" : "bg-zinc-100 border-zinc-200"
-                  )}>
-                    <div className="flex gap-1.5">
-                      <div className="w-3 h-3 rounded-full bg-red-500/80" />
-                      <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
-                      <div className="w-3 h-3 rounded-full bg-green-500/80" />
-                    </div>
-                    <div className={cn(
-                      "flex-1 mx-4 px-4 py-1.5 rounded-lg text-xs flex items-center gap-2",
-                      isDark ? "bg-zinc-700/50 text-zinc-400" : "bg-white text-zinc-500"
-                    )}>
-                      <Globe className="w-3 h-3" />
-                      <span>your-website.com</span>
-                    </div>
-                  </div>
-
-                  {/* Animated Website Preview */}
-                  <div className="relative aspect-[16/9] overflow-hidden">
-                    {/* Background gradient animation */}
-                    <div className={cn(
-                      "absolute inset-0",
-                      isDark
-                        ? "bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900"
-                        : "bg-gradient-to-br from-zinc-50 via-white to-zinc-100"
-                    )} />
-
-                    {/* Animated content blocks */}
-                    <div className="absolute inset-0 p-6">
-                      {/* Hero section simulation */}
-                      <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 1, duration: 0.5 }}
-                        className="mb-4"
-                      >
-                        <div className={cn(
-                          "h-3 w-32 rounded mb-2",
-                          isDark ? "bg-violet-500/30" : "bg-violet-200"
-                        )} />
-                        <div className={cn(
-                          "h-6 w-64 rounded mb-2",
-                          isDark ? "bg-white/20" : "bg-zinc-300"
-                        )} />
-                        <div className={cn(
-                          "h-3 w-48 rounded",
-                          isDark ? "bg-white/10" : "bg-zinc-200"
-                        )} />
-                      </motion.div>
-
-                      {/* Feature cards simulation */}
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 1.5, duration: 0.5 }}
-                        className="grid grid-cols-3 gap-3 mb-4"
-                      >
-                        {[0, 1, 2].map((i) => (
-                          <motion.div
-                            key={i}
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: 1.7 + i * 0.2, duration: 0.4 }}
-                            className={cn(
-                              "p-3 rounded-lg",
-                              isDark ? "bg-white/5" : "bg-zinc-100"
-                            )}
-                          >
-                            <div className={cn(
-                              "w-8 h-8 rounded-lg mb-2",
-                              i === 0 ? "bg-violet-500/50" : i === 1 ? "bg-fuchsia-500/50" : "bg-pink-500/50"
-                            )} />
-                            <div className={cn("h-2 w-full rounded mb-1", isDark ? "bg-white/20" : "bg-zinc-300")} />
-                            <div className={cn("h-2 w-3/4 rounded", isDark ? "bg-white/10" : "bg-zinc-200")} />
-                          </motion.div>
-                        ))}
-                      </motion.div>
-
-                      {/* Image placeholder */}
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: 2.3, duration: 0.5 }}
-                        className={cn(
-                          "relative h-24 rounded-xl overflow-hidden",
-                          isDark ? "bg-gradient-to-r from-violet-600/30 via-fuchsia-600/30 to-pink-600/30" : "bg-gradient-to-r from-violet-200 via-fuchsia-200 to-pink-200"
-                        )}
-                      >
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-                            className={cn(
-                              "w-12 h-12 rounded-full border-2 border-dashed",
-                              isDark ? "border-white/20" : "border-zinc-400/30"
-                            )}
-                          />
-                        </div>
-                      </motion.div>
-                    </div>
-
-                    {/* Sparkle effects */}
-                    <motion.div
-                      animate={{
-                        opacity: [0.3, 0.6, 0.3],
-                        scale: [1, 1.2, 1]
-                      }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                      className="absolute top-4 right-4"
-                    >
-                      <Sparkles className={cn("w-6 h-6", isDark ? "text-violet-400" : "text-violet-500")} />
-                    </motion.div>
-
-                    {/* AI Building indicator */}
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.8 }}
-                      className={cn(
-                        "absolute bottom-4 left-4 flex items-center gap-2 px-3 py-2 rounded-full text-xs font-medium",
-                        isDark
-                          ? "bg-violet-500/20 text-violet-300 border border-violet-500/30"
-                          : "bg-violet-100 text-violet-700 border border-violet-200"
-                      )}
-                    >
-                      <motion.div
-                        animate={{ opacity: [1, 0.5, 1] }}
-                        transition={{ duration: 1.5, repeat: Infinity }}
-                        className="w-2 h-2 rounded-full bg-violet-500"
-                      />
-                      AI is building your site...
-                    </motion.div>
-                  </div>
-                </div>
-
-                {/* Floating decorative elements */}
-                <motion.div
-                  animate={{ y: [0, -10, 0] }}
-                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                  className={cn(
-                    "absolute -left-4 top-1/4 w-20 h-20 rounded-2xl rotate-12",
-                    isDark
-                      ? "bg-gradient-to-br from-violet-600/20 to-fuchsia-600/20 backdrop-blur-sm"
-                      : "bg-gradient-to-br from-violet-200/50 to-fuchsia-200/50"
-                  )}
-                />
-                <motion.div
-                  animate={{ y: [0, 10, 0] }}
-                  transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-                  className={cn(
-                    "absolute -right-4 bottom-1/4 w-16 h-16 rounded-xl -rotate-12",
-                    isDark
-                      ? "bg-gradient-to-br from-pink-600/20 to-orange-600/20 backdrop-blur-sm"
-                      : "bg-gradient-to-br from-pink-200/50 to-orange-200/50"
-                  )}
-                />
-              </div>
-            </motion.div>
-
-            {/* Apple-Style Glassmorphic Template Showcase */}
-            <div className="relative px-6 pb-32 -mt-24">
-              {/* Decorative gradient orbs */}
-              <div className="absolute top-0 left-1/4 w-96 h-96 bg-violet-500/20 rounded-full blur-[128px] pointer-events-none" />
-              <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-fuchsia-500/20 rounded-full blur-[128px] pointer-events-none" />
-
-              <motion.div
-                initial={{ opacity: 0, y: 60 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5, duration: 1, ease: [0.16, 1, 0.3, 1] }}
-                className="max-w-6xl mx-auto relative"
-              >
-                {/* Section Header */}
-                <div className="text-center mb-8">
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.6 }}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-500/10 border border-violet-500/20 mb-4"
-                  >
-                    <div className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
-                    <span className="text-violet-400 text-xs font-medium tracking-wide">TEMPLATES</span>
-                  </motion.div>
-                  <motion.h2
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.7 }}
-                    className={cn(
-                      "text-2xl font-bold",
-                      isDark ? "text-white" : "text-zinc-900"
-                    )}
-                  >
-                    Start with a proven design
-                  </motion.h2>
-                </div>
-
-                {/* Glassmorphic Container */}
-                <div className={cn(
-                  "relative rounded-3xl overflow-hidden",
-                  isDark
-                    ? "bg-white/[0.03] backdrop-blur-2xl border border-white/[0.08]"
-                    : "bg-black/[0.02] backdrop-blur-2xl border border-black/[0.05]"
-                )}>
-                  {/* Top accent line */}
-                  <div className="absolute top-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-violet-500/50 to-transparent" />
-
-                  {/* Inner glow */}
-                  <div className="absolute inset-0 bg-gradient-to-b from-white/[0.05] to-transparent pointer-events-none" />
-
-                  {/* Content */}
-                  <div className="relative p-8">
-                    {/* Template Grid */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-                      {visibleTemplates.map((template, index) => (
-                        <motion.button
-                          key={template.id}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.8 + index * 0.08, duration: 0.6 }}
-                          onClick={() => setSelectedTemplate(template)}
-                          className={cn(
-                            "group relative aspect-[3/4] rounded-2xl overflow-hidden transition-all duration-500",
-                            "hover:scale-[1.02] hover:-translate-y-1",
-                            isDark
-                              ? "bg-zinc-900/50 ring-1 ring-white/10 hover:ring-violet-500/40 shadow-lg shadow-black/20 hover:shadow-xl hover:shadow-violet-500/10"
-                              : "bg-white/50 ring-1 ring-black/5 hover:ring-violet-500/30 shadow-lg shadow-black/5 hover:shadow-xl"
-                          )}
-                        >
-                          {/* Screenshot */}
-                          <img
-                            src={template.image}
-                            alt={template.name}
-                            className="absolute inset-0 w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-110"
-                          />
-
-                          {/* Permanent label at bottom */}
-                          <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black via-black/80 to-transparent">
-                            <span className="inline-block px-2 py-0.5 bg-white/20 backdrop-blur-sm rounded text-[10px] uppercase tracking-wider font-semibold text-white mb-2">
-                              {template.category}
-                            </span>
-                            <p className="text-white font-bold text-base leading-tight drop-shadow-lg">
-                              {template.name}
-                            </p>
-                          </div>
-
-                          {/* Hover overlay with CTA */}
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-300 backdrop-blur-[2px]">
-                            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/20 backdrop-blur-md border border-white/20 text-white text-sm font-medium">
-                              <span>Preview</span>
-                              <ArrowRight className="w-4 h-4" />
-                            </div>
-                          </div>
-
-                          {/* Corner accent */}
-                          <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-violet-500/60 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </motion.button>
-                      ))}
-                    </div>
-
-                    {/* View All / Show Less Button */}
-                    {templateGallery.length > 8 && (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 1.2 }}
-                        className="flex justify-center mt-6"
-                      >
-                        <button
-                          onClick={() => setShowAllTemplates(!showAllTemplates)}
-                          className={cn(
-                            "flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all",
-                            isDark
-                              ? "bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/10"
-                              : "bg-black/5 hover:bg-black/10 text-zinc-700 border border-black/10"
-                          )}
-                        >
-                          {showAllTemplates ? (
-                            <>Show Less</>
-                          ) : (
-                            <>View All {templateGallery.length} Templates</>
-                          )}
-                        </button>
-                      </motion.div>
-                    )}
-                  </div>
-
-                  {/* Bottom accent line */}
-                  <div className="absolute bottom-0 left-8 right-8 h-px bg-gradient-to-r from-transparent via-fuchsia-500/30 to-transparent" />
-                </div>
-
-                {/* Floating tech lines */}
-                <div className="absolute -left-4 top-1/4 w-px h-32 bg-gradient-to-b from-transparent via-violet-500/30 to-transparent" />
-                <div className="absolute -right-4 bottom-1/4 w-px h-32 bg-gradient-to-b from-transparent via-fuchsia-500/30 to-transparent" />
-              </motion.div>
-            </div>
 
             {/* Footer */}
             <footer className={cn(
-              "py-12 px-6 text-center",
-              isDark ? "text-zinc-600" : "text-zinc-500"
+              "py-10 px-6 border-t",
+              isDark ? "border-white/5 text-slate-500" : "border-slate-200 text-slate-500"
             )}>
-              <p className="text-sm">
-                Built with AI. Powered by imagination.
-              </p>
+              <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🍲</span>
+                  <span className={cn("font-semibold", isDark ? "text-white" : "text-slate-800")}>Webstew</span>
+                  <span className={cn("text-xs", isDark ? "text-slate-600" : "text-slate-400")}>· prompts to working code</span>
+                </div>
+                <div className="flex items-center gap-5">
+                  <a href="/app-builder" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>App Builder</a>
+                  <a href="/community" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Community</a>
+                  <a href="/upgrade" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Pricing</a>
+                  <a href="/login" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Sign in</a>
+                </div>
+              </div>
             </footer>
 
             {/* Template Preview Modal - Side by Side Card */}
