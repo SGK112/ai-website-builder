@@ -5344,8 +5344,12 @@ ${html}
                             setProjectName(template.label)
                             addTerminalLine('success', `Loaded template: ${template.label}`)
                           } else {
-                            setCommandInput(template.prompt)
-                            handleGenerate(template.prompt)
+                            // Don't blast the chip's hardcoded prompt (e.g. "Alex Chen at
+                            // Spotify") into the LLM — that overwrites whatever the user
+                            // had typed and produces wildly off-topic output. Route through
+                            // the chat so the conversation layer can collect the user's
+                            // actual details before generating.
+                            handleChatMessage(`Build me a ${template.label.toLowerCase()} website`)
                           }
                         }}
                         className={cn(
