@@ -1089,6 +1089,89 @@ ANIMATIONS TO INCLUDE:
 
 Generate a COMPLETE, BEAUTIFUL e-commerce website based on the user's specific requirements. Match or exceed the quality of the reference template. Return ONLY the HTML.`
 
+// Fetch a pool of topic-relevant photos from Pixabay so the generated site's
+// images actually relate to the user's prompt (instead of picsum's seed-based
+// random pool — a jewelry site would otherwise get bulldozers and fruit-market
+// vendors because "seed/hero" deterministically returns the same unrelated
+// photo every time). One API call returns a pool we then distribute across
+// every <img> tag and background-image URL in the HTML.
+async function fetchTopicImages(topic: string): Promise<string[]> {
+  const key = process.env.PIXABAY_API_KEY
+  if (!key) return []
+  // Strip filler words and cap query length — Pixabay rejects > 100 chars
+  // and works better with 2-4 nouns than a full sentence.
+  const cleaned = topic
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(/\b(a|an|the|for|with|and|or|of|to|in|on|please|website|site|page|landing|build|create|make|design|that|sells|sell|selling|business|company)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .slice(0, 4)
+    .join(' ')
+  if (!cleaned) return []
+
+  try {
+    const url = new URL('https://pixabay.com/api/')
+    url.searchParams.set('key', key)
+    url.searchParams.set('q', cleaned)
+    url.searchParams.set('image_type', 'photo')
+    url.searchParams.set('per_page', '20')
+    url.searchParams.set('safesearch', 'true')
+    url.searchParams.set('editors_choice', 'true')
+    url.searchParams.set('lang', 'en')
+
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 6000)
+    const res = await fetch(url.toString(), { signal: controller.signal })
+    clearTimeout(timer)
+    if (!res.ok) return []
+    const data = await res.json()
+    const hits = (data?.hits || []) as Array<{ largeImageURL?: string; webformatURL?: string }>
+    return hits
+      .map(h => h.largeImageURL || h.webformatURL || '')
+      .filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
+// Replace placeholder image URLs (picsum, unsplash, broken) with topic-relevant
+// photos from the supplied pool. Each <img> and background-image gets a
+// different image from the pool, cycling if needed. Leaves data URIs, user
+// uploads, and marker tokens alone.
+function injectTopicImages(html: string, pool: string[]): string {
+  if (pool.length === 0) return html
+  let i = 0
+  const next = () => pool[i++ % pool.length]
+  const isReplaceableUrl = (url: string): boolean => {
+    if (!url) return true
+    const u = url.toLowerCase()
+    if (u.startsWith('data:')) return false
+    if (u.startsWith('{{') || u.startsWith('__')) return false  // template markers
+    if (u.includes('user-uploads') || u.includes('cloudinary')) return false
+    return (
+      u.includes('picsum.photos') ||
+      u.includes('images.unsplash.com') ||
+      u.includes('source.unsplash.com') ||
+      u.includes('placeholder') ||
+      u.includes('via.placeholder')
+    )
+  }
+
+  let result = html.replace(
+    /(<img\b[^>]*\bsrc\s*=\s*["'])([^"']+)(["'][^>]*>)/gi,
+    (match, pre, src, post) => isReplaceableUrl(src) ? `${pre}${next()}${post}` : match
+  )
+
+  result = result.replace(
+    /background(-image)?\s*:\s*url\(\s*(['"]?)([^'")]+)\2\s*\)/gi,
+    (match, suffix, quote, url) => isReplaceableUrl(url) ? `background${suffix || ''}: url(${quote}${next()}${quote})` : match
+  )
+
+  return result
+}
+
 // Fix broken image URLs - replace unsplash with reliable picsum
 function fixImageUrls(html: string): string {
   let result = html
@@ -2258,6 +2341,12 @@ Rules:
         })
       }
 
+      // Swap any remaining placeholder/random images for topic-relevant photos
+      const freeTopicImages = await fetchTopicImages(prompt || '')
+      if (freeTopicImages.length > 0) {
+        finalHtml = injectTopicImages(finalHtml, freeTopicImages)
+      }
+
       const verification = verifyImagesInHtml(finalHtml)
       console.log(`Free AI Image verification: ${verification.imageCount} images, ${verification.valid ? 'all valid' : verification.errors.join(', ')}`)
 
@@ -2463,6 +2552,12 @@ Rules:
               })
             }
 
+            // Swap any remaining placeholder/random images for topic-relevant photos
+            const claudeTopicImages = await fetchTopicImages(prompt || '')
+            if (claudeTopicImages.length > 0) {
+              finalHtml = injectTopicImages(finalHtml, claudeTopicImages)
+            }
+
             const verification = verifyImagesInHtml(finalHtml)
             console.log(`Claude Image verification: ${verification.imageCount} images, ${verification.valid ? 'all valid' : verification.errors.join(', ')}`)
 
@@ -2630,6 +2725,12 @@ Rules:
             imageMarkers.forEach((imageData, marker) => {
               finalHtml = finalHtml.replace(new RegExp(escapeRegExp(marker), 'g'), imageData)
             })
+          }
+
+          // Swap any remaining placeholder/random images for topic-relevant photos
+          const streamTopicImages = await fetchTopicImages(prompt || '')
+          if (streamTopicImages.length > 0) {
+            finalHtml = injectTopicImages(finalHtml, streamTopicImages)
           }
 
           // Verify images in the final HTML
