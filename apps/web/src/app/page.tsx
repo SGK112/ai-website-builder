@@ -23,7 +23,6 @@ import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { useTheme } from '@/context/ThemeContext'
 import { cn } from '@/lib/utils'
-import { StarryNight, SunriseBackground } from '@/components/landing/BackgroundEffects'
 import { TECH_ICONS } from '@/lib/tech-icons'
 
 const examplePrompts = [
@@ -223,7 +222,6 @@ export default function HomePage() {
   const [buildTarget, setBuildTarget] = useState<'website' | 'webapp' | 'mobile'>('website')
   const [placeholderIndex, setPlaceholderIndex] = useState(0)
   const [selectedTemplate, setSelectedTemplate] = useState<typeof templateGallery[0] | null>(null)
-  const [scrollY, setScrollY] = useState(0)
   const [showAllTemplates, setShowAllTemplates] = useState(false)
   const [mounted, setMounted] = useState(false)
 
@@ -233,13 +231,6 @@ export default function HomePage() {
   }, [])
 
   const visibleTemplates = showAllTemplates ? templateGallery : templateGallery.slice(0, 8)
-
-  // Track scroll for hint visibility
-  useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY)
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -318,8 +309,21 @@ export default function HomePage() {
           exit={{ opacity: 0, scale: 0.95 }}
           className="min-h-screen relative overflow-hidden"
         >
-          {/* Animated Background */}
-          {isDark ? <StarryNight /> : <SunriseBackground />}
+          {/* Clean gradient background — no animated elements that compete
+              with hero text. Soft, doesn't fight the content. */}
+          <div className={cn(
+            "absolute inset-0",
+            isDark
+              ? "bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950"
+              : "bg-gradient-to-b from-orange-50 via-rose-50 to-violet-50"
+          )} />
+          {/* Subtle radial accent — keeps interest without occluding text */}
+          <div className={cn(
+            "absolute inset-0 pointer-events-none",
+            isDark
+              ? "bg-[radial-gradient(circle_at_top,rgba(167,139,250,0.12),transparent_60%)]"
+              : "bg-[radial-gradient(circle_at_top,rgba(251,146,60,0.15),transparent_60%)]"
+          )} />
 
           {/* Content overlay */}
           <div className="relative z-10">
@@ -470,7 +474,7 @@ export default function HomePage() {
                     prompt && (isDark ? "ring-1 ring-violet-500/40" : "ring-1 ring-violet-400/40")
                   )}
                 >
-                  <div className="px-5 pt-4 pb-1">
+                  <div className="px-4 pt-3 pb-0">
                     <textarea
                       ref={inputRef}
                       value={prompt}
@@ -483,9 +487,9 @@ export default function HomePage() {
                             ? `Ask Webstew to build a web app...`
                             : `Ask Webstew to build a website for...`
                       }
-                      rows={2}
+                      rows={1}
                       className={cn(
-                        "w-full resize-none bg-transparent text-base md:text-lg leading-relaxed focus:outline-none",
+                        "w-full resize-none bg-transparent text-base leading-snug focus:outline-none min-h-[44px]",
                         isDark
                           ? "text-white placeholder-slate-500"
                           : "text-slate-900 placeholder-slate-400"
@@ -945,30 +949,9 @@ export default function HomePage() {
               )}
             </AnimatePresence>
 
-            {/* Keyboard hint - shows on prompt, hides on scroll, returns on scroll up */}
-            <AnimatePresence>
-              {scrollY < 100 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 10 }}
-                  transition={{ duration: 0.2 }}
-                  className="fixed bottom-6 inset-x-0 z-50 flex justify-center"
-                >
-                  <p className={cn(
-                    "text-xs backdrop-blur-md px-4 py-2 rounded-full border",
-                    isDark
-                      ? "text-slate-400 bg-slate-900/80 border-white/10"
-                      : "text-slate-500 bg-white/80 border-slate-200 shadow-lg"
-                  )}>
-                    Press <kbd className={cn(
-                      "px-2 py-0.5 rounded text-xs font-mono mx-1",
-                      isDark ? "bg-white/10 text-slate-300" : "bg-slate-100 text-slate-600"
-                    )}>Enter</kbd> to build
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {/* Keyboard hint removed — was a fixed overlay that covered the
+                tech-stack heading on first load. The dropdown + send arrow
+                inside the textarea already make the affordance clear. */}
           </div>
         </motion.div>
       )}
