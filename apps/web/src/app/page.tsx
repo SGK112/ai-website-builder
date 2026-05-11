@@ -782,6 +782,82 @@ export default function HomePage() {
               </div>
             </motion.section>
 
+            {/* AI capabilities — three pillars (Code / Design / Media) so a
+                visitor in 5 seconds knows Webstew isn't just HTML generation.
+                Bold gradient borders, big icons, confident copy. */}
+            <motion.section
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+              className="px-6 py-16"
+            >
+              <div className="max-w-6xl mx-auto">
+                <div className="text-center mb-12">
+                  <h2 className={cn(
+                    "text-3xl md:text-5xl font-bold tracking-tight",
+                    isDark ? "text-white" : "text-slate-900"
+                  )}>
+                    Whatever you can describe,
+                    <span
+                      className={cn(
+                        "italic font-normal ml-3 bg-clip-text text-transparent",
+                        isDark
+                          ? "bg-gradient-to-r from-amber-200 to-pink-300"
+                          : "bg-gradient-to-r from-orange-500 to-pink-500"
+                      )}
+                      style={{ fontFamily: 'var(--font-playfair), Georgia, serif' }}
+                    >
+                      Webstew makes.
+                    </span>
+                  </h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {[
+                    {
+                      title: 'Code',
+                      sub: 'Real production code in 6 frameworks',
+                      body: 'Tailwind, TypeScript, Next.js, React, Astro, Expo. Generated, ready to deploy. Export the source — no lock-in.',
+                      icon: <Code2 className="w-7 h-7" />,
+                      grad: 'from-violet-500 to-fuchsia-500',
+                    },
+                    {
+                      title: 'Design',
+                      sub: 'Beautiful layouts, on-brand from the first try',
+                      body: 'Modern aesthetics. Glassmorphism, gradients, real typography. Polished enough to ship without redesign.',
+                      icon: <Palette className="w-7 h-7" />,
+                      grad: 'from-pink-500 to-amber-500',
+                    },
+                    {
+                      title: 'Media',
+                      sub: 'Images, videos, audio — all in-flow',
+                      body: 'Generate hero photos, product shots, short videos, voiceovers. Drop them straight into what you’re building.',
+                      icon: <ImageIcon className="w-7 h-7" />,
+                      grad: 'from-emerald-500 to-cyan-500',
+                    },
+                  ].map((c) => (
+                    <div
+                      key={c.title}
+                      className={cn(
+                        "relative rounded-3xl border p-6 overflow-hidden transition-all hover:scale-[1.02] hover:-translate-y-1",
+                        isDark
+                          ? "bg-slate-900/60 border-white/10"
+                          : "bg-white/80 border-slate-200 shadow-sm hover:shadow-xl"
+                      )}
+                    >
+                      <div className={cn("h-1 -mx-6 -mt-6 mb-5 bg-gradient-to-r", c.grad)} />
+                      <div className={cn("inline-flex items-center justify-center w-12 h-12 rounded-2xl mb-4 bg-gradient-to-br text-white", c.grad)}>
+                        {c.icon}
+                      </div>
+                      <h3 className={cn("text-2xl font-bold mb-1", isDark ? "text-white" : "text-slate-900")}>{c.title}</h3>
+                      <p className={cn("text-sm font-medium mb-3", isDark ? "text-slate-300" : "text-slate-700")}>{c.sub}</p>
+                      <p className={cn("text-sm leading-relaxed", isDark ? "text-slate-400" : "text-slate-600")}>{c.body}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.section>
+
             {/* What's on the menu — bento grid of target capabilities, each
                 card has its own visual character. Webflow's bento pattern,
                 colored hover, mini-mockups inline-SVG. */}
@@ -1018,6 +1094,85 @@ export default function HomePage() {
                         {step.body}
                       </p>
                     </div>
+                  ))}
+                </div>
+              </div>
+            </motion.section>
+
+            {/* Showcase — masonry-ish gallery of what people are building.
+                Real Unsplash imagery as stand-ins for project hero shots.
+                Hover lifts the card and reveals the project meta. The big
+                "look what's possible" moment — Webflow / Lovable both have
+                this kind of section after their explainer. */}
+            <motion.section
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+              className="px-6 py-20"
+            >
+              <div className="max-w-6xl mx-auto">
+                <div className="text-center mb-12">
+                  <p className={cn(
+                    "text-xs uppercase tracking-[0.25em] mb-3 font-semibold",
+                    isDark ? "text-violet-300/80" : "text-violet-600/80"
+                  )}>
+                    Built with Webstew
+                  </p>
+                  <h2 className={cn(
+                    "text-3xl md:text-5xl font-bold tracking-tight",
+                    isDark ? "text-white" : "text-slate-900"
+                  )}>
+                    Real projects.
+                    <span
+                      className={cn(
+                        "italic font-normal ml-3 bg-clip-text text-transparent",
+                        isDark
+                          ? "bg-gradient-to-r from-amber-200 to-pink-300"
+                          : "bg-gradient-to-r from-orange-500 to-pink-500"
+                      )}
+                      style={{ fontFamily: 'var(--font-playfair), Georgia, serif' }}
+                    >
+                      Shipped fast.
+                    </span>
+                  </h2>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {[
+                    { title: 'Aurora Analytics', kind: 'SaaS Dashboard', stack: 'Next.js · Tailwind', img: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1200&q=80' },
+                    { title: 'Folio', kind: 'Designer Portfolio', stack: 'React · Vite', img: 'https://images.unsplash.com/photo-1561070791-2526d30994b8?w=1200&q=80' },
+                    { title: 'Pace Run', kind: 'Mobile App', stack: 'Expo · iOS · Android', img: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=1200&q=80' },
+                    { title: 'Lumen Bistro', kind: 'Restaurant Site', stack: 'Astro · Tailwind', img: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&q=80' },
+                    { title: 'Vault', kind: 'Crypto Tracker', stack: 'Next.js · Recharts', img: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=1200&q=80' },
+                    { title: 'Quill', kind: 'Markdown Blog', stack: 'Astro · MDX', img: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=1200&q=80' },
+                  ].map((p, i) => (
+                    <motion.div
+                      key={p.title}
+                      initial={{ opacity: 0, y: 24 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, margin: "-50px" }}
+                      transition={{ duration: 0.6, delay: i * 0.06, ease: [0.22, 1, 0.36, 1] }}
+                      whileHover={{ y: -4 }}
+                      className={cn(
+                        "group relative rounded-3xl overflow-hidden border",
+                        isDark ? "border-white/10" : "border-slate-200 shadow-sm hover:shadow-2xl"
+                      )}
+                    >
+                      <div className="aspect-[4/3] overflow-hidden">
+                        <img
+                          src={p.img}
+                          alt={p.title}
+                          loading="lazy"
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                      </div>
+                      <div className="absolute inset-x-0 bottom-0 p-5">
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-white/70 font-semibold mb-1">{p.kind}</p>
+                        <h3 className="text-xl font-bold text-white mb-1">{p.title}</h3>
+                        <p className="text-xs text-white/80">{p.stack}</p>
+                      </div>
+                    </motion.div>
                   ))}
                 </div>
               </div>
