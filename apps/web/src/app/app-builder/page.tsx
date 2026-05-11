@@ -226,7 +226,7 @@ export default function AppBuilderPage() {
               <div className="flex items-center justify-between px-4 py-2">
                 <span className="text-xs text-slate-500">⌘+Enter to submit</span>
                 <button
-                  onClick={submit}
+                  onClick={() => submit()}
                   disabled={!prompt.trim() || isGenerating}
                   className="px-6 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl font-medium transition flex items-center gap-2"
                 >
