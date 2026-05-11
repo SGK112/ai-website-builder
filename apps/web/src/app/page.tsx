@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Sparkles,
   ArrowRight,
+  ArrowUp,
+  ChevronDown,
   Zap,
   Image as ImageIcon,
   Globe,
@@ -423,245 +425,194 @@ export default function HomePage() {
             </header>
 
             {/* Main Content */}
-            <main className="min-h-[85vh] flex items-center justify-center px-6 pb-16">
-              <div className="w-full max-w-2xl">
-                {/* Hero */}
+            <main className="min-h-[85vh] flex items-center justify-center px-6 pb-24 pt-8">
+              <div className="w-full max-w-3xl">
+                {/* Hero — single visual focus: big headline + textarea */}
                 <motion.div
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6 }}
-                  className="text-center mb-8"
+                  className="text-center mb-10"
                 >
                   <h1 className={cn(
-                    "text-5xl md:text-6xl font-bold mb-5 tracking-tight leading-tight",
-                    isDark ? "text-white" : "text-slate-800"
+                    "text-6xl md:text-7xl font-bold mb-5 tracking-tight leading-[1.05]",
+                    isDark ? "text-white" : "text-slate-900"
                   )}>
-                    Build a website or app
+                    Build something
                     <span className={cn(
-                      "bg-clip-text text-transparent",
+                      "block bg-clip-text text-transparent",
                       isDark
-                        ? "bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400"
+                        ? "bg-gradient-to-r from-violet-300 via-fuchsia-300 to-pink-300"
                         : "bg-gradient-to-r from-orange-500 via-pink-500 to-violet-500"
-                    )}> from one prompt</span>
+                    )}>
+                      delicious
+                    </span>
                   </h1>
                   <p className={cn(
-                    "text-lg",
+                    "text-lg md:text-xl",
                     isDark ? "text-slate-400" : "text-slate-600"
                   )}>
-                    Describe what you want. Webstew ships it — no code required.
+                    Describe what you want. Webstew turns it into a working website or app.
                   </p>
                 </motion.div>
 
-                {/* Target picker — routes the prompt to the right builder */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.05 }}
-                  className="mb-4 flex justify-center"
-                >
-                  <div className={cn(
-                    "inline-flex items-center p-1 rounded-2xl backdrop-blur-sm",
-                    isDark ? "bg-white/5 border border-white/10" : "bg-white/70 border border-slate-200 shadow-sm"
-                  )}>
-                    {([
-                      { id: 'website', label: 'Website', sub: 'static HTML' },
-                      { id: 'webapp', label: 'Web App', sub: 'Next.js' },
-                      { id: 'mobile', label: 'Mobile App', sub: 'iOS + Android' },
-                    ] as const).map((opt) => {
-                      const active = buildTarget === opt.id
-                      return (
-                        <button
-                          key={opt.id}
-                          onClick={() => setBuildTarget(opt.id)}
-                          className={cn(
-                            "px-4 py-2 rounded-xl text-sm font-medium transition-all",
-                            active
-                              ? isDark
-                                ? "bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-lg"
-                                : "bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-md"
-                              : isDark
-                                ? "text-slate-400 hover:text-white"
-                                : "text-slate-600 hover:text-slate-900"
-                          )}
-                        >
-                          <span>{opt.label}</span>
-                          <span className={cn(
-                            "ml-2 text-[10px] uppercase tracking-wider",
-                            active ? "opacity-80" : isDark ? "text-slate-500" : "text-slate-400"
-                          )}>
-                            {opt.sub}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </motion.div>
-
-                {/* Chat Input */}
+                {/* Single big input — target picker lives inside the footer */}
                 <motion.div
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.1 }}
                   className={cn(
-                    "rounded-2xl backdrop-blur-xl border shadow-2xl transition-all duration-300",
+                    "rounded-3xl backdrop-blur-xl border transition-all duration-300",
                     isDark
-                      ? "bg-slate-900/80 border-white/10 shadow-black/50"
-                      : "bg-white/80 border-white/50 shadow-orange-200/30",
-                    prompt && (isDark ? "ring-2 ring-violet-500/50" : "ring-2 ring-orange-400/50")
+                      ? "bg-slate-900/70 border-white/10 shadow-2xl shadow-black/40"
+                      : "bg-white/90 border-slate-200/80 shadow-2xl shadow-slate-300/30",
+                    prompt && (isDark ? "ring-1 ring-violet-500/40" : "ring-1 ring-violet-400/40")
                   )}
                 >
-                  <div className="p-5">
+                  <div className="px-6 pt-6 pb-2">
                     <textarea
                       ref={inputRef}
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder={examplePromptsByTarget[buildTarget][placeholderIndex % examplePromptsByTarget[buildTarget].length]}
-                      rows={3}
+                      placeholder={
+                        buildTarget === 'mobile'
+                          ? `Ask Webstew to build a mobile app...`
+                          : buildTarget === 'webapp'
+                            ? `Ask Webstew to build a web app...`
+                            : `Ask Webstew to build a website for...`
+                      }
+                      rows={4}
                       className={cn(
-                        "w-full resize-none bg-transparent text-lg leading-relaxed focus:outline-none",
+                        "w-full resize-none bg-transparent text-lg md:text-xl leading-relaxed focus:outline-none",
                         isDark
                           ? "text-white placeholder-slate-500"
-                          : "text-slate-800 placeholder-slate-400"
+                          : "text-slate-900 placeholder-slate-400"
                       )}
                     />
                   </div>
 
-                  <div className={cn(
-                    "flex items-center justify-between px-5 py-4 border-t",
-                    isDark ? "border-white/10" : "border-slate-200/50"
-                  )}>
-                    <div className="flex items-center gap-3">
-                      {/* Theme selector */}
-                      <div className={cn(
-                        "flex items-center p-1 rounded-xl",
-                        isDark ? "bg-white/5" : "bg-slate-100"
-                      )}>
-                        <button
-                          onClick={() => setProjectTheme('light')}
-                          className={cn(
-                            "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all",
-                            projectTheme === 'light'
-                              ? isDark ? "bg-white/10 text-white" : "bg-white shadow-sm text-slate-800"
-                              : isDark ? "text-slate-500 hover:text-white" : "text-slate-500 hover:text-slate-700"
-                          )}
-                        >
-                          <Sun className="w-4 h-4" />
-                          Light
-                        </button>
-                        <button
-                          onClick={() => setProjectTheme('dark')}
-                          className={cn(
-                            "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all",
-                            projectTheme === 'dark'
-                              ? "bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-lg"
-                              : isDark ? "text-slate-500 hover:text-white" : "text-slate-500 hover:text-slate-700"
-                          )}
-                        >
-                          <Moon className="w-4 h-4" />
-                          Dark
-                        </button>
-                      </div>
-
-                      <button className={cn(
-                        "p-2.5 rounded-xl transition-colors",
-                        isDark
-                          ? "text-slate-500 hover:text-white hover:bg-white/10"
-                          : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-                      )}>
-                        <ImageIcon className="w-5 h-5" />
-                      </button>
+                  <div className="flex items-center justify-between px-4 pb-4">
+                    {/* Build target dropdown (Lovable pattern) */}
+                    <div className="relative">
+                      <select
+                        value={buildTarget}
+                        onChange={(e) => setBuildTarget(e.target.value as typeof buildTarget)}
+                        aria-label="Build target"
+                        className={cn(
+                          "appearance-none pl-3 pr-9 py-2 rounded-xl text-sm font-medium cursor-pointer transition-colors",
+                          isDark
+                            ? "bg-white/5 hover:bg-white/10 text-white border border-white/10"
+                            : "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200"
+                        )}
+                      >
+                        <option value="website">🌐  Website</option>
+                        <option value="webapp">⚛️  Web App</option>
+                        <option value="mobile">📱  Mobile App</option>
+                      </select>
+                      <ChevronDown className={cn(
+                        "absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none",
+                        isDark ? "text-slate-400" : "text-slate-500"
+                      )} />
                     </div>
 
                     <button
                       onClick={handleSubmit}
                       disabled={!prompt.trim() || isTransitioning}
+                      aria-label="Build it"
                       className={cn(
-                        "flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-300",
+                        "flex items-center justify-center w-11 h-11 rounded-xl transition-all duration-200",
                         prompt.trim()
-                          ? "bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white shadow-xl shadow-violet-500/30 hover:shadow-violet-500/50 hover:scale-105"
+                          ? "bg-gradient-to-br from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white shadow-lg shadow-violet-500/30 hover:scale-105"
                           : isDark
                             ? "bg-white/5 text-slate-600 cursor-not-allowed"
                             : "bg-slate-100 text-slate-400 cursor-not-allowed"
                       )}
                     >
-                      {isTransitioning ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                      ) : (
-                        <>
-                          Build
-                          <ArrowRight className="w-5 h-5" />
-                        </>
-                      )}
+                      {isTransitioning ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowUp className="w-5 h-5" />}
                     </button>
                   </div>
                 </motion.div>
 
-                {/* Tech stack — what Webstew builds with. Mix that signals to
-                    devs (Next.js, TS, Tailwind), mobile devs (Expo, RN, iOS,
-                    Android), and non-tech users (Apple, Python). */}
+                {/* Example prompts — small soft pills, Replit pattern */}
                 <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 0.3 }}
-                  className="mt-16 mb-2"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.2 }}
+                  className="mt-5 flex flex-wrap justify-center gap-2"
                 >
-                  <p className={cn(
-                    "text-center text-xs uppercase tracking-[0.2em] mb-6",
-                    isDark ? "text-slate-500" : "text-slate-400"
-                  )}>
-                    Ships real code in your stack
-                  </p>
-                  <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-5">
-                    {[
-                      { slug: 'nextdotjs', name: 'Next.js' },
-                      { slug: 'react', name: 'React' },
-                      { slug: 'typescript', name: 'TypeScript' },
-                      { slug: 'tailwindcss', name: 'Tailwind CSS' },
-                      { slug: 'expo', name: 'Expo' },
-                      { slug: 'apple', name: 'iOS' },
-                      { slug: 'android', name: 'Android' },
-                      { slug: 'python', name: 'Python', soon: true },
-                      { slug: 'nodedotjs', name: 'Node.js' },
-                      { slug: 'vercel', name: 'Vercel' },
-                    ].map((tech) => (
-                      <div
-                        key={tech.slug}
-                        title={tech.soon ? `${tech.name} — coming soon` : tech.name}
-                        className={cn(
-                          "group flex items-center gap-2 transition-all",
-                          tech.soon ? "opacity-40" : isDark ? "opacity-50 hover:opacity-100" : "opacity-60 hover:opacity-100"
-                        )}
-                      >
-                        <img
-                          src={`https://cdn.simpleicons.org/${tech.slug}/${isDark ? 'ffffff' : '475569'}`}
-                          alt={tech.name}
-                          loading="lazy"
-                          className="w-5 h-5 transition-transform group-hover:scale-110"
-                        />
-                        <span className={cn(
-                          "text-sm font-medium",
-                          isDark ? "text-slate-300" : "text-slate-600"
-                        )}>
-                          {tech.name}
-                          {tech.soon && <span className={cn(
-                            "ml-1.5 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded",
-                            isDark ? "bg-white/10 text-slate-400" : "bg-slate-200 text-slate-500"
-                          )}>soon</span>}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <p className={cn(
-                    "text-center text-xs mt-8",
-                    isDark ? "text-slate-600" : "text-slate-400"
-                  )}>
-                    Export the source, push to GitHub, deploy to Vercel / Render / TestFlight.
-                  </p>
+                  {examplePromptsByTarget[buildTarget].slice(0, 4).map((ex) => (
+                    <button
+                      key={ex}
+                      onClick={() => { setPrompt(ex); inputRef.current?.focus() }}
+                      className={cn(
+                        "px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors",
+                        isDark
+                          ? "bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/10"
+                          : "bg-slate-50 hover:bg-white text-slate-600 hover:text-slate-900 border border-slate-200"
+                      )}
+                    >
+                      {ex.length > 60 ? ex.slice(0, 58) + '…' : ex}
+                    </button>
+                  ))}
                 </motion.div>
 
               </div>
             </main>
+
+            {/* Tech stack strip — Replit-style, sits below the hero, muted,
+                full-width. Logos only, label small, no header copy competing
+                with the hero. */}
+            <motion.section
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.8, delay: 0.4 }}
+              className="px-6 pb-20"
+            >
+              <p className={cn(
+                "text-center text-[11px] uppercase tracking-[0.25em] mb-8",
+                isDark ? "text-slate-600" : "text-slate-400"
+              )}>
+                Built on the stacks teams actually ship
+              </p>
+              <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-center gap-x-10 gap-y-6">
+                {[
+                  { slug: 'nextdotjs', name: 'Next.js' },
+                  { slug: 'react', name: 'React' },
+                  { slug: 'typescript', name: 'TypeScript' },
+                  { slug: 'tailwindcss', name: 'Tailwind' },
+                  { slug: 'astro', name: 'Astro' },
+                  { slug: 'expo', name: 'Expo' },
+                  { slug: 'apple', name: 'iOS' },
+                  { slug: 'android', name: 'Android' },
+                  { slug: 'python', name: 'Python', soon: true },
+                  { slug: 'vercel', name: 'Vercel' },
+                ].map((tech) => (
+                  <div
+                    key={tech.slug}
+                    title={tech.soon ? `${tech.name} — coming soon` : tech.name}
+                    className={cn(
+                      "group flex items-center gap-1.5 transition-opacity",
+                      tech.soon ? "opacity-30" : isDark ? "opacity-40 hover:opacity-90" : "opacity-50 hover:opacity-100"
+                    )}
+                  >
+                    <img
+                      src={`https://cdn.simpleicons.org/${tech.slug}/${isDark ? 'cbd5e1' : '64748b'}`}
+                      alt={tech.name}
+                      loading="lazy"
+                      className="w-4 h-4"
+                    />
+                    <span className={cn(
+                      "text-xs font-medium",
+                      isDark ? "text-slate-400" : "text-slate-500"
+                    )}>
+                      {tech.name}
+                      {tech.soon && <span className="ml-1 text-[9px] opacity-70">·soon</span>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </motion.section>
 
 
             {/* Footer */}
