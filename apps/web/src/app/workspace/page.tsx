@@ -2172,6 +2172,11 @@ function WorkspaceContent() {
   // Listen for messages from iframe (console + element selection)
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      // Only accept messages from our own preview iframe — otherwise any
+      // embedded ad / extension iframe could spoof element-click, image-drop,
+      // or context-menu messages and mutate the user's HTML.
+      const previewWin = iframeRef.current?.contentWindow
+      if (previewWin && event.source !== previewWin) return
       if (event.data?.type === 'console') {
         addConsoleLog(event.data.level || 'log', event.data.message, 'iframe')
       } else if (event.data?.type === 'element-edited') {

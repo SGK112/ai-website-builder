@@ -1,4 +1,6 @@
 import { NextRequest } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 // DeepSeek API endpoint - free/cheap alternative for code generation
 // Can be connected via Hugging Face, Ollama, or direct API
@@ -23,6 +25,16 @@ Return ONLY the code, no explanations unless asked.`
 
 export async function POST(req: NextRequest) {
   try {
+    // Gate behind auth — HF / Groq / Ollama free tiers still have shared
+    // rate limits we don't want anonymous traffic burning through.
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return new Response(JSON.stringify({ error: 'Authentication required' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
     const { prompt, currentHtml, provider = 'huggingface' } = await req.json()
 
     if (!prompt) {

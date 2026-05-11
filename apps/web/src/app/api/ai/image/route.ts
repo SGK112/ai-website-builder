@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +30,14 @@ interface GenerateRequest {
 }
 
 export async function POST(request: NextRequest) {
+  // Image generation / upscaling / bg-removal all hit Replicate which costs
+  // real money per call — gate behind auth so anonymous traffic can't drain
+  // the budget. (Was wide open.)
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
   if (!REPLICATE_API_TOKEN) {
     return NextResponse.json(
       { error: 'Replicate API not configured. Add REPLICATE_API_TOKEN to environment.' },

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutes for video generation
@@ -34,6 +36,13 @@ interface VideoRequest {
 }
 
 export async function POST(request: NextRequest) {
+  // Video generation hits Replicate and costs real money per call — gate it
+  // behind auth so anonymous traffic can't burn the budget. (Was wide open.)
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
   if (!REPLICATE_API_TOKEN) {
     return NextResponse.json(
       { error: 'Replicate API not configured. Add REPLICATE_API_TOKEN to environment.' },
