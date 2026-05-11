@@ -4,7 +4,9 @@ import { useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Smartphone, Loader2, FileCode, Download, Sparkles, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Smartphone, Loader2, FileCode, Download, Sparkles, AlertCircle, Globe, Code2 } from 'lucide-react'
+
+type Target = 'expo' | 'nextjs'
 
 interface AppResult {
   files: Record<string, string>
@@ -12,12 +14,54 @@ interface AppResult {
   slug: string
   description: string
   instructions: string
+  target?: Target
+}
+
+const TARGETS: Record<Target, {
+  label: string
+  description: string
+  apiPath: string
+  icon: typeof Smartphone
+  examples: string[]
+  runHint: string
+}> = {
+  expo: {
+    label: 'Mobile App',
+    description: 'React Native + Expo. Runs on iOS, Android, and web.',
+    apiPath: '/api/builder/app',
+    icon: Smartphone,
+    examples: [
+      'A fitness tracker with daily step counting, workout history, and weekly progress charts',
+      'A recipe app with search, favorites, and step-by-step cooking timers',
+      'A habit tracker with streak counts and weekly stats',
+      'A meditation app with timers, ambient sounds, and a daily quote',
+      'A pomodoro timer with task list and session history',
+      'A weather app with 5-day forecast and saved locations',
+    ],
+    runHint: 'cd <slug> && npm install && npx expo start',
+  },
+  nextjs: {
+    label: 'Next.js Web App',
+    description: 'Next.js 14 App Router + Tailwind + TypeScript. Deploy to Vercel in one click.',
+    apiPath: '/api/builder/nextjs',
+    icon: Globe,
+    examples: [
+      'A SaaS landing page with pricing tiers, testimonials, and a working signup form',
+      'A blog with markdown posts, tag filtering, and an RSS feed',
+      'A dashboard with sidebar nav, KPI cards, a sortable data table, and dark mode',
+      'A documentation site with versioned docs, search, and code highlighting',
+      'A portfolio with project case studies, animated transitions, and a contact form',
+      'An e-commerce storefront with product grid, cart drawer, and Stripe checkout placeholder',
+    ],
+    runHint: 'cd <slug> && npm install && npm run dev',
+  },
 }
 
 export default function AppBuilderPage() {
   const { data: session } = useSession()
   const router = useRouter()
   const [prompt, setPrompt] = useState('')
+  const [target, setTarget] = useState<Target>('expo')
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<AppResult | null>(null)
@@ -34,7 +78,7 @@ export default function AppBuilderPage() {
     setResult(null)
     setActiveFile(null)
     try {
-      const res = await fetch('/api/builder/app', {
+      const res = await fetch(TARGETS[target].apiPath, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: prompt.trim() }),
@@ -106,24 +150,52 @@ export default function AppBuilderPage() {
       {/* Prompt */}
       {!result && (
         <section className="flex-1 flex items-center justify-center p-6">
-          <div className="w-full max-w-2xl text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-violet-500/10 border border-violet-500/20 rounded-full mb-6">
-              <Sparkles className="w-4 h-4 text-violet-400" />
-              <span className="text-violet-400 text-sm font-medium">React Native + Expo</span>
+          <div className="w-full max-w-2xl">
+            <div className="text-center">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-violet-500/10 border border-violet-500/20 rounded-full mb-6">
+                <Sparkles className="w-4 h-4 text-violet-400" />
+                <span className="text-violet-400 text-sm font-medium">AI-driven project builder</span>
+              </div>
+              <h1 className="text-4xl md:text-5xl font-bold mb-3">
+                Describe the project you want to build
+              </h1>
+              <p className="text-slate-400 mb-6">
+                {TARGETS[target].description}
+              </p>
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold mb-3">
-              Describe the app you want to build
-            </h1>
-            <p className="text-slate-400 mb-8">
-              Generate a full Expo project — runs on iOS, Android, and web. Download the zip and `npx expo start`.
-            </p>
+
+            {/* Target picker */}
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              {(Object.keys(TARGETS) as Target[]).map((t) => {
+                const cfg = TARGETS[t]
+                const Icon = cfg.icon
+                const active = target === t
+                return (
+                  <button
+                    key={t}
+                    onClick={() => setTarget(t)}
+                    className={`p-3 rounded-xl border text-left transition ${
+                      active
+                        ? 'border-violet-500 bg-violet-500/10'
+                        : 'border-white/10 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Icon className={`w-4 h-4 ${active ? 'text-violet-400' : 'text-slate-400'}`} />
+                      <span className={`font-medium text-sm ${active ? 'text-white' : 'text-slate-300'}`}>{cfg.label}</span>
+                    </div>
+                    <p className={`text-xs ${active ? 'text-slate-300' : 'text-slate-500'}`}>{cfg.description}</p>
+                  </button>
+                )
+              })}
+            </div>
 
             <div className="bg-white/5 border border-white/10 rounded-2xl p-2">
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit() }}
-                placeholder="e.g. A fitness tracker with daily step counting, workout history, weekly progress charts, and a profile screen"
+                placeholder={TARGETS[target].examples[0]}
                 rows={4}
                 className="w-full bg-transparent border-0 px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none resize-none"
               />
@@ -137,7 +209,7 @@ export default function AppBuilderPage() {
                   {isGenerating ? (
                     <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</>
                   ) : (
-                    <>Generate App <Smartphone className="w-4 h-4" /></>
+                    <>Generate <Code2 className="w-4 h-4" /></>
                   )}
                 </button>
               </div>
@@ -153,15 +225,8 @@ export default function AppBuilderPage() {
               </div>
             )}
 
-            <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 gap-2 text-left">
-              {[
-                'A todo app with categories, due dates, and dark mode',
-                'A recipe app with search, favorites, and step-by-step cooking timers',
-                'A habit tracker with streak counts and weekly stats',
-                'A meditation app with timers, ambient sounds, and a daily quote',
-                'A pomodoro timer with task list and session history',
-                'A weather app with 5-day forecast and saved locations',
-              ].map((example) => (
+            <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {TARGETS[target].examples.map((example) => (
                 <button
                   key={example}
                   onClick={() => setPrompt(example)}
