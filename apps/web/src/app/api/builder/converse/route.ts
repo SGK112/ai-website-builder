@@ -278,14 +278,25 @@ async function getAIResponse(
     return result.text || ''
   }
 
+  // Map the UI's selected model name to a real model id. Conversation is
+  // short JSON ("clarify"/"ready" + 1-2 sentence message + enhancedPrompt),
+  // so we hard-cap max_tokens low to keep latency under Render's 49s proxy
+  // timeout — Sonnet at 8192 tokens routinely takes 60-95s and times out.
+  const CONVERSE_MAX_TOKENS = 2048
+  const lc = (model || '').toLowerCase()
+
   if (isAnthropicModel) {
     const anthropicKey = apiKey || process.env.ANTHROPIC_API_KEY
     if (!anthropicKey) throw new Error('Anthropic API key not configured')
 
+    const claudeModel = lc.includes('haiku') ? 'claude-haiku-4-5-20251001' :
+                         lc.includes('opus')  ? 'claude-opus-4-7' :
+                         'claude-sonnet-4-6'
+
     const client = new Anthropic({ apiKey: anthropicKey })
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 8192,
+      model: claudeModel,
+      max_tokens: CONVERSE_MAX_TOKENS,
       system: systemPrompt,
       messages: messages.map(m => ({ role: m.role, content: m.content }))
     })
@@ -298,10 +309,12 @@ async function getAIResponse(
     const openaiKey = apiKey || process.env.OPENAI_API_KEY
     if (!openaiKey) throw new Error('OpenAI API key not configured')
 
+    const openaiModel = lc.includes('mini') ? 'gpt-4o-mini' : 'gpt-4o'
+
     const client = new OpenAI({ apiKey: openaiKey })
     const response = await client.chat.completions.create({
-      model: 'gpt-4o',
-      max_tokens: 8192,
+      model: openaiModel,
+      max_tokens: CONVERSE_MAX_TOKENS,
       messages: [
         { role: 'system', content: systemPrompt },
         ...messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
@@ -311,14 +324,15 @@ async function getAIResponse(
     return response.choices[0]?.message?.content || ''
   }
 
-  // Default to Anthropic
+  // Default to Anthropic — fastest readily-available model so we stay
+  // under the proxy timeout even on cold paths.
   const anthropicKey = apiKey || process.env.ANTHROPIC_API_KEY
   if (!anthropicKey) throw new Error('No API key configured')
 
   const client = new Anthropic({ apiKey: anthropicKey })
   const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 8192,
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: CONVERSE_MAX_TOKENS,
     system: systemPrompt,
     messages: messages.map(m => ({ role: m.role, content: m.content }))
   })
