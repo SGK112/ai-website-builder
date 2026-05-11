@@ -5260,59 +5260,7 @@ ${html}
                         </div>
                       </div>
 
-                      {/* Test Button - Load sample website for testing */}
-                      <button
-                        onClick={async () => {
-                          try {
-                            const res = await fetch('/api/test-website')
-                            const data = await res.json()
-                            if (data.html) {
-                              setHtml(data.html)
-                              setViewMode('preview')
-                              setChatMessages(prev => [...prev, {
-                                role: 'assistant',
-                                content: 'Loaded test website! Try dragging images from the Media panel to replace the images in the preview.'
-                              }])
-                              addToHistory(data.html, 'Loaded test website')
-                            }
-                          } catch (e) {
-                            console.error('Failed to load test website:', e)
-                          }
-                        }}
-                        className="w-full mt-3 py-2 px-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2"
-                      >
-                        <Zap className="w-4 h-4" />
-                        Load Test Website (for drag-drop testing)
-                      </button>
                     </div>
-                  )}
-
-                  {/* Load Test Website — only useful before any prompt has been sent. Hide
-                      once the user has started a conversation or there's already HTML. */}
-                  {chatMessages.length <= 1 && !html && (
-                    <button
-                      onClick={async () => {
-                        try {
-                          const res = await fetch('/api/test-website')
-                          const data = await res.json()
-                          if (data.html) {
-                            setHtml(data.html)
-                            setViewMode('preview')
-                            setChatMessages(prev => [...prev, {
-                              role: 'assistant',
-                              content: 'Loaded test website! Drag images from Media panel to replace images.'
-                            }])
-                            addToHistory(data.html, 'Loaded test website')
-                          }
-                        } catch (e) {
-                          console.error('Failed to load test website:', e)
-                        }
-                      }}
-                      className="mx-3 mb-3 py-2 px-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2"
-                    >
-                      <Zap className="w-4 h-4" />
-                      Load Test Website
-                    </button>
                   )}
                 </div>
 

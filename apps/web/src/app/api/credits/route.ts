@@ -123,10 +123,10 @@ export async function PATCH(req: NextRequest) {
     const { userId, amount, operation } = await req.json()
 
     const session = await getServerSession(authOptions)
-    const targetUserId = userId || session?.user?.id
 
-    // For anonymous users, allow demo usage without deducting
-    if (!targetUserId) {
+    // For anonymous users (no session AND no explicit userId), allow demo
+    // usage without deducting
+    if (!userId && !session?.user?.id) {
       return NextResponse.json({
         success: true,
         credits: 100, // Demo credits
@@ -137,18 +137,32 @@ export async function PATCH(req: NextRequest) {
     }
 
     await connectDB()
-    const user = await User.findById(targetUserId)
+
+    // Resolve session -> real user even when session.user.id is a legacy
+    // provider account id (same issue we fixed in /api/usage and /api/credits
+    // GET). Without this, findById silently returns null and the deduction
+    // silently no-ops, leaving the user with full credits after generation.
+    let user: any = null
+    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+      user = await User.findById(userId)
+    }
+    if (!user) {
+      user = await findSessionUser(session?.user?.id, session?.user?.email || undefined)
+    }
 
     if (!user) {
+      console.error('[Credits PATCH] User not found — userId=', userId, 'sessionId=', session?.user?.id, 'email=', session?.user?.email)
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
+    const currentCredits = typeof user.credits === 'number' ? user.credits : 0
+
     // Check if user has enough credits
-    if (user.credits < amount) {
+    if (currentCredits < amount) {
       return NextResponse.json(
         {
           error: 'Insufficient credits',
-          credits: user.credits,
+          credits: currentCredits,
           required: amount,
         },
         { status: 402 }
@@ -156,8 +170,9 @@ export async function PATCH(req: NextRequest) {
     }
 
     // Deduct credits
-    user.credits -= amount
+    user.credits = currentCredits - amount
     await user.save()
+    console.log(`[Credits PATCH] User ${user._id} ${operation}: -${amount} = ${user.credits}`)
 
     return NextResponse.json({
       success: true,
