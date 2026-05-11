@@ -1930,10 +1930,10 @@ OUTPUT REQUIREMENTS:
 FULL-STACK CAPABILITIES - INTEGRATE THESE FEATURES:
 ${features.map(f => `• ${f}`).join('\n')}
 
-FUNCTIONAL FORM PATTERN:
-<form action="/api/forms/submit" method="POST" class="space-y-4" onsubmit="handleSubmit(event)">
-  <input type="hidden" name="formId" value="contact">
+FUNCTIONAL FORM PATTERN (must POST JSON, NOT FormData — the API requires it):
+<form action="/api/forms/submit" method="POST" class="space-y-4" onsubmit="handleSubmit(event)" data-form-id="contact">
   <input type="email" name="email" required placeholder="Email" class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl">
+  <input type="text" name="name" placeholder="Your name" class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl">
   <textarea name="message" required placeholder="Message" class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl"></textarea>
   <button type="submit" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-medium">Send</button>
 </form>
@@ -1942,13 +1942,31 @@ async function handleSubmit(e) {
   e.preventDefault();
   const form = e.target;
   const btn = form.querySelector('button[type="submit"]');
+  const originalText = btn.textContent;
   btn.disabled = true; btn.textContent = 'Sending...';
+  // Collect form fields into a plain object — API expects { projectId, formId, data } JSON
+  const data = {};
+  new FormData(form).forEach((value, key) => { data[key] = value; });
+  const projectId = form.dataset.projectId || window.__PROJECT_ID__ || '';
+  const formId = form.dataset.formId || 'contact';
   try {
-    const res = await fetch(form.action, { method: 'POST', body: new FormData(form) });
-    if (res.ok) { form.reset(); btn.textContent = 'Sent!'; }
-    else { btn.textContent = 'Error - Try Again'; }
-  } catch { btn.textContent = 'Error - Try Again'; }
-  setTimeout(() => { btn.disabled = false; btn.textContent = 'Send'; }, 3000);
+    const res = await fetch(form.action, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, formId, data, page: location.pathname })
+    });
+    if (res.ok) {
+      form.reset();
+      btn.textContent = 'Sent!';
+      btn.classList.add('bg-emerald-600');
+    } else {
+      const err = await res.json().catch(() => ({}));
+      btn.textContent = err.error || 'Error — try again';
+    }
+  } catch {
+    btn.textContent = 'Error — try again';
+  }
+  setTimeout(() => { btn.disabled = false; btn.textContent = originalText; btn.classList.remove('bg-emerald-600'); }, 3000);
 }
 </script>
 

@@ -57,6 +57,35 @@ function isRateLimited(ip: string): boolean {
   return false
 }
 
+// Accept both JSON and form-encoded bodies — generated sites sometimes POST
+// FormData, sometimes JSON; we'd rather take both than 400.
+async function parseBody(req: NextRequest): Promise<{ projectId?: string; formId?: string; data?: Record<string, any>; page?: string; recaptchaToken?: string }> {
+  const contentType = req.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) {
+    try { return await req.json() } catch { return {} }
+  }
+  if (contentType.includes('multipart/form-data') || contentType.includes('application/x-www-form-urlencoded')) {
+    try {
+      const form = await req.formData()
+      const data: Record<string, any> = {}
+      let projectId: string | undefined
+      let formId: string | undefined
+      let page: string | undefined
+      let recaptchaToken: string | undefined
+      for (const [key, value] of form.entries()) {
+        const v = typeof value === 'string' ? value : value.name
+        if (key === 'projectId') projectId = v
+        else if (key === 'formId') formId = v
+        else if (key === 'page') page = v
+        else if (key === 'recaptchaToken' || key === 'g-recaptcha-response') recaptchaToken = v
+        else data[key] = v
+      }
+      return { projectId, formId, data, page, recaptchaToken }
+    } catch { return {} }
+  }
+  try { return await req.json() } catch { return {} }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0] ||
@@ -71,7 +100,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const body = await req.json()
+    const body = await parseBody(req)
     const { projectId, formId = 'contact', data, recaptchaToken } = body
 
     // Verify reCAPTCHA if token provided
@@ -85,15 +114,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Validate required fields
-    if (!projectId) {
-      return NextResponse.json(
-        { error: 'Project ID is required' },
-        { status: 400 }
-      )
-    }
-
-    if (!data || typeof data !== 'object') {
+    if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
       return NextResponse.json(
         { error: 'Form data is required' },
         { status: 400 }
@@ -110,26 +131,43 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Reject obvious bot honeypot trips (forms can include a hidden field
+    // named "website" or "url" that humans never fill — block submissions
+    // where it's populated).
+    if (data.website || data.url_honeypot) {
+      // Pretend success so bots don't retry — but don't save.
+      return NextResponse.json({ success: true, message: 'Submitted' })
+    }
+
     // Sanitize data (basic XSS prevention)
     const sanitizedData = sanitizeObject(data)
 
     await connectDB()
 
+    // Resolve projectId: must be a valid ObjectId to be stored. If the form
+    // came from a preview iframe that doesn't yet have one, save under a
+    // sentinel "preview" project so submissions aren't lost — owner can pick
+    // them up after they save the project.
+    let projectObjectId: mongoose.Types.ObjectId
+    if (projectId && mongoose.Types.ObjectId.isValid(projectId)) {
+      projectObjectId = new mongoose.Types.ObjectId(projectId)
+    } else {
+      // Deterministic sentinel id for orphan/preview submissions
+      projectObjectId = new mongoose.Types.ObjectId('000000000000000000000000')
+    }
+
     // Create submission
     const submission = await FormSubmission.create({
-      projectId,
+      projectId: projectObjectId,
       formId,
       data: sanitizedData,
       metadata: {
         ip,
-        userAgent: req.headers.get('user-agent') || undefined,
-        referrer: req.headers.get('referer') || undefined,
-        page: body.page || undefined,
+        userAgent: (req.headers.get('user-agent') || '').slice(0, 500) || undefined,
+        referrer: (req.headers.get('referer') || '').slice(0, 500) || undefined,
+        page: typeof body.page === 'string' ? body.page.slice(0, 500) : undefined,
       },
     })
-
-    // Optional: Send email notification (if configured)
-    // await sendNotificationEmail(projectId, submission)
 
     return NextResponse.json({
       success: true,
