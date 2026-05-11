@@ -227,6 +227,8 @@ export default function HomePage() {
   const [rotatingWordIdx, setRotatingWordIdx] = useState(0)
   const rotatingWords = ['delicious', 'real', 'alive', 'beautiful', 'fast']
   const rotatingWord = rotatingWords[rotatingWordIdx]
+  // Typewriter placeholder state
+  const [typedText, setTypedText] = useState('')
 
   // Handle client-side mounting for animations
   useEffect(() => {
@@ -252,6 +254,49 @@ export default function HomePage() {
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prompt])
+
+  // Typewriter for the placeholder — types out one example, holds, deletes,
+  // types the next. Pauses entirely when the user starts typing. Examples
+  // come from the target-specific bank so the demo always matches the picker.
+  useEffect(() => {
+    if (prompt) return
+    const examples = examplePromptsByTarget[buildTarget]
+    let cancelled = false
+    let i = 0
+    let charIdx = 0
+    let phase: 'typing' | 'holding' | 'deleting' = 'typing'
+
+    const tick = () => {
+      if (cancelled) return
+      const current = examples[i % examples.length]
+      if (phase === 'typing') {
+        charIdx++
+        setTypedText(current.slice(0, charIdx))
+        if (charIdx >= current.length) {
+          phase = 'holding'
+          setTimeout(tick, 1600)
+          return
+        }
+        setTimeout(tick, 28 + Math.random() * 24)
+      } else if (phase === 'holding') {
+        phase = 'deleting'
+        setTimeout(tick, 50)
+      } else {
+        charIdx--
+        setTypedText(current.slice(0, charIdx))
+        if (charIdx <= 0) {
+          phase = 'typing'
+          i++
+          setTimeout(tick, 250)
+          return
+        }
+        setTimeout(tick, 12)
+      }
+    }
+    const start = setTimeout(tick, 500)
+    return () => { cancelled = true; clearTimeout(start) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prompt, buildTarget])
 
   // Route to the right builder based on the user's chosen target. If not yet
   // signed in, ride through /signup with ?next= preserving the destination so
@@ -612,13 +657,13 @@ export default function HomePage() {
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder={
+                      placeholder={typedText || (
                         buildTarget === 'mobile'
                           ? `Ask Webstew to build a mobile app...`
                           : buildTarget === 'webapp'
                             ? `Ask Webstew to build a web app...`
                             : `Ask Webstew to build a website for...`
-                      }
+                      )}
                       rows={1}
                       className={cn(
                         "w-full resize-none bg-transparent text-base leading-snug focus:outline-none min-h-[44px]",
