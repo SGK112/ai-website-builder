@@ -1971,11 +1971,13 @@ function WorkspaceContent() {
     fetchTemplates()
   }, [])
 
-  // Load initial prompt from URL params. We pre-fill the chat input but DO NOT
-  // auto-fire generation — auto-firing has caused stale-prompt bugs after the
-  // signup detour (the user's old prompt rides through ?next= and fires on
-  // every workspace load until cleared). Instead, the prompt sits in the input
-  // ready for the user to review, edit, or clear, then explicitly submit.
+  // Load initial prompt from URL params. Auto-fire generation immediately —
+  // matches Lovable/v0/Bolt/Manus, the standard new-user flow: type prompt on
+  // landing, land in workspace with preview already building. The URL is
+  // cleared on the very first fire so reloads / signup-retry loops can't
+  // re-trigger the same prompt. We do NOT restore a localStorage cache here;
+  // a stale cached result for a matching prompt previously surfaced old HTML
+  // instead of a fresh build (see commit 026728a).
   useEffect(() => {
     if (hasInitialized) return
 
@@ -1989,12 +1991,13 @@ function WorkspaceContent() {
       }
       setHasInitialized(true)
     } else if (promptFromUrl) {
-      // Pre-fill the chat input only — user submits when ready
-      setCommandInput(promptFromUrl)
-      addTerminalLine('info', '💡 Saved your earlier prompt — review and submit, or clear to start fresh')
-      // Clear the URL so reloading doesn't re-fire this branch
+      // Clear URL first so a reload / browser-back can't re-fire the same prompt
       router.replace('/workspace', { scroll: false })
+      // Show the prompt in the chat so the user sees what's being built
+      setChatMessages(prev => [...prev, { role: 'user', content: promptFromUrl }])
       setHasInitialized(true)
+      // Fire generation immediately — this is the user's request from the landing page
+      handleGenerate(promptFromUrl)
     } else {
       setHasInitialized(true)
     }
