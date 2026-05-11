@@ -24,6 +24,7 @@ import { useSession } from 'next-auth/react'
 import { useTheme } from '@/context/ThemeContext'
 import { cn } from '@/lib/utils'
 import { StarryNight, SunriseBackground } from '@/components/landing/BackgroundEffects'
+import { TECH_ICONS } from '@/lib/tech-icons'
 
 const examplePrompts = [
   "A modern SaaS landing page for a project management tool",
@@ -425,17 +426,17 @@ export default function HomePage() {
             </header>
 
             {/* Main Content */}
-            <main className="min-h-[85vh] flex items-center justify-center px-6 pb-24 pt-8">
-              <div className="w-full max-w-3xl">
+            <main className="min-h-[80vh] flex items-center justify-center px-6 pb-16 pt-8">
+              <div className="w-full max-w-2xl">
                 {/* Hero — single visual focus: big headline + textarea */}
                 <motion.div
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6 }}
-                  className="text-center mb-10"
+                  className="text-center mb-8"
                 >
                   <h1 className={cn(
-                    "text-6xl md:text-7xl font-bold mb-5 tracking-tight leading-[1.05]",
+                    "text-5xl md:text-7xl font-bold mb-4 tracking-tight leading-[1.05]",
                     isDark ? "text-white" : "text-slate-900"
                   )}>
                     Build something
@@ -449,27 +450,27 @@ export default function HomePage() {
                     </span>
                   </h1>
                   <p className={cn(
-                    "text-lg md:text-xl",
+                    "text-base md:text-lg",
                     isDark ? "text-slate-400" : "text-slate-600"
                   )}>
                     Describe what you want. Webstew turns it into a working website or app.
                   </p>
                 </motion.div>
 
-                {/* Single big input — target picker lives inside the footer */}
+                {/* Smaller, tighter input — target picker lives inside footer */}
                 <motion.div
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.1 }}
                   className={cn(
-                    "rounded-3xl backdrop-blur-xl border transition-all duration-300",
+                    "rounded-2xl backdrop-blur-xl border transition-all duration-300",
                     isDark
-                      ? "bg-slate-900/70 border-white/10 shadow-2xl shadow-black/40"
-                      : "bg-white/90 border-slate-200/80 shadow-2xl shadow-slate-300/30",
+                      ? "bg-slate-900/70 border-white/10 shadow-xl shadow-black/30"
+                      : "bg-white/90 border-slate-200/80 shadow-xl shadow-slate-300/30",
                     prompt && (isDark ? "ring-1 ring-violet-500/40" : "ring-1 ring-violet-400/40")
                   )}
                 >
-                  <div className="px-6 pt-6 pb-2">
+                  <div className="px-5 pt-4 pb-1">
                     <textarea
                       ref={inputRef}
                       value={prompt}
@@ -482,9 +483,9 @@ export default function HomePage() {
                             ? `Ask Webstew to build a web app...`
                             : `Ask Webstew to build a website for...`
                       }
-                      rows={4}
+                      rows={2}
                       className={cn(
-                        "w-full resize-none bg-transparent text-lg md:text-xl leading-relaxed focus:outline-none",
+                        "w-full resize-none bg-transparent text-base md:text-lg leading-relaxed focus:outline-none",
                         isDark
                           ? "text-white placeholder-slate-500"
                           : "text-slate-900 placeholder-slate-400"
@@ -492,7 +493,7 @@ export default function HomePage() {
                     />
                   </div>
 
-                  <div className="flex items-center justify-between px-4 pb-4">
+                  <div className="flex items-center justify-between px-3 pb-3">
                     {/* Build target dropdown (Lovable pattern) */}
                     <div className="relative">
                       <select
@@ -500,7 +501,7 @@ export default function HomePage() {
                         onChange={(e) => setBuildTarget(e.target.value as typeof buildTarget)}
                         aria-label="Build target"
                         className={cn(
-                          "appearance-none pl-3 pr-9 py-2 rounded-xl text-sm font-medium cursor-pointer transition-colors",
+                          "appearance-none pl-2.5 pr-8 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors",
                           isDark
                             ? "bg-white/5 hover:bg-white/10 text-white border border-white/10"
                             : "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200"
@@ -511,7 +512,7 @@ export default function HomePage() {
                         <option value="mobile">📱  Mobile App</option>
                       </select>
                       <ChevronDown className={cn(
-                        "absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none",
+                        "absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none",
                         isDark ? "text-slate-400" : "text-slate-500"
                       )} />
                     </div>
@@ -521,15 +522,15 @@ export default function HomePage() {
                       disabled={!prompt.trim() || isTransitioning}
                       aria-label="Build it"
                       className={cn(
-                        "flex items-center justify-center w-11 h-11 rounded-xl transition-all duration-200",
+                        "flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-200",
                         prompt.trim()
-                          ? "bg-gradient-to-br from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white shadow-lg shadow-violet-500/30 hover:scale-105"
+                          ? "bg-gradient-to-br from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white shadow-md shadow-violet-500/30 hover:scale-105"
                           : isDark
                             ? "bg-white/5 text-slate-600 cursor-not-allowed"
                             : "bg-slate-100 text-slate-400 cursor-not-allowed"
                       )}
                     >
-                      {isTransitioning ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowUp className="w-5 h-5" />}
+                      {isTransitioning ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
                     </button>
                   </div>
                 </motion.div>
@@ -539,20 +540,20 @@ export default function HomePage() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.2 }}
-                  className="mt-5 flex flex-wrap justify-center gap-2"
+                  className="mt-4 flex flex-wrap justify-center gap-2"
                 >
                   {examplePromptsByTarget[buildTarget].slice(0, 4).map((ex) => (
                     <button
                       key={ex}
                       onClick={() => { setPrompt(ex); inputRef.current?.focus() }}
                       className={cn(
-                        "px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors",
+                        "px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
                         isDark
                           ? "bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/10"
                           : "bg-slate-50 hover:bg-white text-slate-600 hover:text-slate-900 border border-slate-200"
                       )}
                     >
-                      {ex.length > 60 ? ex.slice(0, 58) + '…' : ex}
+                      {ex.length > 50 ? ex.slice(0, 48) + '…' : ex}
                     </button>
                   ))}
                 </motion.div>
@@ -560,57 +561,77 @@ export default function HomePage() {
               </div>
             </main>
 
-            {/* Tech stack strip — Replit-style, sits below the hero, muted,
-                full-width. Logos only, label small, no header copy competing
-                with the hero. */}
+            {/* Tech stack — bigger, more prominent than before. Inline SVG so
+                no CDN dependency and no alt-text-on-fail duplicate. Real
+                section feel: visible heading, generous spacing, larger logos. */}
             <motion.section
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.8, delay: 0.4 }}
-              className="px-6 pb-20"
+              className="px-6 py-20"
             >
-              <p className={cn(
-                "text-center text-[11px] uppercase tracking-[0.25em] mb-8",
-                isDark ? "text-slate-600" : "text-slate-400"
-              )}>
-                Built on the stacks teams actually ship
-              </p>
-              <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-center gap-x-10 gap-y-6">
-                {[
-                  { slug: 'nextdotjs', name: 'Next.js' },
-                  { slug: 'react', name: 'React' },
-                  { slug: 'typescript', name: 'TypeScript' },
-                  { slug: 'tailwindcss', name: 'Tailwind' },
-                  { slug: 'astro', name: 'Astro' },
-                  { slug: 'expo', name: 'Expo' },
-                  { slug: 'apple', name: 'iOS' },
-                  { slug: 'android', name: 'Android' },
-                  { slug: 'python', name: 'Python', soon: true },
-                  { slug: 'vercel', name: 'Vercel' },
-                ].map((tech) => (
-                  <div
-                    key={tech.slug}
-                    title={tech.soon ? `${tech.name} — coming soon` : tech.name}
-                    className={cn(
-                      "group flex items-center gap-1.5 transition-opacity",
-                      tech.soon ? "opacity-30" : isDark ? "opacity-40 hover:opacity-90" : "opacity-50 hover:opacity-100"
-                    )}
-                  >
-                    <img
-                      src={`https://cdn.simpleicons.org/${tech.slug}/${isDark ? 'cbd5e1' : '64748b'}`}
-                      alt={tech.name}
-                      loading="lazy"
-                      className="w-4 h-4"
-                    />
-                    <span className={cn(
-                      "text-xs font-medium",
-                      isDark ? "text-slate-400" : "text-slate-500"
-                    )}>
-                      {tech.name}
-                      {tech.soon && <span className="ml-1 text-[9px] opacity-70">·soon</span>}
-                    </span>
-                  </div>
-                ))}
+              <div className="max-w-6xl mx-auto">
+                <h2 className={cn(
+                  "text-center text-2xl md:text-3xl font-bold mb-3",
+                  isDark ? "text-white" : "text-slate-900"
+                )}>
+                  Built on the stacks teams actually ship
+                </h2>
+                <p className={cn(
+                  "text-center text-base md:text-lg mb-12 max-w-2xl mx-auto",
+                  isDark ? "text-slate-400" : "text-slate-600"
+                )}>
+                  Real code in modern frameworks — not no-code lock-in. Export, deploy, own it.
+                </p>
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-x-6 gap-y-10">
+                  {[
+                    { slug: 'nextdotjs', name: 'Next.js' },
+                    { slug: 'react', name: 'React' },
+                    { slug: 'typescript', name: 'TypeScript' },
+                    { slug: 'tailwindcss', name: 'Tailwind' },
+                    { slug: 'astro', name: 'Astro' },
+                    { slug: 'expo', name: 'Expo' },
+                    { slug: 'apple', name: 'iOS' },
+                    { slug: 'android', name: 'Android' },
+                    { slug: 'python', name: 'Python', soon: true },
+                    { slug: 'vercel', name: 'Vercel' },
+                  ].map((tech) => (
+                    <div
+                      key={tech.slug}
+                      title={tech.soon ? `${tech.name} — coming soon` : tech.name}
+                      className={cn(
+                        "group flex flex-col items-center gap-3 transition-all",
+                        tech.soon
+                          ? "opacity-50"
+                          : isDark
+                            ? "opacity-70 hover:opacity-100"
+                            : "opacity-80 hover:opacity-100"
+                      )}
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg"
+                        className={cn(
+                          "w-10 h-10 md:w-12 md:h-12 transition-transform group-hover:scale-110",
+                          isDark ? "fill-slate-200" : "fill-slate-700"
+                        )}
+                        aria-hidden="true"
+                      >
+                        <path d={TECH_ICONS[tech.slug] || ''} />
+                      </svg>
+                      <span className={cn(
+                        "text-sm md:text-base font-semibold tracking-tight",
+                        isDark ? "text-slate-200" : "text-slate-800"
+                      )}>
+                        {tech.name}
+                        {tech.soon && <span className={cn(
+                          "ml-1.5 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-bold align-middle",
+                          isDark ? "bg-white/10 text-slate-400" : "bg-slate-200 text-slate-500"
+                        )}>soon</span>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </motion.section>
 
