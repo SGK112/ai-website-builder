@@ -1184,6 +1184,17 @@ function WorkspaceContent() {
     element: null
   })
 
+  // Inline edit modal — replaces native window.prompt() for right-click
+  // "Edit Text" / "Edit Link" so the experience matches the rest of the app.
+  const [inlineEdit, setInlineEdit] = useState<{
+    show: boolean
+    type: 'text' | 'link'
+    title: string
+    initialValue: string
+    multiline: boolean
+    onSave: (value: string) => void
+  } | null>(null)
+
   // Terminal state
   const [terminalLines, setTerminalLines] = useState<TerminalLine[]>([])
   const [commandInput, setCommandInput] = useState('')
@@ -3566,25 +3577,34 @@ ${html}
   const contextMenuActions = useMemo(() => ({
     editText: () => {
       if (!contextMenu.element) return
-      const newText = prompt('Edit text:', contextMenu.element.textContent || '')
-      if (newText !== null && newText !== contextMenu.element.textContent) {
-        const result = findAndReplaceElement(html, contextMenu.element, (found) => {
-          // Replace inner text while keeping tags
-          const tag = contextMenu.element!.tagName.toLowerCase()
-          const openTagMatch = found.match(new RegExp(`^<${tag}[^>]*>`))
-          if (openTagMatch) {
-            return openTagMatch[0] + newText + `</${tag}>`
+      const element = contextMenu.element
+      const currentText = element.textContent || ''
+      const tag = element.tagName.toLowerCase()
+      const multiline = ['p', 'textarea', 'div', 'li', 'blockquote'].includes(tag) || currentText.length > 60
+      setInlineEdit({
+        show: true,
+        type: 'text',
+        title: `Edit ${tag}`,
+        initialValue: currentText,
+        multiline,
+        onSave: (newText) => {
+          if (newText === currentText) return
+          const result = findAndReplaceElement(html, element, (found) => {
+            const openTagMatch = found.match(new RegExp(`^<${tag}[^>]*>`))
+            if (openTagMatch) {
+              return openTagMatch[0] + newText + `</${tag}>`
+            }
+            return found.replace(currentText, newText)
+          })
+          if (result && result !== html) {
+            setHtml(result)
+            addToHistory(result, `Edited text`)
+            addToast('success', 'Text updated')
+          } else {
+            addToast('error', 'Could not find element to edit')
           }
-          return found.replace(contextMenu.element!.textContent || '', newText)
-        })
-        if (result && result !== html) {
-          setHtml(result)
-          addToHistory(result, `Edited text`)
-          addToast('success', 'Text updated')
-        } else {
-          addToast('error', 'Could not find element to edit')
         }
-      }
+      })
       closeContextMenu()
     },
 
@@ -3656,19 +3676,28 @@ ${html}
 
     editLink: () => {
       if (!contextMenu.element?.href) return
-      const newHref = prompt('Edit link URL:', contextMenu.element.href)
-      if (newHref && newHref !== contextMenu.element.href) {
-        const result = findAndReplaceElement(html, contextMenu.element, (found) => {
-          return found.replace(contextMenu.element!.href!, newHref)
-        })
-        if (result && result !== html) {
-          setHtml(result)
-          addToHistory(result, 'Updated link')
-          addToast('success', 'Link updated')
-        } else {
-          addToast('error', 'Could not find link to edit')
+      const element = contextMenu.element
+      const currentHref = element.href || ''
+      setInlineEdit({
+        show: true,
+        type: 'link',
+        title: 'Edit link URL',
+        initialValue: currentHref,
+        multiline: false,
+        onSave: (newHref) => {
+          if (!newHref || newHref === currentHref) return
+          const result = findAndReplaceElement(html, element, (found) => {
+            return found.replace(currentHref, newHref)
+          })
+          if (result && result !== html) {
+            setHtml(result)
+            addToHistory(result, 'Updated link')
+            addToast('success', 'Link updated')
+          } else {
+            addToast('error', 'Could not find link to edit')
+          }
         }
-      }
+      })
       closeContextMenu()
     },
 
@@ -9521,6 +9550,93 @@ ${html}
         onClose={() => setShowOnboarding(false)}
         onComplete={handleOnboardingComplete}
       />
+
+      {/* Inline edit modal — replaces window.prompt() for right-click text/link edits */}
+      <AnimatePresence>
+        {inlineEdit?.show && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[400] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setInlineEdit(null)}
+            onContextMenu={(e) => { e.preventDefault(); setInlineEdit(null) }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 8 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 8 }}
+              transition={{ duration: 0.15 }}
+              onClick={(e) => e.stopPropagation()}
+              className={cn(
+                "w-full max-w-lg rounded-2xl border shadow-2xl",
+                isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-200"
+              )}
+            >
+              <div className={cn("px-5 py-3 border-b flex items-center justify-between", isDark ? "border-slate-700" : "border-slate-200")}>
+                <h3 className={cn("font-semibold text-sm", isDark ? "text-white" : "text-slate-900")}>{inlineEdit.title}</h3>
+                <button onClick={() => setInlineEdit(null)} className={cn("p-1 rounded transition-colors", isDark ? "hover:bg-slate-800 text-slate-400" : "hover:bg-slate-100 text-slate-500")}>
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <form
+                className="p-5 space-y-3"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  const fd = new FormData(e.currentTarget)
+                  const value = String(fd.get('value') || '')
+                  inlineEdit.onSave(value)
+                  setInlineEdit(null)
+                }}
+              >
+                {inlineEdit.multiline ? (
+                  <textarea
+                    name="value"
+                    defaultValue={inlineEdit.initialValue}
+                    autoFocus
+                    rows={6}
+                    className={cn(
+                      "w-full px-3 py-2 rounded-lg border text-sm font-mono resize-y",
+                      isDark
+                        ? "bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                        : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400"
+                    )}
+                  />
+                ) : (
+                  <input
+                    name="value"
+                    type={inlineEdit.type === 'link' ? 'url' : 'text'}
+                    defaultValue={inlineEdit.initialValue}
+                    autoFocus
+                    className={cn(
+                      "w-full px-3 py-2 rounded-lg border text-sm",
+                      isDark
+                        ? "bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                        : "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400"
+                    )}
+                    placeholder={inlineEdit.type === 'link' ? 'https://...' : 'Enter text'}
+                  />
+                )}
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setInlineEdit(null)}
+                    className={cn("px-3 py-1.5 text-xs rounded-lg transition-colors", isDark ? "text-slate-400 hover:bg-slate-800" : "text-slate-600 hover:bg-slate-100")}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 text-xs font-medium rounded-lg bg-violet-600 hover:bg-violet-500 text-white transition-colors"
+                  >
+                    Save
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Right-Click Context Menu */}
       <AnimatePresence>
