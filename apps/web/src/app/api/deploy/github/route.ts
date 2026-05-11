@@ -72,7 +72,7 @@ async function createGitHubRepo(
       name,
       private: isPrivate,
       auto_init: true,
-      description: 'Created with AI Website Builder',
+      description: 'Created with Webstew (https://webstew.ai)',
     }),
   })
 
@@ -166,7 +166,7 @@ async function createGitHubRepo(
         Accept: 'application/vnd.github.v3+json',
       },
       body: JSON.stringify({
-        message: 'Initial commit from AI Website Builder',
+        message: 'Initial commit from Webstew',
         tree: tree.sha,
         parents: [baseSha],
       }),

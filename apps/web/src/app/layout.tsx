@@ -10,9 +10,9 @@ import { ThemeProvider } from '@/context/ThemeContext'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'AI Website Builder | Build Your Website with AI',
-  description: 'Create stunning websites with AI-powered coding agents. Build business sites, e-commerce stores, and SaaS apps with guided assistance.',
-  keywords: ['website builder', 'AI', 'code generator', 'Next.js', 'React'],
+  title: 'Webstew | AI Website & App Builder',
+  description: 'Webstew turns a single prompt into a polished website or working mobile app. No code required — describe it, ship it.',
+  keywords: ['Webstew', 'website builder', 'app builder', 'AI', 'Next.js', 'Expo', 'React Native'],
 }
 
 export default function RootLayout({

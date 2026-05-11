@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Smartphone, Loader2, FileCode, Download, Sparkles, AlertCircle, Globe, Code2 } from 'lucide-react'
 
@@ -58,19 +58,24 @@ const TARGETS: Record<Target, {
 }
 
 export default function AppBuilderPage() {
-  const { data: session } = useSession()
+  const { data: session, status: sessionStatus } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [prompt, setPrompt] = useState('')
   const [target, setTarget] = useState<Target>('expo')
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<AppResult | null>(null)
   const [activeFile, setActiveFile] = useState<string | null>(null)
+  const hasAutofiredRef = useRef(false)
 
-  const submit = async () => {
-    if (!prompt.trim() || isGenerating) return
+  const submit = async (override?: { prompt?: string; target?: Target }) => {
+    const finalPrompt = (override?.prompt ?? prompt).trim()
+    const finalTarget = override?.target ?? target
+    if (!finalPrompt || isGenerating) return
     if (!session?.user) {
-      router.push(`/login?next=${encodeURIComponent('/app-builder')}`)
+      const back = `/app-builder?prompt=${encodeURIComponent(finalPrompt)}&target=${finalTarget}`
+      router.push(`/signup?next=${encodeURIComponent(back)}`)
       return
     }
     setError(null)
@@ -78,10 +83,10 @@ export default function AppBuilderPage() {
     setResult(null)
     setActiveFile(null)
     try {
-      const res = await fetch(TARGETS[target].apiPath, {
+      const res = await fetch(TARGETS[finalTarget].apiPath, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt.trim() }),
+        body: JSON.stringify({ prompt: finalPrompt }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -98,6 +103,25 @@ export default function AppBuilderPage() {
       setIsGenerating(false)
     }
   }
+
+  // Auto-fire generation when landing here from /?prompt=...&target=... — same
+  // pattern as /workspace. Clears the URL on first fire so reload / back can't
+  // re-trigger. Waits for session to load so we don't bounce a logged-in user
+  // through /signup.
+  useEffect(() => {
+    if (hasAutofiredRef.current) return
+    if (sessionStatus === 'loading') return
+    const promptFromUrl = searchParams.get('prompt')
+    const targetFromUrl = searchParams.get('target') as Target | null
+    if (!promptFromUrl) return
+    hasAutofiredRef.current = true
+    const t: Target = targetFromUrl && TARGETS[targetFromUrl] ? targetFromUrl : 'expo'
+    setTarget(t)
+    setPrompt(promptFromUrl)
+    router.replace('/app-builder', { scroll: false })
+    void submit({ prompt: promptFromUrl, target: t })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionStatus, searchParams])
 
   const downloadZip = async () => {
     if (!result) return

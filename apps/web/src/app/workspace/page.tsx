@@ -2427,7 +2427,7 @@ function WorkspaceContent() {
         body: JSON.stringify({
           files: [
             { path: 'index.html', content: html },
-            { path: 'README.md', content: `# ${projectName}\n\nBuilt with AI Website Builder` }
+            { path: 'README.md', content: `# ${projectName}\n\nBuilt with Webstew (https://webstew.ai)` }
           ],
           repoName: `${repoName}-${Date.now().toString(36)}`,
           isPrivate: false,

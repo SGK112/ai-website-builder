@@ -171,7 +171,7 @@ async function createGitHubRepo(name: string, files: ProjectFile[]): Promise<str
         Accept: 'application/vnd.github.v3+json',
       },
       body: JSON.stringify({
-        message: 'Initial commit from AI Website Builder',
+        message: 'Initial commit from Webstew',
         tree: tree.sha,
         parents: [baseSha],
       }),

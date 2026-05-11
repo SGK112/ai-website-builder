@@ -156,7 +156,7 @@ export function WorkspaceNav() {
               >
                 <Zap className="w-5 h-5 text-white" />
               </motion.div>
-              <span className="font-bold text-lg text-white hidden sm:block">AI Website Builder</span>
+              <span className="font-bold text-lg text-white hidden sm:block">Webstew</span>
             </Link>
 
             {/* Main Navigation */}

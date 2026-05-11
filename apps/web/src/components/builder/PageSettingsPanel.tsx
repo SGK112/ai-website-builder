@@ -38,7 +38,7 @@ interface PageSettingsPanelProps {
 
 const DEFAULT_SETTINGS: PageSettings = {
   title: 'My Website',
-  description: 'A website built with AI Website Builder',
+  description: 'A website built with Webstew',
   favicon: '',
   ogImage: '',
   ogTitle: '',

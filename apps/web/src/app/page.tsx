@@ -31,6 +31,27 @@ const examplePrompts = [
   "A fitness app landing page with pricing tiers",
 ]
 
+const examplePromptsByTarget: Record<'website' | 'webapp' | 'mobile', string[]> = {
+  website: [
+    "A modern SaaS landing page for a project management tool",
+    "An e-commerce store for handmade jewelry",
+    "A portfolio website for a UX designer with animations",
+    "A restaurant website with online ordering",
+  ],
+  webapp: [
+    "A dashboard with sidebar nav, KPI cards, sortable data table, and dark mode",
+    "A blog with markdown posts, tag filtering, and an RSS feed",
+    "A SaaS landing page with pricing tiers and a working signup form",
+    "A documentation site with versioned docs and code highlighting",
+  ],
+  mobile: [
+    "A fitness tracker with daily steps, workout history, and weekly charts",
+    "A recipe app with search, favorites, and step-by-step cooking timers",
+    "A habit tracker with streak counts and weekly stats",
+    "A pomodoro timer with task list and session history",
+  ],
+}
+
 const quickTemplates = [
   { icon: Globe, label: "Landing Page", prompt: "A modern landing page with hero, features, and CTA sections" },
   { icon: Code2, label: "SaaS", prompt: "A SaaS product website with pricing and features" },
@@ -196,6 +217,7 @@ export default function HomePage() {
   const [prompt, setPrompt] = useState('')
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [projectTheme, setProjectTheme] = useState<'light' | 'dark'>('dark')
+  const [buildTarget, setBuildTarget] = useState<'website' | 'webapp' | 'mobile'>('website')
   const [placeholderIndex, setPlaceholderIndex] = useState(0)
   const [selectedTemplate, setSelectedTemplate] = useState<typeof templateGallery[0] | null>(null)
   const [scrollY, setScrollY] = useState(0)
@@ -223,26 +245,33 @@ export default function HomePage() {
     return () => clearInterval(interval)
   }, [])
 
-  // Navigate to workspace with prompt as URL param. If the user isn't signed
-  // in yet, route through /signup with the intended workspace URL preserved
-  // in ?next= so they land on their generation immediately after auth.
-  const navigateToWorkspace = (projectPrompt: string) => {
+  // Route to the right builder based on the user's chosen target. If not yet
+  // signed in, ride through /signup with ?next= preserving the destination so
+  // the generation auto-fires after auth.
+  const navigateToBuilder = (projectPrompt: string, t: 'website' | 'webapp' | 'mobile' = buildTarget) => {
     setIsTransitioning(true)
-    const params = new URLSearchParams({
-      prompt: projectPrompt,
-      theme: projectTheme,
-    })
-    const workspaceUrl = `/workspace?${params.toString()}`
-    if (sessionStatus === 'authenticated') {
-      router.push(workspaceUrl)
+    let url: string
+    if (t === 'website') {
+      const params = new URLSearchParams({ prompt: projectPrompt, theme: projectTheme })
+      url = `/workspace?${params.toString()}`
     } else {
-      router.push(`/signup?next=${encodeURIComponent(workspaceUrl)}`)
+      const apiTarget = t === 'mobile' ? 'expo' : 'nextjs'
+      const params = new URLSearchParams({ prompt: projectPrompt, target: apiTarget })
+      url = `/app-builder?${params.toString()}`
+    }
+    if (sessionStatus === 'authenticated') {
+      router.push(url)
+    } else {
+      router.push(`/signup?next=${encodeURIComponent(url)}`)
     }
   }
 
+  // Kept for backwards-compat with any inline call sites further down the file.
+  const navigateToWorkspace = (projectPrompt: string) => navigateToBuilder(projectPrompt, 'website')
+
   const handleSubmit = () => {
     if (!prompt.trim() || isTransitioning) return
-    navigateToWorkspace(prompt.trim())
+    navigateToBuilder(prompt.trim())
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -321,7 +350,7 @@ export default function HomePage() {
                       letterSpacing: '-0.03em'
                     }}
                   >
-                    AI Website Builder
+                    Webstew
                   </span>
                 </motion.div>
 
@@ -401,26 +430,71 @@ export default function HomePage() {
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6 }}
-                  className="text-center mb-10"
+                  className="text-center mb-8"
                 >
                   <h1 className={cn(
                     "text-5xl md:text-6xl font-bold mb-5 tracking-tight leading-tight",
                     isDark ? "text-white" : "text-slate-800"
                   )}>
-                    What will you
+                    Build a website or app
                     <span className={cn(
                       "bg-clip-text text-transparent",
                       isDark
                         ? "bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400"
                         : "bg-gradient-to-r from-orange-500 via-pink-500 to-violet-500"
-                    )}> create</span>?
+                    )}> from one prompt</span>
                   </h1>
                   <p className={cn(
                     "text-lg",
                     isDark ? "text-slate-400" : "text-slate-600"
                   )}>
-                    Describe your vision. AI builds it in seconds.
+                    Describe what you want. Webstew ships it — no code required.
                   </p>
+                </motion.div>
+
+                {/* Target picker — routes the prompt to the right builder */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.05 }}
+                  className="mb-4 flex justify-center"
+                >
+                  <div className={cn(
+                    "inline-flex items-center p-1 rounded-2xl backdrop-blur-sm",
+                    isDark ? "bg-white/5 border border-white/10" : "bg-white/70 border border-slate-200 shadow-sm"
+                  )}>
+                    {([
+                      { id: 'website', label: 'Website', sub: 'static HTML' },
+                      { id: 'webapp', label: 'Web App', sub: 'Next.js' },
+                      { id: 'mobile', label: 'Mobile App', sub: 'iOS + Android' },
+                    ] as const).map((opt) => {
+                      const active = buildTarget === opt.id
+                      return (
+                        <button
+                          key={opt.id}
+                          onClick={() => setBuildTarget(opt.id)}
+                          className={cn(
+                            "px-4 py-2 rounded-xl text-sm font-medium transition-all",
+                            active
+                              ? isDark
+                                ? "bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-lg"
+                                : "bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-md"
+                              : isDark
+                                ? "text-slate-400 hover:text-white"
+                                : "text-slate-600 hover:text-slate-900"
+                          )}
+                        >
+                          <span>{opt.label}</span>
+                          <span className={cn(
+                            "ml-2 text-[10px] uppercase tracking-wider",
+                            active ? "opacity-80" : isDark ? "text-slate-500" : "text-slate-400"
+                          )}>
+                            {opt.sub}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
                 </motion.div>
 
                 {/* Chat Input */}
@@ -442,7 +516,7 @@ export default function HomePage() {
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder={examplePrompts[placeholderIndex]}
+                      placeholder={examplePromptsByTarget[buildTarget][placeholderIndex % examplePromptsByTarget[buildTarget].length]}
                       rows={3}
                       className={cn(
                         "w-full resize-none bg-transparent text-lg leading-relaxed focus:outline-none",

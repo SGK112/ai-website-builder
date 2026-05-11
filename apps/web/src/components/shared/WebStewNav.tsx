@@ -79,7 +79,7 @@ export function WebStewNav() {
                 isDark ? 'text-white' : 'text-slate-900'
               )}
             >
-              AI Website Builder
+              Webstew
             </span>
           </Link>
 

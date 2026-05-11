@@ -72,7 +72,7 @@ ${html}
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          description: `${projectName} - Built with AI Website Builder`,
+          description: `${projectName} - Built with Webstew`,
           public: true,
           files: {
             'index.html': { content: fullHtml },

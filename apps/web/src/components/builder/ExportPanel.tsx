@@ -109,7 +109,7 @@ export function ExportPanel({
     // Add meta tags if enabled
     if (addMetaTags) {
       const metaTags = `
-  <meta name="generator" content="AI Website Builder">
+  <meta name="generator" content="Webstew">
   <meta name="author" content="${projectName}">
   <meta property="og:title" content="${projectName}">
   <meta property="og:type" content="website">
@@ -135,7 +135,7 @@ export function ExportPanel({
     return {
       'index.html': generateHTML(),
       'styles.css': `/* ${projectName} Styles */\n@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');\n\n:root {\n  --primary: #8b5cf6;\n  --background: #ffffff;\n  --foreground: #1f2937;\n}\n\n* {\n  box-sizing: border-box;\n  margin: 0;\n  padding: 0;\n}\n\nbody {\n  font-family: 'Inter', sans-serif;\n  background: var(--background);\n  color: var(--foreground);\n}`,
-      'README.md': `# ${projectName}\n\nGenerated with AI Website Builder\n\n## Deployment\n\nThis is a static site that can be deployed to any static hosting service:\n\n- **Netlify**: Drag and drop the folder\n- **Vercel**: Import from Git or upload\n- **GitHub Pages**: Push to a repository\n- **Cloudflare Pages**: Connect your repository\n\n## Structure\n\n\`\`\`\n${slug}/\n├── index.html\n├── styles.css\n└── README.md\n\`\`\``,
+      'README.md': `# ${projectName}\n\nGenerated with [Webstew](https://webstew.ai)\n\n## Deployment\n\nThis is a static site that can be deployed to any static hosting service:\n\n- **Netlify**: Drag and drop the folder\n- **Vercel**: Import from Git or upload\n- **GitHub Pages**: Push to a repository\n- **Cloudflare Pages**: Connect your repository\n\n## Structure\n\n\`\`\`\n${slug}/\n├── index.html\n├── styles.css\n└── README.md\n\`\`\``,
       '_redirects': '/* /index.html 200',
       'netlify.toml': `[build]\n  publish = "."\n\n[[headers]]\n  for = "/*"\n  [headers.values]\n    X-Frame-Options = "DENY"\n    X-XSS-Protection = "1; mode=block"`,
       'vercel.json': JSON.stringify({
