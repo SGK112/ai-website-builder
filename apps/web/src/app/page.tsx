@@ -342,6 +342,21 @@ export default function HomePage() {
                     Community
                   </a>
                   <a
+                    href="/app-builder"
+                    className={cn(
+                      "px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5",
+                      isDark
+                        ? "text-slate-400 hover:text-white hover:bg-white/10"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                    )}
+                  >
+                    <span>App Builder</span>
+                    <span className={cn(
+                      "text-[10px] px-1.5 py-0.5 rounded-full font-semibold",
+                      isDark ? "bg-violet-500/20 text-violet-300" : "bg-violet-100 text-violet-600"
+                    )}>NEW</span>
+                  </a>
+                  <a
                     href="/login"
                     className={cn(
                       "px-3 py-2 rounded-lg text-sm font-medium transition-all",
