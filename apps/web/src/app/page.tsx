@@ -224,6 +224,9 @@ export default function HomePage() {
   const [selectedTemplate, setSelectedTemplate] = useState<typeof templateGallery[0] | null>(null)
   const [showAllTemplates, setShowAllTemplates] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [rotatingWordIdx, setRotatingWordIdx] = useState(0)
+  const rotatingWords = ['delicious', 'real', 'alive', 'beautiful', 'fast']
+  const rotatingWord = rotatingWords[rotatingWordIdx]
 
   // Handle client-side mounting for animations
   useEffect(() => {
@@ -238,6 +241,17 @@ export default function HomePage() {
     }, 4000)
     return () => clearInterval(interval)
   }, [])
+
+  // Headline word rotation — swaps every 2.5s. Skipped while user is typing
+  // so it doesn't feel chatty over their input.
+  useEffect(() => {
+    if (prompt) return
+    const interval = setInterval(() => {
+      setRotatingWordIdx(i => (i + 1) % rotatingWords.length)
+    }, 2500)
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prompt])
 
   // Route to the right builder based on the user's chosen target. If not yet
   // signed in, ride through /signup with ?next= preserving the destination so
@@ -495,44 +509,80 @@ export default function HomePage() {
             {/* Main Content */}
             <main className="min-h-[80vh] flex items-center justify-center px-6 pb-16 pt-8">
               <div className="w-full max-w-2xl">
-                {/* Hero — mixed type weights, serif-italic flex on "delicious".
-                    Mood-setter: builds emotional contrast on the most important
-                    word. Like Substack/Claude editorial vibe but louder. */}
+                {/* Hero — mixed type weights, serif-italic on a ROTATING word.
+                    Word swaps every 2.5s with a smooth slide. Lovable's
+                    signature trick. */}
                 <motion.div
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6 }}
-                  className="text-center mb-8"
+                  className="text-center mb-8 relative"
                 >
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.6, rotate: -10 }}
-                    animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                    transition={{ duration: 0.8, delay: 0.1, ease: [0.34, 1.56, 0.64, 1] }}
-                    className="text-5xl mb-3 inline-block"
-                    style={{ filter: 'drop-shadow(0 6px 20px rgba(251,146,60,0.25))' }}
-                  >
-                    🍲
-                  </motion.div>
+                  {/* Floating sparkles around the brand mark */}
+                  <div className="relative inline-block">
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.6, rotate: -10 }}
+                      animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                      transition={{ duration: 0.8, delay: 0.1, ease: [0.34, 1.56, 0.64, 1] }}
+                      className="text-5xl mb-3 inline-block relative"
+                      style={{ filter: 'drop-shadow(0 6px 20px rgba(251,146,60,0.35))' }}
+                    >
+                      <motion.span
+                        animate={{ y: [0, -4, 0] }}
+                        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                        className="inline-block"
+                      >
+                        🍲
+                      </motion.span>
+                    </motion.div>
+                    {/* Sparkles drifting around the bowl */}
+                    {[
+                      { top: '-6px', left: '-30px', delay: 0 },
+                      { top: '-12px', right: '-26px', delay: 0.6 },
+                      { bottom: '8px', left: '-26px', delay: 1.2 },
+                      { bottom: '4px', right: '-32px', delay: 1.8 },
+                    ].map((s, i) => (
+                      <motion.div
+                        key={i}
+                        className="absolute pointer-events-none"
+                        style={{ top: s.top, left: s.left, right: s.right, bottom: s.bottom }}
+                        initial={{ opacity: 0, scale: 0 }}
+                        animate={{ opacity: [0, 1, 0], scale: [0, 1.1, 0], rotate: [0, 180, 360] }}
+                        transition={{ duration: 2.4, delay: s.delay, repeat: Infinity, repeatDelay: 1 }}
+                      >
+                        <Sparkles className={cn("w-3 h-3", isDark ? "text-amber-300" : "text-orange-400")} />
+                      </motion.div>
+                    ))}
+                  </div>
                   <h1 className={cn(
                     "text-5xl md:text-7xl font-bold tracking-tight leading-[1] mb-5",
                     isDark ? "text-white" : "text-slate-900"
                   )}>
                     Build something
-                    <span
-                      className={cn(
-                        "block italic font-normal mt-2 bg-clip-text text-transparent",
-                        isDark
-                          ? "bg-gradient-to-br from-amber-200 via-pink-300 to-violet-300"
-                          : "bg-gradient-to-br from-orange-500 via-pink-500 to-violet-600"
-                      )}
-                      style={{
-                        fontFamily: 'var(--font-playfair), Georgia, "Times New Roman", serif',
-                        fontSize: '1.25em',
-                        lineHeight: '0.95',
-                        letterSpacing: '-0.02em',
-                      }}
-                    >
-                      delicious.
+                    <span className="block relative h-[1.2em] mt-2 overflow-visible">
+                      <AnimatePresence mode="wait">
+                        <motion.span
+                          key={rotatingWord}
+                          initial={{ opacity: 0, y: 30, filter: 'blur(8px)' }}
+                          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                          exit={{ opacity: 0, y: -30, filter: 'blur(8px)' }}
+                          transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+                          className={cn(
+                            "absolute inset-0 italic font-normal bg-clip-text text-transparent",
+                            isDark
+                              ? "bg-gradient-to-br from-amber-200 via-pink-300 to-violet-300"
+                              : "bg-gradient-to-br from-orange-500 via-pink-500 to-violet-600"
+                          )}
+                          style={{
+                            fontFamily: 'var(--font-playfair), Georgia, "Times New Roman", serif',
+                            fontSize: '1.25em',
+                            lineHeight: '0.95',
+                            letterSpacing: '-0.02em',
+                          }}
+                        >
+                          {rotatingWord}.
+                        </motion.span>
+                      </AnimatePresence>
                     </span>
                   </h1>
                   <p className={cn(
@@ -649,7 +699,7 @@ export default function HomePage() {
 
             {/* Stats strip — Webflow-style stat callouts. Compact, confident,
                 no chart vibes. Each one is a single number + small label. */}
-            <section className="px-6 py-12">
+            <motion.section initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} className="px-6 py-12">
               <div className={cn(
                 "max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-px overflow-hidden rounded-3xl border",
                 isDark ? "bg-white/[0.04] border-white/10" : "bg-slate-900/[0.04] border-slate-200"
@@ -685,12 +735,12 @@ export default function HomePage() {
                   </div>
                 ))}
               </div>
-            </section>
+            </motion.section>
 
             {/* What's on the menu — bento grid of target capabilities, each
                 card has its own visual character. Webflow's bento pattern,
                 colored hover, mini-mockups inline-SVG. */}
-            <section className="px-6 py-20">
+            <motion.section initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} className="px-6 py-20">
               <div className="max-w-6xl mx-auto">
                 <div className="text-center mb-12">
                   <p className={cn(
@@ -852,11 +902,11 @@ export default function HomePage() {
                   ))}
                 </div>
               </div>
-            </section>
+            </motion.section>
 
             {/* How it works — 3 steps with bold numbered badges, kitchen
                 language to lean into the brand. */}
-            <section className="px-6 py-20">
+            <motion.section initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} className="px-6 py-20">
               <div className="max-w-5xl mx-auto">
                 <div className="text-center mb-14">
                   <p className={cn(
@@ -926,7 +976,7 @@ export default function HomePage() {
                   ))}
                 </div>
               </div>
-            </section>
+            </motion.section>
 
             {/* Tech stack — bigger, more prominent than before. Inline SVG so
                 no CDN dependency and no alt-text-on-fail duplicate. Real
@@ -1005,7 +1055,7 @@ export default function HomePage() {
             {/* Closing CTA — full-bleed gradient panel, single confident
                 button. The "second hero" pattern Lovable / Vercel use to
                 close out the marketing flow. */}
-            <section className="px-6 pb-20 pt-4">
+            <motion.section initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} className="px-6 pb-20 pt-4">
               <div
                 className={cn(
                   "max-w-5xl mx-auto rounded-3xl overflow-hidden relative border",
@@ -1074,7 +1124,7 @@ export default function HomePage() {
                   </a>
                 </div>
               </div>
-            </section>
+            </motion.section>
 
             {/* Footer */}
             <footer className={cn(
