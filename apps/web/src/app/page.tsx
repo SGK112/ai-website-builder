@@ -572,6 +572,8 @@ export default function HomePage() {
             {/* Main Content */}
             <main className="px-6 pb-12 pt-6">
               <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-10 items-center min-h-[80vh]">
+                {/* LEFT column — hero copy, prompt, chips */}
+                <div className="w-full max-w-2xl mx-auto lg:mx-0">
                 {/* Hero — mixed type weights, serif-italic on a ROTATING word.
                     Word swaps every 2.5s with a smooth slide. Lovable's
                     signature trick. */}
