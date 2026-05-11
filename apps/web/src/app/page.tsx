@@ -309,20 +309,83 @@ export default function HomePage() {
           exit={{ opacity: 0, scale: 0.95 }}
           className="min-h-screen relative overflow-hidden"
         >
-          {/* Clean gradient background — no animated elements that compete
-              with hero text. Soft, doesn't fight the content. */}
+          {/* Animated gradient mesh background — Lovable-style. Multiple
+              blurred color blobs layered, drifting slowly. Sets the mood
+              without occluding text because each blob is behind a 96px blur
+              filter and the content sits on z-10. */}
           <div className={cn(
             "absolute inset-0",
-            isDark
-              ? "bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950"
-              : "bg-gradient-to-b from-orange-50 via-rose-50 to-violet-50"
+            isDark ? "bg-slate-950" : "bg-[#fdf8f3]"
           )} />
-          {/* Subtle radial accent — keeps interest without occluding text */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            {/* Top-left warm blob */}
+            <motion.div
+              className="absolute -top-32 -left-20 w-[40rem] h-[40rem] rounded-full"
+              style={{
+                filter: 'blur(110px)',
+                background: isDark
+                  ? 'radial-gradient(circle, rgba(244,114,182,0.45), transparent 70%)'
+                  : 'radial-gradient(circle, rgba(251,146,60,0.55), transparent 70%)',
+              }}
+              animate={{ x: [0, 40, 0], y: [0, 30, 0] }}
+              transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            {/* Top-right cool blob */}
+            <motion.div
+              className="absolute -top-24 -right-32 w-[36rem] h-[36rem] rounded-full"
+              style={{
+                filter: 'blur(120px)',
+                background: isDark
+                  ? 'radial-gradient(circle, rgba(167,139,250,0.5), transparent 70%)'
+                  : 'radial-gradient(circle, rgba(168,85,247,0.4), transparent 70%)',
+              }}
+              animate={{ x: [0, -50, 0], y: [0, 40, 0] }}
+              transition={{ duration: 26, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            {/* Bottom-left magenta */}
+            <motion.div
+              className="absolute top-[35%] -left-32 w-[34rem] h-[34rem] rounded-full"
+              style={{
+                filter: 'blur(120px)',
+                background: isDark
+                  ? 'radial-gradient(circle, rgba(192,38,211,0.35), transparent 70%)'
+                  : 'radial-gradient(circle, rgba(236,72,153,0.35), transparent 70%)',
+              }}
+              animate={{ x: [0, 60, 0], y: [0, -40, 0] }}
+              transition={{ duration: 28, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            {/* Bottom-right warm */}
+            <motion.div
+              className="absolute top-[40%] -right-20 w-[38rem] h-[38rem] rounded-full"
+              style={{
+                filter: 'blur(120px)',
+                background: isDark
+                  ? 'radial-gradient(circle, rgba(251,113,133,0.35), transparent 70%)'
+                  : 'radial-gradient(circle, rgba(251,191,36,0.45), transparent 70%)',
+              }}
+              animate={{ x: [0, -40, 0], y: [0, 50, 0] }}
+              transition={{ duration: 24, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            {/* Center violet accent */}
+            <motion.div
+              className="absolute top-1/3 left-1/3 w-[28rem] h-[28rem] rounded-full"
+              style={{
+                filter: 'blur(120px)',
+                background: isDark
+                  ? 'radial-gradient(circle, rgba(99,102,241,0.3), transparent 70%)'
+                  : 'radial-gradient(circle, rgba(139,92,246,0.3), transparent 70%)',
+              }}
+              animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
+              transition={{ duration: 30, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          </div>
+          {/* Soft veil so text on top stays crisp regardless of where the
+              blobs drift to */}
           <div className={cn(
             "absolute inset-0 pointer-events-none",
             isDark
-              ? "bg-[radial-gradient(circle_at_top,rgba(167,139,250,0.12),transparent_60%)]"
-              : "bg-[radial-gradient(circle_at_top,rgba(251,146,60,0.15),transparent_60%)]"
+              ? "bg-gradient-to-b from-slate-950/30 via-transparent to-slate-950/40"
+              : "bg-gradient-to-b from-white/30 via-transparent to-white/40"
           )} />
 
           {/* Content overlay */}
@@ -432,32 +495,51 @@ export default function HomePage() {
             {/* Main Content */}
             <main className="min-h-[80vh] flex items-center justify-center px-6 pb-16 pt-8">
               <div className="w-full max-w-2xl">
-                {/* Hero — single visual focus: big headline + textarea */}
+                {/* Hero — mixed type weights, serif-italic flex on "delicious".
+                    Mood-setter: builds emotional contrast on the most important
+                    word. Like Substack/Claude editorial vibe but louder. */}
                 <motion.div
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6 }}
                   className="text-center mb-8"
                 >
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.6, rotate: -10 }}
+                    animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                    transition={{ duration: 0.8, delay: 0.1, ease: [0.34, 1.56, 0.64, 1] }}
+                    className="text-5xl mb-3 inline-block"
+                    style={{ filter: 'drop-shadow(0 6px 20px rgba(251,146,60,0.25))' }}
+                  >
+                    🍲
+                  </motion.div>
                   <h1 className={cn(
-                    "text-5xl md:text-7xl font-bold mb-4 tracking-tight leading-[1.05]",
+                    "text-5xl md:text-7xl font-bold tracking-tight leading-[1] mb-5",
                     isDark ? "text-white" : "text-slate-900"
                   )}>
                     Build something
-                    <span className={cn(
-                      "block bg-clip-text text-transparent",
-                      isDark
-                        ? "bg-gradient-to-r from-violet-300 via-fuchsia-300 to-pink-300"
-                        : "bg-gradient-to-r from-orange-500 via-pink-500 to-violet-500"
-                    )}>
-                      delicious
+                    <span
+                      className={cn(
+                        "block italic font-normal mt-2 bg-clip-text text-transparent",
+                        isDark
+                          ? "bg-gradient-to-br from-amber-200 via-pink-300 to-violet-300"
+                          : "bg-gradient-to-br from-orange-500 via-pink-500 to-violet-600"
+                      )}
+                      style={{
+                        fontFamily: 'var(--font-playfair), Georgia, "Times New Roman", serif',
+                        fontSize: '1.25em',
+                        lineHeight: '0.95',
+                        letterSpacing: '-0.02em',
+                      }}
+                    >
+                      delicious.
                     </span>
                   </h1>
                   <p className={cn(
-                    "text-base md:text-lg",
-                    isDark ? "text-slate-400" : "text-slate-600"
+                    "text-base md:text-lg max-w-xl mx-auto leading-relaxed",
+                    isDark ? "text-slate-300" : "text-slate-600"
                   )}>
-                    Describe what you want. Webstew turns it into a working website or app.
+                    Tell Webstew what to build. AI ships you a working <span className="font-semibold">website, web app, or mobile app</span> — real code, yours to keep.
                   </p>
                 </motion.div>
 
@@ -565,6 +647,287 @@ export default function HomePage() {
               </div>
             </main>
 
+            {/* Stats strip — Webflow-style stat callouts. Compact, confident,
+                no chart vibes. Each one is a single number + small label. */}
+            <section className="px-6 py-12">
+              <div className={cn(
+                "max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-px overflow-hidden rounded-3xl border",
+                isDark ? "bg-white/[0.04] border-white/10" : "bg-slate-900/[0.04] border-slate-200"
+              )}>
+                {[
+                  { num: '6', label: 'frameworks supported' },
+                  { num: '<60s', label: 'prompt to preview' },
+                  { num: '100%', label: 'code you own' },
+                  { num: '0', label: 'lock-in' },
+                ].map((stat) => (
+                  <div
+                    key={stat.label}
+                    className={cn(
+                      "py-7 px-5 text-center",
+                      isDark ? "bg-slate-950/40" : "bg-white/60"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "text-3xl md:text-4xl font-bold tracking-tight mb-1",
+                        isDark ? "text-white" : "text-slate-900"
+                      )}
+                      style={{ fontFamily: 'var(--font-playfair), Georgia, serif', fontStyle: 'italic' }}
+                    >
+                      {stat.num}
+                    </div>
+                    <div className={cn(
+                      "text-xs uppercase tracking-wider",
+                      isDark ? "text-slate-400" : "text-slate-500"
+                    )}>
+                      {stat.label}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* What's on the menu — bento grid of target capabilities, each
+                card has its own visual character. Webflow's bento pattern,
+                colored hover, mini-mockups inline-SVG. */}
+            <section className="px-6 py-20">
+              <div className="max-w-6xl mx-auto">
+                <div className="text-center mb-12">
+                  <p className={cn(
+                    "text-xs uppercase tracking-[0.25em] mb-3 font-semibold",
+                    isDark ? "text-violet-300/80" : "text-violet-600/80"
+                  )}>
+                    On the menu
+                  </p>
+                  <h2 className={cn(
+                    "text-3xl md:text-5xl font-bold mb-4 tracking-tight",
+                    isDark ? "text-white" : "text-slate-900"
+                  )}>
+                    Order what you want.
+                    <span
+                      className={cn(
+                        "italic font-normal ml-3 bg-clip-text text-transparent",
+                        isDark
+                          ? "bg-gradient-to-r from-amber-200 to-pink-300"
+                          : "bg-gradient-to-r from-orange-500 to-pink-500"
+                      )}
+                      style={{ fontFamily: 'var(--font-playfair), Georgia, serif' }}
+                    >
+                      Webstew cooks it.
+                    </span>
+                  </h2>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {[
+                    {
+                      title: 'Websites',
+                      sub: 'Static HTML + Tailwind',
+                      tag: 'website',
+                      gradient: 'from-orange-500 to-rose-500',
+                      mockup: (
+                        <svg viewBox="0 0 240 140" className="w-full h-full">
+                          <rect x="0" y="0" width="240" height="140" rx="8" fill="currentColor" opacity="0.05" />
+                          <rect x="12" y="12" width="60" height="6" rx="3" fill="currentColor" opacity="0.4" />
+                          <rect x="180" y="10" width="48" height="10" rx="5" fill="currentColor" opacity="0.6" />
+                          <rect x="12" y="36" width="140" height="14" rx="3" fill="currentColor" opacity="0.7" />
+                          <rect x="12" y="56" width="100" height="6" rx="3" fill="currentColor" opacity="0.3" />
+                          <rect x="12" y="68" width="80" height="6" rx="3" fill="currentColor" opacity="0.3" />
+                          <rect x="12" y="88" width="48" height="40" rx="6" fill="currentColor" opacity="0.25" />
+                          <rect x="68" y="88" width="48" height="40" rx="6" fill="currentColor" opacity="0.25" />
+                          <rect x="124" y="88" width="48" height="40" rx="6" fill="currentColor" opacity="0.25" />
+                          <rect x="180" y="88" width="48" height="40" rx="6" fill="currentColor" opacity="0.25" />
+                        </svg>
+                      ),
+                    },
+                    {
+                      title: 'Web Apps',
+                      sub: 'Next.js · React · Astro',
+                      tag: 'webapp',
+                      gradient: 'from-violet-500 to-fuchsia-500',
+                      mockup: (
+                        <svg viewBox="0 0 240 140" className="w-full h-full">
+                          <rect x="0" y="0" width="240" height="140" rx="8" fill="currentColor" opacity="0.05" />
+                          <rect x="8" y="8" width="40" height="124" rx="4" fill="currentColor" opacity="0.15" />
+                          <circle cx="20" cy="22" r="3" fill="currentColor" opacity="0.5" />
+                          <rect x="28" y="20" width="14" height="4" rx="2" fill="currentColor" opacity="0.5" />
+                          <circle cx="20" cy="40" r="3" fill="currentColor" opacity="0.4" />
+                          <rect x="28" y="38" width="14" height="4" rx="2" fill="currentColor" opacity="0.4" />
+                          <circle cx="20" cy="58" r="3" fill="currentColor" opacity="0.4" />
+                          <rect x="28" y="56" width="14" height="4" rx="2" fill="currentColor" opacity="0.4" />
+                          <rect x="56" y="14" width="40" height="40" rx="5" fill="currentColor" opacity="0.25" />
+                          <rect x="100" y="14" width="40" height="40" rx="5" fill="currentColor" opacity="0.25" />
+                          <rect x="144" y="14" width="40" height="40" rx="5" fill="currentColor" opacity="0.25" />
+                          <rect x="188" y="14" width="44" height="40" rx="5" fill="currentColor" opacity="0.25" />
+                          <rect x="56" y="62" width="176" height="70" rx="5" fill="currentColor" opacity="0.15" />
+                          <polyline points="64,118 84,98 104,108 124,82 144,92 164,72 184,86 204,68 224,78" stroke="currentColor" strokeWidth="2" fill="none" opacity="0.6" />
+                        </svg>
+                      ),
+                    },
+                    {
+                      title: 'Mobile Apps',
+                      sub: 'Expo · iOS · Android',
+                      tag: 'mobile',
+                      gradient: 'from-pink-500 to-amber-500',
+                      mockup: (
+                        <svg viewBox="0 0 240 140" className="w-full h-full">
+                          <rect x="0" y="0" width="240" height="140" rx="8" fill="currentColor" opacity="0.05" />
+                          <rect x="84" y="8" width="72" height="124" rx="10" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="1.5" strokeOpacity="0.3" />
+                          <rect x="108" y="13" width="24" height="3" rx="1.5" fill="currentColor" opacity="0.5" />
+                          <rect x="92" y="24" width="56" height="22" rx="4" fill="currentColor" opacity="0.3" />
+                          <rect x="92" y="52" width="56" height="6" rx="3" fill="currentColor" opacity="0.5" />
+                          <rect x="92" y="62" width="36" height="4" rx="2" fill="currentColor" opacity="0.3" />
+                          <rect x="92" y="74" width="26" height="26" rx="4" fill="currentColor" opacity="0.25" />
+                          <rect x="122" y="74" width="26" height="26" rx="4" fill="currentColor" opacity="0.25" />
+                          <rect x="92" y="106" width="56" height="20" rx="4" fill="currentColor" opacity="0.4" />
+                          <circle cx="40" cy="36" r="4" fill="currentColor" opacity="0.4" />
+                          <circle cx="40" cy="56" r="4" fill="currentColor" opacity="0.3" />
+                          <circle cx="40" cy="76" r="4" fill="currentColor" opacity="0.3" />
+                          <circle cx="200" cy="36" r="4" fill="currentColor" opacity="0.4" />
+                          <circle cx="200" cy="56" r="4" fill="currentColor" opacity="0.3" />
+                          <circle cx="200" cy="76" r="4" fill="currentColor" opacity="0.3" />
+                        </svg>
+                      ),
+                    },
+                    {
+                      title: 'More coming',
+                      sub: 'Python · FastAPI · Streamlit',
+                      tag: 'soon',
+                      gradient: 'from-emerald-500 to-cyan-500',
+                      mockup: (
+                        <svg viewBox="0 0 240 140" className="w-full h-full">
+                          <rect x="0" y="0" width="240" height="140" rx="8" fill="currentColor" opacity="0.05" />
+                          <g transform="translate(120 70)">
+                            {Array.from({ length: 12 }).map((_, i) => (
+                              <rect
+                                key={i}
+                                x="-2"
+                                y="-32"
+                                width="4"
+                                height={i % 3 === 0 ? 16 : 10}
+                                rx="2"
+                                fill="currentColor"
+                                opacity={0.15 + (i % 4) * 0.1}
+                                transform={`rotate(${i * 30})`}
+                              />
+                            ))}
+                          </g>
+                          <text x="120" y="120" textAnchor="middle" fill="currentColor" opacity="0.5" fontSize="10" fontWeight="600">COMING SOON</text>
+                        </svg>
+                      ),
+                    },
+                  ].map((card) => (
+                    <div
+                      key={card.title}
+                      className={cn(
+                        "group relative rounded-3xl border overflow-hidden transition-all duration-300 hover:scale-[1.02]",
+                        isDark
+                          ? "bg-slate-900/60 border-white/10 hover:border-white/20"
+                          : "bg-white/80 border-slate-200 hover:border-slate-300 shadow-sm hover:shadow-lg"
+                      )}
+                    >
+                      {/* gradient accent bar */}
+                      <div className={cn("h-1 bg-gradient-to-r", card.gradient)} />
+                      <div className="p-5">
+                        <h3 className={cn(
+                          "text-lg font-bold mb-1",
+                          isDark ? "text-white" : "text-slate-900"
+                        )}>
+                          {card.title}
+                        </h3>
+                        <p className={cn(
+                          "text-xs mb-4",
+                          isDark ? "text-slate-400" : "text-slate-500"
+                        )}>
+                          {card.sub}
+                        </p>
+                        <div className={cn(
+                          "aspect-[12/7] rounded-xl overflow-hidden",
+                          isDark ? "bg-white/5 text-white" : "bg-slate-100 text-slate-700"
+                        )}>
+                          {card.mockup}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            {/* How it works — 3 steps with bold numbered badges, kitchen
+                language to lean into the brand. */}
+            <section className="px-6 py-20">
+              <div className="max-w-5xl mx-auto">
+                <div className="text-center mb-14">
+                  <p className={cn(
+                    "text-xs uppercase tracking-[0.25em] mb-3 font-semibold",
+                    isDark ? "text-violet-300/80" : "text-violet-600/80"
+                  )}>
+                    How it works
+                  </p>
+                  <h2 className={cn(
+                    "text-3xl md:text-5xl font-bold tracking-tight",
+                    isDark ? "text-white" : "text-slate-900"
+                  )}>
+                    Prompt to live app in
+                    <span
+                      className={cn(
+                        "italic font-normal ml-3 bg-clip-text text-transparent",
+                        isDark
+                          ? "bg-gradient-to-r from-amber-200 to-pink-300"
+                          : "bg-gradient-to-r from-orange-500 to-pink-500"
+                      )}
+                      style={{ fontFamily: 'var(--font-playfair), Georgia, serif' }}
+                    >
+                      three steps.
+                    </span>
+                  </h2>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {[
+                    { num: '01', title: 'Describe', body: 'Tell Webstew what you want. Plain English. As specific or vague as you like.' },
+                    { num: '02', title: 'Generate', body: 'AI writes real production code — Tailwind, TypeScript, React, Expo — in under a minute.' },
+                    { num: '03', title: 'Ship', body: 'Preview in the workspace, refine with chat, export the source, deploy anywhere.' },
+                  ].map((step) => (
+                    <div
+                      key={step.num}
+                      className={cn(
+                        "rounded-3xl border p-6 transition-colors",
+                        isDark
+                          ? "bg-slate-900/40 border-white/10 hover:border-white/20"
+                          : "bg-white/80 border-slate-200 hover:border-slate-300"
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "text-4xl font-bold italic mb-5 bg-clip-text text-transparent inline-block",
+                          isDark
+                            ? "bg-gradient-to-br from-amber-200 to-pink-300"
+                            : "bg-gradient-to-br from-orange-500 to-pink-500"
+                        )}
+                        style={{ fontFamily: 'var(--font-playfair), Georgia, serif' }}
+                      >
+                        {step.num}
+                      </div>
+                      <h3 className={cn(
+                        "text-xl font-bold mb-2",
+                        isDark ? "text-white" : "text-slate-900"
+                      )}>
+                        {step.title}
+                      </h3>
+                      <p className={cn(
+                        "text-sm leading-relaxed",
+                        isDark ? "text-slate-400" : "text-slate-600"
+                      )}>
+                        {step.body}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+
             {/* Tech stack — bigger, more prominent than before. Inline SVG so
                 no CDN dependency and no alt-text-on-fail duplicate. Real
                 section feel: visible heading, generous spacing, larger logos. */}
@@ -639,6 +1002,79 @@ export default function HomePage() {
               </div>
             </motion.section>
 
+            {/* Closing CTA — full-bleed gradient panel, single confident
+                button. The "second hero" pattern Lovable / Vercel use to
+                close out the marketing flow. */}
+            <section className="px-6 pb-20 pt-4">
+              <div
+                className={cn(
+                  "max-w-5xl mx-auto rounded-3xl overflow-hidden relative border",
+                  isDark ? "border-white/10" : "border-white/40"
+                )}
+              >
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background: isDark
+                      ? 'linear-gradient(135deg, #1e1b4b 0%, #4c1d95 30%, #831843 70%, #7c2d12 100%)'
+                      : 'linear-gradient(135deg, #fed7aa 0%, #fbcfe8 30%, #ddd6fe 70%, #fef3c7 100%)',
+                  }}
+                />
+                {/* Soft blob accents inside the panel */}
+                <div className="absolute inset-0 overflow-hidden">
+                  <div
+                    className="absolute -top-20 -left-20 w-80 h-80 rounded-full"
+                    style={{
+                      filter: 'blur(80px)',
+                      background: isDark
+                        ? 'radial-gradient(circle, rgba(244,114,182,0.4), transparent 70%)'
+                        : 'radial-gradient(circle, rgba(251,146,60,0.5), transparent 70%)',
+                    }}
+                  />
+                  <div
+                    className="absolute -bottom-20 -right-20 w-80 h-80 rounded-full"
+                    style={{
+                      filter: 'blur(80px)',
+                      background: isDark
+                        ? 'radial-gradient(circle, rgba(167,139,250,0.4), transparent 70%)'
+                        : 'radial-gradient(circle, rgba(168,85,247,0.4), transparent 70%)',
+                    }}
+                  />
+                </div>
+                <div className="relative px-8 md:px-16 py-16 md:py-20 text-center">
+                  <h2 className={cn(
+                    "text-4xl md:text-6xl font-bold tracking-tight mb-4",
+                    isDark ? "text-white" : "text-slate-900"
+                  )}>
+                    Hungry to ship?
+                    <span
+                      className="block italic font-normal mt-1"
+                      style={{ fontFamily: 'var(--font-playfair), Georgia, serif' }}
+                    >
+                      Pull up a chair.
+                    </span>
+                  </h2>
+                  <p className={cn(
+                    "text-base md:text-lg mb-9 max-w-xl mx-auto",
+                    isDark ? "text-white/80" : "text-slate-800/80"
+                  )}>
+                    Free to try. No credit card. Your first build is on us.
+                  </p>
+                  <a
+                    href={sessionStatus === 'authenticated' ? '/workspace' : '/signup?next=%2Fworkspace'}
+                    className={cn(
+                      "inline-flex items-center gap-2 px-8 py-4 rounded-2xl text-base font-semibold transition-all duration-300 hover:scale-[1.04] shadow-xl",
+                      isDark
+                        ? "bg-white text-slate-900 hover:bg-slate-100 shadow-pink-500/20"
+                        : "bg-slate-900 text-white hover:bg-slate-800 shadow-slate-900/30"
+                    )}
+                  >
+                    {sessionStatus === 'authenticated' ? 'Open Workspace' : 'Start cooking, free'}
+                    <ArrowRight className="w-5 h-5" />
+                  </a>
+                </div>
+              </div>
+            </section>
 
             {/* Footer */}
             <footer className={cn(
