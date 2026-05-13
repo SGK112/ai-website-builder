@@ -159,6 +159,7 @@ import { ContentPanel } from '@/components/builder/ContentPanel'
 import { CustomDomainCard } from '@/components/builder/CustomDomainCard'
 import { SiteGraderModal } from '@/components/builder/SiteGraderModal'
 import { stylePresets, StylePreset, generatePresetStyles, applyThemeToHtml, generateAllThemesStyles } from '@/lib/builder/style-presets'
+import { getTemplateById } from '@/lib/templates'
 import { componentLibrary, ComponentSection, assemblePage } from '@/lib/builder/component-library'
 import { imageService, getUnsplashImage, enhanceImagesInHtml } from '@/lib/builder/image-service'
 import { ChefLoader } from '@/components/loading'
@@ -2050,11 +2051,31 @@ function WorkspaceContent() {
 
     const promptFromUrl = searchParams.get('prompt')
     const projectId = searchParams.get('project')
+    const templateId = searchParams.get('templateId')
 
     if (projectId) {
       const project = projects.find(p => p.id === projectId)
       if (project) {
         loadProject(project)
+      }
+      setHasInitialized(true)
+    } else if (templateId) {
+      // Pre-built template path — skip LLM entirely. User clicked a template
+      // tile so they want a known-good starter, not a fresh AI generation.
+      // They can refine via the chat panel after.
+      const tpl = getTemplateById(templateId)
+      if (tpl) {
+        router.replace('/workspace', { scroll: false })
+        try { localStorage.setItem('webstew-onboarding-complete', 'true') } catch {}
+        setHasCompletedOnboarding(true)
+        setHtml(tpl.html)
+        setProjectName(tpl.name)
+        setChatMessages([
+          { role: 'assistant', content: `Loaded the "${tpl.name}" template. ${tpl.description} Type any change you want to make and I'll edit the site directly.` }
+        ])
+        addToast('success', `Template loaded — refine in chat`)
+      } else {
+        addToast('error', `Template "${templateId}" not found`)
       }
       setHasInitialized(true)
     } else if (promptFromUrl) {

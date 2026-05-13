@@ -945,6 +945,80 @@ function isEcommerceRequest(prompt: string): boolean {
   return ecommerceKeywords.some(keyword => lowerPrompt.includes(keyword))
 }
 
+// Industry detection — picks ONE primary industry from the prompt so we can
+// fork the system prompt's section grammar. Without this, every non-ecommerce
+// site gets the same Hero+Features+CTA skeleton regardless of what they
+// actually need (restaurants want menus, photographers want portfolios, etc.).
+// Ecommerce is checked last because it has its own fully-custom system prompt
+// upstream; the rest just augment ENHANCED_SYSTEM_PROMPT with section overrides.
+export type Industry = 'ecommerce' | 'restaurant' | 'portfolio' | 'saas' | 'realtor' | 'blog' | 'generic'
+
+function detectIndustry(prompt: string): Industry {
+  const p = (prompt || '').toLowerCase()
+  // Order matters — most-specific keywords win to avoid false positives
+  // (e.g. "saas for restaurants" should hit saas, not restaurant).
+  if (/\b(saas|b2b|api|sdk|platform|developer tool|enterprise software|software-as-a-service)\b/.test(p)) return 'saas'
+  if (/\b(restaurant|cafe|caf[eé]|coffee shop|bistro|eatery|diner|menu|dining|chef|cuisine|brunch)\b/.test(p)) return 'restaurant'
+  if (/\b(portfolio|photographer|videographer|designer's site|creative freelance|showcase my work|case studies)\b/.test(p)) return 'portfolio'
+  if (/\b(real estate|realtor|broker|listings|homes for sale|property listings|mls)\b/.test(p)) return 'realtor'
+  if (/\b(blog|publication|newsletter|magazine|editorial|articles|writing portfolio)\b/.test(p)) return 'blog'
+  if (isEcommerceRequest(prompt)) return 'ecommerce'
+  return 'generic'
+}
+
+// Section-grammar override appended to ENHANCED_SYSTEM_PROMPT when industry is
+// detected. We don't replace the base prompt — the quality/style/image/SEO
+// guidance still applies. We just override the "3+ distinct content sections"
+// list with industry-appropriate sections so output stops being interchangeable.
+const INDUSTRY_SECTION_OVERRIDES: Partial<Record<Industry, string>> = {
+  restaurant: `## RESTAURANT-SPECIFIC SECTION GRAMMAR (overrides the generic "features grid + testimonials + pricing" pattern)
+This is a restaurant / cafe / dining site. The sections must reflect what a real restaurant patron looks for, not generic SaaS sections. DO NOT include "features grid", "pricing tiers", or "logo cloud" sections. Instead:
+
+REQUIRED SECTIONS (in this order):
+1. Hero — full-bleed appetizing food photo or warm interior shot, restaurant name in serif/display type, location/neighborhood, hours-today indicator, "Reserve a table" primary CTA and "View menu" secondary CTA.
+2. About / Story — chef's bio or restaurant origin story, philosophy, ~2-3 paragraphs with one supporting image.
+3. Menu — REAL menu sections by category (Starters, Mains, Desserts, Drinks) with item names, 1-line descriptions, and prices. Use a 2-column layout on desktop. Include "Vegetarian", "GF", "Spicy" icon badges where appropriate. AT LEAST 8 menu items.
+4. Gallery — 6-9 image masonry grid of food/interior/staff (use picsum.photos seeds: food, interior, plates).
+5. Reviews / Testimonials — 3-4 quote cards with diner name + star rating.
+6. Reservations — form with name, party size, date, time, special requests. Use proper input types (date, time, number).
+7. Visit Us — hours table (Mon-Sun), full address, phone, map placeholder (use picsum.photos with seed=map for visual), parking notes.
+8. Footer — brand, social, hours condensed, contact.
+
+The Menu section is the soul of a restaurant site — give it real content, real prices, real descriptions. Do not abbreviate it. Vary the categories based on cuisine type (Italian: Antipasti/Primi/Secondi/Dolci; Asian: Small Plates/Mains/Sushi/Sweets; etc.).`,
+
+  saas: `## SAAS / B2B SECTION GRAMMAR (overrides the generic pattern)
+This is a software/B2B product site. The sections must build trust with a technical buyer and convert to free trial / demo. Skip generic "About us" hero. Instead:
+
+REQUIRED SECTIONS (in this order):
+1. Hero — bold value-prop headline (problem you solve, not features), subheadline (one sentence on outcome), dual CTAs ("Start free trial" + "Book demo"), hero visual (product UI screenshot mockup using a placeholder image, or animated illustration block).
+2. Logo Cloud — "Trusted by teams at" + 6-8 logo placeholders in a horizontal row (use picsum.photos seeds for grayscale logo-style images).
+3. Features — alternating left/right layout with 3-4 features: each has a short headline, 2-line explanation, a small UI mockup image, and a "Learn more →" link. NOT a grid of icons — alternating sections give more visual weight.
+4. How It Works — 3-step numbered process (sign up → integrate → ship). Each step has icon, title, 1-line description.
+5. Pricing — 3 tiers (Starter, Pro, Enterprise) in a comparison table. Each tier: name, monthly price, "best for" tagline, feature checkmark list (5-8 items), CTA button. Highlight the middle tier.
+6. Testimonials / Social Proof — 2-3 quote cards from named customers with title + company + headshot (use i.pravatar.cc).
+7. FAQ — accordion with 6-8 common questions (pricing, integrations, security, cancellation, support, free trial).
+8. Final CTA — full-width gradient banner with strong call to action and a single button.
+9. Footer — multi-column with Product / Resources / Company / Legal links + social.
+
+Critical: pricing must be a real comparison table (not 3 cards stacked). Headlines should focus on OUTCOMES (e.g., "Ship features 3x faster"), not feature lists.`,
+
+  portfolio: `## PORTFOLIO / CREATIVE SECTION GRAMMAR (overrides the generic pattern)
+This is a personal portfolio for a designer/photographer/writer/creative. The sections must showcase work, not sell software. Skip "features grid", "pricing", "logo cloud". Instead:
+
+REQUIRED SECTIONS (in this order):
+1. Hero — large name in display type, role/discipline subtitle, brief 1-2 sentence intro, primary CTA "View work" + secondary "Get in touch". Hero visual is a striking self-portrait or signature work piece (use picsum.photos with creative seed).
+2. About — 2-3 paragraph bio, professional photo, list of "Areas of focus" or "Skills" as tags.
+3. Selected Work / Portfolio Grid — 6-9 project tiles in a masonry or 3-column grid. Each tile: large image, project name overlay, category tag (e.g., "Branding", "Web Design", "Photography"). Hover effect: scale + reveal description.
+4. Featured Case Study — one in-depth project: large hero image, client name, year, role, 2-3 paragraph problem/approach/result writeup, 2-4 supporting images.
+5. Press / Clients — "As seen in" or "Selected clients" — horizontal row of 6-10 logo placeholders.
+6. Process — 3-5 step approach (Research → Concept → Design → Refine → Deliver), each with an icon and brief description.
+7. Testimonials — 2-3 client quotes with name + company.
+8. Contact — single-column form (name, email, project type dropdown, budget range, message) with a friendly CTA like "Let's make something good".
+9. Footer — name, social icons (Instagram + Behance + LinkedIn + Dribbble where relevant), copyright.
+
+Tone: confident, sparse, image-heavy. Less text, more visual weight. White space is the design.`,
+}
+
 // Premium E-commerce System Prompt - Uses Luxe template as reference
 const ECOMMERCE_SYSTEM_PROMPT = `You are an elite e-commerce web designer specializing in luxury, high-converting online stores. Generate COMPLETE, PRODUCTION-READY HTML that rivals top brands like Apple, Coach, and Net-a-Porter.
 
@@ -2378,10 +2452,16 @@ Rules:
       }
 
       // Detect if this is an e-commerce request for better prompting
-      const isEcommerce = isEcommerceRequest(prompt || fullUserPrompt)
-      const systemPrompt = isEcommerce ? ECOMMERCE_SYSTEM_PROMPT : SIMPLE_SYSTEM_PROMPT
+      const industry = detectIndustry(prompt || fullUserPrompt)
+      const isEcommerce = industry === 'ecommerce'
+      const industryOverride = INDUSTRY_SECTION_OVERRIDES[industry]
+      const systemPrompt = isEcommerce
+        ? ECOMMERCE_SYSTEM_PROMPT
+        : industryOverride
+          ? `${SIMPLE_SYSTEM_PROMPT}\n\n${industryOverride}`
+          : SIMPLE_SYSTEM_PROMPT
 
-      console.log(`[Generate] Calling generateWithFreeProvider (${isEcommerce ? 'e-commerce' : 'standard'} mode)...`)
+      console.log(`[Generate] Calling generateWithFreeProvider (industry: ${industry})`)
 
       // Use e-commerce prompt for stores, simplified for other sites
       const result = await generateWithFreeProvider(
@@ -2498,10 +2578,16 @@ Rules:
                         claudeModel.includes('opus') ? 32000 : 16384
 
       // Detect if this is an e-commerce request for better prompting
-      const isEcommerce = isEcommerceRequest(prompt || fullUserPrompt)
-      const claudeSystemPrompt = isEcommerce ? ECOMMERCE_SYSTEM_PROMPT : ENHANCED_SYSTEM_PROMPT
+      const industry = detectIndustry(prompt || fullUserPrompt)
+      const isEcommerce = industry === 'ecommerce'
+      const industryOverride = INDUSTRY_SECTION_OVERRIDES[industry]
+      const claudeSystemPrompt = isEcommerce
+        ? ECOMMERCE_SYSTEM_PROMPT
+        : industryOverride
+          ? `${ENHANCED_SYSTEM_PROMPT}\n\n${industryOverride}`
+          : ENHANCED_SYSTEM_PROMPT
 
-      console.log(`[Generate] Using Claude ${claudeModel} (${isEcommerce ? 'e-commerce' : 'standard'} mode)`)
+      console.log(`[Generate] Using Claude ${claudeModel} (industry: ${industry})`)
 
       const encoder = new TextEncoder()
       let fullHtml = ''
@@ -2717,10 +2803,16 @@ Rules:
     const maxTokens = getMaxTokens(selectedModel)
 
     // Detect if this is an e-commerce request for better prompting
-    const isEcommerce = isEcommerceRequest(prompt || fullUserPrompt)
-    const openaiSystemPrompt = isEcommerce ? ECOMMERCE_SYSTEM_PROMPT : ENHANCED_SYSTEM_PROMPT
+    const industry = detectIndustry(prompt || fullUserPrompt)
+    const isEcommerce = industry === 'ecommerce'
+    const industryOverride = INDUSTRY_SECTION_OVERRIDES[industry]
+    const openaiSystemPrompt = isEcommerce
+      ? ECOMMERCE_SYSTEM_PROMPT
+      : industryOverride
+        ? `${ENHANCED_SYSTEM_PROMPT}\n\n${industryOverride}`
+        : ENHANCED_SYSTEM_PROMPT
 
-    console.log(`[Generate] Using OpenAI ${selectedModel} (${isEcommerce ? 'e-commerce' : 'standard'} mode, max_tokens: ${maxTokens})`)
+    console.log(`[Generate] Using OpenAI ${selectedModel} (industry: ${industry}, max_tokens: ${maxTokens})`)
 
     const stream = await openai.chat.completions.create({
       model: selectedModel,
