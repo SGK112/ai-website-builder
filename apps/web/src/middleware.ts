@@ -21,9 +21,10 @@ const GATED_API_PREFIXES = [
   '/api/ai/video',
   '/api/ai/chat',
   '/api/ai/free',
-  // Tool endpoints — scraping, grading. Cheap but DoS-friendly if exposed.
+  // Tool endpoints — scraping. /api/tools/grade is intentionally open
+  // (anon-accessible) so it can power the landing-page lead-gen widget.
+  // The route handler enforces its own IP rate limit.
   '/api/tools/site-reference',
-  '/api/tools/grade',
   // CMS — every read/write goes through the authenticated owner check inside
   // the route handlers, but we gate at the edge too so anonymous traffic
   // can't probe the endpoint shape.

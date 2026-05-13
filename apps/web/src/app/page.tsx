@@ -27,6 +27,7 @@ import { useTheme } from '@/context/ThemeContext'
 import { cn } from '@/lib/utils'
 import { TECH_ICONS } from '@/lib/tech-icons'
 import { DEMO_SITES } from '@/lib/demo-sites'
+import { SiteGraderWidget } from '@/components/landing/SiteGraderWidget'
 
 const examplePrompts = [
   "A modern SaaS landing page for a project management tool",
@@ -1935,6 +1936,11 @@ export default function HomePage() {
                 </div>
               </div>
             </motion.section>
+
+            {/* Lead-gen: grade their existing site. Free, no signup. Result
+                inline + "Rebuild with Webstew" CTA drives signup with prompt
+                pre-filled to rebuild a better version of their domain. */}
+            <SiteGraderWidget isDark={isDark} />
 
             {/* Tech stack — bigger, more prominent than before. Inline SVG so
                 no CDN dependency and no alt-text-on-fail duplicate. Real

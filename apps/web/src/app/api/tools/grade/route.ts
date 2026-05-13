@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { gradeWebsite, gradeHtml } from '@/lib/grader'
+import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 25
@@ -19,11 +20,21 @@ export const maxDuration = 25
 const MAX_HTML_CHARS = 1_500_000 // ~1.5 MB — well above realistic page size
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  const hasBearer = (req.headers.get('authorization') || '').startsWith('Bearer ')
-  if (!session?.user?.id && !hasBearer) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  // Anon-accessible so the landing-page grader widget can drive lead-gen.
+  // Per-IP rate limit prevents abuse — grading a URL is cheap (one HTTP
+  // fetch + HTML parsing) but at scale could be used as a free scraping
+  // proxy. 20/min/IP matches our other AI-cost endpoints.
+  try {
+    checkApiRateLimit(req, 'aiGeneration')
+  } catch (error) {
+    const rateLimitResponse = handleRateLimitError(error)
+    if (rateLimitResponse) return rateLimitResponse
+    throw error
   }
+
+  // Session is OPTIONAL — only used for logging / future per-user history.
+  // Anon callers get the same grader output as signed-in callers.
+  await getServerSession(authOptions).catch(() => null)
 
   let body: { url?: string; html?: string; contextUrl?: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 }) }
