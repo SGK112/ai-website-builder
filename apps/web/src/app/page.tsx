@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils'
 import { TECH_ICONS } from '@/lib/tech-icons'
 import { DEMO_SITES } from '@/lib/demo-sites'
 import { SiteGraderWidget } from '@/components/landing/SiteGraderWidget'
+import { VoiceBuilderPreview } from '@/components/landing/VoiceBuilderPreview'
 
 const examplePrompts = [
   "A modern SaaS landing page for a project management tool",
@@ -1941,6 +1942,11 @@ export default function HomePage() {
                 inline + "Rebuild with Webstew" CTA drives signup with prompt
                 pre-filled to rebuild a better version of their domain. */}
             <SiteGraderWidget isDark={isDark} />
+
+            {/* Lead-gen: voice builder waitlist. "Coming soon" framing for
+                the Aria bridge integration. Email capture posts to
+                /api/waitlist (feature: 'voice-builder'). */}
+            <VoiceBuilderPreview isDark={isDark} />
 
             {/* Tech stack — bigger, more prominent than before. Inline SVG so
                 no CDN dependency and no alt-text-on-fail duplicate. Real

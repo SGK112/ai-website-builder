@@ -2283,21 +2283,23 @@ export async function POST(req: NextRequest) {
     // entirely — power users pay their own LLM bill so they can iterate freely.
     // Logged-in users skip this and are governed by plan limits below.
     const ANON_COOKIE = 'wsanon'
-    const ANON_LIMIT = 1
-    let isAnonFirstGen = false
+    const ANON_LIMIT = 3
+    let anonGenCount = 0
+    let isAnonPass = false
     if (!session?.user?.id && !hasOwnKey) {
-      const prev = parseInt(req.cookies.get(ANON_COOKIE)?.value || '0', 10) || 0
-      if (prev >= ANON_LIMIT) {
+      anonGenCount = parseInt(req.cookies.get(ANON_COOKIE)?.value || '0', 10) || 0
+      if (anonGenCount >= ANON_LIMIT) {
         return NextResponse.json(
           {
-            error: "You've used your free generation on this browser. Sign up free to keep building, or paste your own API key.",
+            error: `You've used your ${ANON_LIMIT} free generations on this browser. Sign up free to keep building (100 credits/month, no card) — or paste your own API key for unlimited.`,
             limit: ANON_LIMIT,
+            used: anonGenCount,
             signupWall: true,
           },
           { status: 402 }
         )
       }
-      isAnonFirstGen = true
+      isAnonPass = true
     }
 
     const streamHeaders: Record<string, string> = {
@@ -2305,9 +2307,11 @@ export async function POST(req: NextRequest) {
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
     }
-    if (isAnonFirstGen) {
-      // Mark the cookie as used so the next anon hit walls to signup.
-      streamHeaders['Set-Cookie'] = `${ANON_COOKIE}=1; Path=/; Max-Age=${30 * 24 * 60 * 60}; HttpOnly; SameSite=Lax`
+    if (isAnonPass) {
+      // Increment the anon-gen counter. After ANON_LIMIT generations, the
+      // next request returns 402 above and walls them to signup.
+      const next = anonGenCount + 1
+      streamHeaders['Set-Cookie'] = `${ANON_COOKIE}=${next}; Path=/; Max-Age=${30 * 24 * 60 * 60}; HttpOnly; SameSite=Lax`
     }
 
     // outputMode: 'static' (default) | 'nextjs' | 'react'
