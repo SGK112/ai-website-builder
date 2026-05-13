@@ -1913,7 +1913,10 @@ export default function HomePage() {
                   The ingredients to
                   <span
                     className={cn(
-                      "italic font-normal ml-3 bg-clip-text text-transparent inline-block pb-1",
+                      // pb-3 pr-2: italic Playfair "g" descender + right-lean
+                      // + trailing period all need room inside the bg-clip box.
+                      // pb-1 was insufficient — the descender was clipped.
+                      "italic font-normal ml-3 bg-clip-text text-transparent inline-block pb-3 pr-2",
                       isDark
                         ? "bg-gradient-to-r from-amber-200 to-pink-300"
                         : "bg-gradient-to-r from-orange-500 to-pink-500"
@@ -2031,7 +2034,12 @@ export default function HomePage() {
                   Ready to
                   <span
                     className={cn(
-                      "italic font-normal ml-3 bg-clip-text text-transparent inline-block pb-1",
+                      // pb-3 pr-2: italic glyphs lean RIGHT and the "?" curl
+                      // descends BELOW the baseline. bg-clip-text clips paint
+                      // to the box edge, so without horizontal + vertical
+                      // padding the right-lean and the descender get
+                      // clipped to nothing. Don't go below these values.
+                      "italic font-normal ml-3 bg-clip-text text-transparent inline-block pb-3 pr-2",
                       isDark
                         ? "bg-gradient-to-br from-amber-200 to-pink-300"
                         : "bg-gradient-to-br from-orange-500 to-pink-500"
