@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -19,6 +19,7 @@ import {
   Image as ImageIcon,
   MessageSquare,
   Loader2,
+  Settings,
 } from 'lucide-react'
 import { SUBSCRIPTION_PLANS, CREDIT_PACKAGES } from '@/lib/stripe-plans'
 
@@ -30,7 +31,11 @@ const PLAN_META: Record<string, { icon: typeof Zap; color: string; description: 
   enterprise: { icon: Gem, color: 'from-rose-500 to-red-500', description: 'For agencies and large orgs' },
 }
 
-const PLANS = SUBSCRIPTION_PLANS.map((p) => {
+// Enterprise stays in SUBSCRIPTION_PLANS (for existing subscribers + back-
+// channel sales deals via direct checkout URL), but it's filtered out of the
+// self-serve grid below — $399/mo is sales-led, not click-to-subscribe. The
+// "Contact sales" card at the end is the public CTA.
+const PLANS = SUBSCRIPTION_PLANS.filter((p) => p.id !== 'enterprise').map((p) => {
   const meta = PLAN_META[p.id] ?? PLAN_META.pro
   return {
     id: p.id,
@@ -57,8 +62,50 @@ export default function UpgradePage() {
   const router = useRouter()
   const [loading, setLoading] = useState<string | null>(null)
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly')
-
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [currentPlan, setCurrentPlan] = useState<string | null>(null)
+  const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null)
+  const [monthCreditsUsed, setMonthCreditsUsed] = useState<number | null>(null)
+  const [portalLoading, setPortalLoading] = useState(false)
+
+  // Pull the user's actual plan + credit usage so we can label the current
+  // plan card and decide whether to show "Manage subscription".
+  useEffect(() => {
+    if (!session?.user) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const r = await fetch('/api/usage')
+        if (!r.ok) return
+        const d = await r.json()
+        if (cancelled) return
+        setCurrentPlan(d?.user?.plan ?? 'free')
+        setCreditsRemaining(d?.user?.credits ?? 0)
+        setMonthCreditsUsed(d?.month?.credits ?? 0)
+      } catch {
+        /* non-fatal — page still works without the badge */
+      }
+    })()
+    return () => { cancelled = true }
+  }, [session?.user])
+
+  const openBillingPortal = async () => {
+    setErrorMsg(null)
+    setPortalLoading(true)
+    try {
+      const r = await fetch('/api/billing/portal', { method: 'POST' })
+      const d = await r.json()
+      if (d.url) {
+        window.location.href = d.url
+        return
+      }
+      setErrorMsg(d.error || `Portal failed (HTTP ${r.status})`)
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : 'Network error')
+    } finally {
+      setPortalLoading(false)
+    }
+  }
 
   // Unified handler for both subscription plan and one-time credit pack purchases.
   // mode='plan' sends planId; mode='credits' sends packageId.
@@ -138,6 +185,38 @@ export default function UpgradePage() {
             Choose the perfect plan for your needs. Upgrade anytime, cancel anytime.
           </p>
 
+          {/* Current plan / credit status — only when signed in */}
+          {session?.user && currentPlan && (
+            <div className="max-w-xl mx-auto mb-6 px-4 py-3 rounded-xl bg-white/[0.03] border border-white/10 flex flex-wrap items-center justify-center gap-3 text-sm">
+              <span className="text-slate-400">Current plan:</span>
+              <span className="text-white font-medium capitalize">{currentPlan}</span>
+              {creditsRemaining !== null && (
+                <>
+                  <span className="text-slate-600">·</span>
+                  <span className="text-slate-400">
+                    {creditsRemaining.toLocaleString()} credits
+                    {monthCreditsUsed !== null && monthCreditsUsed > 0 && (
+                      <span className="text-slate-500"> ({monthCreditsUsed} used this month)</span>
+                    )}
+                  </span>
+                </>
+              )}
+              {currentPlan !== 'free' && (
+                <>
+                  <span className="text-slate-600">·</span>
+                  <button
+                    onClick={openBillingPortal}
+                    disabled={portalLoading}
+                    className="inline-flex items-center gap-1.5 text-violet-400 hover:text-violet-300 disabled:opacity-50"
+                  >
+                    {portalLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Settings className="w-3.5 h-3.5" />}
+                    Manage subscription
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Billing Toggle */}
           <div className="inline-flex items-center gap-3 p-1 bg-white/5 rounded-xl border border-white/10">
             <button
@@ -169,11 +248,11 @@ export default function UpgradePage() {
 
       {/* Pricing Cards */}
       <section className="pb-16 px-6">
-        <div className="max-w-7xl mx-auto grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="max-w-6xl mx-auto grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {PLANS.map((plan, index) => {
             const Icon = plan.icon
             const price = billingPeriod === 'annual' ? Math.floor(plan.annualPrice / 12) : plan.monthlyPrice
-            const isCurrentPlan = session?.user && plan.id === 'free' // TODO: Check actual plan
+            const isCurrentPlan = !!session?.user && currentPlan === plan.id
 
             return (
               <motion.div
@@ -238,6 +317,32 @@ export default function UpgradePage() {
               </motion.div>
             )
           })}
+        </div>
+
+        {/* Contact sales row — Enterprise tier is sales-led, not self-serve.
+            Mailto keeps it dependency-free; swap to a real form whenever you
+            want lead capture. */}
+        <div className="max-w-6xl mx-auto mt-6">
+          <div className="p-6 rounded-2xl border border-white/10 bg-gradient-to-r from-violet-500/5 via-fuchsia-500/5 to-amber-500/5 flex flex-col md:flex-row items-start md:items-center gap-4 justify-between">
+            <div className="flex items-start gap-3">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center shrink-0">
+                <Gem className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-white">Need more? Enterprise &amp; custom plans</h3>
+                <p className="text-sm text-slate-400 mt-0.5">
+                  10,000+ credits/month, SSO/SAML, dedicated support, white-label, custom SLA.
+                </p>
+              </div>
+            </div>
+            <a
+              href="mailto:sales@webstew.ai?subject=Webstew%20Enterprise%20inquiry"
+              className="shrink-0 inline-flex items-center gap-2 px-5 py-2.5 bg-white text-slate-900 hover:bg-slate-100 rounded-xl font-medium transition"
+            >
+              Contact sales
+              <ArrowLeft className="w-4 h-4 rotate-180" />
+            </a>
+          </div>
         </div>
       </section>
 

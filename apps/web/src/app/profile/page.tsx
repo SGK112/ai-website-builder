@@ -43,16 +43,7 @@ import { useTheme } from '@/context/ThemeContext'
 import { StarryNight, SunriseBackground } from '@/components/landing/BackgroundEffects'
 import { WebStewNav } from '@/components/shared/WebStewNav'
 import { SUBSCRIPTION_PLANS } from '@/lib/stripe-plans'
-
-interface PricingPlan {
-  id: string
-  name: string
-  price: number
-  interval: 'month' | 'year'
-  features: string[]
-  popular?: boolean
-  current?: boolean
-}
+import { DeployCredentialsCard } from '@/components/profile/DeployCredentialsCard'
 
 interface UsageStats {
   buildsUsed: number
@@ -70,15 +61,6 @@ interface BillingHistory {
   status: 'paid' | 'pending' | 'failed'
   invoice: string
 }
-
-const plans: PricingPlan[] = SUBSCRIPTION_PLANS.map((p) => ({
-  id: p.id,
-  name: p.name,
-  price: p.monthlyPrice / 100,
-  interval: 'month' as const,
-  features: p.features,
-  popular: p.popular,
-}))
 
 // Appearance Settings Component
 function AppearanceSettings() {
@@ -210,18 +192,42 @@ export default function ProfilePage() {
   const router = useRouter()
   const { data: session, status } = useSession()
   const [activeTab, setActiveTab] = useState<'profile' | 'billing' | 'usage' | 'settings'>('profile')
-  const [billingInterval, setBillingInterval] = useState<'month' | 'year'>('month')
   const [credits, setCredits] = useState<number | null>(null)
+  const [actualPlan, setActualPlan] = useState<string>('free')
+  const [portalLoading, setPortalLoading] = useState(false)
+  const [portalError, setPortalError] = useState<string | null>(null)
 
-  // Fetch credits on mount
+  // Fetch credits + real plan on mount. /api/usage is the canonical source
+  // for user.plan + credits — same endpoint /upgrade uses.
   useEffect(() => {
     if (session?.user) {
-      fetch('/api/credits')
+      fetch('/api/usage')
         .then(res => res.json())
-        .then(data => setCredits(data.credits))
+        .then(data => {
+          setCredits(data?.user?.credits ?? 0)
+          setActualPlan(data?.user?.plan ?? 'free')
+        })
         .catch(() => setCredits(0))
     }
   }, [session?.user])
+
+  const openBillingPortal = async () => {
+    setPortalError(null)
+    setPortalLoading(true)
+    try {
+      const r = await fetch('/api/billing/portal', { method: 'POST' })
+      const d = await r.json()
+      if (d.url) {
+        window.location.href = d.url
+        return
+      }
+      setPortalError(d.error || `Portal failed (HTTP ${r.status})`)
+    } catch (e) {
+      setPortalError(e instanceof Error ? e.message : 'Network error')
+    } finally {
+      setPortalLoading(false)
+    }
+  }
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -239,14 +245,19 @@ export default function ProfilePage() {
     )
   }
 
-  // User data from session
+  // User data from session — plan resolved against /api/usage so the Current
+  // Plan card + Upgrade button states match what the rest of the app sees.
   const user = {
     name: session?.user?.name || 'User',
     email: session?.user?.email || '',
     avatar: session?.user?.image || null,
-    plan: 'free',
+    plan: actualPlan,
     joinedDate: new Date().toISOString().split('T')[0],
   }
+  const currentPlanMeta = SUBSCRIPTION_PLANS.find((p) => p.id === actualPlan)
+  const currentPlanPriceLabel = !currentPlanMeta || currentPlanMeta.monthlyPrice === 0
+    ? 'Free forever'
+    : `$${(currentPlanMeta.monthlyPrice / 100).toFixed(0)}/month`
 
   // Usage stats from credits
   const [usage] = useState<UsageStats>({
@@ -354,17 +365,17 @@ export default function ProfilePage() {
                 <p className={cn('text-xs mb-3', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
                   Unlock unlimited builds and premium features.
                 </p>
-                <button
-                  onClick={() => setActiveTab('billing')}
+                <Link
+                  href="/upgrade"
                   className={cn(
-                    'w-full py-2 rounded-lg text-xs font-medium transition-all',
+                    'block w-full py-2 rounded-lg text-xs font-medium text-center transition-all',
                     isDark
                       ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:shadow-lg hover:shadow-violet-500/25'
                       : 'bg-gradient-to-r from-orange-400 to-pink-500 text-white hover:shadow-lg hover:shadow-orange-500/25'
                   )}
                 >
                   View Plans
-                </button>
+                </Link>
               </div>
             )}
           </aside>
@@ -461,7 +472,10 @@ export default function ProfilePage() {
                   exit={{ opacity: 0, y: -20 }}
                   className="space-y-6"
                 >
-                  {/* Current Plan */}
+                  {/* Current Plan — single source of truth lives on /upgrade.
+                      This card just summarizes + deep-links there for any
+                      change. Stripe Billing Portal handles cancel / swap
+                      card / view invoices for paid users. */}
                   <div className={cn(
                     'p-6 rounded-2xl border',
                     isDark ? 'bg-white/5 border-white/10' : 'bg-white border-zinc-200 shadow-sm'
@@ -475,117 +489,59 @@ export default function ProfilePage() {
                         Active
                       </span>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-wrap items-center gap-4 mb-5">
                       <div className={cn(
-                        'w-12 h-12 rounded-xl flex items-center justify-center',
+                        'w-12 h-12 rounded-xl flex items-center justify-center shrink-0',
                         isDark ? 'bg-violet-500/20' : 'bg-orange-100'
                       )}>
                         <Package className={isDark ? 'w-6 h-6 text-violet-400' : 'w-6 h-6 text-orange-500'} />
                       </div>
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <p className="font-semibold">{user.plan.charAt(0).toUpperCase() + user.plan.slice(1)} Plan</p>
                         <p className={cn('text-sm', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
-                          {user.plan === 'free' ? 'Free forever' : '$19/month'}
+                          {currentPlanPriceLabel}
+                          {credits !== null && (
+                            <span className={isDark ? 'text-zinc-500' : 'text-zinc-500'}>
+                              {' · '}{credits.toLocaleString()} credits remaining
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>
-                  </div>
-
-                  {/* Pricing Toggle */}
-                  <div className="flex justify-center">
-                    <div className={cn(
-                      'inline-flex p-1 rounded-xl',
-                      isDark ? 'bg-white/5' : 'bg-zinc-100'
-                    )}>
-                      <button
-                        onClick={() => setBillingInterval('month')}
+                    <div className="flex flex-wrap gap-2">
+                      <Link
+                        href="/upgrade"
                         className={cn(
-                          'px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                          billingInterval === 'month'
-                            ? isDark ? 'bg-white/10 text-white' : 'bg-white text-zinc-900 shadow-sm'
-                            : isDark ? 'text-zinc-400' : 'text-zinc-600'
+                          'inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition',
+                          isDark
+                            ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:shadow-lg hover:shadow-violet-500/25'
+                            : 'bg-gradient-to-r from-orange-400 to-pink-500 text-white hover:shadow-lg hover:shadow-orange-500/25'
                         )}
                       >
-                        Monthly
-                      </button>
-                      <button
-                        onClick={() => setBillingInterval('year')}
-                        className={cn(
-                          'px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2',
-                          billingInterval === 'year'
-                            ? isDark ? 'bg-white/10 text-white' : 'bg-white text-zinc-900 shadow-sm'
-                            : isDark ? 'text-zinc-400' : 'text-zinc-600'
-                        )}
-                      >
-                        Yearly
-                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400">
-                          Save 20%
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Pricing Cards */}
-                  <div className="grid md:grid-cols-3 gap-4">
-                    {plans.map(plan => (
-                      <div
-                        key={plan.id}
-                        className={cn(
-                          'relative p-6 rounded-2xl border transition-all',
-                          plan.popular
-                            ? isDark
-                              ? 'bg-gradient-to-b from-violet-500/10 to-fuchsia-500/10 border-violet-500/30'
-                              : 'bg-gradient-to-b from-orange-50 to-pink-50 border-orange-300'
-                            : isDark
-                              ? 'bg-white/5 border-white/10 hover:border-white/20'
-                              : 'bg-white border-zinc-200 hover:border-zinc-300 shadow-sm',
-                          user.plan === plan.id && 'ring-2 ring-violet-500'
-                        )}
-                      >
-                        {plan.popular && (
-                          <div className={cn(
-                            'absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-medium',
-                            isDark
-                              ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white'
-                              : 'bg-gradient-to-r from-orange-400 to-pink-500 text-white'
-                          )}>
-                            Most Popular
-                          </div>
-                        )}
-                        <h4 className="font-semibold text-lg mb-2">{plan.name}</h4>
-                        <div className="flex items-baseline gap-1 mb-4">
-                          <span className="text-3xl font-bold">
-                            ${billingInterval === 'year' ? Math.floor(plan.price * 0.8) : plan.price}
-                          </span>
-                          <span className={isDark ? 'text-zinc-500' : 'text-zinc-600'}>/mo</span>
-                        </div>
-                        <ul className="space-y-3 mb-6">
-                          {plan.features.map(feature => (
-                            <li key={feature} className="flex items-start gap-2 text-sm">
-                              <Check className={cn('w-4 h-4 mt-0.5 shrink-0', isDark ? 'text-violet-400' : 'text-orange-500')} />
-                              <span className={isDark ? 'text-zinc-300' : 'text-zinc-700'}>{feature}</span>
-                            </li>
-                          ))}
-                        </ul>
+                        <Sparkles className="w-4 h-4" />
+                        {user.plan === 'free' ? 'View plans' : 'Change plan'}
+                      </Link>
+                      {user.plan !== 'free' && (
                         <button
+                          onClick={openBillingPortal}
+                          disabled={portalLoading}
                           className={cn(
-                            'w-full py-3 rounded-xl text-sm font-medium transition-all',
-                            user.plan === plan.id
-                              ? 'bg-zinc-500/20 text-zinc-400 cursor-default'
-                              : plan.popular
-                                ? isDark
-                                  ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:shadow-lg hover:shadow-violet-500/25'
-                                  : 'bg-gradient-to-r from-orange-400 to-pink-500 text-white hover:shadow-lg hover:shadow-orange-500/25'
-                                : isDark
-                                  ? 'bg-white/10 text-white hover:bg-white/20'
-                                  : 'bg-zinc-100 text-zinc-900 hover:bg-zinc-200'
+                            'inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition disabled:opacity-50',
+                            isDark
+                              ? 'bg-white/10 text-white hover:bg-white/15 border border-white/10'
+                              : 'bg-zinc-100 text-zinc-900 hover:bg-zinc-200'
                           )}
-                          disabled={user.plan === plan.id}
                         >
-                          {user.plan === plan.id ? 'Current Plan' : 'Upgrade'}
+                          {portalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Settings className="w-4 h-4" />}
+                          Manage subscription
                         </button>
+                      )}
+                    </div>
+                    {portalError && (
+                      <div className="mt-3 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-xs text-red-400">
+                        {portalError}
                       </div>
-                    ))}
+                    )}
                   </div>
 
                   {/* Billing History */}
@@ -749,6 +705,10 @@ export default function ProfilePage() {
                 >
                   {/* Appearance */}
                   <AppearanceSettings />
+
+                  {/* Deploy credentials — BYO Render + GitHub keys so deploys
+                      use the user's own accounts instead of the platform's. */}
+                  <DeployCredentialsCard isDark={isDark} />
 
                   {/* Notifications */}
                   <div className={cn(
