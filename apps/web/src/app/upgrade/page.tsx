@@ -22,6 +22,8 @@ import {
   Settings,
 } from 'lucide-react'
 import { SUBSCRIPTION_PLANS, CREDIT_PACKAGES } from '@/lib/stripe-plans'
+import { useTheme } from '@/context/ThemeContext'
+import { cn } from '@/lib/utils'
 
 const PLAN_META: Record<string, { icon: typeof Zap; color: string; description: string }> = {
   free: { icon: Zap, color: 'from-slate-500 to-slate-600', description: 'Perfect for trying out the platform' },
@@ -60,6 +62,8 @@ const CREDIT_COSTS = [
 export default function UpgradePage() {
   const { data: session } = useSession()
   const router = useRouter()
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
   const [loading, setLoading] = useState<string | null>(null)
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -153,15 +157,29 @@ export default function UpgradePage() {
   const handleUpgrade = (planId: string) => handlePurchase('plan', planId)
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className={cn(
+      'min-h-screen transition-colors',
+      isDark ? 'bg-slate-950' : 'bg-gradient-to-b from-white to-slate-50'
+    )}>
       {/* Header */}
-      <header className="border-b border-white/10 bg-slate-950/80 backdrop-blur-xl sticky top-0 z-50">
+      <header className={cn(
+        'border-b backdrop-blur-xl sticky top-0 z-50',
+        isDark ? 'border-white/10 bg-slate-950/80' : 'border-slate-200 bg-white/90'
+      )}>
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/workspace" className="flex items-center gap-2 text-slate-400 hover:text-white transition">
+          <Link href="/workspace" className={cn(
+            'flex items-center gap-2 transition',
+            isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
+          )}>
             <ArrowLeft className="w-4 h-4" />
             Back to Workspace
           </Link>
-          <Link href="/" className="text-xl font-bold bg-gradient-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent">
+          <Link href="/" className={cn(
+            'text-xl font-bold bg-clip-text text-transparent',
+            isDark
+              ? 'bg-gradient-to-r from-violet-400 to-fuchsia-400'
+              : 'bg-gradient-to-r from-violet-600 to-fuchsia-600'
+          )}>
             Webstew
           </Link>
         </div>
@@ -178,36 +196,48 @@ export default function UpgradePage() {
             <Sparkles className="w-4 h-4 text-violet-400" />
             <span className="text-violet-400 text-sm font-medium">Upgrade Your Plan</span>
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
+          <h1 className={cn(
+            'text-4xl md:text-5xl font-bold mb-4',
+            isDark ? 'text-white' : 'text-slate-900'
+          )}>
             Build More, Pay Less
           </h1>
-          <p className="text-xl text-slate-400 mb-8">
+          <p className={cn(
+            'text-xl mb-8',
+            isDark ? 'text-slate-400' : 'text-slate-600'
+          )}>
             Choose the perfect plan for your needs. Upgrade anytime, cancel anytime.
           </p>
 
           {/* Current plan / credit status — only when signed in */}
           {session?.user && currentPlan && (
-            <div className="max-w-xl mx-auto mb-6 px-4 py-3 rounded-xl bg-white/[0.03] border border-white/10 flex flex-wrap items-center justify-center gap-3 text-sm">
-              <span className="text-slate-400">Current plan:</span>
-              <span className="text-white font-medium capitalize">{currentPlan}</span>
+            <div className={cn(
+              'max-w-xl mx-auto mb-6 px-4 py-3 rounded-xl border flex flex-wrap items-center justify-center gap-3 text-sm',
+              isDark ? 'bg-white/[0.03] border-white/10' : 'bg-white border-slate-200 shadow-sm'
+            )}>
+              <span className={cn(isDark ? 'text-slate-400' : 'text-slate-600')}>Current plan:</span>
+              <span className={cn('font-medium capitalize', isDark ? 'text-white' : 'text-slate-900')}>{currentPlan}</span>
               {creditsRemaining !== null && (
                 <>
-                  <span className="text-slate-600">·</span>
-                  <span className="text-slate-400">
+                  <span className={cn(isDark ? 'text-slate-600' : 'text-slate-300')}>·</span>
+                  <span className={cn(isDark ? 'text-slate-400' : 'text-slate-600')}>
                     {creditsRemaining.toLocaleString()} credits
                     {monthCreditsUsed !== null && monthCreditsUsed > 0 && (
-                      <span className="text-slate-500"> ({monthCreditsUsed} used this month)</span>
+                      <span className={cn(isDark ? 'text-slate-500' : 'text-slate-500')}> ({monthCreditsUsed} used this month)</span>
                     )}
                   </span>
                 </>
               )}
               {currentPlan !== 'free' && (
                 <>
-                  <span className="text-slate-600">·</span>
+                  <span className={cn(isDark ? 'text-slate-600' : 'text-slate-300')}>·</span>
                   <button
                     onClick={openBillingPortal}
                     disabled={portalLoading}
-                    className="inline-flex items-center gap-1.5 text-violet-400 hover:text-violet-300 disabled:opacity-50"
+                    className={cn(
+                      'inline-flex items-center gap-1.5 disabled:opacity-50',
+                      isDark ? 'text-violet-400 hover:text-violet-300' : 'text-violet-600 hover:text-violet-700'
+                    )}
                   >
                     {portalLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Settings className="w-3.5 h-3.5" />}
                     Manage subscription
@@ -218,27 +248,39 @@ export default function UpgradePage() {
           )}
 
           {/* Billing Toggle */}
-          <div className="inline-flex items-center gap-3 p-1 bg-white/5 rounded-xl border border-white/10">
+          <div className={cn(
+            'inline-flex items-center gap-3 p-1 rounded-xl border',
+            isDark ? 'bg-white/5 border-white/10' : 'bg-slate-100 border-slate-200'
+          )}>
             <button
               onClick={() => setBillingPeriod('monthly')}
-              className={`px-4 py-2 rounded-lg font-medium transition ${
+              className={cn(
+                'px-4 py-2 rounded-lg font-medium transition',
                 billingPeriod === 'monthly'
                   ? 'bg-violet-600 text-white'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+                  : isDark
+                    ? 'text-slate-400 hover:text-white'
+                    : 'text-slate-500 hover:text-slate-900'
+              )}
             >
               Monthly
             </button>
             <button
               onClick={() => setBillingPeriod('annual')}
-              className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${
+              className={cn(
+                'px-4 py-2 rounded-lg font-medium transition flex items-center gap-2',
                 billingPeriod === 'annual'
                   ? 'bg-violet-600 text-white'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+                  : isDark
+                    ? 'text-slate-400 hover:text-white'
+                    : 'text-slate-500 hover:text-slate-900'
+              )}
             >
               Yearly
-              <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
+              <span className={cn(
+                'text-xs px-2 py-0.5 rounded-full',
+                isDark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-100 text-emerald-700'
+              )}>
                 Save 20%
               </span>
             </button>
@@ -260,11 +302,16 @@ export default function UpgradePage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className={`relative p-6 rounded-2xl border ${
+                className={cn(
+                  'relative p-6 rounded-2xl border',
                   plan.popular
-                    ? 'border-violet-500 bg-violet-500/5'
-                    : 'border-white/10 bg-white/[0.02]'
-                }`}
+                    ? isDark
+                      ? 'border-violet-500 bg-violet-500/5'
+                      : 'border-violet-500 bg-violet-50 shadow-lg shadow-violet-500/10'
+                    : isDark
+                      ? 'border-white/10 bg-white/[0.02]'
+                      : 'border-slate-200 bg-white shadow-sm'
+                )}
               >
                 {plan.popular && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-violet-600 text-white text-xs font-medium rounded-full">
@@ -276,24 +323,27 @@ export default function UpgradePage() {
                   <Icon className="w-6 h-6 text-white" />
                 </div>
 
-                <h3 className="text-xl font-bold text-white mb-1">{plan.name}</h3>
-                <p className="text-slate-400 text-sm mb-4">{plan.description}</p>
+                <h3 className={cn('text-xl font-bold mb-1', isDark ? 'text-white' : 'text-slate-900')}>{plan.name}</h3>
+                <p className={cn('text-sm mb-4', isDark ? 'text-slate-400' : 'text-slate-600')}>{plan.description}</p>
 
                 <div className="flex items-baseline gap-1 mb-6">
-                  <span className="text-4xl font-bold text-white">${price}</span>
+                  <span className={cn('text-4xl font-bold', isDark ? 'text-white' : 'text-slate-900')}>${price}</span>
                   {plan.monthlyPrice > 0 && (
-                    <span className="text-slate-400">/mo</span>
+                    <span className={cn(isDark ? 'text-slate-400' : 'text-slate-500')}>/mo</span>
                   )}
                 </div>
 
                 <button
                   onClick={() => handlePurchase('plan', plan.id)}
                   disabled={loading === `plan-${plan.id}` || isCurrentPlan}
-                  className={`w-full py-3 rounded-xl font-medium transition flex items-center justify-center gap-2 ${
+                  className={cn(
+                    'w-full py-3 rounded-xl font-medium transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed',
                     plan.popular
                       ? 'bg-violet-600 hover:bg-violet-500 text-white'
-                      : 'bg-white/10 hover:bg-white/20 text-white border border-white/10'
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      : isDark
+                        ? 'bg-white/10 hover:bg-white/20 text-white border border-white/10'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-200'
+                  )}
                 >
                   {loading === `plan-${plan.id}` ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -309,8 +359,8 @@ export default function UpgradePage() {
                 <ul className="mt-6 space-y-3">
                   {plan.features.map((feature) => (
                     <li key={feature} className="flex items-start gap-3 text-sm">
-                      <Check className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
-                      <span className="text-slate-300">{feature}</span>
+                      <Check className={cn('w-4 h-4 mt-0.5 shrink-0', isDark ? 'text-emerald-400' : 'text-emerald-600')} />
+                      <span className={cn(isDark ? 'text-slate-300' : 'text-slate-700')}>{feature}</span>
                     </li>
                   ))}
                 </ul>
@@ -323,21 +373,29 @@ export default function UpgradePage() {
             Mailto keeps it dependency-free; swap to a real form whenever you
             want lead capture. */}
         <div className="max-w-6xl mx-auto mt-6">
-          <div className="p-6 rounded-2xl border border-white/10 bg-gradient-to-r from-violet-500/5 via-fuchsia-500/5 to-amber-500/5 flex flex-col md:flex-row items-start md:items-center gap-4 justify-between">
+          <div className={cn(
+            'p-6 rounded-2xl border bg-gradient-to-r from-violet-500/5 via-fuchsia-500/5 to-amber-500/5 flex flex-col md:flex-row items-start md:items-center gap-4 justify-between',
+            isDark ? 'border-white/10' : 'border-slate-200'
+          )}>
             <div className="flex items-start gap-3">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center shrink-0">
                 <Gem className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-white">Need more? Enterprise &amp; custom plans</h3>
-                <p className="text-sm text-slate-400 mt-0.5">
+                <h3 className={cn('text-lg font-semibold', isDark ? 'text-white' : 'text-slate-900')}>Need more? Enterprise &amp; custom plans</h3>
+                <p className={cn('text-sm mt-0.5', isDark ? 'text-slate-400' : 'text-slate-600')}>
                   10,000+ credits/month, SSO/SAML, dedicated support, white-label, custom SLA.
                 </p>
               </div>
             </div>
             <a
               href="mailto:sales@webstew.net?subject=Webstew%20Enterprise%20inquiry"
-              className="shrink-0 inline-flex items-center gap-2 px-5 py-2.5 bg-white text-slate-900 hover:bg-slate-100 rounded-xl font-medium transition"
+              className={cn(
+                'shrink-0 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium transition',
+                isDark
+                  ? 'bg-white text-slate-900 hover:bg-slate-100'
+                  : 'bg-slate-900 text-white hover:bg-slate-800'
+              )}
             >
               Contact sales
               <ArrowLeft className="w-4 h-4 rotate-180" />
@@ -362,15 +420,21 @@ export default function UpgradePage() {
       )}
 
       {/* One-time Credit Packs — for users who don't want to subscribe */}
-      <section className="pb-16 px-6 border-t border-white/10 pt-16">
+      <section className={cn(
+        'pb-16 px-6 border-t pt-16',
+        isDark ? 'border-white/10' : 'border-slate-200'
+      )}>
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full mb-4">
-              <Zap className="w-4 h-4 text-emerald-400" />
-              <span className="text-emerald-400 text-sm font-medium">No subscription required</span>
+            <div className={cn(
+              'inline-flex items-center gap-2 px-4 py-2 border rounded-full mb-4',
+              isDark ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200'
+            )}>
+              <Zap className={cn('w-4 h-4', isDark ? 'text-emerald-400' : 'text-emerald-600')} />
+              <span className={cn('text-sm font-medium', isDark ? 'text-emerald-400' : 'text-emerald-700')}>No subscription required</span>
             </div>
-            <h2 className="text-3xl font-bold text-white mb-2">Or just buy credits</h2>
-            <p className="text-slate-400">One-time purchase, never expires. Use anytime.</p>
+            <h2 className={cn('text-3xl font-bold mb-2', isDark ? 'text-white' : 'text-slate-900')}>Or just buy credits</h2>
+            <p className={cn(isDark ? 'text-slate-400' : 'text-slate-600')}>One-time purchase, never expires. Use anytime.</p>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {CREDIT_PACKAGES.map((pack) => (
@@ -378,11 +442,16 @@ export default function UpgradePage() {
                 key={pack.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`relative p-6 rounded-2xl border ${
+                className={cn(
+                  'relative p-6 rounded-2xl border',
                   pack.popular
-                    ? 'border-emerald-500 bg-emerald-500/5'
-                    : 'border-white/10 bg-white/[0.02]'
-                }`}
+                    ? isDark
+                      ? 'border-emerald-500 bg-emerald-500/5'
+                      : 'border-emerald-500 bg-emerald-50 shadow-lg shadow-emerald-500/10'
+                    : isDark
+                      ? 'border-white/10 bg-white/[0.02]'
+                      : 'border-slate-200 bg-white shadow-sm'
+                )}
               >
                 {pack.popular && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-emerald-600 text-white text-xs font-medium rounded-full">
@@ -390,27 +459,33 @@ export default function UpgradePage() {
                   </div>
                 )}
                 {pack.savings && !pack.popular && (
-                  <div className="absolute top-3 right-3 px-2 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] font-bold rounded">
+                  <div className={cn(
+                    'absolute top-3 right-3 px-2 py-0.5 text-[10px] font-bold rounded',
+                    isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-700'
+                  )}>
                     SAVE {pack.savings}
                   </div>
                 )}
-                <h3 className="text-lg font-bold text-white mb-1">{pack.name}</h3>
+                <h3 className={cn('text-lg font-bold mb-1', isDark ? 'text-white' : 'text-slate-900')}>{pack.name}</h3>
                 <div className="flex items-baseline gap-1 mb-1">
-                  <span className="text-3xl font-bold text-white">${(pack.priceUsd / 100).toFixed(0)}</span>
-                  <span className="text-xs text-slate-500">.{((pack.priceUsd % 100) || 0).toString().padStart(2,'0')}</span>
+                  <span className={cn('text-3xl font-bold', isDark ? 'text-white' : 'text-slate-900')}>${(pack.priceUsd / 100).toFixed(0)}</span>
+                  <span className={cn('text-xs', isDark ? 'text-slate-500' : 'text-slate-500')}>.{((pack.priceUsd % 100) || 0).toString().padStart(2,'0')}</span>
                 </div>
-                <p className="text-emerald-400 text-sm font-medium mb-4">{pack.credits.toLocaleString()} credits</p>
-                <p className="text-xs text-slate-500 mb-4">
+                <p className={cn('text-sm font-medium mb-4', isDark ? 'text-emerald-400' : 'text-emerald-600')}>{pack.credits.toLocaleString()} credits</p>
+                <p className={cn('text-xs mb-4', isDark ? 'text-slate-500' : 'text-slate-500')}>
                   ≈ {Math.floor(pack.credits / 10)} websites · {Math.floor(pack.credits / 5)} AI images
                 </p>
                 <button
                   onClick={() => handlePurchase('credits', pack.id)}
                   disabled={loading === `credits-${pack.id}`}
-                  className={`w-full py-2.5 rounded-xl font-medium transition flex items-center justify-center gap-2 ${
+                  className={cn(
+                    'w-full py-2.5 rounded-xl font-medium transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed',
                     pack.popular
                       ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                      : 'bg-white/10 hover:bg-white/20 text-white border border-white/10'
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      : isDark
+                        ? 'bg-white/10 hover:bg-white/20 text-white border border-white/10'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-200'
+                  )}
                 >
                   {loading === `credits-${pack.id}` ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -425,17 +500,20 @@ export default function UpgradePage() {
       </section>
 
       {/* Credit Costs Reference */}
-      <section className="py-16 px-6 border-t border-white/10">
+      <section className={cn('py-16 px-6 border-t', isDark ? 'border-white/10' : 'border-slate-200')}>
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-2xl font-bold text-white text-center mb-8">Credit Usage</h2>
+          <h2 className={cn('text-2xl font-bold text-center mb-8', isDark ? 'text-white' : 'text-slate-900')}>Credit Usage</h2>
           <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-4">
             {CREDIT_COSTS.map((item) => {
               const Icon = item.icon
               return (
-                <div key={item.action} className="p-4 rounded-xl bg-white/[0.02] border border-white/10 text-center">
-                  <Icon className="w-6 h-6 text-violet-400 mx-auto mb-2" />
-                  <p className="text-white font-medium">{item.action}</p>
-                  <p className="text-violet-400 text-sm">{item.cost} credits</p>
+                <div key={item.action} className={cn(
+                  'p-4 rounded-xl border text-center',
+                  isDark ? 'bg-white/[0.02] border-white/10' : 'bg-white border-slate-200 shadow-sm'
+                )}>
+                  <Icon className={cn('w-6 h-6 mx-auto mb-2', isDark ? 'text-violet-400' : 'text-violet-600')} />
+                  <p className={cn('font-medium', isDark ? 'text-white' : 'text-slate-900')}>{item.action}</p>
+                  <p className={cn('text-sm', isDark ? 'text-violet-400' : 'text-violet-600')}>{item.cost} credits</p>
                 </div>
               )
             })}
@@ -444,15 +522,20 @@ export default function UpgradePage() {
       </section>
 
       {/* FAQ */}
-      <section className="py-16 px-6 border-t border-white/10">
+      <section className={cn('py-16 px-6 border-t', isDark ? 'border-white/10' : 'border-slate-200')}>
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-2xl font-bold text-white mb-4">Questions?</h2>
-          <p className="text-slate-400 mb-6">
+          <h2 className={cn('text-2xl font-bold mb-4', isDark ? 'text-white' : 'text-slate-900')}>Questions?</h2>
+          <p className={cn('mb-6', isDark ? 'text-slate-400' : 'text-slate-600')}>
             Contact us at support@webstew.net for any questions about plans or billing.
           </p>
           <Link
             href="/workspace"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-white font-medium transition"
+            className={cn(
+              'inline-flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition',
+              isDark
+                ? 'bg-white/10 hover:bg-white/20 text-white'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-900'
+            )}
           >
             Back to Building
             <ArrowLeft className="w-4 h-4 rotate-180" />
@@ -461,17 +544,20 @@ export default function UpgradePage() {
       </section>
 
       {/* Legal footer — consistent surface across logged-in pages */}
-      <footer className="py-8 px-6 border-t border-white/5">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+      <footer className={cn('py-8 px-6 border-t', isDark ? 'border-white/5' : 'border-slate-200')}>
+        <div className={cn(
+          'max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs',
+          isDark ? 'text-slate-500' : 'text-slate-500'
+        )}>
           <div className="flex items-center gap-2">
             <span className="text-base">🍲</span>
-            <span className="font-semibold text-slate-300">Webstew</span>
+            <span className={cn('font-semibold', isDark ? 'text-slate-300' : 'text-slate-700')}>Webstew</span>
             <span>· © {new Date().getFullYear()} Remodely LLC</span>
           </div>
           <div className="flex items-center gap-5">
-            <Link href="/terms" className="hover:text-slate-200 transition-colors">Terms</Link>
-            <Link href="/privacy" className="hover:text-slate-200 transition-colors">Privacy</Link>
-            <a href="mailto:support@webstew.net" className="hover:text-slate-200 transition-colors">Support</a>
+            <Link href="/terms" className={cn('transition-colors', isDark ? 'hover:text-slate-200' : 'hover:text-slate-800')}>Terms</Link>
+            <Link href="/privacy" className={cn('transition-colors', isDark ? 'hover:text-slate-200' : 'hover:text-slate-800')}>Privacy</Link>
+            <a href="mailto:support@webstew.net" className={cn('transition-colors', isDark ? 'hover:text-slate-200' : 'hover:text-slate-800')}>Support</a>
           </div>
         </div>
       </footer>
