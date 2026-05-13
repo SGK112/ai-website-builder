@@ -281,9 +281,9 @@ export default function SignupPage() {
           {/* Terms */}
           <p className="mt-4 text-center text-xs text-slate-500 dark:text-zinc-500">
             By signing up, you agree to our{' '}
-            <a href="#" className="text-violet-600 hover:text-violet-500 dark:text-violet-400 dark:hover:text-violet-300">Terms of Service</a>
+            <Link href="/terms" className="text-violet-600 hover:text-violet-500 dark:text-violet-400 dark:hover:text-violet-300">Terms of Service</Link>
             {' '}and{' '}
-            <a href="#" className="text-violet-600 hover:text-violet-500 dark:text-violet-400 dark:hover:text-violet-300">Privacy Policy</a>
+            <Link href="/privacy" className="text-violet-600 hover:text-violet-500 dark:text-violet-400 dark:hover:text-violet-300">Privacy Policy</Link>
           </p>
 
           {/* Footer */}

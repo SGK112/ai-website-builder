@@ -2193,10 +2193,12 @@ export default function HomePage() {
                   <span className={cn("font-semibold", isDark ? "text-white" : "text-slate-800")}>Webstew</span>
                   <span className={cn("text-xs", isDark ? "text-slate-600" : "text-slate-400")}>· prompts to working code</span>
                 </div>
-                <div className="flex items-center gap-5">
+                <div className="flex items-center gap-x-5 gap-y-2 flex-wrap justify-center sm:justify-end">
                   <a href="/app-builder" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>App Builder</a>
                   <a href="/community" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Community</a>
                   <a href="/upgrade" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Pricing</a>
+                  <a href="/terms" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Terms</a>
+                  <a href="/privacy" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Privacy</a>
                   <a href="/login" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Sign in</a>
                 </div>
               </div>
