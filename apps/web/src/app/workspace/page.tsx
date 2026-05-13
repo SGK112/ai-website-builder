@@ -208,7 +208,7 @@ interface BusinessIntegration {
 }
 
 // AI Model Configuration
-type AIProvider = 'anthropic' | 'openai' | 'google' | 'xai' | 'huggingface' | 'together' | 'cloudflare'
+type AIProvider = 'auto' | 'anthropic' | 'openai' | 'google' | 'xai' | 'huggingface' | 'together' | 'cloudflare'
 
 interface AIModel {
   id: string
@@ -222,6 +222,11 @@ interface AIModel {
 }
 
 const aiModels: AIModel[] = [
+  // Smart auto-router — server picks the best model per prompt
+  // (Haiku for quick edits, Sonnet for fresh builds, Opus for complex
+  // reasoning, Grok-Vision for image-anchored tasks). This is the
+  // default for new sessions and what most users should leave selected.
+  { id: 'auto', name: 'Auto (recommended)', provider: 'auto', description: 'Best model for the job — picked per prompt', contextWindow: '—', speed: 'fast', quality: 'best' },
   // FREE TIER MODELS (Free API tokens available - no credit card)
   // Hugging Face - Requires free HF token
   { id: 'hf-llama-3.2-3b', name: 'Llama 3.2 3B', provider: 'huggingface', description: 'FREE - Get token at huggingface.co', contextWindow: '8K', speed: 'fast', quality: 'good', free: true },
@@ -1689,10 +1694,13 @@ function WorkspaceContent() {
   const [integrationFilter, setIntegrationFilter] = useState<string>('all')
 
   // AI Model Selection state
+  // Default to the auto-router — server picks the best model per prompt.
+  // Falls back to Haiku → GPT-4o → first available if 'auto' isn't found
+  // (legacy safety, shouldn't trigger).
   const [selectedModel, setSelectedModel] = useState<AIModel>(
+    aiModels.find(m => m.id === 'auto') ||
     aiModels.find(m => m.id === 'claude-haiku-3.5') ||
     aiModels.find(m => m.id === 'gpt-4o') ||
-    aiModels.find(m => m.provider === 'anthropic' || m.provider === 'openai') ||
     aiModels[0]
   )
   const [showApiKeyModal, setShowApiKeyModal] = useState(false)
@@ -3287,7 +3295,7 @@ ${html}
         body: JSON.stringify({
           prompt: promptText,
           model: selectedModel.id,
-          apiKey: apiKeys[selectedModel.provider] || undefined,
+          apiKey: selectedModel.provider !== 'auto' ? apiKeys[selectedModel.provider] || undefined : undefined,
         }),
       })
       if (res.status === 402 || res.status === 429) {
@@ -3434,7 +3442,7 @@ ${html}
           currentHtml: isFreshBuild ? undefined : (html || undefined),
           skillLevel,
           model: selectedModel.id,
-          apiKey: apiKeys[selectedModel.provider] || undefined,
+          apiKey: selectedModel.provider !== 'auto' ? apiKeys[selectedModel.provider] || undefined : undefined,
           ingredients: ingredients || stewIngredients.length > 0 ? (ingredients || stewIngredients) : undefined,
           stylePreset: {
             id: preset.id,
@@ -4261,7 +4269,7 @@ ${html}
           files: agentFiles,
           history: agentHistory,
           model: selectedModel.id,
-          apiKey: apiKeys[selectedModel.provider] || undefined,
+          apiKey: selectedModel.provider !== 'auto' ? apiKeys[selectedModel.provider] || undefined : undefined,
           target: buildTarget,
           // Pass projectId so the agent can use cms_* tools to read/write
           // content collections on this project. Persists file changes to
@@ -7191,7 +7199,8 @@ ${html}
                   isDark ? "bg-white/5 hover:bg-white/10 text-zinc-400" : "bg-slate-200 hover:bg-slate-300 text-slate-600"
                 )}
               >
-                {selectedModel.provider === 'anthropic' ? <Brain className="w-3 h-3" /> :
+                {selectedModel.provider === 'auto' ? <Sparkles className="w-3 h-3 text-violet-400" /> :
+                 selectedModel.provider === 'anthropic' ? <Brain className="w-3 h-3" /> :
                  selectedModel.provider === 'openai' ? <Bot className="w-3 h-3" /> :
                  selectedModel.provider === 'xai' ? <span className="text-[10px] font-bold leading-none">𝕏</span> :
                  selectedModel.provider === 'huggingface' ? <Sparkles className="w-3 h-3" /> :
@@ -7224,12 +7233,12 @@ ${html}
                     </div>
                     <div className="p-1">
                       {/* Free Models — only shown when user has the corresponding provider key configured. Many free providers (HuggingFace, Together, Cloudflare) require user-supplied tokens and frequently have model-deprecation issues, so we hide them by default to avoid silent failures. */}
-                      {aiModels.some(m => m.free && apiKeys[m.provider]) && (
+                      {aiModels.some(m => m.free && m.provider !== 'auto' && apiKeys[m.provider]) && (
                         <div className="px-2 py-1">
                           <p className="text-[9px] font-medium text-emerald-400 uppercase tracking-wide">Free (via your API key)</p>
                         </div>
                       )}
-                      {aiModels.filter(m => m.free && apiKeys[m.provider]).map(model => (
+                      {aiModels.filter(m => m.free && m.provider !== 'auto' && apiKeys[m.provider]).map(model => (
                         <button
                           key={model.id}
                           onClick={() => {

@@ -945,6 +945,50 @@ function isEcommerceRequest(prompt: string): boolean {
   return ecommerceKeywords.some(keyword => lowerPrompt.includes(keyword))
 }
 
+// Auto-router — picks the best model for the job when the user selects
+// "auto" (or hasn't picked anything). The goal is fewer wasted tokens on
+// cheap edits and stronger output on hard tasks. Manual model selection
+// always wins — this only fires when model is unset or 'auto'.
+//
+// Decision matrix (in priority order):
+//   1. Vision-heavy prompt              → grok-2-vision-1212
+//   2. Complex reasoning / architecture → claude-opus-4-7
+//   3. Quick refinement (short prompt, has currentHtml) → claude-haiku-4-5
+//   4. Fresh full-site build            → claude-sonnet-4-6 (default)
+//
+// Returns { model, reason } so we can log why.
+export type AutoModelChoice = { model: string; reason: string }
+
+function pickBestModel(prompt: string, currentHtml?: string): AutoModelChoice {
+  const p = (prompt || '').toLowerCase()
+  const isShort = (prompt || '').trim().length < 80
+  const hasCurrentHtml = !!(currentHtml && currentHtml.length > 100)
+
+  // Vision: prompt explicitly mentions image work or design-from-image
+  if (/\b(from this image|from this screenshot|match this design|clone this site|recreate this|like this image|image of|photo of|logo design|color from image|sample these colors)\b/.test(p)) {
+    return { model: 'grok-2-vision-1212', reason: 'vision: image-anchored task' }
+  }
+
+  // Heavy reasoning / multi-step / architecture / complex code
+  if (/\b(architect|architecture|plan a (multi[- ]?page|full|complex)|design the (data|database|schema)|workflow|state machine|implement (auth|authentication|payment|stripe|webhook|api endpoint)|complex (logic|integration)|reasoning|step.by.step|chain of)\b/.test(p)) {
+    return { model: 'claude-opus-4-7', reason: 'reasoning: complex task' }
+  }
+
+  // Fresh-build detection — "build me a coffee shop site"
+  const isFreshBuildIntent = /\b(build|create|make|generate|design|launch|spin\s+up|put\s+together|whip\s+up)\b.+\b(site|website|page|landing|app|store|blog|portfolio|dashboard)\b/.test(p)
+  if (isFreshBuildIntent && !hasCurrentHtml) {
+    return { model: 'claude-sonnet-4-6', reason: 'fresh build' }
+  }
+
+  // Quick edit — short prompt against an existing site
+  if (isShort && hasCurrentHtml) {
+    return { model: 'claude-haiku-4-5-20251001', reason: 'quick refinement' }
+  }
+
+  // Default — balanced Sonnet
+  return { model: 'claude-sonnet-4-6', reason: 'default (balanced)' }
+}
+
 // Industry detection — picks ONE primary industry from the prompt so we can
 // fork the system prompt's section grammar. Without this, every non-ecommerce
 // site gets the same Hero+Features+CTA skeleton regardless of what they
@@ -2269,7 +2313,11 @@ export async function POST(req: NextRequest) {
     // Parse body. Auth is enforced by middleware (or by Bearer token via
     // BYOK), so we don't need an anon cap here anymore. The signed-in user's
     // plan limits are enforced via trackUsage / checkUsageLimits below.
-    const { prompt, currentHtml, model, apiKey, apiKeys, ingredients, stylePreset, serviceCredentials, outputMode, siblingPages, currentPage } = await req.json()
+    const body = await req.json()
+    const { prompt, currentHtml, apiKey, apiKeys, ingredients, stylePreset, serviceCredentials, outputMode, siblingPages, currentPage } = body
+    // let-bound because the auto-router below may reassign when model is
+    // 'auto' / 'best' / unset.
+    let model: string | undefined = body.model
 
     const hasOwnKey = !!(
       apiKey ||
@@ -2585,6 +2633,17 @@ Rules:
       })
 
       return new Response(readable, { headers: streamHeaders })
+    }
+
+    // Auto-route: when the client doesn't pin a model (or explicitly asks
+    // for 'auto'), call pickBestModel and reassign. This lets a user run
+    // "make the hero bigger" through Haiku (cheap, fast) and a fresh
+    // site build through Sonnet (balanced) without thinking about it.
+    // Manual model picks pass through untouched.
+    if (!model || model === 'auto' || model === 'best') {
+      const choice = pickBestModel(prompt || fullUserPrompt, currentHtml)
+      console.log(`[Generate] Auto-router → ${choice.model} (${choice.reason})`)
+      model = choice.model
     }
 
     // Check if using Claude/Anthropic model
