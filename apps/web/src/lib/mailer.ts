@@ -43,6 +43,13 @@ function getTransporter(cfg: MailerConfig): Transporter {
     port: cfg.port,
     secure: cfg.secure,
     auth: cfg.user && cfg.pass ? { user: cfg.user, pass: cfg.pass } : undefined,
+    // Hard timeouts — nodemailer defaults to "wait forever". Without these,
+    // a stalled SMTP socket (Gmail throttling, AWS SES regional outage,
+    // network partition) holds the request handler indefinitely. Burned
+    // SG's site for 30+ leads in May 2026 — applying preemptively here.
+    connectionTimeout: 10_000, // 10s to open the TCP socket
+    greetingTimeout: 10_000,   // 10s for the SMTP greeting
+    socketTimeout: 20_000,     // 20s of idle on the established socket
   })
   cachedKey = key
   return cachedTransporter
