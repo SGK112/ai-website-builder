@@ -411,6 +411,40 @@ function findSectionByName(html: string, sectionKey: string): string | null {
 }
 
 // Apply code edits to HTML
+// Tolerant string find — tries progressively looser matchers so the LLM's
+// `oldCode` snippet still locates its target even when whitespace, quote
+// style, or attribute order differs slightly from the live HTML. Returns
+// the SUBSTRING of `haystack` that matched (so the caller can do an
+// exact replace), or null if no strategy could find it.
+function tolerantFind(haystack: string, needle: string): string | null {
+  if (!needle) return null
+  // 1. Exact substring — fast path
+  if (haystack.includes(needle)) return needle
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  // 2. Whitespace-normalized — collapse any whitespace runs to \s+
+  try {
+    const re = new RegExp(esc(needle).replace(/\\\s|\s+/g, '\\s+'), '')
+    const m = haystack.match(re)
+    if (m) return m[0]
+  } catch {}
+  // 3. Quote-flexible — single ↔ double quote interchangeable
+  try {
+    const re = new RegExp(esc(needle).replace(/\\['"]|['"]/g, `['"]`), '')
+    const m = haystack.match(re)
+    if (m) return m[0]
+  } catch {}
+  // 4. Both — whitespace AND quote tolerance
+  try {
+    const re = new RegExp(
+      esc(needle).replace(/\\\s|\s+/g, '\\s+').replace(/\\['"]|['"]/g, `['"]`),
+      ''
+    )
+    const m = haystack.match(re)
+    if (m) return m[0]
+  } catch {}
+  return null
+}
+
 function applyCodeEdits(html: string, edits: CodeEdit[]): string {
   let result = html
 
@@ -418,8 +452,18 @@ function applyCodeEdits(html: string, edits: CodeEdit[]): string {
     try {
       switch (edit.type) {
         case 'replace':
+        case 'style':
           if (edit.oldCode && edit.newCode) {
-            result = result.replace(edit.oldCode, edit.newCode)
+            const found = tolerantFind(result, edit.oldCode)
+            if (found) {
+              // style edits historically did global replace; preserve that for
+              // class-token swaps (e.g., changing every `violet-500` →
+              // `amber-500`). For 'replace' do single-occurrence.
+              if (edit.type === 'style') result = result.split(found).join(edit.newCode)
+              else result = result.replace(found, edit.newCode)
+            } else {
+              console.warn(`[Converse] tolerantFind missed for ${edit.type}; oldCode head: ${edit.oldCode.slice(0, 80)}`)
+            }
           }
           break
         case 'insert':
@@ -430,22 +474,19 @@ function applyCodeEdits(html: string, edits: CodeEdit[]): string {
               result = result.replace('</head>', `${edit.newCode}\n</head>`)
             } else if (edit.target.startsWith('after ')) {
               const afterTarget = edit.target.replace('after ', '')
-              result = result.replace(afterTarget, `${afterTarget}\n${edit.newCode}`)
+              const found = tolerantFind(result, afterTarget)
+              if (found) result = result.replace(found, `${found}\n${edit.newCode}`)
             } else if (edit.target.startsWith('before ')) {
               const beforeTarget = edit.target.replace('before ', '')
-              result = result.replace(beforeTarget, `${edit.newCode}\n${beforeTarget}`)
+              const found = tolerantFind(result, beforeTarget)
+              if (found) result = result.replace(found, `${edit.newCode}\n${found}`)
             }
           }
           break
         case 'delete':
           if (edit.oldCode) {
-            result = result.replace(edit.oldCode, '')
-          }
-          break
-        case 'style':
-          // Style changes are typically replace operations on class names
-          if (edit.oldCode && edit.newCode) {
-            result = result.split(edit.oldCode).join(edit.newCode)
+            const found = tolerantFind(result, edit.oldCode)
+            if (found) result = result.replace(found, '')
           }
           break
       }
@@ -1043,23 +1084,24 @@ When the user asks to edit nav, header, or footer, link to each sibling page usi
     }
 
     // Apply code edits if present and we have HTML
+    let codeEditsMissed = false
     if (parsed.type === 'edit' && parsed.codeEdits && parsed.codeEdits.length > 0 && currentHtml) {
       const updatedHtml = applyCodeEdits(currentHtml, parsed.codeEdits)
       if (updatedHtml !== currentHtml) {
         parsed.updatedHtml = updatedHtml
       } else {
-        // The AI returned codeEdits whose oldCode didn't match the live HTML.
-        // applyCodeEdits silently no-ops in that case. We must NOT pass through
-        // the model's "Done!" message — the preview hasn't changed. Downgrade to
-        // a clarify response so the UI surfaces honest feedback to the user.
-        console.warn('[Converse] codeEdits did not match — no HTML change. Downgrading edit→clarify.')
-        parsed.type = 'clarify'
-        parsed.message = "I couldn't find the exact code to change. Could you select the element in the preview, or describe it more specifically (e.g., 'the blue button in the hero')?"
+        // applyCodeEdits already tries tolerant matching (whitespace + quote
+        // flexible). If we STILL didn't change anything, the model's snippets
+        // genuinely don't appear in the HTML. Don't bail yet — let the
+        // intent-based fallback below take a shot first.
+        console.warn('[Converse] codeEdits did not match even with tolerant matcher; trying intent fallback')
+        codeEditsMissed = true
       }
     }
 
-    // FALLBACK: Direct edit handling when AI doesn't return proper codeEdits
-    if (parsed.type === 'edit' && (!parsed.codeEdits || parsed.codeEdits.length === 0) && currentHtml) {
+    // FALLBACK: Direct edit handling when AI doesn't return proper codeEdits,
+    // OR when applyCodeEdits couldn't locate the oldCode in the live HTML.
+    if (parsed.type === 'edit' && (!parsed.codeEdits || parsed.codeEdits.length === 0 || codeEditsMissed) && currentHtml) {
       const lower = message.toLowerCase()
       let fallbackHtml = currentHtml
       let fallbackEdit: CodeEdit | null = null
@@ -1488,6 +1530,26 @@ When the user asks to edit nav, header, or footer, link to each sibling page usi
         parsed.codeEdits = [fallbackEdit]
         parsed.updatedHtml = fallbackHtml
       }
+    }
+
+    // FINAL CHECK — if the user's request was an edit but NEITHER the LLM's
+    // code edits matched (via tolerant matcher) NOR any fallback handler
+    // produced an update, ONLY NOW downgrade to "couldn't find" with a
+    // helpful clarifying message. Before this final check, every cheaper
+    // path has had a shot.
+    if (
+      parsed.type === 'edit' &&
+      currentHtml &&
+      !parsed.updatedHtml &&
+      (codeEditsMissed || !parsed.codeEdits || parsed.codeEdits.length === 0)
+    ) {
+      console.warn('[Converse] all edit strategies missed — downgrading to clarify')
+      parsed.type = 'clarify'
+      parsed.message =
+        "I couldn't find the exact element to change. Try one of: " +
+        "click the element in the preview first (selection mode), " +
+        "name a specific section ('the menu cards', 'the chef bio'), " +
+        "or paste a fragment of the current text/class you want changed."
     }
 
     // Force ready if user explicitly requests and we have context

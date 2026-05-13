@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import Anthropic from '@anthropic-ai/sdk'
+import { generateJson, requireFiles, GenerateJsonError } from '@/lib/llm-json'
+import { augmentPromptWithReference } from '@/lib/site-reference'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -14,6 +16,7 @@ interface AppGenerateRequest {
   apiKey?: string
   appName?: string
   bundleId?: string
+  referenceUrl?: string
 }
 
 interface AppGenerateResponse {
@@ -124,23 +127,6 @@ function makeSlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'my-app'
 }
 
-function safeJsonParse(text: string): any | null {
-  // Strip code fences if model added them despite instructions
-  let s = text.trim()
-  if (s.startsWith('```')) {
-    s = s.replace(/^```(?:json)?\s*/, '').replace(/```\s*$/, '').trim()
-  }
-  // Find the outermost {...}
-  const first = s.indexOf('{')
-  const last = s.lastIndexOf('}')
-  if (first < 0 || last <= first) return null
-  const slice = s.slice(first, last + 1)
-  try { return JSON.parse(slice) } catch {}
-  // Last-ditch: try to repair trailing commas
-  try { return JSON.parse(slice.replace(/,(\s*[}\]])/g, '$1')) } catch {}
-  return null
-}
-
 function pickAnthropicModel(modelName: string | undefined): string {
   const lc = (modelName || '').toLowerCase()
   if (lc.includes('opus')) return 'claude-opus-4-7'
@@ -180,20 +166,29 @@ export async function POST(req: NextRequest) {
   const model = pickAnthropicModel(body.model)
   const client = new Anthropic({ apiKey: anthropicKey })
 
+  const baseMsg = `Build this Expo / React Native app:\n\n${prompt}\n\n${body.appName ? `App name: ${body.appName}\n` : ''}${body.bundleId ? `Bundle ID: ${body.bundleId}\n` : ''}\nRespond with the JSON object only.`
+  const { prompt: userMsg, warning: refWarning } = await augmentPromptWithReference(baseMsg, body.referenceUrl)
+  if (refWarning) console.warn('[App Builder]', refWarning)
+
+  let parsed: any
   let rawText: string
+  let attempts: number
   try {
-    const response = await client.messages.create({
+    const result = await generateJson({
+      client,
       model,
-      max_tokens: 16000,
-      system: APP_SYSTEM_PROMPT,
-      messages: [{
-        role: 'user',
-        content: `Build this Expo / React Native app:\n\n${prompt}\n\n${body.appName ? `App name: ${body.appName}\n` : ''}${body.bundleId ? `Bundle ID: ${body.bundleId}\n` : ''}\nRespond with the JSON object only.`
-      }]
+      systemPrompt: APP_SYSTEM_PROMPT,
+      userMessage: userMsg,
+      validate: (p) => requireFiles(p, ['App.tsx', 'package.json', 'app.json']),
     })
-    const block = response.content.find(b => b.type === 'text')
-    rawText = block && block.type === 'text' ? block.text : ''
+    parsed = result.parsed
+    rawText = result.rawText
+    attempts = result.attempts
   } catch (err: any) {
+    if (err instanceof GenerateJsonError) {
+      console.error('[App Builder] Generation failed after retry:', err.detail)
+      return NextResponse.json({ error: err.message }, { status: err.status })
+    }
     console.error('[App Builder] Anthropic call failed:', err?.message || err)
     return NextResponse.json(
       { error: err?.message || 'Generation failed' },
@@ -201,25 +196,9 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const parsed = safeJsonParse(rawText)
-  if (!parsed || typeof parsed !== 'object' || !parsed.files || typeof parsed.files !== 'object') {
-    console.error('[App Builder] Could not parse response as project JSON. First 300 chars:', rawText.slice(0, 300))
-    return NextResponse.json(
-      { error: 'Model output was not valid JSON. Try a more specific prompt.' },
-      { status: 502 }
-    )
-  }
-
   const name: string = typeof parsed.name === 'string' ? parsed.name : 'My App'
   const slug = typeof parsed.slug === 'string' && parsed.slug ? makeSlug(parsed.slug) : makeSlug(name)
   const description: string = typeof parsed.description === 'string' ? parsed.description : ''
-
-  // Sanity check: at minimum we want App.tsx + package.json + app.json
-  const required = ['App.tsx', 'package.json', 'app.json']
-  const missing = required.filter(f => !parsed.files[f])
-  if (missing.length > 0) {
-    console.warn('[App Builder] Missing required files:', missing.join(', '))
-  }
 
   // Trim any non-string file values defensively
   const files: Record<string, string> = {}
@@ -243,6 +222,6 @@ export async function POST(req: NextRequest) {
     ].join('\n'),
   }
 
-  console.log(`[App Builder] Generated "${name}" — ${Object.keys(files).length} files, ${Math.round(rawText.length / 1024)}KB raw`)
+  console.log(`[App Builder] Generated "${name}" — ${Object.keys(files).length} files, ${Math.round(rawText.length / 1024)}KB raw, ${attempts} attempt(s)`)
   return NextResponse.json(result)
 }

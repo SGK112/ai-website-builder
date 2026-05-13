@@ -281,6 +281,71 @@
   to { transform: rotate(360deg); }
 }
 
+/* Marquee — continuous left scroll. Track is 200% wide with duplicated
+   content so the loop is seamless when it resets at -50%. */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@keyframes marquee-reverse {
+  from { transform: translateX(-50%); }
+  to   { transform: translateX(0); }
+}
+
+/* Aurora beam — long diagonal ribbon drifts horizontally and breathes.
+   Used for the hero background light streaks. */
+@keyframes beam-drift {
+  0%, 100% {
+    transform: translate3d(-15%, 0, 0) rotate(var(--beam-rot, 18deg));
+    opacity: var(--beam-opacity-min, 0.35);
+  }
+  50% {
+    transform: translate3d(15%, 0, 0) rotate(var(--beam-rot, 18deg));
+    opacity: var(--beam-opacity-max, 0.7);
+  }
+}
+
+/* Conic spotlight slow rotation */
+@keyframes conic-rotate {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to   { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Twinkle for floating particles */
+@keyframes twinkle {
+  0%, 100% { opacity: 0; transform: translateY(0) scale(0.8); }
+  50%      { opacity: 1; transform: translateY(-12px) scale(1); }
+}
+
+/* Spice-drift — small warm flecks rise slowly through the broth, sway,
+   and fade. Used to weave the Webstew (cooking) theme into the hero. */
+@keyframes spice-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.6);
+    opacity: 0;
+  }
+  10% {
+    opacity: var(--spice-opacity, 0.9);
+  }
+  50% {
+    transform: translate3d(var(--spice-sway, 18px), -50vh, 0) scale(1);
+  }
+  90% {
+    opacity: var(--spice-opacity, 0.9);
+  }
+  100% {
+    transform: translate3d(calc(var(--spice-sway, 18px) * -0.5), -100vh, 0) scale(0.7);
+    opacity: 0;
+  }
+}
+
+/* Simmer — slow breathing pulse for the bottom warm glow. */
+@keyframes simmer {
+  0%, 100% { opacity: 0.55; transform: translateX(-50%) scale(1); }
+  50%      { opacity: 0.85; transform: translateX(-50%) scale(1.08); }
+}
+
 /* Scale pulse */
 @keyframes scale-pulse {
   0%, 100% { transform: scale(1); }
@@ -410,6 +475,98 @@
 
   .animate-spin-slow {
     animation: spin-slow 20s linear infinite;
+  }
+
+  /* Marquee utilities — track must be 200% wide with duplicated children
+     for a seamless loop. Wrap in `.marquee-mask` for the edge fade. */
+  .animate-marquee {
+    animation: marquee 40s linear infinite;
+  }
+  .animate-marquee-reverse {
+    animation: marquee-reverse 50s linear infinite;
+  }
+  .marquee-pause:hover .animate-marquee,
+  .marquee-pause:hover .animate-marquee-reverse {
+    animation-play-state: paused;
+  }
+  .marquee-mask {
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 8%, #000 92%, transparent 100%);
+            mask-image: linear-gradient(to right, transparent 0, #000 8%, #000 92%, transparent 100%);
+  }
+
+  /* Aurora beam — vertical-ish diagonal ribbon of light. Sized + positioned
+     by the consumer; this utility just supplies the blur + blend. Uses
+     `screen` blend on dark themes (additive light) and `multiply` on light
+     themes so the beams remain visible on both. */
+  .aurora-beam {
+    position: absolute;
+    filter: blur(60px);
+    mix-blend-mode: screen;
+    will-change: transform, opacity;
+    animation: beam-drift var(--beam-duration, 14s) ease-in-out infinite;
+  }
+  [data-theme="light"] .aurora-beam {
+    mix-blend-mode: multiply;
+  }
+
+  /* Hero grid — fine lines that fade out radially from center via a mask. */
+  .hero-grid {
+    background-image:
+      linear-gradient(to right, var(--hero-grid-color, rgba(255,255,255,0.06)) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--hero-grid-color, rgba(255,255,255,0.06)) 1px, transparent 1px);
+    background-size: 56px 56px;
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 35%, transparent 80%);
+            mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 35%, transparent 80%);
+  }
+
+  /* Conic spotlight — soft rotating multi-hue cone behind the hero. */
+  .hero-spotlight {
+    position: absolute;
+    left: 50%;
+    top: 28%;
+    width: 90rem;
+    height: 90rem;
+    border-radius: 9999px;
+    transform: translate(-50%, -50%);
+    background: conic-gradient(
+      from 0deg,
+      rgba(139, 92, 246, 0.0) 0deg,
+      rgba(139, 92, 246, 0.45) 60deg,
+      rgba(236, 72, 153, 0.45) 140deg,
+      rgba(34, 211, 238, 0.35) 220deg,
+      rgba(251, 191, 36, 0.35) 300deg,
+      rgba(139, 92, 246, 0.0) 360deg
+    );
+    filter: blur(120px);
+    opacity: 0.5;
+    animation: conic-rotate 60s linear infinite;
+  }
+  [data-theme="light"] .hero-spotlight {
+    background: conic-gradient(
+      from 0deg,
+      rgba(124, 58, 237, 0.0) 0deg,
+      rgba(124, 58, 237, 0.25) 60deg,
+      rgba(236, 72, 153, 0.22) 140deg,
+      rgba(56, 189, 248, 0.22) 220deg,
+      rgba(251, 146, 60, 0.22) 300deg,
+      rgba(124, 58, 237, 0.0) 360deg
+    );
+    opacity: 0.75;
+  }
+
+  /* Particle twinkle — for the small floating dots above the hero. */
+  .animate-twinkle {
+    animation: twinkle var(--twinkle-duration, 4s) ease-in-out infinite;
+  }
+
+  /* Spice fleck — warm particle rising through the hero (Webstew theme). */
+  .animate-spice {
+    animation: spice-drift var(--spice-duration, 14s) ease-in-out infinite;
+  }
+
+  /* Simmer — bottom warm glow that breathes slowly. */
+  .animate-simmer {
+    animation: simmer var(--simmer-duration, 8s) ease-in-out infinite;
   }
 
   .animate-scale-pulse {

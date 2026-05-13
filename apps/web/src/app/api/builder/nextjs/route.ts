@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import Anthropic from '@anthropic-ai/sdk'
+import { generateJson, requireFiles, GenerateJsonError } from '@/lib/llm-json'
+import { augmentPromptWithReference } from '@/lib/site-reference'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -14,6 +16,9 @@ interface NextjsGenerateRequest {
   appName?: string
   database?: 'mongodb' | 'postgres' | 'none'
   auth?: 'nextauth' | 'clerk' | 'none'
+  // Optional URL — if provided, server scrapes the site for structure/palette/
+  // copy and injects it as inspiration context before the LLM call.
+  referenceUrl?: string
 }
 
 interface NextjsGenerateResponse {
@@ -128,20 +133,6 @@ function makeSlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'my-app'
 }
 
-function safeJsonParse(text: string): any | null {
-  let s = text.trim()
-  if (s.startsWith('```')) {
-    s = s.replace(/^```(?:json)?\s*/, '').replace(/```\s*$/, '').trim()
-  }
-  const first = s.indexOf('{')
-  const last = s.lastIndexOf('}')
-  if (first < 0 || last <= first) return null
-  const slice = s.slice(first, last + 1)
-  try { return JSON.parse(slice) } catch {}
-  try { return JSON.parse(slice.replace(/,(\s*[}\]])/g, '$1')) } catch {}
-  return null
-}
-
 function pickAnthropicModel(modelName: string | undefined): string {
   const lc = (modelName || '').toLowerCase()
   if (lc.includes('opus')) return 'claude-opus-4-7'
@@ -172,7 +163,7 @@ export async function POST(req: NextRequest) {
   const model = pickAnthropicModel(body.model)
   const client = new Anthropic({ apiKey: anthropicKey })
 
-  const userMsg = [
+  const baseMsg = [
     `Build this Next.js 14 App Router project:\n\n${prompt}`,
     body.appName ? `Project name: ${body.appName}` : '',
     body.database && body.database !== 'none' ? `Database: ${body.database} (assume the connection string lives in process.env.DATABASE_URL; do NOT hardcode credentials)` : '',
@@ -180,34 +171,38 @@ export async function POST(req: NextRequest) {
     'Respond with the JSON object only.',
   ].filter(Boolean).join('\n\n')
 
+  // If a reference URL was provided (either explicitly or extracted from
+  // the prompt text by the client), scrape it and append the structured
+  // context as inspiration.
+  const { prompt: userMsg, warning: refWarning } = await augmentPromptWithReference(baseMsg, body.referenceUrl)
+  if (refWarning) console.warn('[Next.js Builder]', refWarning)
+
+  let parsed: any
   let rawText: string
+  let attempts: number
   try {
-    const response = await client.messages.create({
+    const result = await generateJson({
+      client,
       model,
-      max_tokens: 16000,
-      system: NEXTJS_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userMsg }],
+      systemPrompt: NEXTJS_SYSTEM_PROMPT,
+      userMessage: userMsg,
+      validate: (p) => requireFiles(p, ['app/page.tsx', 'app/layout.tsx', 'package.json']),
     })
-    const block = response.content.find(b => b.type === 'text')
-    rawText = block && block.type === 'text' ? block.text : ''
+    parsed = result.parsed
+    rawText = result.rawText
+    attempts = result.attempts
   } catch (err: any) {
+    if (err instanceof GenerateJsonError) {
+      console.error('[Next.js Builder] Generation failed after retry:', err.detail)
+      return NextResponse.json({ error: err.message }, { status: err.status })
+    }
     console.error('[Next.js Builder] Anthropic call failed:', err?.message || err)
     return NextResponse.json({ error: err?.message || 'Generation failed' }, { status: 502 })
-  }
-
-  const parsed = safeJsonParse(rawText)
-  if (!parsed || typeof parsed !== 'object' || !parsed.files || typeof parsed.files !== 'object') {
-    console.error('[Next.js Builder] Could not parse response. First 300 chars:', rawText.slice(0, 300))
-    return NextResponse.json({ error: 'Model output was not valid JSON. Try a more specific prompt.' }, { status: 502 })
   }
 
   const name: string = typeof parsed.name === 'string' ? parsed.name : 'My App'
   const slug = typeof parsed.slug === 'string' && parsed.slug ? makeSlug(parsed.slug) : makeSlug(name)
   const description: string = typeof parsed.description === 'string' ? parsed.description : ''
-
-  const required = ['app/page.tsx', 'app/layout.tsx', 'package.json']
-  const missing = required.filter(f => !parsed.files[f])
-  if (missing.length > 0) console.warn('[Next.js Builder] Missing required files:', missing.join(', '))
 
   const files: Record<string, string> = {}
   for (const [path, content] of Object.entries(parsed.files)) {
@@ -230,6 +225,6 @@ export async function POST(req: NextRequest) {
     ].join('\n'),
   }
 
-  console.log(`[Next.js Builder] Generated "${name}" — ${Object.keys(files).length} files, ${Math.round(rawText.length / 1024)}KB raw`)
+  console.log(`[Next.js Builder] Generated "${name}" — ${Object.keys(files).length} files, ${Math.round(rawText.length / 1024)}KB raw, ${attempts} attempt(s)`)
   return NextResponse.json(result)
 }

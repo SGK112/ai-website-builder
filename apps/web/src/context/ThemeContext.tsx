@@ -21,16 +21,25 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [mounted, setMounted] = useState(false)
 
-  // Initialize theme from localStorage
+  // Sync helper — writes both attribute AND class so Tailwind's `dark:`
+  // variant (configured to fire on [data-theme="dark"] OR .dark) AND our
+  // own CSS variables (keyed off [data-theme="dark"]) agree.
+  const applyTheme = (t: Theme) => {
+    const root = document.documentElement
+    root.setAttribute('data-theme', t)
+    if (t === 'dark') root.classList.add('dark')
+    else root.classList.remove('dark')
+  }
+
+  // Initialize theme from localStorage. NOTE: an inline script in
+  // app/layout.tsx already sets data-theme + .dark before hydration, so
+  // this effect's job is just to mirror that into React state.
   useEffect(() => {
     setMounted(true)
     const savedTheme = localStorage.getItem('webcraft-theme') as Theme | null
-    if (savedTheme) {
-      setThemeState(savedTheme)
-      document.documentElement.setAttribute('data-theme', savedTheme)
-    } else {
-      document.documentElement.setAttribute('data-theme', 'dark')
-    }
+    const initial: Theme = savedTheme === 'light' || savedTheme === 'dark' ? savedTheme : 'dark'
+    setThemeState(initial)
+    applyTheme(initial)
   }, [])
 
   // Set theme with smooth transition
@@ -45,7 +54,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     requestAnimationFrame(() => {
       setThemeState(newTheme)
       localStorage.setItem('webcraft-theme', newTheme)
-      document.documentElement.setAttribute('data-theme', newTheme)
+      applyTheme(newTheme)
 
       // End transition after animation completes
       setTimeout(() => {

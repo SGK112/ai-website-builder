@@ -3,11 +3,35 @@ import { getToken } from 'next-auth/jwt'
 
 // Routes that require an authenticated session. Workspace UI + builder APIs
 // are gated. Static landing, signup/login, and public APIs remain open.
-const GATED_PAGE_PREFIXES = ['/workspace', '/dashboard', '/profile']
+// `/app-builder` is also gated now — generated apps cost real LLM credits.
+const GATED_PAGE_PREFIXES = ['/workspace', '/app-builder', '/dashboard', '/profile', '/admin']
 const GATED_API_PREFIXES = [
   '/api/builder/generate',
   '/api/builder/converse',
   '/api/builder/chat',
+  // Multi-target builder routes — each makes a Claude call, must be gated.
+  '/api/builder/nextjs',
+  '/api/builder/react',
+  '/api/builder/astro',
+  '/api/builder/app',
+  // AI feature endpoints that hit paid providers (Replicate, OpenAI, etc.) —
+  // they cost real money per call. Authenticated users only.
+  '/api/ai/image',
+  '/api/ai/video',
+  '/api/ai/chat',
+  '/api/ai/free',
+  // Tool endpoints — scraping, grading. Cheap but DoS-friendly if exposed.
+  '/api/tools/site-reference',
+  '/api/tools/grade',
+  // CMS — every read/write goes through the authenticated owner check inside
+  // the route handlers, but we gate at the edge too so anonymous traffic
+  // can't probe the endpoint shape.
+  '/api/cms',
+  // User credentials (BYO render/github keys) — gated; route handlers also
+  // check ownership.
+  '/api/user',
+  // Admin endpoints — auth required (handler does the admin-email check).
+  '/api/admin',
 ]
 
 export async function middleware(request: NextRequest) {

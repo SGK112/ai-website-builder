@@ -59,6 +59,42 @@ const nextConfig = {
         source: '/:path*',
         headers: securityHeaders,
       },
+      {
+        // WebContainer cross-origin isolation — required for SharedArrayBuffer.
+        // Scoped to the builder surfaces so the rest of the site isn't forced
+        // into cross-origin isolation (which would break third-party iframes /
+        // images elsewhere). `credentialless` is more permissive than
+        // `require-corp` — third-party resources still load, just without
+        // credentials. WebContainers supports it since v1.2.
+        source: '/app-builder/:path*',
+        headers: [
+          { key: 'Cross-Origin-Embedder-Policy', value: 'credentialless' },
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+        ],
+      },
+      {
+        source: '/app-builder',
+        headers: [
+          { key: 'Cross-Origin-Embedder-Policy', value: 'credentialless' },
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+        ],
+      },
+      {
+        // /workspace now hosts multi-target generation (Astro/Next/React/Expo)
+        // which uses WebContainer for live preview — same isolation rules apply.
+        source: '/workspace/:path*',
+        headers: [
+          { key: 'Cross-Origin-Embedder-Policy', value: 'credentialless' },
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+        ],
+      },
+      {
+        source: '/workspace',
+        headers: [
+          { key: 'Cross-Origin-Embedder-Policy', value: 'credentialless' },
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+        ],
+      },
     ]
   },
   // Powered by header disabled for security

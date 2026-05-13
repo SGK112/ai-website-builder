@@ -19,21 +19,28 @@ export function ClientLayout({ children }: ClientLayoutProps) {
 
   return (
     <>
-      {/* Global background for all pages */}
-      <div className="fixed inset-0 bg-[#050508]" />
+      {/* Global background for all pages — THEME-AWARE.
+          This was hardcoded to `bg-[#050508]` (dark slate) which painted
+          the entire app dark regardless of which theme the user picked.
+          `bg-background` reads --background from the CSS theme variables
+          (white in light mode, dark in dark mode) so light mode actually
+          shows light. */}
+      <div className="fixed inset-0 bg-background" />
 
-      {/* Animated background orbs */}
+      {/* Animated background orbs. Stronger in dark mode (pop against a
+          dark canvas), barely-there in light mode (so they don't wash
+          the page out into a pastel mush). */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div
-          className="absolute -top-[30%] -left-[10%] w-[800px] h-[800px] rounded-full bg-gradient-to-br from-blue-500/15 via-purple-500/10 to-transparent blur-[100px]"
+          className="absolute -top-[30%] -left-[10%] w-[800px] h-[800px] rounded-full blur-[100px] bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-transparent dark:from-blue-500/15 dark:via-purple-500/10"
           style={{ animation: 'pulse 8s ease-in-out infinite' }}
         />
         <div
-          className="absolute top-1/2 -right-[15%] w-[600px] h-[600px] rounded-full bg-gradient-to-tl from-purple-500/15 via-pink-500/10 to-transparent blur-[80px]"
+          className="absolute top-1/2 -right-[15%] w-[600px] h-[600px] rounded-full blur-[80px] bg-gradient-to-tl from-purple-500/5 via-pink-500/5 to-transparent dark:from-purple-500/15 dark:via-pink-500/10"
           style={{ animation: 'pulse 10s ease-in-out infinite', animationDelay: '3s' }}
         />
         <div
-          className="absolute -bottom-[20%] left-1/3 w-[500px] h-[500px] rounded-full bg-gradient-to-tr from-indigo-500/10 via-blue-500/5 to-transparent blur-[60px]"
+          className="absolute -bottom-[20%] left-1/3 w-[500px] h-[500px] rounded-full blur-[60px] bg-gradient-to-tr from-indigo-500/4 via-blue-500/3 to-transparent dark:from-indigo-500/10 dark:via-blue-500/5"
           style={{ animation: 'pulse 12s ease-in-out infinite', animationDelay: '5s' }}
         />
       </div>

@@ -54,8 +54,40 @@ export interface IProject extends Document {
   wizardStep: number
   wizardCompleted: boolean
   credentialIds: mongoose.Types.ObjectId[]
+  // CMS — content collections owned by this project. Each schema defines a
+  // collection of items (fields-typed records). Items are stored alongside
+  // because most projects have < 1000 records; if growth bites we split into
+  // a dedicated collection later. See `/api/cms/[projectId]/*`.
+  cms?: {
+    schemas: Record<string, CmsSchema>
+    items: Record<string, Record<string, CmsItem>>
+  }
   createdAt: Date
   updatedAt: Date
+}
+
+export type CmsFieldType = 'text' | 'textarea' | 'markdown' | 'image' | 'boolean' | 'url' | 'number' | 'date' | 'reference'
+export interface CmsField {
+  key: string
+  type: CmsFieldType
+  label?: string
+  required?: boolean
+  // For `reference` — which collection slug this points at.
+  ref?: string
+}
+export interface CmsSchema {
+  slug: string
+  name: string
+  fields: CmsField[]
+  createdAt?: Date
+  updatedAt?: Date
+}
+export interface CmsItem {
+  slug: string
+  fields: Record<string, any>
+  status: 'draft' | 'published'
+  createdAt?: Date
+  updatedAt?: Date
 }
 
 const projectSchema = new Schema<IProject>(
@@ -115,6 +147,9 @@ const projectSchema = new Schema<IProject>(
     wizardStep: { type: Number, default: 1 },
     wizardCompleted: { type: Boolean, default: false },
     credentialIds: [{ type: Schema.Types.ObjectId, ref: 'Credential' }],
+    // CMS — see IProject.cms for shape. Mixed so we can evolve fields without
+    // a schema migration; validation happens at the API layer.
+    cms: { type: Schema.Types.Mixed, default: undefined },
   },
   {
     timestamps: true,

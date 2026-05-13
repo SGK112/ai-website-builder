@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useScroll, useSpring, useTransform } from 'framer-motion'
 import {
   Sparkles,
   ArrowRight,
@@ -218,6 +218,188 @@ export default function HomePage() {
   const { theme, setTheme } = useTheme()
   const isDark = theme === 'dark'
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const previewRef = useRef<HTMLElement>(null)
+
+  // Page-level scroll progress — drives a thin fixed bar at the top of the
+  // viewport so users have constant feedback about where they are in the
+  // story. Smoothed so it doesn't jitter when the user scrolls hard.
+  const { scrollYProgress: pageProgress } = useScroll()
+  const pageProgressSmooth = useSpring(pageProgress, { stiffness: 110, damping: 30 })
+
+  // Track viewport size so we can compute a target scale that actually
+  // covers the viewport. The card is min(1152px, 94vw) wide with a 16/10
+  // aspect, so the target scale is the larger of viewport-w/card-w and
+  // viewport-h/card-h — that guarantees the iframe fills the screen.
+  const [viewport, setViewport] = useState({ w: 1920, h: 1080 })
+  useEffect(() => {
+    const update = () => setViewport({ w: window.innerWidth, h: window.innerHeight })
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+  const targetScale = (() => {
+    const cardW = Math.min(1152, viewport.w * 0.94)
+    const cardH = cardW * 10 / 16
+    return Math.max(viewport.w / cardW, viewport.h / cardH)
+  })()
+
+  // Scroll-driven takeover. Section is sized so the preview grows fast
+  // (0 → 0.42 of section progress) and then LOCKS at fullscreen for the
+  // remainder of the sticky zone. No shrink-back — when the user scrolls
+  // past, sticky releases naturally and the next section comes up. Spring-
+  // smoothed for a buttery feel without scroll lag.
+  const { scrollYProgress: previewProgress } = useScroll({
+    target: previewRef,
+    offset: ['start end', 'end start'],
+  })
+  // Softer spring so the size/opacity transitions feel like silk, not
+  // step-jumps. Lower stiffness + higher mass = more flow, more inertia,
+  // less reactive to micro-scrolls.
+  const springConfig = { stiffness: 70, damping: 28, mass: 0.5 }
+  const smoothProgress = useSpring(previewProgress, springConfig)
+
+  // Section = 200vh, viewport = 100vh, so total scroll progress spans
+  // section + viewport = 300vh. Sticky pins at 100/300 ≈ 0.333 and releases
+  // at 200/300 ≈ 0.666 — about 100vh (a full screen) of locked scroll. The
+  // pin window is split into three deliberate phases:
+  //   • 0.333 → 0.45  HOLD fullscreen  (let the takeover register)
+  //   • 0.45  → 0.56  TRANSITION       (shrink + chrome reveal + dim fade)
+  //   • 0.56  → 0.666 HOLD detached    (let the finished product card sit)
+  // Anchors outside the pin window keep transforms latched at their
+  // start/end values so the entry and exit are clean.
+  // (previewScale + previewRadius removed — replaced by cardWidth /
+  // cardHeight / cardRadius below which drive the morph with real size,
+  // not scale transform.)
+  // Dim — visible only during the final FULLSCREEN takeover (the end of
+  // the morph in the reversed flow). Starts at 0, ramps up as we approach
+  // fullscreen, peaks while fullscreen, holds through end of section.
+  const previewDim = useTransform(
+    smoothProgress,
+    [0.68, 0.78, 1],
+    [0, 1, 1]
+  )
+  // Halo — dim while small (mobile/tablet/PC), brightens at fullscreen.
+  const previewHaloOpacity = useTransform(
+    smoothProgress,
+    [0.3, 0.7, 0.8, 1],
+    [0.35, 0.5, 1, 1]
+  )
+  // Label + caption visible during the small device phases (mobile→PC),
+  // fade out as the card grows into the fullscreen takeover.
+  const previewLabelY = useTransform(
+    smoothProgress,
+    [0.7, 0.8],
+    [0, -24]
+  )
+  const previewLabelOpacity = useTransform(
+    smoothProgress,
+    [0.28, 0.35, 0.7, 0.78],
+    [0, 1, 1, 0]
+  )
+  const previewCaptionOpacity = useTransform(
+    smoothProgress,
+    [0.28, 0.35, 0.7, 0.78],
+    [0, 1, 1, 0]
+  )
+  // Hint visible only during the final fullscreen hold, before section exits.
+  const previewHintOpacity = useTransform(
+    smoothProgress,
+    [0.78, 0.85, 0.95, 1],
+    [0, 1, 1, 0]
+  )
+  // Browser chrome — visible during the PC window. Wider fade windows
+  // (overlap tablet camera on the way in, fullscreen on the way out) so
+  // it ribbons in/out instead of pop-clipping.
+  const chromeOpacity = useTransform(
+    smoothProgress,
+    [0.56, 0.66, 0.74, 0.82],
+    [0, 1, 1, 0]
+  )
+  // CRT scanline — present during the FINAL FULLSCREEN hold (the
+  // tube-warming-up moment at the end of the reversed morph).
+  const scanlineOpacity = useTransform(
+    smoothProgress,
+    [0.72, 0.78, 0.95, 1],
+    [0, 0.18, 0.18, 0]
+  )
+  // Tube vignette — same window as scanline.
+  const vignetteOpacity = useTransform(
+    smoothProgress,
+    [0.72, 0.8, 0.95, 1],
+    [0, 0.4, 0.4, 0]
+  )
+
+  // DEVICE MORPH — ONE card whose width / height / border-radius / border
+  // thickness / browser-chrome visibility all animate together to walk the
+  // card through four states by scroll position. REVERSED direction —
+  // starts small (mobile) and grows to full screen:
+  //   • Mobile               (9:19, thicker phone bezel, notch)        @ 0.35
+  //   • Tablet               (4:3, thick rounded bezel, camera dot)    @ 0.5
+  //   • PC / desktop card    (16:10, browser chrome visible, thin)     @ 0.65
+  //   • Fullscreen takeover  (covers viewport)                          @ 0.8
+  // Width is in vw, height in vh — useTransform interpolates the numbers
+  // and keeps the unit suffix.
+  // Card morph stops — kept evenly spaced so each device phase is the
+  // same "scroll budget". Height made monotonically-increasing (no dip
+  // at tablet) so the growth reads as a single continuous swell, not a
+  // wobble. Border-width changes broken into more intermediate stops so
+  // the bezel softens smoothly into the PC's thin border instead of
+  // jumping.
+  const cardWidth = useTransform(
+    smoothProgress,
+    [0.35, 0.5, 0.65, 0.8],
+    ['18vw', '40vw', '64vw', '98vw']
+  )
+  const cardHeight = useTransform(
+    smoothProgress,
+    [0.35, 0.5, 0.65, 0.8],
+    ['56vh', '58vh', '66vh', '100vh']
+  )
+  const cardRadius = useTransform(
+    smoothProgress,
+    [0.35, 0.5, 0.6, 0.7, 0.8],
+    ['36px', '28px', '20px', '14px', '0px']
+  )
+  const cardBorderWidth = useTransform(
+    smoothProgress,
+    [0.35, 0.45, 0.5, 0.58, 0.65, 0.8],
+    ['6px', '7px', '8px', '4px', '1px', '1px']
+  )
+  // (pcChromeOpacity removed — `chromeOpacity` defined earlier already
+  // covers the PC chrome reveal at the same progress window.)
+  // Device-type labels — three overlapping motion spans with WIDE crossfade
+  // windows so the handoff between phases reads as a dissolve, not a clip.
+  // Each pair overlaps by ~6% of progress.
+  const mobileLabelOpacity = useTransform(
+    smoothProgress,
+    [0.28, 0.4, 0.48, 0.55],
+    [0, 1, 1, 0]
+  )
+  const tabletLabelOpacity = useTransform(
+    smoothProgress,
+    [0.45, 0.54, 0.62, 0.7],
+    [0, 1, 1, 0]
+  )
+  const pcLabelOpacity = useTransform(
+    smoothProgress,
+    [0.6, 0.7, 0.78, 0.85],
+    [0, 1, 1, 0]
+  )
+
+  // Mobile notch + home indicator — visible only during mobile state.
+  // Wider fade-out window so it dissolves into the tablet camera dot.
+  const mobileNotchOpacity = useTransform(
+    smoothProgress,
+    [0.28, 0.4, 0.5, 0.58],
+    [0, 1, 1, 0]
+  )
+  // Tablet camera dot — wider fade windows on both sides so it crossfades
+  // with the mobile notch on entry and the PC chrome on exit.
+  const tabletCameraOpacity = useTransform(
+    smoothProgress,
+    [0.45, 0.54, 0.62, 0.7],
+    [0, 1, 1, 0]
+  )
 
   const [prompt, setPrompt] = useState('')
   const [isTransitioning, setIsTransitioning] = useState(false)
@@ -386,86 +568,230 @@ export default function HomePage() {
           initial={mounted ? { opacity: 0 } : false}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="min-h-screen relative overflow-hidden"
+          className="min-h-screen relative"
         >
-          {/* Animated gradient mesh background — Lovable-style. Multiple
-              blurred color blobs layered, drifting slowly. Sets the mood
-              without occluding text because each blob is behind a 96px blur
-              filter and the content sits on z-10. */}
-          <div className={cn(
-            "absolute inset-0",
-            isDark ? "bg-slate-950" : "bg-[#fdf8f3]"
-          )} />
+          {/* Fixed scroll progress bar — thin gradient line at the very top
+              of the viewport that fills as the user scrolls through the
+              page. Constant feedback that the story has more to come. */}
+          <motion.div
+            style={{ scaleX: pageProgressSmooth }}
+            className="fixed top-0 left-0 right-0 h-[3px] z-[60] origin-left bg-gradient-to-r from-violet-500 via-fuchsia-500 to-amber-400 pointer-events-none"
+            aria-hidden
+          />
+
+          {/* HERO BACKGROUND — contained to a `h-screen` wrapper anchored at
+              the top of the page so the aurora/grid/beams/flecks only render
+              in the hero area, NOT stretching across every section below.
+              Also: this is the ONLY overflow-hidden wrapper in the layout —
+              the page wrapper above must stay overflow-visible so descendant
+              `position: sticky` (preview takeover) actually works. */}
+          <div className="absolute inset-x-0 top-0 h-screen overflow-hidden pointer-events-none">
+          {/* Hero background — layered: base + radial-masked grid +
+              conic spotlight + drifting aurora beams + twinkling particles
+              + bottom veil. Designed to feel cinematic, not "AI gradient
+              blob". Palette leans violet/fuchsia/cyan with a warm amber
+              accent so it still ties to the Webstew brand. */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background: isDark
+                ? 'radial-gradient(ellipse 120% 80% at 50% 0%, #1a0b2e 0%, #0a0612 45%, #050308 100%)'
+                : 'radial-gradient(ellipse 120% 80% at 50% 0%, #f5efff 0%, #fbf7ff 45%, #ffffff 100%)',
+            }}
+          />
+
+          {/* Radial-masked grid — subtle structure, fades from center */}
+          <div
+            className="absolute inset-0 hero-grid pointer-events-none"
+            style={{
+              ['--hero-grid-color' as any]: isDark
+                ? 'rgba(255,255,255,0.055)'
+                : 'rgba(15,23,42,0.06)',
+            }}
+          />
+
+          {/* Conic spotlight — slowly rotating multi-hue cone */}
+          <div className="hero-spotlight pointer-events-none" aria-hidden />
+
+          {/* Aurora beams — three long diagonal ribbons that drift */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            {/* Top-left warm blob */}
-            <motion.div
-              className="absolute -top-32 -left-20 w-[40rem] h-[40rem] rounded-full"
+            <div
+              className="aurora-beam"
               style={{
-                filter: 'blur(110px)',
-                background: isDark
-                  ? 'radial-gradient(circle, rgba(244,114,182,0.45), transparent 70%)'
-                  : 'radial-gradient(circle, rgba(251,146,60,0.55), transparent 70%)',
+                top: '-10%',
+                left: '-10%',
+                width: '70%',
+                height: '38rem',
+                ['--beam-rot' as any]: '14deg',
+                ['--beam-duration' as any]: '16s',
+                ['--beam-opacity-min' as any]: isDark ? 0.35 : 0.22,
+                ['--beam-opacity-max' as any]: isDark ? 0.75 : 0.45,
+                background: 'linear-gradient(90deg, transparent 0%, rgba(139,92,246,0.55) 35%, rgba(236,72,153,0.55) 65%, transparent 100%)',
               }}
-              animate={{ x: [0, 40, 0], y: [0, 30, 0] }}
-              transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }}
             />
-            {/* Top-right cool blob */}
-            <motion.div
-              className="absolute -top-24 -right-32 w-[36rem] h-[36rem] rounded-full"
+            <div
+              className="aurora-beam"
               style={{
-                filter: 'blur(120px)',
-                background: isDark
-                  ? 'radial-gradient(circle, rgba(167,139,250,0.5), transparent 70%)'
-                  : 'radial-gradient(circle, rgba(168,85,247,0.4), transparent 70%)',
+                top: '22%',
+                right: '-15%',
+                width: '75%',
+                height: '32rem',
+                ['--beam-rot' as any]: '-12deg',
+                ['--beam-duration' as any]: '19s',
+                ['--beam-opacity-min' as any]: isDark ? 0.3 : 0.18,
+                ['--beam-opacity-max' as any]: isDark ? 0.65 : 0.38,
+                background: 'linear-gradient(90deg, transparent 0%, rgba(34,211,238,0.5) 30%, rgba(139,92,246,0.55) 70%, transparent 100%)',
               }}
-              animate={{ x: [0, -50, 0], y: [0, 40, 0] }}
-              transition={{ duration: 26, repeat: Infinity, ease: 'easeInOut' }}
             />
-            {/* Bottom-left magenta */}
-            <motion.div
-              className="absolute top-[35%] -left-32 w-[34rem] h-[34rem] rounded-full"
+            <div
+              className="aurora-beam"
               style={{
-                filter: 'blur(120px)',
-                background: isDark
-                  ? 'radial-gradient(circle, rgba(192,38,211,0.35), transparent 70%)'
-                  : 'radial-gradient(circle, rgba(236,72,153,0.35), transparent 70%)',
+                bottom: '-12%',
+                left: '5%',
+                width: '85%',
+                height: '34rem',
+                ['--beam-rot' as any]: '8deg',
+                ['--beam-duration' as any]: '22s',
+                ['--beam-opacity-min' as any]: isDark ? 0.28 : 0.16,
+                ['--beam-opacity-max' as any]: isDark ? 0.6 : 0.35,
+                background: 'linear-gradient(90deg, transparent 0%, rgba(251,191,36,0.42) 25%, rgba(236,72,153,0.5) 60%, rgba(139,92,246,0.45) 90%, transparent 100%)',
               }}
-              animate={{ x: [0, 60, 0], y: [0, -40, 0] }}
-              transition={{ duration: 28, repeat: Infinity, ease: 'easeInOut' }}
             />
-            {/* Bottom-right warm */}
-            <motion.div
-              className="absolute top-[40%] -right-20 w-[38rem] h-[38rem] rounded-full"
+            {/* Webstew warm beam — saffron → paprika → wine. Anchors the
+                cooking-theme palette inside the modern aurora field. */}
+            <div
+              className="aurora-beam"
               style={{
-                filter: 'blur(120px)',
-                background: isDark
-                  ? 'radial-gradient(circle, rgba(251,113,133,0.35), transparent 70%)'
-                  : 'radial-gradient(circle, rgba(251,191,36,0.45), transparent 70%)',
+                top: '48%',
+                left: '-20%',
+                width: '80%',
+                height: '30rem',
+                ['--beam-rot' as any]: '-6deg',
+                ['--beam-duration' as any]: '24s',
+                ['--beam-opacity-min' as any]: isDark ? 0.32 : 0.18,
+                ['--beam-opacity-max' as any]: isDark ? 0.7 : 0.42,
+                background: 'linear-gradient(90deg, transparent 0%, rgba(251,191,36,0.55) 25%, rgba(234,88,12,0.5) 55%, rgba(190,18,60,0.4) 85%, transparent 100%)',
               }}
-              animate={{ x: [0, -40, 0], y: [0, 50, 0] }}
-              transition={{ duration: 24, repeat: Infinity, ease: 'easeInOut' }}
-            />
-            {/* Center violet accent */}
-            <motion.div
-              className="absolute top-1/3 left-1/3 w-[28rem] h-[28rem] rounded-full"
-              style={{
-                filter: 'blur(120px)',
-                background: isDark
-                  ? 'radial-gradient(circle, rgba(99,102,241,0.3), transparent 70%)'
-                  : 'radial-gradient(circle, rgba(139,92,246,0.3), transparent 70%)',
-              }}
-              animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
-              transition={{ duration: 30, repeat: Infinity, ease: 'easeInOut' }}
             />
           </div>
-          {/* Soft veil so text on top stays crisp regardless of where the
-              blobs drift to */}
+
+          {/* Twinkling particles — sparse field of small dots */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            {[
+              { top: '12%', left: '8%',  size: 2, delay: 0,    dur: 4.5 },
+              { top: '18%', left: '78%', size: 3, delay: 0.6,  dur: 5.2 },
+              { top: '32%', left: '24%', size: 2, delay: 1.2,  dur: 4.8 },
+              { top: '42%', left: '88%', size: 2, delay: 1.8,  dur: 5.5 },
+              { top: '58%', left: '12%', size: 3, delay: 2.4,  dur: 4.7 },
+              { top: '64%', left: '70%', size: 2, delay: 3.0,  dur: 5.1 },
+              { top: '76%', left: '36%', size: 2, delay: 0.4,  dur: 5.3 },
+              { top: '14%', left: '52%', size: 2, delay: 2.0,  dur: 4.9 },
+              { top: '48%', left: '46%', size: 2, delay: 2.6,  dur: 5.4 },
+              { top: '26%', left: '92%', size: 2, delay: 1.5,  dur: 4.6 },
+              { top: '70%', left: '90%', size: 3, delay: 3.4,  dur: 5.0 },
+              { top: '84%', left: '60%', size: 2, delay: 0.9,  dur: 4.8 },
+            ].map((p, i) => (
+              <span
+                key={i}
+                className="absolute rounded-full animate-twinkle"
+                style={{
+                  top: p.top,
+                  left: p.left,
+                  width: `${p.size}px`,
+                  height: `${p.size}px`,
+                  background: isDark ? 'rgba(255,255,255,0.95)' : 'rgba(124,58,237,0.6)',
+                  boxShadow: isDark
+                    ? '0 0 10px rgba(255,255,255,0.7), 0 0 20px rgba(167,139,250,0.55)'
+                    : '0 0 8px rgba(124,58,237,0.45)',
+                  ['--twinkle-duration' as any]: `${p.dur}s`,
+                  animationDelay: `${p.delay}s`,
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Webstew spice flecks — warm particles rising slowly through the
+              hero like saffron and paprika lifting in a simmering broth. They
+              start near the bottom edge and drift up + slightly sideways over
+              ~14s. Sized between 2-4px so they read as ingredient flecks, not
+              dust. Hues: saffron / paprika / cumin / sumac. */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            {[
+              { left: '6%',  size: 3, delay: 0,    dur: 13, sway: 22,  hue: 'saffron' },
+              { left: '14%', size: 2, delay: 4.2,  dur: 15, sway: -18, hue: 'paprika' },
+              { left: '22%', size: 4, delay: 7.5,  dur: 16, sway: 16,  hue: 'amber'   },
+              { left: '31%', size: 2, delay: 2.1,  dur: 14, sway: -24, hue: 'cumin'   },
+              { left: '42%', size: 3, delay: 9.0,  dur: 15, sway: 20,  hue: 'paprika' },
+              { left: '51%', size: 2, delay: 5.4,  dur: 13, sway: -14, hue: 'saffron' },
+              { left: '60%', size: 4, delay: 11.3, dur: 17, sway: 18,  hue: 'sumac'   },
+              { left: '69%', size: 2, delay: 3.0,  dur: 14, sway: -22, hue: 'amber'   },
+              { left: '78%', size: 3, delay: 8.1,  dur: 15, sway: 24,  hue: 'saffron' },
+              { left: '86%', size: 2, delay: 6.0,  dur: 16, sway: -16, hue: 'paprika' },
+              { left: '93%', size: 3, delay: 1.2,  dur: 14, sway: 20,  hue: 'cumin'   },
+            ].map((p, i) => {
+              const palette = {
+                saffron: { bg: 'rgba(251,191,36,0.95)',  glow: 'rgba(251,191,36,0.55)' },
+                paprika: { bg: 'rgba(234,88,12,0.95)',   glow: 'rgba(234,88,12,0.5)'   },
+                amber:   { bg: 'rgba(245,158,11,0.95)',  glow: 'rgba(245,158,11,0.5)'  },
+                cumin:   { bg: 'rgba(180,83,9,0.95)',    glow: 'rgba(180,83,9,0.45)'   },
+                sumac:   { bg: 'rgba(190,18,60,0.95)',   glow: 'rgba(190,18,60,0.45)'  },
+              }[p.hue as 'saffron' | 'paprika' | 'amber' | 'cumin' | 'sumac']
+              return (
+                <span
+                  key={`spice-${i}`}
+                  className="absolute rounded-full animate-spice"
+                  style={{
+                    left: p.left,
+                    bottom: '-10px',
+                    width: `${p.size}px`,
+                    height: `${p.size}px`,
+                    background: palette.bg,
+                    boxShadow: `0 0 8px ${palette.glow}, 0 0 16px ${palette.glow}`,
+                    opacity: isDark ? 0.85 : 0.7,
+                    ['--spice-duration' as any]: `${p.dur}s`,
+                    ['--spice-sway' as any]: `${p.sway}px`,
+                    ['--spice-opacity' as any]: isDark ? 0.85 : 0.7,
+                    animationDelay: `${p.delay}s`,
+                  }}
+                />
+              )
+            })}
+          </div>
+
+          {/* Simmer glow — soft warm radial sitting at the bottom of the hero,
+              breathing in and out like heat rising from a pot. Anchors the
+              Webstew theme without dragging the palette back to "stew brown". */}
+          <div
+            className="absolute left-1/2 bottom-[-12rem] w-[70rem] h-[36rem] rounded-full pointer-events-none animate-simmer"
+            style={{
+              background: isDark
+                ? 'radial-gradient(ellipse at center, rgba(234,88,12,0.28), rgba(251,191,36,0.16) 35%, transparent 70%)'
+                : 'radial-gradient(ellipse at center, rgba(234,88,12,0.18), rgba(251,191,36,0.12) 35%, transparent 70%)',
+              filter: 'blur(80px)',
+              ['--simmer-duration' as any]: '9s',
+              transform: 'translateX(-50%)',
+            }}
+            aria-hidden
+          />
+
+          {/* Bottom veil — fades hero into the next sections */}
           <div className={cn(
-            "absolute inset-0 pointer-events-none",
+            "absolute inset-x-0 bottom-0 h-64 pointer-events-none",
             isDark
-              ? "bg-gradient-to-b from-slate-950/30 via-transparent to-slate-950/40"
-              : "bg-gradient-to-b from-white/30 via-transparent to-white/40"
+              ? "bg-gradient-to-b from-transparent to-[#050308]"
+              : "bg-gradient-to-b from-transparent to-white"
           )} />
+
+          {/* Subtle noise overlay for film-grain texture */}
+          <div
+            className="absolute inset-0 pointer-events-none opacity-[0.035] mix-blend-overlay"
+            style={{
+              backgroundImage:
+                "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+            }}
+          />
+          </div>
+          {/* /HERO BACKGROUND */}
 
           {/* Content overlay */}
           <div className="relative z-10">
@@ -572,7 +898,7 @@ export default function HomePage() {
             </header>
 
             {/* Main Content */}
-            <main className="min-h-[80vh] flex items-center justify-center px-6 pb-12 pt-6">
+            <main className="min-h-[60vh] flex items-center justify-center px-6 pb-4 pt-2">
               <div className="w-full max-w-2xl">
                 {/* Hero — centered like Lovable / Replit. */}
                 <motion.div
@@ -581,48 +907,34 @@ export default function HomePage() {
                   transition={{ duration: 0.6 }}
                   className="text-center mb-8 relative"
                 >
-                  {/* Floating sparkles around the brand mark */}
-                  <div className="relative inline-block">
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.6, rotate: -10 }}
-                      animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                      transition={{ duration: 0.8, delay: 0.1, ease: [0.34, 1.56, 0.64, 1] }}
-                      className="text-5xl mb-3 inline-block relative"
-                      style={{ filter: 'drop-shadow(0 6px 20px rgba(251,146,60,0.35))' }}
-                    >
-                      <motion.span
-                        animate={{ y: [0, -4, 0] }}
-                        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                        className="inline-block"
-                      >
-                        🍲
-                      </motion.span>
-                    </motion.div>
-                    {/* Sparkles drifting around the bowl */}
-                    {[
-                      { top: '-6px', left: '-30px', delay: 0 },
-                      { top: '-12px', right: '-26px', delay: 0.6 },
-                      { bottom: '8px', left: '-26px', delay: 1.2 },
-                      { bottom: '4px', right: '-32px', delay: 1.8 },
-                    ].map((s, i) => (
-                      <motion.div
-                        key={i}
-                        className="absolute pointer-events-none"
-                        style={{ top: s.top, left: s.left, right: s.right, bottom: s.bottom }}
-                        initial={{ opacity: 0, scale: 0 }}
-                        animate={{ opacity: [0, 1, 0], scale: [0, 1.1, 0], rotate: [0, 180, 360] }}
-                        transition={{ duration: 2.4, delay: s.delay, repeat: Infinity, repeatDelay: 1 }}
-                      >
-                        <Sparkles className={cn("w-3 h-3", isDark ? "text-amber-300" : "text-orange-400")} />
-                      </motion.div>
-                    ))}
-                  </div>
+                  {/* Status pill — small, premium, signals the product is live */}
+                  <motion.a
+                    href="/community"
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: 0.05 }}
+                    className={cn(
+                      "inline-flex items-center gap-2 px-3 py-1 mb-7 rounded-full text-[11px] font-medium backdrop-blur-md border transition-all group",
+                      isDark
+                        ? "bg-white/[0.04] border-white/[0.08] text-slate-300 hover:bg-white/[0.08] hover:border-white/[0.14]"
+                        : "bg-white/70 border-slate-200/80 text-slate-600 hover:bg-white hover:border-slate-300"
+                    )}
+                  >
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                    </span>
+                    <span className="text-[10px] uppercase tracking-[0.18em] font-semibold">Live</span>
+                    <span className={cn("opacity-50", isDark ? "text-slate-500" : "text-slate-400")}>·</span>
+                    <span>Sites · web apps · mobile, generated by AI</span>
+                    <ArrowRight className="w-3 h-3 opacity-50 group-hover:translate-x-0.5 transition-transform" />
+                  </motion.a>
                   <h1 className={cn(
-                    "text-5xl md:text-7xl font-bold tracking-tight leading-[1] mb-5",
-                    isDark ? "text-white" : "text-slate-900"
+                    "text-6xl md:text-8xl font-bold tracking-[-0.04em] leading-[0.95] mb-6",
+                    "text-foreground"
                   )}>
                     Build something
-                    <span className="block relative h-[1.2em] mt-2 overflow-visible">
+                    <span className="block relative h-[1.15em] mt-2 overflow-visible">
                       <AnimatePresence mode="wait">
                         <motion.span
                           key={rotatingWord}
@@ -633,14 +945,14 @@ export default function HomePage() {
                           className={cn(
                             "absolute inset-0 italic font-normal bg-clip-text text-transparent",
                             isDark
-                              ? "bg-gradient-to-br from-amber-200 via-pink-300 to-violet-300"
-                              : "bg-gradient-to-br from-orange-500 via-pink-500 to-violet-600"
+                              ? "bg-gradient-to-br from-violet-200 via-fuchsia-300 to-cyan-200"
+                              : "bg-gradient-to-br from-violet-600 via-fuchsia-600 to-cyan-600"
                           )}
                           style={{
                             fontFamily: 'var(--font-playfair), Georgia, "Times New Roman", serif',
-                            fontSize: '1.25em',
+                            fontSize: '1.2em',
                             lineHeight: '0.95',
-                            letterSpacing: '-0.02em',
+                            letterSpacing: '-0.025em',
                           }}
                         >
                           {rotatingWord}.
@@ -649,10 +961,14 @@ export default function HomePage() {
                     </span>
                   </h1>
                   <p className={cn(
-                    "text-base md:text-lg max-w-xl mx-auto leading-relaxed",
-                    isDark ? "text-slate-300" : "text-slate-600"
+                    "text-lg md:text-xl max-w-2xl mx-auto leading-relaxed",
+                    "text-muted-foreground"
                   )}>
-                    Tell Webstew what to build. AI ships you a working <span className="font-semibold">website, web app, or mobile app</span> — real code, yours to keep.
+                    Describe what you want. Webstew generates a working{' '}
+                    <span className={cn("font-semibold", "text-foreground")}>
+                      website, web app, or mobile app
+                    </span>{' '}
+                    — production-grade code, deployed in minutes, yours to keep.
                   </p>
                 </motion.div>
 
@@ -712,7 +1028,7 @@ export default function HomePage() {
                       </select>
                       <ChevronDown className={cn(
                         "absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none",
-                        isDark ? "text-slate-400" : "text-slate-500"
+                        "text-muted-foreground"
                       )} />
                     </div>
 
@@ -761,128 +1077,395 @@ export default function HomePage() {
               </div>
             </main>
 
-            {/* Live preview video — Lovable's pattern. Autoplaying inline
-                muted video. Multiple sources (HEVC for Safari, webm for
-                everything else, mp4 as universal fallback). Poster image
-                renders instantly while the video buffers AND remains visible
-                if all sources fail to load. */}
+            {/* Build-with logo marquee — continuous horizontal scroll with
+                edge fade. Pauses on hover. Track contains two copies of the
+                logo list so the -50% translate loops seamlessly. */}
             <motion.section
-              initial={{ opacity: 0, y: 30 }}
+              initial={{ opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-100px" }}
-              transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-              className="px-6 pt-2 pb-20"
+              viewport={{ once: true, margin: "-80px" }}
+              transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+              className="relative px-6 py-6"
             >
-              <div className="max-w-4xl mx-auto">
-                <div className="flex items-center justify-center gap-2 mb-6">
-                  <p className={cn(
-                    "text-xs uppercase tracking-[0.25em] font-semibold",
-                    isDark ? "text-violet-300/80" : "text-violet-600/80"
-                  )}>
-                    Live Preview · Made with Webstew
-                  </p>
-                </div>
-                <div className="relative">
-                  {/* Glow */}
-                  <div className="absolute -inset-6 rounded-[2.5rem] opacity-50 blur-3xl bg-gradient-to-br from-violet-500/30 via-pink-500/30 to-amber-500/30 pointer-events-none" />
-
-                  {/* Browser mockup wrapping the video */}
-                  <div className={cn(
-                    "relative rounded-2xl overflow-hidden border shadow-2xl",
-                    isDark ? "bg-slate-950 border-white/10 shadow-black/60" : "bg-white border-slate-200 shadow-slate-400/30"
-                  )}>
-                    <div className={cn(
-                      "flex items-center gap-2 px-4 py-3 border-b",
-                      isDark ? "bg-slate-900 border-white/5" : "bg-slate-50 border-slate-200"
-                    )}>
-                      <div className="flex gap-1.5">
-                        <div className="w-3 h-3 rounded-full bg-red-400" />
-                        <div className="w-3 h-3 rounded-full bg-yellow-400" />
-                        <div className="w-3 h-3 rounded-full bg-green-400" />
-                      </div>
-                      <div className={cn(
-                        "flex-1 mx-3 px-3 py-1 rounded-md text-xs flex items-center gap-2 max-w-md mx-auto",
-                        isDark ? "bg-slate-800 text-slate-400" : "bg-white text-slate-500 border border-slate-200"
-                      )}>
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                        <span className="font-mono truncate">webstew.ai/preview</span>
-                      </div>
-                      <div className={cn(
-                        "text-[10px] uppercase tracking-wider font-semibold px-2 py-1 rounded",
-                        isDark ? "bg-violet-500/20 text-violet-300" : "bg-violet-100 text-violet-600"
-                      )}>
-                        LIVE
-                      </div>
+              <p className={cn(
+                "text-center text-[11px] uppercase tracking-[0.28em] mb-4 font-semibold",
+                isDark ? "text-slate-500" : "text-slate-500"
+              )}>
+                Ships with the stack teams actually use
+              </p>
+              <div className="marquee-pause max-w-6xl mx-auto marquee-mask overflow-hidden">
+                <div className="flex w-max animate-marquee gap-3 will-change-transform">
+                  {[...Array(2)].map((_, copy) => (
+                    <div key={copy} className="flex gap-3 shrink-0" aria-hidden={copy === 1}>
+                      {[
+                        { slug: 'nextdotjs',   name: 'Next.js' },
+                        { slug: 'react',       name: 'React' },
+                        { slug: 'typescript',  name: 'TypeScript' },
+                        { slug: 'tailwindcss', name: 'Tailwind' },
+                        { slug: 'shadcnui',    name: 'shadcn/ui' },
+                        { slug: 'vite',        name: 'Vite' },
+                        { slug: 'astro',       name: 'Astro' },
+                        { slug: 'expo',        name: 'Expo' },
+                        { slug: 'apple',       name: 'iOS' },
+                        { slug: 'android',     name: 'Android' },
+                        { slug: 'python',      name: 'Python' },
+                        { slug: 'nodedotjs',   name: 'Node.js' },
+                        { slug: 'supabase',    name: 'Supabase' },
+                        { slug: 'stripe',      name: 'Stripe' },
+                        { slug: 'openai',      name: 'OpenAI' },
+                        { slug: 'github',      name: 'GitHub' },
+                        { slug: 'figma',       name: 'Figma' },
+                        { slug: 'framer',      name: 'Framer Motion' },
+                        { slug: 'prisma',      name: 'Prisma' },
+                        { slug: 'vercel',      name: 'Vercel' },
+                      ].map((tech) => (
+                        <div
+                          key={`${copy}-${tech.slug}`}
+                          title={tech.name}
+                          className={cn(
+                            "shrink-0 flex items-center gap-2.5 px-5 py-3 rounded-xl border backdrop-blur-md transition-colors",
+                            isDark
+                              ? "bg-white/[0.04] border-white/[0.08] hover:bg-white/[0.08] hover:border-white/[0.14]"
+                              : "bg-white/70 border-slate-200/80 hover:bg-white hover:border-slate-300"
+                          )}
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            xmlns="http://www.w3.org/2000/svg"
+                            className={cn(
+                              "w-5 h-5",
+                              isDark ? "fill-slate-200" : "fill-slate-700"
+                            )}
+                            aria-hidden="true"
+                          >
+                            <path d={TECH_ICONS[tech.slug] || ''} />
+                          </svg>
+                          <span className={cn(
+                            "text-sm font-semibold tracking-tight whitespace-nowrap",
+                            isDark ? "text-slate-200" : "text-slate-800"
+                          )}>
+                            {tech.name}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-
-                    {/* The video — autoplay loop muted with poster fallback */}
-                    <div className={cn("relative aspect-[16/10]", isDark ? "bg-slate-950" : "bg-white")}>
-                      <video
-                        autoPlay
-                        muted
-                        playsInline
-                        loop
-                        preload="metadata"
-                        aria-label="Webstew building a website live"
-                        poster="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1600&q=80"
-                        className="absolute inset-0 w-full h-full object-cover"
-                      >
-                        <source
-                          src="https://videos.pexels.com/video-files/3045163/3045163-hd_1920_1080_25fps.mp4"
-                          type="video/mp4"
-                        />
-                        <source
-                          src="https://videos.pexels.com/video-files/6963744/6963744-hd_1920_1080_25fps.mp4"
-                          type="video/mp4"
-                        />
-                      </video>
-                      {/* Subtle gradient veil so text below stays readable on bright frames */}
-                      <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/10 to-transparent" />
-                    </div>
-
-                    <div className={cn(
-                      "px-4 py-3 border-t flex items-center gap-3",
-                      isDark ? "bg-slate-900/80 border-white/5" : "bg-slate-50 border-slate-200"
-                    )}>
-                      <div className={cn(
-                        "shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm",
-                        isDark ? "bg-violet-500/20 text-violet-300" : "bg-violet-100 text-violet-600"
-                      )}>
-                        ✦
-                      </div>
-                      <div className={cn("text-sm font-mono italic", isDark ? "text-slate-300" : "text-slate-700")}>
-                        &ldquo;Ask Webstew to build anything — and watch it cook&rdquo;
-                      </div>
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             </motion.section>
 
+            {/* Live preview — scroll-driven takeover. Section is 200vh so
+                the sticky-pin window is ~100vh of scroll, giving the
+                fullscreen-hold → transition → detached-hold phases room to
+                breathe. Top/bottom margins keep the section visually
+                separated from the marquee above and the next section below
+                (no -mt-8 sucking it up against the logo strip). */}
+            <section
+              ref={previewRef}
+              className="relative h-[200vh] mt-2 mb-2"
+            >
+              <div className="sticky top-0 h-screen flex items-center justify-center overflow-hidden">
+                {/* Backdrop dim — covers the rest of the page when preview
+                    takes over. Blurred so background motion is felt, not seen. */}
+                <motion.div
+                  style={{ opacity: previewDim }}
+                  aria-hidden
+                  className={cn(
+                    'absolute inset-0 backdrop-blur-md pointer-events-none',
+                    isDark ? 'bg-[#050308]/75' : 'bg-white/75'
+                  )}
+                />
+
+                {/* Section label — fades out when preview goes fullscreen */}
+                <motion.div
+                  style={{ opacity: previewLabelOpacity, y: previewLabelY }}
+                  className="absolute top-[14vh] left-1/2 -translate-x-1/2 z-20 flex items-center gap-2"
+                >
+                  <p className={cn(
+                    'text-xs uppercase tracking-[0.28em] font-semibold whitespace-nowrap',
+                    isDark ? 'text-violet-300/80' : 'text-violet-600/80'
+                  )}>
+                    Live Preview · Made with Webstew
+                  </p>
+                </motion.div>
+
+                {/* Halo behind the preview card — brightens while fullscreen */}
+                <motion.div
+                  style={{ opacity: previewHaloOpacity }}
+                  aria-hidden
+                  className="absolute inset-0 pointer-events-none flex items-center justify-center"
+                >
+                  <div className={cn(
+                    'w-[80vw] h-[60vh] rounded-full blur-[120px]',
+                    isDark
+                      ? 'bg-gradient-to-br from-violet-600/30 via-fuchsia-500/25 to-amber-400/25'
+                      : 'bg-gradient-to-br from-violet-400/35 via-pink-300/30 to-amber-300/30'
+                  )} />
+                </motion.div>
+
+                {/* The DESKTOP card — scale/borderRadius driven by scroll.
+                    On detach, also shifts LEFT to make room for the tablet
+                    + mobile siblings. Inside, two scroll-driven overlays
+                    evoke a CRT (scanline + vignette) during the fullscreen
+                    takeover, then fade out as the card detaches into a
+                    styled "browser window" with chrome. */}
+                <motion.div
+                  style={{
+                    width: cardWidth,
+                    height: cardHeight,
+                    borderRadius: cardRadius,
+                    borderWidth: cardBorderWidth,
+                  }}
+                  className={cn(
+                    'relative overflow-hidden shadow-2xl will-change-transform z-10 border-solid bg-card',
+                    'border-slate-300/80 dark:border-slate-800'
+                  )}
+                >
+                  <AnimatePresence initial={false}>
+                    <motion.iframe
+                      key={demoIdx}
+                      initial={{ opacity: 0, scale: 1.02 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 1.0, ease: [0.22, 1, 0.36, 1] }}
+                      srcDoc={DEMO_SITES[demoIdx].html}
+                      sandbox="allow-scripts"
+                      className="absolute inset-0 w-full h-full"
+                      title={`Demo: ${DEMO_SITES[demoIdx].label}`}
+                    />
+                  </AnimatePresence>
+
+                  {/* CRT scanline overlay — fine repeating horizontal lines.
+                      Strongest at fullscreen, fades when the card detaches.
+                      Pointer-events-none so it doesn't catch clicks. */}
+                  <motion.div
+                    style={{
+                      opacity: scanlineOpacity,
+                      backgroundImage:
+                        'repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,0,0,0.18) 2px, rgba(0,0,0,0.18) 3px)',
+                    }}
+                    className="absolute inset-0 pointer-events-none mix-blend-overlay"
+                    aria-hidden
+                  />
+
+                  {/* Tube vignette — soft dark edges curving in like a CRT
+                      face. Disappears once the card becomes a flat window. */}
+                  <motion.div
+                    style={{ opacity: vignetteOpacity }}
+                    className="absolute inset-0 pointer-events-none"
+                    aria-hidden
+                  >
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        background:
+                          'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%)',
+                      }}
+                    />
+                  </motion.div>
+
+                  {/* Tablet camera dot — visible only in tablet state, sits
+                      on top of the bezel at top-center. */}
+                  <motion.div
+                    style={{ opacity: tabletCameraOpacity }}
+                    className="absolute top-2 left-1/2 -translate-x-1/2 z-30 pointer-events-none"
+                    aria-hidden
+                  >
+                    <span className="block w-1.5 h-1.5 rounded-full bg-slate-700 dark:bg-slate-300 ring-1 ring-black/30" />
+                  </motion.div>
+
+                  {/* Mobile notch — small pill at top center, evokes iPhone
+                      Dynamic Island. Only visible in mobile state. */}
+                  <motion.div
+                    style={{ opacity: mobileNotchOpacity }}
+                    className="absolute top-1 left-1/2 -translate-x-1/2 z-30 pointer-events-none"
+                    aria-hidden
+                  >
+                    <span className="block w-12 h-3 rounded-full bg-slate-900 dark:bg-black" />
+                  </motion.div>
+
+                  {/* Mobile home indicator — thin pill at bottom center. */}
+                  <motion.div
+                    style={{ opacity: mobileNotchOpacity }}
+                    className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-30 pointer-events-none"
+                    aria-hidden
+                  >
+                    <span className="block w-10 h-1 rounded-full bg-slate-900/60 dark:bg-white/40" />
+                  </motion.div>
+
+                  {/* Soft gradient edges — sit inside the card so they don't
+                      blur the iframe content, only its top/bottom edges. */}
+                  <div className={cn(
+                    'absolute inset-x-0 top-0 h-10 pointer-events-none',
+                    isDark ? 'bg-gradient-to-b from-slate-950/40 to-transparent' : 'bg-gradient-to-b from-white/30 to-transparent'
+                  )} />
+                  <div className={cn(
+                    'absolute inset-x-0 bottom-0 h-12 pointer-events-none',
+                    isDark ? 'bg-gradient-to-t from-slate-950/40 to-transparent' : 'bg-gradient-to-t from-white/30 to-transparent'
+                  )} />
+
+                  {/* Browser chrome — materializes as the card detaches.
+                      Reads as a finished website preview, not raw iframe. */}
+                  <motion.div
+                    style={{ opacity: chromeOpacity }}
+                    className={cn(
+                      'absolute inset-x-0 top-0 h-9 flex items-center px-3 gap-3 border-b backdrop-blur-md pointer-events-none z-20',
+                      isDark
+                        ? 'bg-slate-900/85 border-white/10'
+                        : 'bg-white/90 border-slate-200/80'
+                    )}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-3 h-3 rounded-full bg-red-400/90" />
+                      <span className="w-3 h-3 rounded-full bg-amber-400/90" />
+                      <span className="w-3 h-3 rounded-full bg-emerald-400/90" />
+                    </div>
+                    <div className={cn(
+                      'flex-1 max-w-md mx-auto h-5 rounded-md flex items-center justify-center gap-1.5 text-[10px] font-mono truncate px-2',
+                      isDark ? 'bg-white/10 text-slate-400' : 'bg-slate-100 text-slate-500'
+                    )}>
+                      <span className="opacity-60">webstew.app/</span>
+                      <span className={cn('truncate', isDark ? 'text-slate-200' : 'text-slate-700')}>
+                        {DEMO_SITES[demoIdx].label.toLowerCase().replace(/\s+/g, '-')}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="relative flex h-1.5 w-1.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                      </span>
+                      <span className={cn(
+                        'text-[9px] uppercase tracking-[0.18em] font-bold',
+                        isDark ? 'text-emerald-300' : 'text-emerald-600'
+                      )}>Live</span>
+                    </div>
+                  </motion.div>
+
+                  <AnimatePresence>
+                    {demoGenerating && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.25 }}
+                        className={cn(
+                          'absolute inset-0 flex items-center justify-center backdrop-blur-xl',
+                          isDark ? 'bg-slate-950/70' : 'bg-white/70'
+                        )}
+                      >
+                        <div className="text-center">
+                          <div className="flex items-center justify-center gap-2 mb-3">
+                            {[0, 0.15, 0.3].map((d, i) => (
+                              <motion.div
+                                key={i}
+                                className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500"
+                                animate={{ scale: [1, 1.5, 1], opacity: [0.4, 1, 0.4] }}
+                                transition={{ duration: 0.8, repeat: Infinity, delay: d }}
+                              />
+                            ))}
+                          </div>
+                          <div className={cn('text-sm font-mono', isDark ? 'text-slate-200' : 'text-slate-800')}>
+                            Generating with Claude…
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+
+                {/* Device-type label — sits below the morphing card. Three
+                    overlapping spans, one visible at a time depending on
+                    which size state the card is currently in. */}
+                <div
+                  className="absolute bottom-[10vh] left-1/2 -translate-x-1/2 z-20 pointer-events-none"
+                >
+                  <div className="relative w-32 h-7 flex items-center justify-center">
+                    {[
+                      { label: 'PC',     opacity: pcLabelOpacity     },
+                      { label: 'Tablet', opacity: tabletLabelOpacity },
+                      { label: 'Mobile', opacity: mobileLabelOpacity },
+                    ].map((d) => (
+                      <motion.span
+                        key={d.label}
+                        style={{ opacity: d.opacity }}
+                        className="absolute inset-0 flex items-center justify-center text-[11px] uppercase tracking-[0.32em] font-bold text-muted-foreground"
+                      >
+                        {d.label}
+                      </motion.span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Prompt caption — visible at the start + end, hidden during fullscreen */}
+                <motion.div
+                  style={{ opacity: previewCaptionOpacity }}
+                  className="absolute bottom-[16vh] left-1/2 -translate-x-1/2 z-20 px-6 max-w-[92vw]"
+                >
+                  <div className={cn(
+                    'flex items-center gap-3 px-5 py-3 rounded-full border shadow-lg backdrop-blur-md',
+                    isDark ? 'bg-slate-900/70 border-white/10' : 'bg-white/80 border-slate-200'
+                  )}>
+                    <div className={cn(
+                      'shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs',
+                      isDark ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-100 text-violet-600'
+                    )}>
+                      ✦
+                    </div>
+                    <div className={cn('text-sm font-mono italic truncate', isDark ? 'text-slate-300' : 'text-slate-700')}>
+                      &ldquo;{DEMO_SITES[demoIdx].prompt}&rdquo;
+                    </div>
+                  </div>
+                </motion.div>
+
+                {/* Scroll hint — appears only during fullscreen state */}
+                <motion.div
+                  style={{ opacity: previewHintOpacity }}
+                  className="absolute bottom-[6vh] left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 pointer-events-none"
+                >
+                  <span className={cn(
+                    'text-[10px] uppercase tracking-[0.32em] font-semibold',
+                    isDark ? 'text-white/70' : 'text-slate-700/80'
+                  )}>
+                    Keep scrolling
+                  </span>
+                  <motion.div
+                    animate={{ y: [0, 6, 0] }}
+                    transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+                    className={cn(
+                      'w-5 h-8 rounded-full border-2 flex items-start justify-center pt-1.5',
+                      isDark ? 'border-white/50' : 'border-slate-700/50'
+                    )}
+                  >
+                    <div className={cn('w-1 h-1.5 rounded-full', isDark ? 'bg-white/70' : 'bg-slate-700/70')} />
+                  </motion.div>
+                </motion.div>
+              </div>
+            </section>
+
             {/* Stats strip — Webflow-style stat callouts. Compact, confident,
                 no chart vibes. Each one is a single number + small label. */}
-            <motion.section initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} className="px-6 py-12">
+            <motion.section initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} className="px-6 py-20">
               <div className={cn(
                 "max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-px overflow-hidden rounded-3xl border",
-                isDark ? "bg-white/[0.04] border-white/10" : "bg-slate-900/[0.04] border-slate-200"
+                "bg-foreground/[0.04] border-border"
               )}>
                 {[
-                  { num: '6', label: 'frameworks supported' },
-                  { num: '<60s', label: 'prompt to preview' },
-                  { num: '100%', label: 'code you own' },
-                  { num: '0', label: 'lock-in' },
+                  { num: '6', label: 'ingredients in the pantry' },
+                  { num: '<60s', label: 'prompt → plated' },
+                  { num: '350°', label: 'shipped to production' },
+                  { num: '0', label: 'lock-in · take the recipe' },
                 ].map((stat) => (
                   <div
                     key={stat.label}
                     className={cn(
                       "py-7 px-5 text-center",
-                      isDark ? "bg-slate-950/40" : "bg-white/60"
+                      "bg-card/60"
                     )}
                   >
                     <div
                       className={cn(
                         "text-3xl md:text-4xl font-bold tracking-tight mb-1",
-                        isDark ? "text-white" : "text-slate-900"
+                        "text-foreground"
                       )}
                       style={{ fontFamily: 'var(--font-playfair), Georgia, serif', fontStyle: 'italic' }}
                     >
@@ -890,7 +1473,7 @@ export default function HomePage() {
                     </div>
                     <div className={cn(
                       "text-xs uppercase tracking-wider",
-                      isDark ? "text-slate-400" : "text-slate-500"
+                      "text-muted-foreground"
                     )}>
                       {stat.label}
                     </div>
@@ -907,18 +1490,18 @@ export default function HomePage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-100px" }}
               transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-              className="px-6 py-16"
+              className="px-6 py-24"
             >
               <div className="max-w-6xl mx-auto">
                 <div className="text-center mb-12">
                   <h2 className={cn(
-                    "text-3xl md:text-5xl font-bold tracking-tight",
-                    isDark ? "text-white" : "text-slate-900"
+                    "text-3xl md:text-5xl font-bold tracking-tight leading-[1.15] pb-2",
+                    "text-foreground"
                   )}>
                     Cooking up
                     <span
                       className={cn(
-                        "italic font-normal ml-3 bg-clip-text text-transparent",
+                        "italic font-normal ml-3 bg-clip-text text-transparent inline-block pb-1",
                         isDark
                           ? "bg-gradient-to-r from-amber-200 to-pink-300"
                           : "bg-gradient-to-r from-orange-500 to-pink-500"
@@ -933,22 +1516,22 @@ export default function HomePage() {
                   {[
                     {
                       title: 'Code',
-                      sub: 'Real production code in 6 frameworks',
-                      body: 'Tailwind, TypeScript, Next.js, React, Astro, Expo. Generated, ready to deploy. Export the source — no lock-in.',
+                      sub: 'Mise en place · six frameworks ready to go',
+                      body: 'Tailwind, TypeScript, Next.js, React, Astro, Expo — all prepped, seasoned, and plated. Export the source. The recipe is yours.',
                       icon: <Code2 className="w-7 h-7" />,
                       grad: 'from-violet-500 to-fuchsia-500',
                     },
                     {
                       title: 'Design',
-                      sub: 'Beautiful layouts, on-brand from the first try',
-                      body: 'Modern aesthetics. Glassmorphism, gradients, real typography. Polished enough to ship without redesign.',
+                      sub: 'Plated to look like a Michelin restaurant',
+                      body: 'Modern typography, glass, gradients, intentional whitespace. Polished enough to serve straight to customers without a redesign pass.',
                       icon: <Palette className="w-7 h-7" />,
                       grad: 'from-pink-500 to-amber-500',
                     },
                     {
                       title: 'Media',
-                      sub: 'Images, videos, audio — all in-flow',
-                      body: 'Generate hero photos, product shots, short videos, voiceovers. Drop them straight into what you’re building.',
+                      sub: 'Garnishes · images, video, voice — all in-pot',
+                      body: 'Hero photography, product shots, short clips, voiceovers — generated in-flow and dropped right into what you’re building.',
                       icon: <ImageIcon className="w-7 h-7" />,
                       grad: 'from-emerald-500 to-cyan-500',
                     },
@@ -957,18 +1540,16 @@ export default function HomePage() {
                       key={c.title}
                       className={cn(
                         "relative rounded-3xl border p-6 overflow-hidden transition-all hover:scale-[1.02] hover:-translate-y-1",
-                        isDark
-                          ? "bg-slate-900/60 border-white/10"
-                          : "bg-white/80 border-slate-200 shadow-sm hover:shadow-xl"
+                        "bg-card border-border shadow-sm hover:shadow-xl hover:border-foreground/20"
                       )}
                     >
                       <div className={cn("h-1 -mx-6 -mt-6 mb-5 bg-gradient-to-r", c.grad)} />
                       <div className={cn("inline-flex items-center justify-center w-12 h-12 rounded-2xl mb-4 bg-gradient-to-br text-white", c.grad)}>
                         {c.icon}
                       </div>
-                      <h3 className={cn("text-2xl font-bold mb-1", isDark ? "text-white" : "text-slate-900")}>{c.title}</h3>
+                      <h3 className={cn("text-2xl font-bold mb-1", "text-foreground")}>{c.title}</h3>
                       <p className={cn("text-sm font-medium mb-3", isDark ? "text-slate-300" : "text-slate-700")}>{c.sub}</p>
-                      <p className={cn("text-sm leading-relaxed", isDark ? "text-slate-400" : "text-slate-600")}>{c.body}</p>
+                      <p className={cn("text-sm leading-relaxed", "text-muted-foreground")}>{c.body}</p>
                     </div>
                   ))}
                 </div>
@@ -978,7 +1559,7 @@ export default function HomePage() {
             {/* What's on the menu — bento grid of target capabilities, each
                 card has its own visual character. Webflow's bento pattern,
                 colored hover, mini-mockups inline-SVG. */}
-            <motion.section initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} className="px-6 py-20">
+            <motion.section initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} className="px-6 py-24">
               <div className="max-w-6xl mx-auto">
                 <div className="text-center mb-12">
                   <p className={cn(
@@ -988,13 +1569,13 @@ export default function HomePage() {
                     On the menu
                   </p>
                   <h2 className={cn(
-                    "text-3xl md:text-5xl font-bold mb-4 tracking-tight",
-                    isDark ? "text-white" : "text-slate-900"
+                    "text-3xl md:text-5xl font-bold mb-4 tracking-tight leading-[1.15] pb-2",
+                    "text-foreground"
                   )}>
                     Order what you want.
                     <span
                       className={cn(
-                        "italic font-normal ml-3 bg-clip-text text-transparent",
+                        "italic font-normal ml-3 bg-clip-text text-transparent inline-block pb-1",
                         isDark
                           ? "bg-gradient-to-r from-amber-200 to-pink-300"
                           : "bg-gradient-to-r from-orange-500 to-pink-500"
@@ -1109,9 +1690,7 @@ export default function HomePage() {
                       key={card.title}
                       className={cn(
                         "group relative rounded-3xl border overflow-hidden transition-all duration-300 hover:scale-[1.02]",
-                        isDark
-                          ? "bg-slate-900/60 border-white/10 hover:border-white/20"
-                          : "bg-white/80 border-slate-200 hover:border-slate-300 shadow-sm hover:shadow-lg"
+                        "bg-card border-border hover:border-foreground/20 shadow-sm hover:shadow-lg"
                       )}
                     >
                       {/* gradient accent bar */}
@@ -1119,13 +1698,13 @@ export default function HomePage() {
                       <div className="p-5">
                         <h3 className={cn(
                           "text-lg font-bold mb-1",
-                          isDark ? "text-white" : "text-slate-900"
+                          "text-foreground"
                         )}>
                           {card.title}
                         </h3>
                         <p className={cn(
                           "text-xs mb-4",
-                          isDark ? "text-slate-400" : "text-slate-500"
+                          "text-muted-foreground"
                         )}>
                           {card.sub}
                         </p>
@@ -1144,7 +1723,7 @@ export default function HomePage() {
 
             {/* How it works — 3 steps with bold numbered badges, kitchen
                 language to lean into the brand. */}
-            <motion.section initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} className="px-6 py-20">
+            <motion.section initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} className="px-6 py-24">
               <div className="max-w-5xl mx-auto">
                 <div className="text-center mb-14">
                   <p className={cn(
@@ -1154,13 +1733,13 @@ export default function HomePage() {
                     The recipe
                   </p>
                   <h2 className={cn(
-                    "text-3xl md:text-5xl font-bold tracking-tight",
-                    isDark ? "text-white" : "text-slate-900"
+                    "text-3xl md:text-5xl font-bold tracking-tight leading-[1.15] pb-2",
+                    "text-foreground"
                   )}>
                     Prep, simmer,
                     <span
                       className={cn(
-                        "italic font-normal ml-3 bg-clip-text text-transparent",
+                        "italic font-normal ml-3 bg-clip-text text-transparent inline-block pb-1",
                         isDark
                           ? "bg-gradient-to-r from-amber-200 to-pink-300"
                           : "bg-gradient-to-r from-orange-500 to-pink-500"
@@ -1200,13 +1779,13 @@ export default function HomePage() {
                       </div>
                       <h3 className={cn(
                         "text-xl font-bold mb-2",
-                        isDark ? "text-white" : "text-slate-900"
+                        "text-foreground"
                       )}>
                         {step.title}
                       </h3>
                       <p className={cn(
                         "text-sm leading-relaxed",
-                        isDark ? "text-slate-400" : "text-slate-600"
+                        "text-muted-foreground"
                       )}>
                         {step.body}
                       </p>
@@ -1225,20 +1804,20 @@ export default function HomePage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-100px" }}
               transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-              className="px-6 py-20"
+              className="px-6 py-24"
             >
               <div className="max-w-6xl mx-auto">
                 <div className="flex items-end justify-between mb-10 gap-4">
                   <div>
                     <h2 className={cn(
                       "text-4xl md:text-5xl font-bold tracking-tight mb-2",
-                      isDark ? "text-white" : "text-slate-900"
+                      "text-foreground"
                     )}>
                       Discover recipes
                     </h2>
                     <p className={cn(
                       "text-base md:text-lg",
-                      isDark ? "text-slate-400" : "text-slate-600"
+                      "text-muted-foreground"
                     )}>
                       Order from a template, customize anything you taste.
                     </p>
@@ -1295,7 +1874,7 @@ export default function HomePage() {
                       </h3>
                       <p className={cn(
                         "text-sm",
-                        isDark ? "text-slate-400" : "text-slate-500"
+                        "text-muted-foreground"
                       )}>
                         {p.sub}
                       </p>
@@ -1312,7 +1891,7 @@ export default function HomePage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.8, delay: 0.4 }}
-              className="px-6 py-20"
+              className="px-6 py-24"
             >
               <div className="max-w-6xl mx-auto">
                 <p className={cn(
@@ -1322,13 +1901,16 @@ export default function HomePage() {
                   The pantry
                 </p>
                 <h2 className={cn(
-                  "text-center text-3xl md:text-5xl font-bold tracking-tight mb-4",
-                  isDark ? "text-white" : "text-slate-900"
+                  // `leading-[1.15] pb-2` — italic Playfair descenders ("g")
+                  // get clipped by bg-clip-text + tight line-height. The
+                  // extra leading + bottom padding give the descender room.
+                  "text-center text-3xl md:text-5xl font-bold tracking-tight mb-4 leading-[1.15] pb-2",
+                  "text-foreground"
                 )}>
                   The ingredients to
                   <span
                     className={cn(
-                      "italic font-normal ml-3 bg-clip-text text-transparent",
+                      "italic font-normal ml-3 bg-clip-text text-transparent inline-block pb-1",
                       isDark
                         ? "bg-gradient-to-r from-amber-200 to-pink-300"
                         : "bg-gradient-to-r from-orange-500 to-pink-500"
@@ -1340,58 +1922,80 @@ export default function HomePage() {
                 </h2>
                 <p className={cn(
                   "text-center text-base md:text-lg mb-12 max-w-2xl mx-auto",
-                  isDark ? "text-slate-400" : "text-slate-600"
+                  "text-muted-foreground"
                 )}>
                   Stocked with modern frameworks teams already love. Export the source, ship it anywhere.
                 </p>
-                <div className="flex flex-wrap items-start justify-center gap-x-8 sm:gap-x-12 gap-y-10 max-w-4xl mx-auto">
-                  {[
-                    { slug: 'nextdotjs', name: 'Next.js' },
-                    { slug: 'react', name: 'React' },
-                    { slug: 'typescript', name: 'TypeScript' },
-                    { slug: 'tailwindcss', name: 'Tailwind' },
-                    { slug: 'astro', name: 'Astro' },
-                    { slug: 'expo', name: 'Expo' },
-                    { slug: 'apple', name: 'iOS' },
-                    { slug: 'android', name: 'Android' },
-                    { slug: 'python', name: 'Python', soon: true },
-                    { slug: 'vercel', name: 'Vercel' },
-                  ].map((tech) => (
-                    <div
-                      key={tech.slug}
-                      title={tech.soon ? `${tech.name} — coming soon` : tech.name}
-                      className={cn(
-                        "group flex flex-col items-center gap-3 transition-all",
-                        tech.soon
-                          ? "opacity-50"
-                          : isDark
-                            ? "opacity-70 hover:opacity-100"
-                            : "opacity-80 hover:opacity-100"
-                      )}
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className={cn(
-                          "w-10 h-10 md:w-12 md:h-12 transition-transform group-hover:scale-110",
-                          isDark ? "fill-slate-200" : "fill-slate-700"
-                        )}
-                        aria-hidden="true"
-                      >
-                        <path d={TECH_ICONS[tech.slug] || ''} />
-                      </svg>
-                      <span className={cn(
-                        "text-sm md:text-base font-semibold tracking-tight",
-                        isDark ? "text-slate-200" : "text-slate-800"
-                      )}>
-                        {tech.name}
-                        {tech.soon && <span className={cn(
-                          "ml-1.5 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-bold align-middle",
-                          isDark ? "bg-white/10 text-slate-400" : "bg-slate-200 text-slate-500"
-                        )}>soon</span>}
-                      </span>
-                    </div>
-                  ))}
+                {/* Bigger, slower-rolling marquee than the one near the
+                    hero — this is the feature moment for the stack. Bigger
+                    logos, generous chip padding, reverse-direction so it
+                    visually distinguishes from the entry marquee above.
+                    Two duplicated tracks keep the loop seamless. */}
+                <div className="marquee-pause marquee-mask overflow-hidden">
+                  <div className="flex w-max animate-marquee-reverse gap-4 will-change-transform">
+                    {[...Array(2)].map((_, copy) => (
+                      <div key={copy} className="flex gap-4 shrink-0" aria-hidden={copy === 1}>
+                        {[
+                          { slug: 'nextdotjs',   name: 'Next.js' },
+                          { slug: 'react',       name: 'React' },
+                          { slug: 'typescript',  name: 'TypeScript' },
+                          { slug: 'tailwindcss', name: 'Tailwind' },
+                          { slug: 'shadcnui',    name: 'shadcn/ui' },
+                          { slug: 'vite',        name: 'Vite' },
+                          { slug: 'astro',       name: 'Astro' },
+                          { slug: 'expo',        name: 'Expo' },
+                          { slug: 'apple',       name: 'iOS' },
+                          { slug: 'android',     name: 'Android' },
+                          { slug: 'nodedotjs',   name: 'Node.js' },
+                          { slug: 'python',      name: 'Python', soon: true },
+                          { slug: 'supabase',    name: 'Supabase' },
+                          { slug: 'stripe',      name: 'Stripe' },
+                          { slug: 'openai',      name: 'OpenAI' },
+                          { slug: 'github',      name: 'GitHub' },
+                          { slug: 'figma',       name: 'Figma' },
+                          { slug: 'framer',      name: 'Framer Motion' },
+                          { slug: 'prisma',      name: 'Prisma' },
+                          { slug: 'vercel',      name: 'Vercel' },
+                        ].map((tech) => (
+                          <div
+                            key={`${copy}-${tech.slug}`}
+                            title={tech.soon ? `${tech.name} — coming soon` : tech.name}
+                            className={cn(
+                              "shrink-0 flex items-center gap-3 px-7 py-5 rounded-2xl border backdrop-blur-md transition-all",
+                              tech.soon && "opacity-50",
+                              isDark
+                                ? "bg-white/[0.04] border-white/[0.08] hover:bg-white/[0.08] hover:border-white/[0.16]"
+                                : "bg-white/70 border-slate-200/80 hover:bg-white hover:border-slate-300 hover:shadow-md"
+                            )}
+                          >
+                            <svg
+                              viewBox="0 0 24 24"
+                              xmlns="http://www.w3.org/2000/svg"
+                              className={cn(
+                                "w-8 h-8",
+                                isDark ? "fill-slate-200" : "fill-slate-700"
+                              )}
+                              aria-hidden="true"
+                            >
+                              <path d={TECH_ICONS[tech.slug] || ''} />
+                            </svg>
+                            <span className={cn(
+                              "text-base font-semibold tracking-tight whitespace-nowrap",
+                              isDark ? "text-slate-100" : "text-slate-900"
+                            )}>
+                              {tech.name}
+                              {tech.soon && (
+                                <span className={cn(
+                                  "ml-2 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-bold align-middle",
+                                  isDark ? "bg-white/10 text-slate-400" : "bg-slate-200 text-slate-500"
+                                )}>soon</span>
+                              )}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </motion.section>
@@ -1415,13 +2019,16 @@ export default function HomePage() {
                   Webstew AI Builder
                 </p>
                 <h2 className={cn(
-                  "text-5xl md:text-6xl font-bold tracking-tight leading-[1.05] mb-8",
-                  isDark ? "text-white" : "text-slate-900"
+                  // `leading-[1.2] pb-3` — italic Playfair "?" descender
+                  // was getting clipped by bg-clip-text on the inline span.
+                  // Loosening line-height + adding pb gives the glyph room.
+                  "text-5xl md:text-6xl font-bold tracking-tight leading-[1.2] mb-8 pb-3",
+                  "text-foreground"
                 )}>
                   Ready to
                   <span
                     className={cn(
-                      "italic font-normal ml-3 bg-clip-text text-transparent",
+                      "italic font-normal ml-3 bg-clip-text text-transparent inline-block pb-1",
                       isDark
                         ? "bg-gradient-to-br from-amber-200 to-pink-300"
                         : "bg-gradient-to-br from-orange-500 to-pink-500"
@@ -1484,7 +2091,7 @@ export default function HomePage() {
                       </select>
                       <ChevronDown className={cn(
                         "absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none",
-                        isDark ? "text-slate-400" : "text-slate-500"
+                        "text-muted-foreground"
                       )} />
                     </div>
 

@@ -1,7 +1,11 @@
 import type { Config } from 'tailwindcss'
 
 const config: Config = {
-  darkMode: ["class"],
+  // Theme is driven by `data-theme="dark"` on <html> (set by an inline
+  // script in layout.tsx before React hydrates). Adding the attribute
+  // selector here means Tailwind's `dark:` variant fires on it too, not
+  // just on a `.dark` class.
+  darkMode: ["class", '[data-theme="dark"]'],
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',

@@ -2,7 +2,16 @@
 
 import { useState, useEffect, useRef, useCallback, Suspense, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
+
+// WebContainerPreview boots a Node sandbox in the browser to run real npm
+// projects (Astro / Next.js / React / Expo web). Dynamic + ssr:false so the
+// `@webcontainer/api` import doesn't run on the server.
+const WebContainerPreview = dynamic(
+  () => import('@/components/WebContainerPreview').then(m => m.WebContainerPreview),
+  { ssr: false, loading: () => <div className="w-full h-full flex items-center justify-center text-zinc-500 text-sm">Booting preview…</div> }
+)
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Terminal,
@@ -108,6 +117,7 @@ import {
   Moon,
   Paintbrush,
   Pencil,
+  Award,
   MousePointer2,
   Hand,
   Square,
@@ -145,6 +155,9 @@ import { WebStewPanel, StewIngredient } from '@/components/WebStew'
 import { OnboardingTour } from '@/components/onboarding'
 import { MonacoCodeEditor } from '@/components/editor'
 import { StylePresetPicker, ComponentPicker, ThemeBuilder } from '@/components/builder'
+import { ContentPanel } from '@/components/builder/ContentPanel'
+import { CustomDomainCard } from '@/components/builder/CustomDomainCard'
+import { SiteGraderModal } from '@/components/builder/SiteGraderModal'
 import { stylePresets, StylePreset, generatePresetStyles, applyThemeToHtml, generateAllThemesStyles } from '@/lib/builder/style-presets'
 import { componentLibrary, ComponentSection, assemblePage } from '@/lib/builder/component-library'
 import { imageService, getUnsplashImage, enhanceImagesInHtml } from '@/lib/builder/image-service'
@@ -162,7 +175,7 @@ import { ExportPanel } from '@/components/builder/ExportPanel'
 
 type DeviceMode = 'desktop' | 'tablet' | 'mobile'
 type ViewMode = 'preview' | 'code' | 'split'
-type Panel = 'build' | 'projects' | 'integrations' | 'images' | 'video' | 'env' | 'console' | 'deploy' | 'webstew' | 'templates'
+type Panel = 'build' | 'projects' | 'integrations' | 'images' | 'video' | 'env' | 'console' | 'deploy' | 'webstew' | 'templates' | 'content'
 type SkillLevel = 'no-code' | 'low-code' | 'full-stack'
 type BuildPhase = 'idle' | 'structure' | 'styling' | 'interactivity' | 'complete'
 type ConsoleLogType = 'log' | 'info' | 'warn' | 'error' | 'success'
@@ -1106,6 +1119,28 @@ function WorkspaceContent() {
   const [buildPhase, setBuildPhase] = useState<BuildPhase>('idle')
   const [currentSteps, setCurrentSteps] = useState<BuildStep[]>(buildSteps)
 
+  // Build target — what kind of project we're building. `website` is the
+  // legacy single-HTML path that powers every state/effect below; the others
+  // (astro/nextjs/react/expo) generate a multi-file VFS and render via
+  // WebContainer instead of the srcDoc iframe. Adding new targets here without
+  // wiring `vfsFiles` + the preview branch + the agent chat will break things —
+  // grep for `buildTarget` first.
+  type BuildTarget = 'website' | 'astro' | 'nextjs' | 'react' | 'expo'
+  const [buildTarget, setBuildTarget] = useState<BuildTarget>('website')
+  const [vfsFiles, setVfsFiles] = useState<Record<string, string>>({})
+  const [vfsProjectMeta, setVfsProjectMeta] = useState<{ name: string; slug: string } | null>(null)
+
+  // Inline edit mode — when on, headings/paragraphs in the preview iframe
+  // become contenteditable. Blurring an edited element fires a postMessage
+  // back here, which dispatches a chat message asking the agent to swap the
+  // old text for the new in the source. Website target only (the script is
+  // injected into srcDoc; WebContainer previews are a separate origin).
+  const [editMode, setEditMode] = useState(false)
+
+  // Site grader modal — runs the grader against the current draft HTML or
+  // the deployed URL (when available) and shows score + actionable issues.
+  const [graderOpen, setGraderOpen] = useState(false)
+
   // Project state
   const [currentProject, setCurrentProject] = useState<Project | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
@@ -1747,6 +1782,10 @@ function WorkspaceContent() {
 
   // Refs
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  // Bump to force-remount the preview iframe. We can't call
+  // contentWindow.location.reload() — the iframe is sandboxed without
+  // allow-same-origin, so cross-origin access throws SecurityError.
+  const [previewBumpKey, setPreviewBumpKey] = useState(0)
   const terminalRef = useRef<HTMLDivElement>(null)
   const consoleRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -2012,6 +2051,11 @@ function WorkspaceContent() {
       try { localStorage.setItem('webstew-onboarding-complete', 'true') } catch {}
       setHasCompletedOnboarding(true)
       setHasInitialized(true)
+      // A prompt arriving via URL = user came from the landing page = a
+      // brand new build. Clear any leftover HTML so handleGenerate fires
+      // in fresh-build mode (no currentHtml = no "surgical editor" mode).
+      setHtml('')
+      setChatMessages(prev => prev.filter((_, i) => i === prev.length - 1)) // keep only the just-added user prompt
       // Fire generation immediately — this is the user's request from the landing page
       handleGenerate(promptFromUrl)
     } else {
@@ -2295,6 +2339,32 @@ function WorkspaceContent() {
         if (/^https?:\/\//i.test(href)) {
           window.open(href, '_blank', 'noopener,noreferrer')
         }
+      } else if (event.data?.type === 'webstew-inline-edit') {
+        // Inline edit from the preview iframe. Pure local find/replace on the
+        // html string — no agent round-trip. The agent was wasteful for a
+        // 3-char heading change (it tried to rewrite the entire 5K-line file
+        // and hit max_tokens). Local swap is instant; Save persists it; the
+        // history stack remembers it for undo.
+        const oldText: string = String(event.data.oldText || '').trim()
+        const newText: string = String(event.data.newText || '').trim()
+        if (!oldText || !newText || oldText === newText) return
+        setHtml(prev => {
+          const idx = prev.indexOf(oldText)
+          if (idx === -1) {
+            addConsoleLog('warn', `Inline edit: couldn't find "${oldText.slice(0, 60)}" in source`)
+            return prev
+          }
+          const second = prev.indexOf(oldText, idx + oldText.length)
+          if (second !== -1) {
+            // Ambiguous — don't guess. The user can fix in code view or chat.
+            addConsoleLog('warn', `Inline edit: "${oldText.slice(0, 40)}" appears multiple times; skipped`)
+            addToast('error', 'Text appears multiple times — edit in code view')
+            return prev
+          }
+          const next = prev.slice(0, idx) + newText + prev.slice(idx + oldText.length)
+          addToHistory(next, `Inline edit: ${oldText.slice(0, 30)} → ${newText.slice(0, 30)}`)
+          return next
+        })
       }
     }
     window.addEventListener('message', handleMessage)
@@ -2490,6 +2560,9 @@ function WorkspaceContent() {
         body: JSON.stringify({
           name: projectName,
           files,
+          // Optional — when present, /api/deploy bakes any published CMS
+          // collections into `cms/<slug>.json` (and Astro markdown if relevant).
+          projectId: currentProject?.id,
         }),
       })
 
@@ -2852,6 +2925,46 @@ ${html}
       }
     }
   }, true);
+
+  // IMAGE FALLBACK — Stop broken external images (rate-limited CDNs, dead
+  // Unsplash IDs, etc.) from making the preview look junky. When an <img>
+  // fails to load, swap to a neutral placeholder pattern with the original
+  // alt text so the user still understands what was supposed to be there.
+  function makePlaceholder(w, h, label) {
+    var W = Math.max(120, w || 400);
+    var H = Math.max(80, h || 300);
+    var txt = (label || 'image').replace(/[<>&"']/g, '').slice(0, 40);
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">' +
+      '<defs><pattern id="p" width="20" height="20" patternUnits="userSpaceOnUse">' +
+      '<rect width="20" height="20" fill="#e2e8f0"/><rect width="10" height="10" fill="#cbd5e1"/>' +
+      '<rect x="10" y="10" width="10" height="10" fill="#cbd5e1"/></pattern></defs>' +
+      '<rect width="100%" height="100%" fill="url(#p)"/>' +
+      '<text x="50%" y="50%" font-family="system-ui,sans-serif" font-size="14" fill="#64748b" text-anchor="middle" dominant-baseline="middle">' + txt + '</text>' +
+      '</svg>';
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+  }
+  function attachImgFallback(img) {
+    if (img.dataset.fallbackBound) return;
+    img.dataset.fallbackBound = '1';
+    img.addEventListener('error', function() {
+      if (img.dataset.fellBack) return; // avoid loop
+      img.dataset.fellBack = '1';
+      img.src = makePlaceholder(img.naturalWidth || img.width, img.naturalHeight || img.height, img.alt);
+    });
+    if (img.complete && img.naturalWidth === 0 && img.src) {
+      img.dispatchEvent(new Event('error'));
+    }
+  }
+  document.querySelectorAll('img').forEach(attachImgFallback);
+  new MutationObserver(function(muts) {
+    muts.forEach(function(m) {
+      m.addedNodes.forEach(function(n) {
+        if (n.nodeType !== 1) return;
+        if (n.tagName === 'IMG') attachImgFallback(n);
+        else if (n.querySelectorAll) n.querySelectorAll('img').forEach(attachImgFallback);
+      });
+    });
+  }).observe(document.documentElement, { childList: true, subtree: true });
 })();
 </script>`
 
@@ -2960,8 +3073,139 @@ ${html}
       }
     }
 
+    // Inline edit script — only injected when editMode is on. Makes every
+    // visible heading/paragraph/button/list-item contenteditable, draws a
+    // dashed violet outline on focus, and on blur posts the diff back to the
+    // parent so the agent can apply it to the source. We track originalText
+    // per element so we can send (oldText, newText) instead of trying to
+    // build a stable selector — the agent uses string-replace which is more
+    // robust against minor HTML drift.
+    if (editMode) {
+      const inlineEditScript = `
+<style>
+  [data-webstew-editable]:hover { outline: 1px dashed rgba(139,92,246,0.5); outline-offset: 2px; cursor: text; }
+  [data-webstew-editable]:focus { outline: 2px solid #8b5cf6; outline-offset: 2px; background: rgba(139,92,246,0.06); }
+  body::after { content: 'Edit mode on — click any text to edit'; position: fixed; bottom: 12px; right: 12px; background: linear-gradient(90deg, #8b5cf6, #d946ef); color: white; padding: 6px 12px; border-radius: 999px; font-size: 11px; font-family: -apple-system, system-ui, sans-serif; box-shadow: 0 4px 12px rgba(139,92,246,0.4); pointer-events: none; z-index: 2147483647; }
+</style>
+<script>
+(function() {
+  // Tag every leaf-text element. We exclude nav links + form inputs since
+  // they have specialised handling already.
+  var SELECTORS = 'h1,h2,h3,h4,h5,h6,p,li,button,blockquote,figcaption,span';
+  var nodes = document.querySelectorAll(SELECTORS);
+  nodes.forEach(function(el) {
+    // Skip if it contains other tagged elements — only mark leaf nodes that
+    // own their own text, so editing doesn't blow away nested markup.
+    if (el.querySelector(SELECTORS)) return;
+    var text = (el.textContent || '').trim();
+    if (!text || text.length > 500) return; // too long → probably a section, skip
+    el.setAttribute('data-webstew-editable', '');
+    el.setAttribute('contenteditable', 'true');
+    el.setAttribute('spellcheck', 'true');
+    el.dataset.webstewOriginal = text;
+    el.addEventListener('blur', function() {
+      var newText = (el.textContent || '').trim();
+      var oldText = el.dataset.webstewOriginal || '';
+      if (newText && newText !== oldText) {
+        window.parent.postMessage({
+          type: 'webstew-inline-edit',
+          oldText: oldText,
+          newText: newText,
+          tag: el.tagName.toLowerCase(),
+        }, '*');
+        el.dataset.webstewOriginal = newText;
+      }
+    }, true);
+    // Block Enter from inserting newlines in single-line tags (h1-h6, button, li)
+    el.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && /^(h[1-6]|button|li|span)$/.test(el.tagName.toLowerCase())) {
+        e.preventDefault();
+        el.blur();
+      }
+    });
+  });
+})();
+</script>`
+      if (result.includes('</body>')) {
+        result = result.replace('</body>', `${inlineEditScript}</body>`)
+      } else {
+        result = result + inlineEditScript
+      }
+    }
+
     return result
-  }, [selectMode])
+  }, [selectMode, editMode])
+
+  // Multi-target generation for Astro / Next.js / React / Expo. These routes
+  // return JSON `{ files, name, slug, instructions? }` — no streaming. We
+  // stuff the result into vfsFiles and let the WebContainer preview boot.
+  const handleGenerateMultiTarget = async (target: Exclude<BuildTarget, 'website'>, promptText: string) => {
+    const endpoint = {
+      astro:  '/api/builder/astro',
+      nextjs: '/api/builder/nextjs',
+      react:  '/api/builder/react',
+      expo:   '/api/builder/app',
+    }[target]
+    setIsGenerating(true)
+    setBuildPhase('structure')
+    setViewMode('preview')
+    addTerminalLine('command', promptText)
+    addTerminalLine('ai', `🤖 Generating ${target} project…`)
+    addConsoleLog('info', `Starting ${target} build: ${promptText.slice(0, 60)}…`)
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: promptText,
+          model: selectedModel.id,
+          apiKey: apiKeys[selectedModel.provider] || undefined,
+        }),
+      })
+      if (res.status === 402 || res.status === 429) {
+        const errBody = await res.json().catch(() => ({} as any))
+        const isPlanLimit = res.status === 429
+        setCreditWall({
+          show: true,
+          title: isPlanLimit ? 'Out of credits this month' : 'Out of free generations',
+          message: errBody.error || errBody.message ||
+            (isPlanLimit
+              ? `You're on the ${errBody.plan || 'free'} plan and used all your monthly credits.`
+              : `You've used your ${errBody.limit || 3} free generations.`),
+          limit: errBody.limit || (isPlanLimit ? 100 : 3),
+          isPlanLimit,
+          plan: errBody.plan,
+        })
+        return
+      }
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '')
+        throw new Error(`HTTP ${res.status}${errText ? ': ' + errText.slice(0, 200) : ''}`)
+      }
+      const data = await res.json()
+      if (!data?.files || typeof data.files !== 'object') {
+        throw new Error('Generator returned no files')
+      }
+      setVfsFiles(data.files)
+      setVfsProjectMeta({ name: data.name || `${target} project`, slug: data.slug || target })
+      addTerminalLine('success', `✓ Generated ${Object.keys(data.files).length} files`)
+      addConsoleLog('success', `${target} project ready — preview booting`)
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `Generated **${data.name || target}** (${Object.keys(data.files).length} files). Preview is booting in WebContainer — ask me to refine and I'll edit the files directly.`,
+      }])
+    } catch (e: any) {
+      addTerminalLine('error', `Failed: ${e?.message || e}`)
+      addConsoleLog('error', e?.message || String(e))
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `Generation failed: ${e?.message || 'unknown error'}`,
+      }])
+    } finally {
+      setIsGenerating(false)
+      setBuildPhase('idle')
+    }
+  }
 
   // Layered generation with phases
   const handleGenerate = async (promptText: string | undefined, ingredients?: StewIngredient[]) => {
@@ -2970,6 +3214,19 @@ ${html}
       return
     }
     promptText = promptText || ''
+
+    // Multi-target branch — route Astro/Next.js/React/Expo to the JSON generator
+    // path. The website path below uses streaming deltas + style preset baking,
+    // which doesn't apply to a real framework project.
+    if (buildTarget !== 'website') {
+      const creditCheck = await checkAndDeductCredits('generate_website')
+      if (!creditCheck.success) {
+        addTerminalLine('error', creditCheck.error || 'Insufficient credits')
+        return
+      }
+      await handleGenerateMultiTarget(buildTarget, promptText)
+      return
+    }
 
     // Check and deduct credits before generation
     const creditCheck = await checkAndDeductCredits('generate_website')
@@ -3022,12 +3279,31 @@ ${html}
       const activePage = pages.find(p => p.id === activePageId)
       const includeMultiPage = pages.length > 1 && activePage
 
+      // FRESH-BUILD DETECTION — if the prompt clearly asks for a NEW site
+      // (e.g., "build a restaurant site for…", "create a portfolio…",
+      // "make me a saas landing…"), we DO NOT include currentHtml. Sending
+      // currentHtml puts the server into "PRECISION EDITOR — surgical
+      // modifications only" mode, which would return mostly the previous
+      // HTML with tiny tweaks (the "stuck on same hero header" symptom).
+      // Refinements ("change the hero text", "add a contact section") DO
+      // include currentHtml so the existing structure is preserved.
+      const freshBuildRegex =
+        /\b(build|create|make|generate|design|launch|spin\s+up|put\s+together|whip\s+up)\b.+\b(site|website|page|landing|app|store|blog|portfolio|dashboard)\b/i
+      const resetIntentRegex = /\b(start\s+over|new\s+site|different\s+site|another\s+site|from\s+scratch)\b/i
+      const isFreshBuild = !html || freshBuildRegex.test(promptText) || resetIntentRegex.test(promptText)
+      if (isFreshBuild && html) {
+        // Drop the previous HTML from workspace state too so the preview
+        // doesn't briefly show the old site while the new one streams in.
+        setHtml('')
+        addConsoleLog('info', 'Fresh build detected — starting from a blank canvas.')
+      }
+
       const res = await fetch('/api/builder/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: promptText,
-          currentHtml: html || undefined,
+          currentHtml: isFreshBuild ? undefined : (html || undefined),
           skillLevel,
           model: selectedModel.id,
           apiKey: apiKeys[selectedModel.provider] || undefined,
@@ -3359,7 +3635,7 @@ ${html}
     { id: 'action-export', label: 'Export Project', category: 'action', icon: FileDown, action: () => setShowExportPanel(true) },
     { id: 'action-undo', label: 'Undo', category: 'action', icon: Undo2, shortcut: '⌘Z', action: () => handleUndo() },
     { id: 'action-redo', label: 'Redo', category: 'action', icon: Redo2, shortcut: '⌘Y', action: () => handleRedo() },
-    { id: 'action-refresh', label: 'Refresh Preview', category: 'action', icon: RefreshCw, action: () => iframeRef.current?.contentWindow?.location.reload() },
+    { id: 'action-refresh', label: 'Refresh Preview', category: 'action', icon: RefreshCw, action: () => setPreviewBumpKey(k => k + 1) },
     { id: 'action-clear', label: 'Clear All', category: 'action', icon: Trash2, action: () => { if (confirm('Clear all content?')) { setHtml(''); setHistory([]); setHistoryIndex(-1) } } },
     { id: 'action-copy', label: 'Copy HTML', category: 'action', icon: Copy, action: () => { navigator.clipboard.writeText(html); addToast('success', 'HTML copied to clipboard') } },
 
@@ -3787,6 +4063,17 @@ ${html}
     setChatMessages(prev => [...prev, { role: 'user', content: message }])
     setChatSuggestions([])
     setCommandInput('')
+
+    // First-prompt bootstrap for non-website targets: the agent loop is for
+    // refining an existing project, not scaffolding one from scratch. With an
+    // empty VFS it hits the iteration cap before finishing. Route the kickoff
+    // through the dedicated scaffolder, which returns a complete project in
+    // one JSON response.
+    if (buildTarget !== 'website' && Object.keys(vfsFiles).length === 0) {
+      await handleGenerate(message)
+      return
+    }
+
     setIsThinking(true)
 
     // Check for quick edit if element is selected
@@ -3804,32 +4091,40 @@ ${html}
     }
 
     try {
-      // Multi-page context for converse so edits to nav/footer respect siblings
+      // Build an enriched prompt with selected-element + multi-page context
       const activePageForChat = pages.find(p => p.id === activePageId)
-      const chatIncludeMultiPage = pages.length > 1 && activePageForChat
+      let agentPrompt = message
+      if (selectedElement) {
+        agentPrompt = `User has selected this element in the live preview:\n\n\`\`\`html\n${selectedElement.outerHTML}\n\`\`\`\n\nThey want: ${message}`
+      }
+      if (pages.length > 1 && activePageForChat) {
+        const others = pages.filter(p => p.id !== activePageId).map(p => `${p.name} (${p.slug})`).join(', ')
+        agentPrompt = `${agentPrompt}\n\nCurrent page: "${activePageForChat.name}" (${activePageForChat.slug}). Other pages in this site: ${others}.`
+      }
 
-      // Call the conversational API with selected model
-      const response = await fetch('/api/builder/converse', {
+      // Anthropic-shaped history (strings only, last 10 turns)
+      const agentHistory = chatMessages.slice(-10)
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .map(m => ({ role: m.role as 'user' | 'assistant', content: typeof m.content === 'string' ? m.content : String(m.content || '') }))
+        .filter(m => m.content.trim().length > 0)
+
+      const agentFiles = buildTarget === 'website'
+        ? { 'index.html': html }
+        : vfsFiles
+      const response = await fetch('/api/builder/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message,
-          history: chatMessages.slice(-10), // Last 10 messages for context
-          currentHtml: html,
+          prompt: agentPrompt,
+          files: agentFiles,
+          history: agentHistory,
           model: selectedModel.id,
           apiKey: apiKeys[selectedModel.provider] || undefined,
-          context: {
-            hasWebsite: html.length > 100,
-            selectedElement: selectedElement ? {
-              tagName: selectedElement.tagName,
-              textContent: selectedElement.textContent,
-              outerHTML: selectedElement.outerHTML
-            } : undefined,
-            ...(chatIncludeMultiPage ? {
-              siblingPages: pages.map(p => ({ name: p.name, slug: p.slug, isHome: p.isHome })),
-              currentPage: { name: activePageForChat!.name, slug: activePageForChat!.slug, isHome: activePageForChat!.isHome },
-            } : {}),
-          }
+          target: buildTarget,
+          // Pass projectId so the agent can use cms_* tools to read/write
+          // content collections on this project. Persists file changes to
+          // Mongo via the onWrite/onDelete hooks too. Skip if no saved project.
+          projectId: currentProject?.id,
         })
       })
 
@@ -3850,370 +4145,113 @@ ${html}
         setIsThinking(false)
         return
       }
-      if (!response.ok) throw new Error('Conversation failed')
+      if (!response.ok || !response.body) throw new Error('Agent stream failed')
 
-      const data = await response.json()
+      // ── SSE stream consumer ──────────────────────────────────────────────
+      // The agent route emits: text, tool_use, tool_result, file_update,
+      // file_delete, done, error. We map file_update on index.html → setHtml.
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let sseBuffer = ''
+      let textBuf = ''
+      let toolStatus = ''
+      let latestHtml: string | null = null
+      let wroteAnyFile = false
 
-      if (data.type === 'clarify' || data.type === 'answer') {
-        // AI is asking clarifying questions or answering
-        let assistantMessage = data.message
-
-        // Add suggestions if available
-        if (data.suggestions && data.suggestions.length > 0) {
-          assistantMessage += '\n\n💡 **Suggestions:** ' + data.suggestions.join(', ')
-        }
-
-        setChatMessages(prev => [...prev, {
-          role: 'assistant',
-          content: assistantMessage,
-          suggestions: data.suggestedOptions
-        }])
-        setChatSuggestions(data.suggestedOptions || [])
-        if (data.intent) setConversationIntent(data.intent)
-      } else if (data.type === 'edit') {
-        // AI is making direct edits to the website
-        let editMessage = data.message
-
-        // Apply the updated HTML if provided
-        if (data.updatedHtml && data.updatedHtml !== html) {
-          setHtml(data.updatedHtml)
-          addToHistory(data.updatedHtml, 'AI Edit: ' + (data.codeEdits?.[0]?.description || 'Applied changes'))
-          addToast('success', 'Changes applied!')
-
-          // Add edit details to message
-          if (data.codeEdits && data.codeEdits.length > 0) {
-            editMessage += '\n\n✅ **Changes made:**'
-            data.codeEdits.forEach((edit: { description: string }) => {
-              editMessage += `\n• ${edit.description}`
-            })
-          }
-        } else if (data.codeEdits && data.codeEdits.length > 0) {
-          // Try to apply edits manually if updatedHtml wasn't provided
-          let newHtml = html
-          let appliedCount = 0
-          const appliedEdits: string[] = []
-
-          for (const edit of data.codeEdits) {
-            let applied = false
-
-            if (edit.type === 'replace' && edit.oldCode && edit.newCode) {
-              const oldCode = edit.oldCode
-              const newCode = edit.newCode
-
-              // Strategy 1: Direct exact match
-              if (newHtml.includes(oldCode)) {
-                newHtml = newHtml.replace(oldCode, newCode)
-                applied = true
-              }
-
-              // Strategy 2: Normalized whitespace match
-              if (!applied) {
-                const normalizeWs = (s: string) => s.replace(/\s+/g, ' ').replace(/>\s+</g, '><').trim()
-                const normalizedOld = normalizeWs(oldCode)
-
-                const lines = newHtml.split('\n')
-                for (let i = 0; i < lines.length && !applied; i++) {
-                  for (let j = i; j < Math.min(i + 20, lines.length) && !applied; j++) {
-                    const chunk = lines.slice(i, j + 1).join('\n')
-                    if (normalizeWs(chunk) === normalizedOld) {
-                      const before = lines.slice(0, i).join('\n')
-                      const after = lines.slice(j + 1).join('\n')
-                      newHtml = before + (before ? '\n' : '') + newCode + (after ? '\n' : '') + after
-                      applied = true
-                    }
-                  }
-                }
-              }
-
-              // Strategy 3: Flexible whitespace regex
-              if (!applied) {
-                try {
-                  const escaped = oldCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                  const flexibleRegex = new RegExp(escaped.replace(/\s+/g, '\\s*'), 'i')
-                  const match = newHtml.match(flexibleRegex)
-                  if (match) {
-                    newHtml = newHtml.replace(match[0], newCode)
-                    applied = true
-                  }
-                } catch (e) {
-                  console.error('[Edit] Replace regex failed:', e)
-                }
-              }
-
-              // Strategy 4: Match by tag + key attributes
-              if (!applied) {
-                const tagMatch = oldCode.match(/<(\w+)/)
-                if (tagMatch) {
-                  const tag = tagMatch[1].toLowerCase()
-                  const idMatch = oldCode.match(/id=["']([^"']+)["']/)
-                  const classMatch = oldCode.match(/class=["']([^"']+)["']/)
-                  const srcMatch = oldCode.match(/src=["']([^"']+)["']/)
-
-                  let pattern = `<${tag}`
-
-                  if (idMatch) {
-                    pattern += `[^>]*id=["']${idMatch[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`
-                  } else if (classMatch) {
-                    const firstClass = classMatch[1].split(' ')[0]
-                    pattern += `[^>]*class=["'][^"']*${firstClass.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^"']*["']`
-                  } else if (srcMatch) {
-                    pattern += `[^>]*src=["'][^"']*${srcMatch[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&').split('/').pop()}[^"']*["']`
-                  }
-
-                  const selfClosingTags = ['img', 'br', 'hr', 'input', 'meta', 'link']
-                  if (selfClosingTags.includes(tag)) {
-                    pattern += `[^>]*/?>`
-                  } else {
-                    pattern += `[^>]*>[\\s\\S]*?</${tag}>`
-                  }
-
-                  try {
-                    const regex = new RegExp(pattern, 'i')
-                    const match = newHtml.match(regex)
-                    if (match) {
-                      newHtml = newHtml.replace(match[0], newCode)
-                      applied = true
-                    }
-                  } catch (e) {
-                    console.error('[Edit] Replace attribute regex failed:', e)
-                  }
-                }
-              }
-            } else if (edit.type === 'style' && edit.oldCode && edit.newCode) {
-              // Global class replacement
-              if (newHtml.includes(edit.oldCode)) {
-                newHtml = newHtml.split(edit.oldCode).join(edit.newCode)
-                applied = true
-              }
-            } else if (edit.type === 'insert' && edit.newCode) {
-              const target = edit.target?.toLowerCase() || ''
-
-              if (target.includes('</body>') || target.includes('before body close') || target.includes('end of body')) {
-                newHtml = newHtml.replace('</body>', `${edit.newCode}\n</body>`)
-                applied = true
-              } else if (target.includes('</head>') || target.includes('in head')) {
-                newHtml = newHtml.replace('</head>', `${edit.newCode}\n</head>`)
-                applied = true
-              } else if (target.includes('after header') || target.includes('below header')) {
-                newHtml = newHtml.replace(/<\/header>/i, `</header>\n${edit.newCode}`)
-                applied = true
-              } else if (target.includes('before footer') || target.includes('above footer')) {
-                newHtml = newHtml.replace(/<footer/i, `${edit.newCode}\n<footer`)
-                applied = true
-              } else if (target.includes('after nav')) {
-                newHtml = newHtml.replace(/<\/nav>/i, `</nav>\n${edit.newCode}`)
-                applied = true
-              } else if (target.includes('hero') || target.includes('first section')) {
-                // Insert after first section or header
-                const headerEnd = newHtml.indexOf('</header>')
-                if (headerEnd > -1) {
-                  newHtml = newHtml.slice(0, headerEnd + 9) + '\n' + edit.newCode + newHtml.slice(headerEnd + 9)
-                  applied = true
-                }
-              } else {
-                // Default: insert before </body>
-                newHtml = newHtml.replace('</body>', `${edit.newCode}\n</body>`)
-                applied = true
-              }
-            } else if (edit.type === 'delete' && edit.oldCode) {
-              // Robust delete with multiple strategies
-              const oldCode = edit.oldCode
-
-              // Strategy 1: Direct exact match
-              if (newHtml.includes(oldCode)) {
-                newHtml = newHtml.replace(oldCode, '')
-                applied = true
-              }
-
-              // Strategy 2: Normalized whitespace match
-              if (!applied) {
-                const normalizeWs = (s: string) => s.replace(/\s+/g, ' ').replace(/>\s+</g, '><').trim()
-                const normalizedOld = normalizeWs(oldCode)
-
-                // Split HTML into chunks and find matching section
-                const lines = newHtml.split('\n')
-                for (let i = 0; i < lines.length && !applied; i++) {
-                  for (let j = i; j < Math.min(i + 20, lines.length) && !applied; j++) {
-                    const chunk = lines.slice(i, j + 1).join('\n')
-                    if (normalizeWs(chunk) === normalizedOld) {
-                      const before = lines.slice(0, i).join('\n')
-                      const after = lines.slice(j + 1).join('\n')
-                      newHtml = before + (before && after ? '\n' : '') + after
-                      applied = true
-                    }
-                  }
-                }
-              }
-
-              // Strategy 3: Match by tag and key attributes
-              if (!applied) {
-                const tagMatch = oldCode.match(/<(\w+)/)
-                if (tagMatch) {
-                  const tag = tagMatch[1].toLowerCase()
-
-                  // Extract key attributes
-                  const idMatch = oldCode.match(/id=["']([^"']+)["']/)
-                  const classMatch = oldCode.match(/class=["']([^"']+)["']/)
-                  const srcMatch = oldCode.match(/src=["']([^"']+)["']/)
-
-                  let pattern = `<${tag}`
-
-                  if (idMatch) {
-                    pattern += `[^>]*id=["']${idMatch[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`
-                  } else if (classMatch) {
-                    const firstClass = classMatch[1].split(' ')[0]
-                    pattern += `[^>]*class=["'][^"']*${firstClass.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^"']*["']`
-                  } else if (srcMatch) {
-                    pattern += `[^>]*src=["'][^"']*${srcMatch[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&').split('/').pop()}[^"']*["']`
-                  }
-
-                  // Match opening tag to closing tag
-                  const selfClosingTags = ['img', 'br', 'hr', 'input', 'meta', 'link']
-                  if (selfClosingTags.includes(tag)) {
-                    pattern += `[^>]*/?>`
-                  } else {
-                    pattern += `[^>]*>[\\s\\S]*?</${tag}>`
-                  }
-
-                  try {
-                    const regex = new RegExp(pattern, 'i')
-                    const match = newHtml.match(regex)
-                    if (match) {
-                      newHtml = newHtml.replace(match[0], '')
-                      applied = true
-                    }
-                  } catch (e) {
-                    console.error('[Edit] Delete regex failed:', e)
-                  }
-                }
-              }
-
-              // Strategy 4: Match by text content for text-heavy elements
-              if (!applied) {
-                const textMatch = oldCode.match(/>([^<]{10,50})/)
-                const tagMatch = oldCode.match(/<(\w+)/)
-                if (textMatch && tagMatch) {
-                  const text = textMatch[1].trim()
-                  const tag = tagMatch[1].toLowerCase()
-                  const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-                  try {
-                    const textRegex = new RegExp(`<${tag}[^>]*>[^<]*${escapedText}[\\s\\S]*?</${tag}>`, 'i')
-                    const match = newHtml.match(textRegex)
-                    if (match) {
-                      newHtml = newHtml.replace(match[0], '')
-                      applied = true
-                    }
-                  } catch (e) {
-                    console.error('[Edit] Text regex failed:', e)
-                  }
-                }
-              }
-            }
-
-            // Special handling for background image edits
-            const descLower = edit.description?.toLowerCase() || ''
-            if (!applied && (descLower.includes('background') || descLower.includes('hero') || descLower.includes('header'))) {
-              // Try to add/modify background style on hero, header, or first sections
-              const bgImageMatch = edit.newCode?.match(/url\(['"](.*?)['"]\)/) ||
-                                   edit.newCode?.match(/https?:\/\/[^\s"'<>]+\.(jpg|jpeg|png|gif|webp|svg)/i) ||
-                                   edit.newCode?.match(/https?:\/\/images\.unsplash\.com[^\s"'<>]+/)
-              if (bgImageMatch) {
-                const imageUrl = bgImageMatch[1] || bgImageMatch[0]
-
-                // Try multiple selectors: hero section, first section, header
-                const selectors = [
-                  /<section[^>]*class="([^"]*(?:hero|banner)[^"]*)"[^>]*>/i,
-                  /<header[^>]*class="([^"]*)"[^>]*>/i,
-                  /<section[^>]*class="([^"]*)"[^>]*>/i,
-                  /<div[^>]*class="([^"]*(?:hero|banner|header)[^"]*)"[^>]*>/i
-                ]
-
-                for (const selector of selectors) {
-                  const match = newHtml.match(selector)
-                  if (match) {
-                    const fullMatch = match[0]
-                    const oldClass = match[1]
-
-                    // Check if already has background-image
-                    if (fullMatch.includes('background-image')) {
-                      // Replace existing background-image
-                      const updated = fullMatch.replace(/background-image:\s*url\([^)]+\)/, `background-image: url('${imageUrl}')`)
-                      newHtml = newHtml.replace(fullMatch, updated)
-                    } else if (fullMatch.includes('style="')) {
-                      // Add to existing style
-                      const updated = fullMatch.replace(/style="([^"]*)"/, `style="$1; background-image: url('${imageUrl}'); background-size: cover; background-position: center;"`)
-                      newHtml = newHtml.replace(fullMatch, updated)
-                    } else {
-                      // Add new style attribute
-                      const newClass = oldClass.includes('bg-cover') ? oldClass : oldClass + ' bg-cover bg-center relative'
-                      const updated = fullMatch.replace(`class="${oldClass}"`, `class="${newClass}" style="background-image: url('${imageUrl}')"`)
-                      newHtml = newHtml.replace(fullMatch, updated)
-                    }
-                    applied = true
-                    break
-                  }
-                }
-              }
-            }
-
-            if (applied) {
-              appliedCount++
-              appliedEdits.push(edit.description || 'Applied change')
+      // Insert a placeholder assistant message we'll mutate as events arrive.
+      setChatMessages(prev => [...prev, { role: 'assistant', content: '…' }])
+      const flushAssistant = (text: string) => {
+        setChatMessages(prev => {
+          const next = [...prev]
+          for (let i = next.length - 1; i >= 0; i--) {
+            if (next[i].role === 'assistant') {
+              next[i] = { ...next[i], content: text }
+              break
             }
           }
+          return next
+        })
+      }
+      const renderProgress = () => {
+        const body = textBuf.trim()
+        const status = toolStatus ? `_${toolStatus}_` : ''
+        return [body, status].filter(Boolean).join('\n\n') || '…'
+      }
 
-          if (newHtml !== html && appliedCount > 0) {
-            setHtml(newHtml)
-            addToHistory(newHtml, 'AI Edit: ' + appliedEdits[0])
-            addToast('success', `Applied ${appliedCount} change${appliedCount > 1 ? 's' : ''}!`)
-
-            editMessage += '\n\n✅ **Changes made:**'
-            appliedEdits.forEach((desc) => {
-              editMessage += `\n• ${desc}`
-            })
-          } else {
-            // If edits failed, offer to regenerate the section
-            editMessage += '\n\n⚠️ I couldn\'t apply the exact edit. Would you like me to regenerate the section instead? Just say "regenerate the hero section" or select the element you want to change.'
+      let streamDone = false
+      while (!streamDone) {
+        const { value, done: rd } = await reader.read()
+        if (rd) break
+        sseBuffer += decoder.decode(value, { stream: true })
+        const blocks = sseBuffer.split('\n\n')
+        sseBuffer = blocks.pop() || ''
+        for (const block of blocks) {
+          if (!block.trim()) continue
+          let evtName = 'message'
+          let dataStr = ''
+          for (const line of block.split('\n')) {
+            if (line.startsWith('event: ')) evtName = line.slice(7).trim()
+            else if (line.startsWith('data: ')) dataStr += line.slice(6)
           }
-        }
+          if (!dataStr) continue
+          let payload: any
+          try { payload = JSON.parse(dataStr) } catch { continue }
 
-        setChatMessages(prev => [...prev, {
-          role: 'assistant',
-          content: editMessage
-        }])
-        setConversationIntent(null)
-      } else if (data.type === 'ready') {
-        // We have enough context - proceed with generation
-        const intent = data.intent
-        const enhancedPrompt = data.enhancedPrompt
-
-        setChatMessages(prev => [...prev, {
-          role: 'assistant',
-          content: data.message
-        }])
-        setConversationIntent(null)
-
-        // Trigger the appropriate generation
-        if (intent === 'website' || intent === 'edit') {
-          handleGenerate(enhancedPrompt)
-        } else if (intent === 'image') {
-          // Trigger image generation
-          setActivePanel('images')
-          setImagePrompt(enhancedPrompt)
-          // Auto-trigger image generation
-          setTimeout(() => {
-            handleImageGenerate(enhancedPrompt)
-          }, 500)
-        } else if (intent === 'video') {
-          // Trigger video generation
-          setActivePanel('video')
-          setVideoPrompt(enhancedPrompt)
-          // Auto-trigger video generation
-          setTimeout(() => {
-            handleVideoGenerate(enhancedPrompt)
-          }, 500)
+          if (evtName === 'text') {
+            textBuf += payload.text || ''
+            flushAssistant(renderProgress())
+          } else if (evtName === 'tool_use') {
+            const n = payload.name
+            const p = payload.input?.path
+            if (n === 'list_files') toolStatus = 'Listing files…'
+            else if (n === 'read_file') toolStatus = p ? `Reading ${p}…` : 'Reading file…'
+            else if (n === 'write_file') toolStatus = p ? `Editing ${p}…` : 'Editing file…'
+            else if (n === 'delete_file') toolStatus = p ? `Deleting ${p}…` : 'Deleting file…'
+            else if (n === 'done') toolStatus = ''
+            else toolStatus = `Running ${n}…`
+            flushAssistant(renderProgress())
+          } else if (evtName === 'file_update') {
+            if (typeof payload.contents === 'string' && typeof payload.path === 'string') {
+              if (buildTarget === 'website' && payload.path === 'index.html') {
+                latestHtml = payload.contents
+              } else if (buildTarget !== 'website') {
+                // Multi-file VFS update — apply immediately so the WebContainer
+                // preview HMR / file watcher picks up the change.
+                setVfsFiles(prev => ({ ...prev, [payload.path]: payload.contents }))
+              }
+              wroteAnyFile = true
+            }
+          } else if (evtName === 'file_delete') {
+            if (buildTarget !== 'website' && typeof payload.path === 'string') {
+              setVfsFiles(prev => {
+                const next = { ...prev }
+                delete next[payload.path]
+                return next
+              })
+              wroteAnyFile = true
+            }
+          } else if (evtName === 'done') {
+            streamDone = true
+            toolStatus = ''
+            const summary = payload.summary || 'Done.'
+            const final = [textBuf.trim(), wroteAnyFile ? `✅ ${summary}` : summary]
+              .filter(Boolean).join('\n\n')
+            flushAssistant(final || summary)
+          } else if (evtName === 'error') {
+            streamDone = true
+            toolStatus = ''
+            flushAssistant(`⚠️ ${payload.message || 'Agent failed.'}`)
+          }
         }
       }
+
+      // Commit HTML once at the end (avoids thrashing the preview iframe mid-stream)
+      if (latestHtml && latestHtml !== html) {
+        setHtml(latestHtml)
+        addToHistory(latestHtml, 'AI Edit: ' + message.slice(0, 60))
+        addToast('success', 'Changes applied!')
+      }
+      setConversationIntent(null)
 
     } catch (error) {
       console.error('Chat error:', error)
@@ -4326,7 +4364,33 @@ ${html}
     handleChatMessage(commandInput)
   }
 
-  const handleExport = () => {
+  const handleExport = async () => {
+    // Multi-target projects: ship a zip of the VFS. The export panel is
+    // HTML-specific (preview, single-file download, etc.) and doesn't apply.
+    if (buildTarget !== 'website' && Object.keys(vfsFiles).length > 0) {
+      try {
+        const JSZip = (await import('jszip')).default
+        const zip = new JSZip()
+        const slug = vfsProjectMeta?.slug || buildTarget
+        const folder = zip.folder(slug) || zip
+        for (const [path, content] of Object.entries(vfsFiles)) {
+          folder.file(path, content)
+        }
+        const blob = await zip.generateAsync({ type: 'blob' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${slug}.zip`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        addConsoleLog('success', `Exported ${Object.keys(vfsFiles).length} files`)
+      } catch (e: any) {
+        addConsoleLog('error', `Export failed: ${e?.message || e}`)
+      }
+      return
+    }
     if (!html.trim()) {
       addConsoleLog('error', 'No content to export')
       return
@@ -4974,6 +5038,7 @@ ${html}
                 { id: 'webstew' as Panel, icon: ChefHat, label: 'Stew', tour: 'webstew', color: 'orange' },
                 { id: 'projects' as Panel, icon: FolderOpen, label: 'Files', color: 'emerald' },
                 { id: 'integrations' as Panel, icon: Link2, label: 'APIs', color: 'cyan' },
+                { id: 'content' as Panel, icon: FileText, label: 'CMS', color: 'pink' },
                 { id: 'images' as Panel, icon: ImageIcon, label: 'Media', color: 'pink' },
                 { id: 'video' as Panel, icon: Film, label: 'Video', color: 'purple' },
                 { id: 'env' as Panel, icon: Variable, label: 'Env', color: 'yellow' },
@@ -5138,14 +5203,16 @@ ${html}
                           })}
                         </div>
 
-                        {/* Suggestion buttons for this message */}
+                        {/* Suggestion buttons for this message — explicit
+                            dark text on light backgrounds + light text on
+                            dark to keep readable in both themes. */}
                         {msg.suggestions && msg.suggestions.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mt-3 pt-2 border-t border-white/10">
+                          <div className="flex flex-wrap gap-1.5 mt-3 pt-2 border-t border-border">
                             {msg.suggestions.map((suggestion, sIdx) => (
                               <button
                                 key={sIdx}
                                 onClick={() => handleChatMessage(suggestion)}
-                                className="px-2.5 py-1 text-[11px] font-medium rounded-full bg-violet-500/20 text-violet-300 hover:bg-violet-500/30 hover:text-violet-200 transition-all border border-violet-500/20"
+                                className="px-3 py-1.5 text-xs font-medium rounded-full bg-violet-600 text-white hover:bg-violet-500 transition-all shadow-sm dark:bg-violet-500/25 dark:text-violet-100 dark:hover:bg-violet-500/40 dark:border dark:border-violet-400/40"
                               >
                                 {suggestion}
                               </button>
@@ -5239,10 +5306,12 @@ ${html}
                           key={idx}
                           onClick={() => handleChatMessage(suggestion)}
                           className={cn(
-                            "px-2.5 py-1 text-[11px] font-medium rounded-full transition-all",
-                            isDark
-                              ? "bg-white/5 text-zinc-400 border border-white/10 hover:bg-violet-500/20 hover:text-violet-300 hover:border-violet-500/30"
-                              : "bg-slate-100 text-slate-600 border border-slate-200 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-300"
+                            "px-3 py-1.5 text-xs font-medium rounded-full transition-all",
+                            // Stronger contrast: explicit slate-900 text on
+                            // white in light mode + slate-100 on a dark
+                            // tinted bg in dark mode. The previous slate-600
+                            // on slate-100 was too washed out to read.
+                            "bg-card text-foreground border border-border hover:bg-violet-100 hover:text-violet-700 hover:border-violet-300 dark:hover:bg-violet-500/20 dark:hover:text-violet-200 dark:hover:border-violet-400/40"
                           )}
                         >
                           {suggestion}
@@ -5548,6 +5617,22 @@ ${html}
               </motion.div>
             )}
 
+            {/* Content (CMS) Panel — Stage 1 of the Webflow-style CMS. Lists
+                collections + lets you CRUD items via a schema-driven form.
+                Generators can scaffold a sample collection; the agent can
+                read/write items through the same /api/cms endpoints. */}
+            {!sidebarCollapsed && activePanel === 'content' && (
+              <motion.div
+                key="content"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex-1 min-h-0 flex flex-col overflow-hidden"
+              >
+                <ContentPanel projectId={currentProject?.id || null} isDark={isDark} />
+              </motion.div>
+            )}
+
             {/* Integrations Panel */}
             {!sidebarCollapsed && activePanel === 'integrations' && (
               <motion.div
@@ -5580,8 +5665,8 @@ ${html}
                         className={cn(
                           'flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-medium whitespace-nowrap transition-all',
                           integrationFilter === cat.id
-                            ? 'bg-violet-500/20 text-violet-400 border border-violet-500/30'
-                            : 'bg-white/[0.03] text-zinc-500 hover:text-white border border-transparent'
+                            ? 'bg-violet-100 text-violet-700 border border-violet-300 dark:bg-violet-500/20 dark:text-violet-400 dark:border-violet-500/30'
+                            : 'bg-slate-100 text-slate-600 hover:text-slate-900 border border-transparent dark:bg-white/[0.03] dark:text-zinc-500 dark:hover:text-white'
                         )}
                       >
                         <cat.icon className="w-3 h-3" />
@@ -5601,8 +5686,8 @@ ${html}
                         className={cn(
                           'rounded-xl border transition-all',
                           integration.enabled
-                            ? 'bg-violet-500/10 border-violet-500/30'
-                            : 'bg-white/[0.02] border-white/[0.05] hover:border-white/10'
+                            ? 'bg-violet-100 border-violet-300 dark:bg-violet-500/10 dark:border-violet-500/30'
+                            : 'bg-white border-slate-200 hover:border-slate-300 dark:bg-white/[0.02] dark:border-white/[0.05] dark:hover:border-white/10'
                         )}
                       >
                         {/* Header */}
@@ -5611,17 +5696,29 @@ ${html}
                             <div className={cn(
                               'w-8 h-8 rounded-lg flex items-center justify-center',
                               integration.enabled
-                                ? 'bg-violet-500/20'
-                                : 'bg-white/[0.05]'
+                                ? 'bg-violet-200 dark:bg-violet-500/20'
+                                : 'bg-slate-100 dark:bg-white/[0.05]'
                             )}>
                               <integration.icon className={cn(
                                 'w-4 h-4',
-                                integration.enabled ? 'text-violet-400' : 'text-zinc-500'
+                                integration.enabled
+                                  ? 'text-violet-700 dark:text-violet-400'
+                                  : 'text-slate-500 dark:text-zinc-500'
                               )} />
                             </div>
                             <div>
-                              <h4 className="text-xs font-medium text-white">{integration.name}</h4>
-                              <p className="text-[10px] text-zinc-500 line-clamp-1">{integration.description}</p>
+                              <h4 className={cn(
+                                "text-xs font-medium",
+                                integration.enabled
+                                  ? 'text-violet-900 dark:text-white'
+                                  : 'text-slate-900 dark:text-white'
+                              )}>{integration.name}</h4>
+                              <p className={cn(
+                                "text-[10px] line-clamp-1",
+                                integration.enabled
+                                  ? 'text-violet-700/80 dark:text-zinc-500'
+                                  : 'text-slate-500 dark:text-zinc-500'
+                              )}>{integration.description}</p>
                             </div>
                           </div>
                           <button
@@ -6696,23 +6793,23 @@ ${html}
                   </button>
                   <button
                     onClick={deployToRender}
-                    disabled={isDeploying || !html.trim()}
+                    disabled={isDeploying || (!html.trim() && Object.keys(vfsFiles).length === 0)}
                     className={cn(
-                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left",
-                      isDeploying || !html.trim()
-                        ? "bg-white/[0.02] border-white/[0.05] opacity-50 cursor-not-allowed"
-                        : "bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 border-violet-500/20 hover:from-violet-500/20 hover:to-fuchsia-500/20"
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left shadow-md",
+                      isDeploying || (!html.trim() && Object.keys(vfsFiles).length === 0)
+                        ? "bg-slate-200 dark:bg-white/[0.04] text-slate-500 dark:text-zinc-500 opacity-70 cursor-not-allowed"
+                        : "bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white"
                     )}
                   >
                     {isDeploying && deployStatus === 'render' ? (
-                      <Loader2 className="w-5 h-5 text-violet-400 animate-spin" />
+                      <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
-                      <Rocket className="w-5 h-5 text-violet-400" />
+                      <Rocket className="w-5 h-5" />
                     )}
                     <div className="flex-1">
-                      <div className="text-sm font-medium text-white">Deploy Live</div>
-                      <div className="text-[10px] text-violet-300/60">
-                        {isDeploying ? 'Deploying to Render...' : 'One-click deploy'}
+                      <div className="text-sm font-semibold">Deploy Live</div>
+                      <div className="text-[10px] opacity-90">
+                        {isDeploying ? 'Deploying to Render…' : 'One-click deploy'}
                       </div>
                     </div>
                   </button>
@@ -6732,6 +6829,14 @@ ${html}
                       <div className="text-[10px] text-zinc-600">HTML, ZIP, Next.js, or Static</div>
                     </div>
                   </button>
+
+                  {/* Custom domain — only meaningful after a deploy exists.
+                      The card itself handles the "not deployed yet" state. */}
+                  <CustomDomainCard
+                    projectId={currentProject?.id || null}
+                    isDeployed={deployStatus === 'success' || !!deployUrl}
+                    isDark={isDark}
+                  />
                 </div>
               </motion.div>
             )}
@@ -6946,10 +7051,14 @@ ${html}
 
         {/* Toolbar - High z-index so dropdowns appear above preview */}
         <header className={cn(
-          "h-12 border-b flex items-center justify-between px-4 backdrop-blur-xl relative z-50",
+          "h-12 border-b flex items-center justify-between px-4 backdrop-blur-xl relative z-50 gap-2 min-w-0",
           isDark ? "border-white/[0.08] bg-zinc-950/95" : "border-slate-200 bg-white/95"
         )}>
-          <div className="flex items-center gap-3">
+          {/* LHS toolbar group — allow horizontal scroll when content exceeds
+              available width (e.g. when the chat sidebar is open). Without
+              min-w-0 + overflow-x-auto here the LHS would push the RHS
+              (Save / Export buttons) off-screen. */}
+          <div className="flex items-center gap-3 min-w-0 overflow-x-auto scrollbar-hide flex-1">
             {/* Device toggles */}
             <div className={cn(
               "flex rounded-lg p-0.5 border",
@@ -6988,6 +7097,95 @@ ${html}
             >
               <ImageIcon className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Images</span>
+            </button>
+
+            {/* Build Target Picker — Website / Astro / Next.js / React / Expo */}
+            <div className="flex items-center gap-0.5 bg-white/[0.03] dark:bg-white/[0.03] bg-slate-100 border border-white/[0.05] dark:border-white/[0.05] border-slate-200 rounded-lg p-0.5">
+              {([
+                { id: 'website' as BuildTarget, label: 'Web', title: 'Static HTML website' },
+                { id: 'astro' as BuildTarget,   label: 'Astro', title: 'Astro multi-page site' },
+                { id: 'nextjs' as BuildTarget,  label: 'Next', title: 'Next.js app' },
+                { id: 'react' as BuildTarget,   label: 'React', title: 'Vite + React SPA' },
+                { id: 'expo' as BuildTarget,    label: 'Mobile', title: 'Expo mobile app' },
+              ]).map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => {
+                    if (isGenerating) return
+                    if (buildTarget !== t.id && (html || Object.keys(vfsFiles).length > 0)) {
+                      const ok = confirm(`Switch to ${t.label}? Your current project will be cleared.`)
+                      if (!ok) return
+                      setHtml('')
+                      setVfsFiles({})
+                      setVfsProjectMeta(null)
+                      setChatMessages([])
+                    }
+                    setBuildTarget(t.id)
+                  }}
+                  title={t.title}
+                  className={cn(
+                    'px-2 py-1 rounded-md text-[11px] font-medium transition-all',
+                    buildTarget === t.id
+                      ? 'bg-violet-500/20 text-violet-300 dark:bg-violet-500/20 dark:text-violet-300 bg-violet-100 text-violet-700'
+                      : 'text-zinc-600 dark:text-zinc-500 hover:text-white dark:hover:text-white text-slate-500 hover:text-slate-900'
+                  )}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Site grader — scores SEO / technical / presence / AI-visibility
+                for the current HTML. Lights up an Award icon; opens a modal
+                with score + actionable issues. Works on draft HTML (any
+                target where index.html exists in the VFS) and on a deployed
+                URL when one is available. */}
+            <button
+              onClick={() => setGraderOpen(true)}
+              disabled={!html && !(vfsFiles['index.html'])}
+              title={
+                (!html && !vfsFiles['index.html'])
+                  ? 'Generate something first, then grade it'
+                  : 'Grade my site (SEO / technical / presence)'
+              }
+              className={cn(
+                'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all border',
+                (!html && !vfsFiles['index.html'])
+                  ? 'bg-slate-200 text-slate-500 border-slate-300 dark:bg-white/[0.03] dark:text-zinc-600 dark:border-white/[0.06] cursor-not-allowed'
+                  : 'bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30 dark:hover:bg-emerald-500/25'
+              )}
+            >
+              <Award className="w-3 h-3" />
+              Grade
+            </button>
+
+            {/* Inline Edit toggle — only meaningful for the website target
+                because we inject the editor <script> into srcDoc. For
+                WebContainer targets the preview is on a different origin so
+                we can't drop a script in. Disabled there to be honest. */}
+            <button
+              onClick={() => setEditMode(v => !v)}
+              disabled={buildTarget !== 'website' || !html}
+              title={
+                buildTarget !== 'website'
+                  ? 'Inline edit currently only works for the Web target'
+                  : !html
+                    ? 'Generate something first'
+                    : editMode
+                      ? 'Exit edit mode'
+                      : 'Click text in preview to edit inline'
+              }
+              className={cn(
+                'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all border',
+                (buildTarget !== 'website' || !html)
+                  ? 'bg-slate-200 text-slate-500 border-slate-300 dark:bg-white/[0.03] dark:text-zinc-600 dark:border-white/[0.06] cursor-not-allowed'
+                  : editMode
+                    ? 'bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white border-violet-500 shadow-sm'
+                    : 'bg-violet-100 text-violet-700 border-violet-300 hover:bg-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:border-violet-500/30 dark:hover:bg-violet-500/25'
+              )}
+            >
+              <Pencil className="w-3 h-3" />
+              {editMode ? 'Editing' : 'Edit'}
             </button>
 
             {/* Style Preset Picker - Auto-applies on selection */}
@@ -7214,7 +7412,7 @@ ${html}
               )}
             </div>
             <button
-              onClick={() => iframeRef.current?.contentWindow?.location.reload()}
+              onClick={() => setPreviewBumpKey(k => k + 1)}
               className="p-1.5 rounded-lg hover:bg-blue-500/10 text-zinc-600 hover:text-blue-400 hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-200"
               title="Refresh Preview"
             >
@@ -7283,13 +7481,13 @@ ${html}
 
             <button
               onClick={handleExport}
-              disabled={!html}
+              disabled={!html && Object.keys(vfsFiles).length === 0}
               data-tour="export"
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
-                html
+                (html || Object.keys(vfsFiles).length > 0)
                   ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-lg shadow-violet-500/25'
-                  : 'bg-zinc-800 text-zinc-600'
+                  : 'bg-slate-200 text-slate-500 dark:bg-zinc-800 dark:text-zinc-500'
               )}
             >
               <Download className="w-3.5 h-3.5" />
@@ -7717,12 +7915,24 @@ ${html}
                     </div>
                   </div>
                 )}
-                {html ? (
+                {buildTarget !== 'website' && Object.keys(vfsFiles).length > 0 ? (
+                  // Multi-file projects run inside WebContainer. The component
+                  // owns its own toolbar (refresh, device size) so we don't
+                  // wrap it in our iframe chrome.
+                  <WebContainerPreview key={previewBumpKey} files={vfsFiles} />
+                ) : html ? (
                   <iframe
+                    key={previewBumpKey}
                     ref={iframeRef}
                     srcDoc={getHtmlWithConsole(html)}
                     className="w-full h-full border-0"
-                    sandbox="allow-scripts allow-same-origin allow-forms"
+                    // SANDBOX HARDENING: removed `allow-same-origin`. With it,
+                    // generated HTML (which is LLM-authored and could be
+                    // prompt-injected) could read the workspace origin's
+                    // localStorage / cookies / session token. The postMessage
+                    // bridge for console-mirroring + element-select works
+                    // cross-origin, so dropping same-origin doesn't break it.
+                    sandbox="allow-scripts allow-forms allow-modals allow-popups allow-presentation"
                     title="Preview"
                   />
                 ) : (
@@ -7826,7 +8036,7 @@ ${html}
               className="h-full w-[400px]"
             >
               <ExportPanel
-                projectName={currentProject?.name || 'WebStew Project'}
+                projectName={currentProject?.name || 'Webstew Project'}
                 files={[]}
                 html={html}
                 onClose={() => setShowExportPanel(false)}
@@ -7836,6 +8046,30 @@ ${html}
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Site grader modal — toolbar button toggles `graderOpen`.
+          onAutoFix hands the issue list to the chat agent which has the
+          grade_site + read_file + write_file tools to actually apply fixes.
+          We dispatch the exact issue text so the agent can address each
+          item rather than re-running the grader to discover them. */}
+      <SiteGraderModal
+        open={graderOpen}
+        onClose={() => setGraderOpen(false)}
+        html={html || vfsFiles['index.html'] || ''}
+        deployedUrl={deployUrl}
+        isDark={isDark}
+        onAutoFix={(issues, recommendations) => {
+          const combined = [...issues, ...recommendations]
+          if (combined.length === 0) return
+          const bullets = combined.slice(0, 12).map(s => `- ${s}`).join('\n')
+          handleChatMessage(
+            `Fix the SEO / technical issues below in index.html. Apply ONLY actionable changes that don't require new content from me (meta description, viewport, schema.org JSON-LD, alt text on existing images, canonical link, heading structure, etc.). Leave a brief summary of what you changed.\n\n${bullets}`,
+          )
+          // Briefly nudge focus to chat — the panel update is on the right
+          // sidebar so the user sees the agent working.
+          setActivePanel('build')
+        }}
+      />
 
       {/* Theme Builder Panel */}
       <AnimatePresence>

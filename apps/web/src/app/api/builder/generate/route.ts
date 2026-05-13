@@ -1401,17 +1401,23 @@ ${result}
   });
 
   // ===== SCROLL REVEAL ANIMATIONS =====
+  // Only target elements that OPT IN via [data-reveal] or .reveal-on-scroll
+  // class. Previously this targeted every 'section'/'.card'/'article' and
+  // set them all to opacity:0, which made the hero (and every other
+  // already-visible section) flash on every page load. The hero should
+  // never be hidden behind an observer; only opt-in elements should be.
   const observerOptions = { threshold: 0.1, rootMargin: '0px 0px -50px 0px' };
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
         entry.target.style.opacity = '1';
         entry.target.style.transform = 'translateY(0)';
+        observer.unobserve(entry.target);
       }
     });
   }, observerOptions);
 
-  document.querySelectorAll('section, .card, article, [class*="animate"]').forEach(el => {
+  document.querySelectorAll('[data-reveal], .reveal-on-scroll').forEach(el => {
     el.style.opacity = '0';
     el.style.transform = 'translateY(20px)';
     el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
@@ -1443,16 +1449,34 @@ ${result}
     countObserver.observe(counter);
   });
 
-  console.log('✅ WebStew interactivity loaded');
+  console.log('✅ Webstew interactivity loaded');
 })();
 </script>`;
 
-  // Inject script before </body> if not already present
-  if (!result.includes('WebStew interactivity loaded')) {
+  // Only inject our universal-fallback interactivity if the model didn't
+  // already include its own. The system prompt asks the LLM to produce
+  // a working interactivity script — when it does, our injection is a
+  // duplicate that double-binds form handlers, conflicting scroll
+  // listeners, and causes the page to flash. Detect existing scripts.
+  // Accept both spellings so previously-generated sites still detect as
+  // ours after the 2026-05-12 Webstew rebrand.
+  const hasOurMarker = result.includes('Webstew interactivity loaded') || result.includes('WebStew interactivity loaded')
+  // Find non-CDN, non-JSON-LD inline scripts that bind event listeners or
+  // run their own IIFE. If we find one, the LLM has interactivity covered
+  // and we skip injection.
+  const inlineScripts = result.match(/<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?<\/script>/g) || []
+  const hasLLMInteractivity = inlineScripts.some((s) => {
+    const isJsonLd = /type=["']application\/ld\+json["']/i.test(s)
+    const isTailwindConfig = /tailwind\.config\s*=/i.test(s)
+    if (isJsonLd || isTailwindConfig) return false
+    // Counts as "real interactivity" if it adds listeners or wires up DOM.
+    return /addEventListener|IntersectionObserver|querySelectorAll|querySelector\(/i.test(s)
+  })
+  if (!hasOurMarker && !hasLLMInteractivity) {
     if (result.includes('</body>')) {
-      result = result.replace('</body>', interactivityScript + '\n</body>');
+      result = result.replace('</body>', interactivityScript + '\n</body>')
     } else {
-      result += interactivityScript;
+      result += interactivityScript
     }
   }
 
@@ -1829,16 +1853,30 @@ Generate the complete HTML now.`
   if (currentHtml) {
     // Smart edit detection - determine edit scope
     const editLower = enhancedPrompt.toLowerCase()
+    const isImageChange = /\b(image|photo|picture|background|hero image|banner|thumbnail|avatar|logo)\b/.test(editLower) && /\b(change|swap|replace|update|new|different)\b/.test(editLower)
     const isColorChange = /color|theme|dark|light|palette|accent/.test(editLower)
     const isTextChange = /text|heading|title|copy|content|wording/.test(editLower)
     const isSectionAdd = /add|insert|include|create.*section/.test(editLower)
     const isSectionRemove = /remove|delete|hide.*section/.test(editLower)
     const isLayoutChange = /layout|grid|column|row|spacing|margin|padding/.test(editLower)
-    const isComponentChange = /button|form|nav|footer|hero|card|image/.test(editLower)
+    const isComponentChange = /button|form|nav|footer|hero|card/.test(editLower)
 
-    // Build precision guidance based on edit type
+    // Build precision guidance based on edit type. Image edits get extra
+    // help: hero images are often inline `style="background-image: url(...)"`
+    // on a positioned div rather than `<img>` tags, and the LLM previously
+    // bailed with "couldn't find the code to change" because it didn't
+    // realize that. This guidance teaches it to look in both places.
     let editGuidance = ''
-    if (isColorChange) {
+    if (isImageChange) {
+      editGuidance = `IMAGE EDIT: Find AND replace EVERY image URL pointing at the targeted region. Images can live in:
+  • <img src="..."> attributes
+  • <source srcset="..."> for picture elements
+  • Inline style="background-image: url('...')" on divs/sections (HERO IMAGES ARE OFTEN HERE — not in <img> tags)
+  • <meta property="og:image"> for social cards
+  • CSS background-image rules in <style> blocks
+  • JSON-LD "image" property in <script type="application/ld+json">
+Generate a NEW placeholder URL — use https://picsum.photos/seed/<descriptive-keyword>/<w>/<h> with a NEW seed value reflecting the requested subject. DO NOT say "couldn't find" — find every image URL in the existing HTML that matches the targeted region (hero, gallery, card, etc.) and update them. Output the FULL HTML with the swap applied.`
+    } else if (isColorChange) {
       editGuidance = `COLOR/THEME EDIT: Change color classes globally. Replace bg-slate-xxx, text-xxx, border-xxx consistently throughout.`
     } else if (isTextChange) {
       editGuidance = `TEXT EDIT: Change only text content within tags. Keep ALL HTML structure, classes, and attributes identical.`
@@ -1859,17 +1897,20 @@ REQUEST: "${enhancedPrompt}"
 
 ${editGuidance ? `DETECTED EDIT TYPE: ${editGuidance}\n` : ''}
 STRICT RULES:
-1. PRESERVE 100% of HTML structure not mentioned in the request
-2. PRESERVE all existing class names, IDs, and attributes unchanged
-3. PRESERVE all image URLs and placeholder markers exactly
-4. PRESERVE all script tags, style blocks, and meta information
-5. PRESERVE all links (href), form actions, and interactive elements
-6. ONLY modify what is explicitly requested - nothing more
+1. PRESERVE 100% of HTML structure NOT mentioned in the request
+2. PRESERVE class names, IDs, attributes on elements UNRELATED to the request
+3. PRESERVE all script tags, style blocks, and meta information (unless the request is about scripts/styles)
+4. PRESERVE all links (href), form actions, and interactive elements UNRELATED to the request
+5. ONLY modify what is explicitly requested — but DO modify it. NEVER respond with "couldn't find" — the requested element IS in the HTML; locate it.
+
+IMPORTANT: When the request asks to CHANGE/SWAP/REPLACE something (image, text, color, button, etc.) you MUST find every match and update it. Do not preserve the thing you were asked to change. Image-preservation only applies to images NOT being changed.
 
 DIFF-STYLE APPROACH:
-- If user says "change hero text" → modify ONLY text inside hero section
-- If user says "make button blue" → change ONLY button background color class
-- If user says "add testimonials" → insert new section, touch nothing else
+- "change hero text" → modify text inside hero section only
+- "change the hero image" → find the hero's <img src=...> OR style="background-image: url(...)" OR <meta property="og:image"> and swap URL; keep all OTHER images intact
+- "make button blue" → change ONLY button background color class
+- "add testimonials" → insert new section, touch nothing else
+- "swap the gallery photos" → update only the gallery's image URLs
 
 CURRENT HTML TO EDIT:
 ${currentHtml}

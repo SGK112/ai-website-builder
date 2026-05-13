@@ -102,22 +102,33 @@ export async function PATCH(
 
     await connectDB()
 
-    const project = await Project.findOne({
-      _id: params.id,
-      userId: session.user.id,
-    })
+    // Use $set with the raw driver — never load + .save() the full doc.
+    // Reason: the mongoose Project model has been edited at runtime to add new
+    // fields (e.g. `cms`). The registered model cache may not know about them,
+    // and `doc.save()` writes the WHOLE in-memory doc, stripping anything
+    // mongoose doesn't recognise. $set only writes the keys we name, leaving
+    // the rest of the document (cms, deployment metadata, etc.) untouched.
+    const updates: Record<string, any> = { updatedAt: new Date() }
+    if (name) updates.name = name
+    if (description !== undefined) updates.description = description
+    if (files) updates.files = files
+    if (status) updates.status = status
 
+    const mongooseConn = await connectDB()
+    const db = mongooseConn.connection.db
+    if (!db) {
+      return NextResponse.json({ error: 'DB not connected' }, { status: 500 })
+    }
+    const { ObjectId } = await import('mongodb')
+    const result = await db.collection('projects').findOneAndUpdate(
+      { _id: new ObjectId(params.id), userId: new mongoose.Types.ObjectId(session.user.id) },
+      { $set: updates },
+      { returnDocument: 'after' }
+    )
+    const project = (result as any)?.value || result
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
-
-    // Update allowed fields
-    if (name) project.name = name
-    if (description !== undefined) project.description = description
-    if (files) project.files = files
-    if (status) project.status = status
-
-    await project.save()
 
     return NextResponse.json({ success: true, project })
   } catch (error) {

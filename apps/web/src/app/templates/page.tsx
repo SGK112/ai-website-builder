@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search,
   Loader2,
@@ -21,6 +22,8 @@ import {
   Tablet,
   Smartphone,
   X,
+  Lock,
+  Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getTemplateById } from '@/lib/templates'
@@ -154,14 +157,25 @@ const BUILTIN_TEMPLATES: Template[] = [
 
 type PreviewDevice = 'desktop' | 'tablet' | 'mobile'
 
+// Plans that have access to premium templates. Anything below "starter"
+// hits the upgrade modal instead of being able to use the template.
+// `custom` is a legacy admin-grandfather plan; treat as full access.
+const PREMIUM_TEMPLATE_PLANS = new Set(['starter', 'pro', 'scale', 'enterprise', 'custom'])
+
 export default function TemplatesPage() {
   const router = useRouter()
+  const { data: session, status: sessionStatus } = useSession()
+  const userPlan = (session?.user as any)?.plan as string | undefined
+  const hasPremiumAccess = !!userPlan && PREMIUM_TEMPLATE_PLANS.has(userPlan.toLowerCase())
+
   const [templates, setTemplates] = useState<Template[]>(BUILTIN_TEMPLATES)
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null)
   const [previewDevice, setPreviewDevice] = useState<PreviewDevice>('desktop')
+  // Paywall modal — fires when a free user clicks a premium template.
+  const [paywallTemplate, setPaywallTemplate] = useState<Template | null>(null)
 
   // Get the full template HTML if available
   const previewHtml = useMemo(() => {
@@ -199,7 +213,23 @@ export default function TemplatesPage() {
   })
 
   const useTemplate = async (template: Template) => {
-    // Navigate to workspace with template ID
+    // PAYWALL GATE — premium templates require an active paid plan.
+    // Anonymous users get bounced through /signup so they can authenticate
+    // and (if needed) upgrade.
+    if (template.is_premium) {
+      if (sessionStatus === 'loading') return // still waiting to know
+      if (!session?.user) {
+        const back = `/templates`
+        router.push(`/signup?next=${encodeURIComponent(back)}&reason=premium_template`)
+        return
+      }
+      if (!hasPremiumAccess) {
+        setPaywallTemplate(template)
+        return
+      }
+    }
+    // Anonymous users hitting free templates can still try them — workspace
+    // itself enforces credits, and free tier has 100 demo credits.
     router.push(`/workspace?template=${template.id}`)
   }
 
@@ -438,6 +468,90 @@ export default function TemplatesPage() {
           </motion.div>
         </motion.div>
       )}
+
+      {/* Paywall Modal — fires when a free-tier user clicks a premium
+          template. Surfaces upgrade CTA + lets them either upgrade or
+          back out. */}
+      <AnimatePresence>
+        {paywallTemplate && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
+            onClick={() => setPaywallTemplate(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 10 }}
+              transition={{ ease: [0.22, 1, 0.36, 1] }}
+              className="w-full max-w-md bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="relative aspect-[16/9] bg-slate-800 overflow-hidden">
+                <img
+                  src={paywallTemplate.thumbnail_url}
+                  alt={paywallTemplate.name}
+                  className="w-full h-full object-cover opacity-60"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-transparent" />
+                <div className="absolute top-3 left-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-bold">
+                  <Crown className="w-3 h-3" /> Premium template
+                </div>
+                <button
+                  onClick={() => setPaywallTemplate(null)}
+                  className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-6">
+                <div className="flex items-center gap-2 mb-2 text-violet-300 text-xs uppercase tracking-[0.2em] font-semibold">
+                  <Lock className="w-3 h-3" /> Upgrade required
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">
+                  {paywallTemplate.name} is a premium template
+                </h3>
+                <p className="text-sm text-slate-400 mb-5 leading-relaxed">
+                  Premium templates are deeper, more polished, and tuned by our team. They unlock on
+                  the <span className="text-white font-semibold">Starter plan</span> and above —
+                  along with more credits, faster models, and priority generation.
+                </p>
+                <div className="space-y-2 mb-6">
+                  {[
+                    'All premium templates',
+                    'More monthly credits',
+                    'Faster premium models (Claude Opus, GPT-4)',
+                    'Priority generation queue',
+                  ].map((perk) => (
+                    <div key={perk} className="flex items-center gap-2 text-sm text-slate-300">
+                      <div className="w-4 h-4 rounded-full bg-violet-500/20 flex items-center justify-center shrink-0">
+                        <Zap className="w-2.5 h-2.5 text-violet-300" />
+                      </div>
+                      {perk}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setPaywallTemplate(null)}
+                    className="flex-1 px-4 py-2.5 rounded-lg border border-white/10 text-white text-sm font-medium hover:bg-white/5 transition"
+                  >
+                    Not now
+                  </button>
+                  <button
+                    onClick={() => router.push('/upgrade')}
+                    className="flex-1 px-4 py-2.5 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white text-sm font-bold transition flex items-center justify-center gap-1.5"
+                  >
+                    <Crown className="w-3.5 h-3.5" /> Upgrade
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
