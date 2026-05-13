@@ -336,7 +336,7 @@ export default function UpgradePage() {
               </div>
             </div>
             <a
-              href="mailto:sales@webstew.ai?subject=Webstew%20Enterprise%20inquiry"
+              href="mailto:sales@webstew.net?subject=Webstew%20Enterprise%20inquiry"
               className="shrink-0 inline-flex items-center gap-2 px-5 py-2.5 bg-white text-slate-900 hover:bg-slate-100 rounded-xl font-medium transition"
             >
               Contact sales
@@ -448,7 +448,7 @@ export default function UpgradePage() {
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-2xl font-bold text-white mb-4">Questions?</h2>
           <p className="text-slate-400 mb-6">
-            Contact us at support@webstew.ai for any questions about plans or billing.
+            Contact us at support@webstew.net for any questions about plans or billing.
           </p>
           <Link
             href="/workspace"

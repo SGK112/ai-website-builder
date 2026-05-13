@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     const origin =
       process.env.NEXT_PUBLIC_SITE_URL ||
       req.headers.get('origin') ||
-      `https://${req.headers.get('host') || 'webstew.ai'}`
+      `https://${req.headers.get('host') || 'webstew.net'}`
     return NextResponse.json({
       token,
       url: `${origin.replace(/\/$/, '')}/preview/${token}`,
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
     const origin =
       process.env.NEXT_PUBLIC_SITE_URL ||
       req.headers.get('origin') ||
-      `https://${req.headers.get('host') || 'webstew.ai'}`
+      `https://${req.headers.get('host') || 'webstew.net'}`
     const cleanOrigin = origin.replace(/\/$/, '')
     return NextResponse.json({
       previews: snaps.map((s) => ({

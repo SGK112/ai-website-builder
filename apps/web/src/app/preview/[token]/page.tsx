@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const name = snap?.name || 'Preview'
   return {
     title: `${name} — Preview · Webstew`,
-    description: 'A site preview built with Webstew. Build yours free at webstew.ai.',
+    description: 'A site preview built with Webstew. Build yours free at webstew.net.',
     robots: { index: false, follow: false }, // share-only links, not search-indexed
   }
 }

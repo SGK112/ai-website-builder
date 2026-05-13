@@ -72,7 +72,7 @@ async function createGitHubRepo(
       name,
       private: isPrivate,
       auto_init: true,
-      description: 'Created with Webstew (https://webstew.ai)',
+      description: 'Created with Webstew (https://webstew.net)',
     }),
   })
 

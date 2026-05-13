@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 
 // Admin emails that can create templates
 const ADMIN_EMAILS = [
-  'admin@webstew.ai',
+  'admin@webstew.net',
   process.env.ADMIN_EMAIL,
 ].filter(Boolean)
 

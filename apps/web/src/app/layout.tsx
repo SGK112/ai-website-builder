@@ -14,7 +14,7 @@ const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-playfa
 // absolute one in production. Falls back to a sensible default during
 // local dev so the file-conventions resolve.
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://webstew.ai'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://webstew.net'),
   title: 'Webstew | AI Website & App Builder',
   description: 'Webstew turns a single prompt into a polished website or working mobile app. No code required — describe it, ship it.',
   keywords: ['Webstew', 'website builder', 'app builder', 'AI', 'Next.js', 'Expo', 'React Native'],
