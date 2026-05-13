@@ -2805,19 +2805,38 @@ Rules:
       return new Response(readable, { headers: streamHeaders })
     }
 
-    // Use OpenAI for GPT models
-    console.log(`[Generate] Using OpenAI: ${model}`)
+    // xAI Grok models — OpenAI-compatible API at https://api.x.ai/v1 .
+    // Same OpenAI SDK, just a different baseURL and API key. Falls through
+    // to the OpenAI branch below if user picked GPT, or to here for any
+    // model id starting with "grok".
+    const isGrokModel = (model || '').toLowerCase().startsWith('grok')
+    const isXAI = isGrokModel
+    if (isXAI) {
+      console.log(`[Generate] Using xAI Grok: ${model}`)
+    } else {
+      console.log(`[Generate] Using OpenAI: ${model}`)
+    }
 
-    const openai = new OpenAI({
-      apiKey: apiKey || apiKeys?.openai || process.env.OPENAI_API_KEY
-    })
+    const openai = isXAI
+      ? new OpenAI({
+          apiKey: apiKey || (apiKeys as any)?.xai || process.env.XAI_API_KEY,
+          baseURL: 'https://api.x.ai/v1',
+        })
+      : new OpenAI({
+          apiKey: apiKey || apiKeys?.openai || process.env.OPENAI_API_KEY,
+        })
 
-    const selectedModel = model === 'gpt-4-turbo' ? 'gpt-4-turbo' :
-                          model === 'gpt-4' ? 'gpt-4' :
-                          model === 'gpt-3.5-turbo' ? 'gpt-3.5-turbo' :
-                          model === 'gpt-4o' ? 'gpt-4o' :
-                          model === 'gpt-4o-mini' ? 'gpt-4o-mini' :
-                          'gpt-4o'
+    const selectedModel = isGrokModel
+      ? (model === 'grok-2' || model === 'grok-2-1212' ? 'grok-2-1212' :
+         model === 'grok-2-vision' || model === 'grok-2-vision-1212' ? 'grok-2-vision-1212' :
+         model === 'grok-beta' ? 'grok-beta' :
+         'grok-2-1212')
+      : (model === 'gpt-4-turbo' ? 'gpt-4-turbo' :
+         model === 'gpt-4' ? 'gpt-4' :
+         model === 'gpt-3.5-turbo' ? 'gpt-3.5-turbo' :
+         model === 'gpt-4o' ? 'gpt-4o' :
+         model === 'gpt-4o-mini' ? 'gpt-4o-mini' :
+         'gpt-4o')
 
     // Get max tokens based on model - different models have different limits
     const getMaxTokens = (modelName: string): number => {

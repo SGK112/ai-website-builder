@@ -90,17 +90,23 @@ export default function PrivacyPage() {
           <p>We share personal information only with the categories below and only as needed to operate the Service.</p>
 
           <h3>4.1 Service providers (processors)</h3>
-          <p>We use the following processors to operate Webstew. Each is bound by a Data Processing Agreement when applicable.</p>
+          <p>
+            We use the categories of processors below to operate Webstew. The named examples are <strong>illustrative and not exhaustive</strong> — we engage additional service providers, sub-processors, and integration partners from time to time as the Service scales and as the AI and cloud ecosystems evolve. Each processor is bound by a Data Processing Agreement when applicable. We will update this section to reflect material additions and, where required by law, notify you.
+          </p>
           <ul>
-            <li><strong>AI generation</strong>: OpenAI (LLC, US), Anthropic (PBC, US), Google LLC (Gemini). Your prompts and generated content are sent to these providers under their API terms. We have configured API requests so providers do not retain your data for training purposes, subject to their published terms.</li>
-            <li><strong>Hosting and infrastructure</strong>: Render Services Inc. (US), MongoDB Atlas (MongoDB Inc., US, hosted on AWS), Cloudflare Inc. (US — DNS, CDN, email routing), Amazon Web Services Inc. (US — Simple Email Service for transactional email, S3 storage when used).</li>
-            <li><strong>Payments</strong>: Stripe Inc. (US). Stripe is our payment processor and an independent controller of payment data under its own privacy policy.</li>
-            <li><strong>Speech and voice (mobile/voice feature)</strong>: OpenAI Whisper (transcription) and TTS providers. Audio is processed and discarded.</li>
-            <li><strong>Analytics and error monitoring</strong>: Sentry (Functional Software Inc., US) for error reporting. We aggregate usage metrics internally and may use a privacy-respecting analytics provider; we do not use Google Analytics-style cross-site advertising trackers.</li>
-            <li><strong>OAuth identity providers</strong>: Google (when you sign in with Google), GitHub (when you sign in with GitHub), Apple (when you sign in with Apple in the mobile app).</li>
+            <li><strong>AI generation</strong>: includes OpenAI (LLC, US), Anthropic (PBC, US), Google LLC (Gemini), xAI Corp (US — Grok models), and additional large language model, embedding, image, voice, and video providers we may add as we expand model coverage. Your prompts and generated content are sent to these providers under their API terms. We have configured API requests so providers do not retain your data for training purposes, subject to each provider's published terms.</li>
+            <li><strong>Hosting and infrastructure</strong>: includes Render Services Inc. (US), MongoDB Atlas (MongoDB Inc., US, hosted on AWS), Cloudflare Inc. (US — DNS, CDN, email routing), Amazon Web Services Inc. (US — Simple Email Service for transactional email, S3 object storage when used), and similar providers we may engage for redundancy, regional coverage, or new features.</li>
+            <li><strong>Payments</strong>: Stripe Inc. (US), and equivalent processors we may add for regional coverage or App Store / Play Store in-app purchases. Payment processors are typically independent controllers of payment data under their own privacy policies.</li>
+            <li><strong>Speech and voice (mobile/voice feature)</strong>: includes OpenAI Whisper (transcription), and additional speech-to-text, text-to-speech, and real-time voice providers we may add. Audio is processed and discarded.</li>
+            <li><strong>Analytics and error monitoring</strong>: Sentry (Functional Software Inc., US) for error reporting. We aggregate usage metrics internally and may add a privacy-respecting analytics provider; we do not use cross-site advertising trackers.</li>
+            <li><strong>OAuth identity providers</strong>: includes Google, GitHub, Apple (in the mobile app), and additional identity providers we may add.</li>
             <li><strong>Push notifications</strong>: Apple Push Notification Service (Apple Inc., US) and/or Firebase Cloud Messaging (Google LLC, US).</li>
             <li><strong>App distribution</strong>: Apple App Store (Apple Inc.) and Google Play (Google LLC) — they receive your purchase information when you buy through their stores; we receive billing reports.</li>
+            <li><strong>Integration platforms</strong>: where you choose to connect a third-party account through Webstew (for example, your Gmail, Stripe, Calendly, Google Calendar, Slack, Shopify, or similar service), we may use an integration broker such as Composio (Composio AI Inc., US) to securely store the OAuth credentials you authorize and to relay your actions to the connected service. The connected service is itself a third party — your information shared with that service is governed by its own privacy terms.</li>
           </ul>
+          <p>
+            For a current snapshot of named sub-processors and to request a list of additions made since you last reviewed this Policy, email <a href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a>.
+          </p>
 
           <h3>4.2 Business transfers</h3>
           <p>

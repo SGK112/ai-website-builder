@@ -208,7 +208,7 @@ interface BusinessIntegration {
 }
 
 // AI Model Configuration
-type AIProvider = 'anthropic' | 'openai' | 'google' | 'huggingface' | 'together' | 'cloudflare'
+type AIProvider = 'anthropic' | 'openai' | 'google' | 'xai' | 'huggingface' | 'together' | 'cloudflare'
 
 interface AIModel {
   id: string
@@ -251,6 +251,11 @@ const aiModels: AIModel[] = [
   { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'google', description: 'Latest fast model', contextWindow: '1M', speed: 'fast', quality: 'great' },
   { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'google', description: 'Most capable Gemini', contextWindow: '2M', speed: 'medium', quality: 'best' },
   { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: 'google', description: 'Fast multimodal', contextWindow: '1M', speed: 'fast', quality: 'good' },
+
+  // xAI Grok — OpenAI-compatible API at api.x.ai/v1
+  { id: 'grok-2-1212', name: 'Grok 2', provider: 'xai', description: 'xAI flagship text model', contextWindow: '131K', speed: 'medium', quality: 'best' },
+  { id: 'grok-2-vision-1212', name: 'Grok 2 Vision', provider: 'xai', description: 'xAI multimodal — text + image', contextWindow: '32K', speed: 'medium', quality: 'great' },
+  { id: 'grok-beta', name: 'Grok Beta', provider: 'xai', description: 'Earlier Grok model — lower cost', contextWindow: '131K', speed: 'fast', quality: 'great' },
 ]
 
 // Stock Image Sources
@@ -1696,6 +1701,7 @@ function WorkspaceContent() {
     anthropic: string
     openai: string
     google: string
+    xai: string
     huggingface: string
     together: string
     cloudflare: string
@@ -1704,6 +1710,7 @@ function WorkspaceContent() {
     anthropic: '',
     openai: '',
     google: '',
+    xai: '',
     huggingface: '', // Optional - works without key at lower rate limits
     together: '',
     cloudflare: '',
@@ -7186,6 +7193,7 @@ ${html}
               >
                 {selectedModel.provider === 'anthropic' ? <Brain className="w-3 h-3" /> :
                  selectedModel.provider === 'openai' ? <Bot className="w-3 h-3" /> :
+                 selectedModel.provider === 'xai' ? <span className="text-[10px] font-bold leading-none">𝕏</span> :
                  selectedModel.provider === 'huggingface' ? <Sparkles className="w-3 h-3" /> :
                  <Sparkles className="w-3 h-3" />}
                 <span>{selectedModel.name}</span>
@@ -9379,6 +9387,34 @@ ${html}
                     />
                     <a
                       href="https://aistudio.google.com/app/apikey"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-violet-400 hover:text-violet-300"
+                    >
+                      Get key
+                    </a>
+                  </div>
+                </div>
+
+                {/* xAI (Grok) */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-md bg-zinc-700/40 flex items-center justify-center">
+                      <span className="text-xs font-bold text-zinc-200">𝕏</span>
+                    </div>
+                    <span className="text-sm font-medium text-white">xAI (Grok)</span>
+                    {apiKeys.xai && <Check className="w-4 h-4 text-emerald-400 ml-auto" />}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="password"
+                      value={apiKeys.xai}
+                      onChange={(e) => setApiKeys(prev => ({ ...prev, xai: e.target.value }))}
+                      placeholder="xai-..."
+                      className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-violet-500/50 transition-colors"
+                    />
+                    <a
+                      href="https://console.x.ai/"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-violet-400 hover:text-violet-300"
