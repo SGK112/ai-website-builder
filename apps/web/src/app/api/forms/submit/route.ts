@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { connectDB } from '@/lib/db'
 import mongoose from 'mongoose'
 import { verifyRecaptcha } from '@/lib/recaptcha'
+import { sendMail } from '@/lib/mailer'
 
 export const dynamic = 'force-dynamic'
 
@@ -169,6 +170,14 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    // Fire-and-forget notification email to the project owner. We intentionally
+    // do NOT await this — the submission is already saved, and we don't want
+    // a slow SMTP host to keep the visitor's browser hanging on the form POST.
+    // sendMail() handles its own errors (no throws bubble out).
+    notifyOwner(submission._id.toString(), projectObjectId, formId, sanitizedData, body.page).catch((e) => {
+      console.error('[forms] notification error:', e?.message || e)
+    })
+
     return NextResponse.json({
       success: true,
       message: 'Form submitted successfully',
@@ -223,6 +232,129 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     )
   }
+}
+
+// Look up the project owner's email (and optional per-project notification
+// override), then dispatch the notification through the generic mailer.
+// Runs fire-and-forget from POST — any errors are logged inside sendMail().
+async function notifyOwner(
+  submissionId: string,
+  projectObjectId: mongoose.Types.ObjectId,
+  formId: string,
+  data: Record<string, any>,
+  pageUrl?: unknown
+): Promise<void> {
+  // Sentinel project (orphan / preview submissions) — nobody to notify.
+  if (projectObjectId.toString() === '000000000000000000000000') return
+
+  await connectDB()
+  const db = mongoose.connection.db
+  if (!db) return
+
+  const project = await db.collection('projects').findOne(
+    { _id: projectObjectId },
+    { projection: { userId: 1, name: 1, notificationEmail: 1 } }
+  )
+  if (!project) return
+
+  // Per-project override → fall back to the owner's account email.
+  let to: string | undefined = typeof project.notificationEmail === 'string'
+    ? project.notificationEmail.trim() || undefined
+    : undefined
+
+  if (!to && project.userId) {
+    const owner = await db.collection('users').findOne(
+      { _id: project.userId },
+      { projection: { email: 1 } }
+    )
+    to = typeof owner?.email === 'string' ? owner.email : undefined
+  }
+
+  if (!to || !isValidEmail(to)) return
+
+  // Visitor's email if the form included one — use it as Reply-To so the
+  // owner can respond directly from their inbox without bouncing through us.
+  const visitorEmail = typeof data.email === 'string' && isValidEmail(data.email)
+    ? data.email
+    : undefined
+
+  const projectName: string = typeof project.name === 'string' && project.name
+    ? project.name
+    : 'Your site'
+
+  const pageStr = typeof pageUrl === 'string' ? pageUrl : ''
+
+  await sendMail({
+    to,
+    replyTo: visitorEmail,
+    subject: `New ${formId} submission · ${projectName}`,
+    text: buildTextBody({ projectName, formId, data, pageStr, submissionId }),
+    html: buildHtmlBody({ projectName, formId, data, pageStr, submissionId, visitorEmail }),
+  })
+}
+
+interface BodyArgs {
+  projectName: string
+  formId: string
+  data: Record<string, any>
+  pageStr: string
+  submissionId: string
+  visitorEmail?: string
+}
+
+function buildTextBody({ projectName, formId, data, pageStr, submissionId }: BodyArgs): string {
+  const lines: string[] = [
+    `New ${formId} submission on ${projectName}`,
+    '',
+  ]
+  for (const [k, v] of Object.entries(data)) {
+    if (k === 'website' || k === 'url_honeypot') continue
+    const val = Array.isArray(v) ? v.join(', ') : String(v)
+    lines.push(`${k}: ${val}`)
+  }
+  if (pageStr) {
+    lines.push('', `Submitted from: ${pageStr}`)
+  }
+  lines.push('', `Submission ID: ${submissionId}`)
+  lines.push('— Webstew')
+  return lines.join('\n')
+}
+
+function buildHtmlBody({ projectName, formId, data, pageStr, submissionId, visitorEmail }: BodyArgs): string {
+  // Inline-style only — most email clients (Gmail in particular) strip
+  // <style> blocks. Keep it minimal: a card with the submission, the
+  // visitor's email as a mailto reply CTA, and a small Webstew footer.
+  const escape = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+  const rows = Object.entries(data)
+    .filter(([k]) => k !== 'website' && k !== 'url_honeypot')
+    .map(([k, v]) => {
+      const val = Array.isArray(v) ? v.join(', ') : String(v)
+      return `<tr><td style="padding:6px 12px 6px 0;font-size:13px;color:#71717a;vertical-align:top;white-space:nowrap;">${escape(k)}</td><td style="padding:6px 0;font-size:14px;color:#18181b;">${escape(val).replace(/\n/g, '<br>')}</td></tr>`
+    })
+    .join('')
+
+  const replyCta = visitorEmail
+    ? `<a href="mailto:${escape(visitorEmail)}" style="display:inline-block;background:linear-gradient(90deg,#8b5cf6,#d946ef);color:white;text-decoration:none;padding:10px 18px;border-radius:999px;font-size:13px;font-weight:600;">Reply to ${escape(visitorEmail)}</a>`
+    : ''
+
+  const pageLink = pageStr
+    ? `<p style="margin:18px 0 0;font-size:12px;color:#71717a;">Submitted from <a href="${escape(pageStr)}" style="color:#8b5cf6;">${escape(pageStr)}</a></p>`
+    : ''
+
+  return `<!DOCTYPE html>
+<html><body style="margin:0;padding:24px;background:#fafafa;font-family:-apple-system,system-ui,'Segoe UI',sans-serif;">
+  <div style="max-width:560px;margin:0 auto;background:white;border:1px solid #e4e4e7;border-radius:12px;padding:28px;">
+    <p style="margin:0;font-size:12px;color:#a1a1aa;letter-spacing:0.05em;text-transform:uppercase;">${escape(formId)} submission</p>
+    <h1 style="margin:4px 0 20px;font-size:20px;color:#18181b;">${escape(projectName)}</h1>
+    <table style="border-collapse:collapse;width:100%;">${rows}</table>
+    ${replyCta ? `<div style="margin-top:22px;">${replyCta}</div>` : ''}
+    ${pageLink}
+    <hr style="margin:24px 0 14px;border:none;border-top:1px solid #e4e4e7;">
+    <p style="margin:0;font-size:11px;color:#a1a1aa;">Sent by Webstew · Submission ID: ${escape(submissionId)}</p>
+  </div>
+</body></html>`
 }
 
 // Helper functions
