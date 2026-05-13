@@ -1017,6 +1017,36 @@ REQUIRED SECTIONS (in this order):
 9. Footer — name, social icons (Instagram + Behance + LinkedIn + Dribbble where relevant), copyright.
 
 Tone: confident, sparse, image-heavy. Less text, more visual weight. White space is the design.`,
+
+  realtor: `## REAL ESTATE / REALTOR SECTION GRAMMAR (overrides the generic pattern)
+This is a real estate agent or brokerage site. Buyers and sellers come here looking for listings and to trust the agent — NOT generic features/pricing/FAQ. Skip "features grid", "logo cloud", generic pricing tiers. Instead:
+
+REQUIRED SECTIONS (in this order):
+1. Hero — full-width property photo or neighborhood shot, agent name + brokerage, search bar with City / Price Range / Beds / Baths inputs, primary CTA "Browse listings" + secondary "Schedule a tour". Make the search bar prominent.
+2. Featured Listings — grid of 6-9 property cards. Each card: photo, price (formatted with $ + commas), address (street + city), bed/bath/sqft icons with counts, status badge (For Sale / Pending / Sold). Use picsum.photos with house-y seeds.
+3. Why Work With Me / Agent Bio — professional headshot, 2-3 paragraph bio, license number + brokerage, years in business + total transactions / sales volume stat callouts (e.g., "$50M+ sold").
+4. Market Stats / Neighborhood Insight — 3-4 stat cards (median home price, days on market, # active listings, price per sqft) for the agent's primary market. Sourced from MLS-style data presentation.
+5. Recent Sales — horizontal scroll or grid of 4-6 SOLD properties with sold price, days on market, photo.
+6. Testimonials — 3 quote cards from named clients with their property address ("Sold our home in 12 days on Mockingbird Lane").
+7. Resources / Buyer & Seller Guides — 2-3 cards linking to "First-time buyer guide", "Seller's prep checklist", "Market report" — even if just stubs.
+8. Contact / Schedule a Tour — form with name, email, phone, property of interest (text or listing ID), preferred tour date + time, message. Plus the agent's direct phone + email displayed prominently.
+9. Footer — brokerage logo, license #, equal housing logo, social, "DRE# / TREC# / etc." compliance text.
+
+Tone: trustworthy, professional, local. Real estate sites that look generic don't convert — use real-sounding neighborhood names, real-feeling prices for the market.`,
+
+  blog: `## BLOG / PUBLICATION SECTION GRAMMAR (overrides the generic pattern)
+This is a blog, newsletter, or editorial publication site. Readers come to read articles and subscribe — NOT to buy software. Skip "features grid", "pricing tiers", "logo cloud". Instead:
+
+REQUIRED SECTIONS (in this order):
+1. Hero — large featured-post card (image + title + excerpt + author + read time) OR a magazine-style 2-column layout with the latest piece on the left and 3-4 thumbnails on the right. Site title + tagline in the header.
+2. Recent Posts — grid of 6-9 post cards. Each card: cover image, category tag (Design / Technology / Culture / etc.), title (2-3 lines), 1-line excerpt, author avatar + name, publish date, read time (e.g., "5 min read"). Use a clean 3-column grid on desktop, single column on mobile.
+3. Categories / Topics — visual category strip — 5-8 category tiles with cover images and post counts (e.g., "Design (47)").
+4. Author / About — if a single-author blog: photo, bio, "Why I write", social links. If multi-author: grid of contributors with photos + names + roles.
+5. Newsletter Signup — full-width section with bold pitch ("Get one thoughtful essay every Sunday"), email input + Subscribe button, social-proof line ("12,000+ subscribers"). NOT a popup — a real section in the page.
+6. Popular / Most Read — sidebar or section showing 4-5 most-popular posts with thumbnail + title + view count.
+7. Footer — site title, brief mission, archive link, RSS link, social, copyright, "Powered by [your stack]" if relevant.
+
+Tone: editorial, considered, reader-first. Long-form-friendly typography (line-height 1.6+, comfortable measure). NO "buy now" / "sign up free" CTAs — only "Read" and "Subscribe". The publication earns trust through writing, not features.`,
 }
 
 // Premium E-commerce System Prompt - Uses Luxe template as reference

@@ -1764,6 +1764,13 @@ function WorkspaceContent() {
   const [isSharingPreview, setIsSharingPreview] = useState(false)
   const [previewLink, setPreviewLink] = useState<string | null>(null)
 
+  // Tracks whether the current workspace mount loaded content from the URL
+  // (templateId / prompt / projectId). When true, the autosave-restore effect
+  // skips so we don't clobber a freshly-loaded template with a cached site
+  // from a previous session. Ref (not state) because we need synchronous
+  // updates that propagate to the autosave effect on the same effect tick.
+  const loadedFromUrlRef = useRef(false)
+
   // Signup nudge — fires for anon users at conversion-relevant moments:
   //   first-build:    once, after their first generation completes (celebratory)
   //   save:           when they click Save (project lives only in this browser)
@@ -2054,6 +2061,9 @@ function WorkspaceContent() {
     const templateId = searchParams.get('templateId')
 
     if (projectId) {
+      // Mark before loading so the autosave-restore effect later in the file
+      // doesn't run and overwrite this project's HTML.
+      loadedFromUrlRef.current = true
       const project = projects.find(p => p.id === projectId)
       if (project) {
         loadProject(project)
@@ -2063,6 +2073,7 @@ function WorkspaceContent() {
       // Pre-built template path — skip LLM entirely. User clicked a template
       // tile so they want a known-good starter, not a fresh AI generation.
       // They can refine via the chat panel after.
+      loadedFromUrlRef.current = true
       const tpl = getTemplateById(templateId)
       if (tpl) {
         router.replace('/workspace', { scroll: false })
@@ -2079,6 +2090,8 @@ function WorkspaceContent() {
       }
       setHasInitialized(true)
     } else if (promptFromUrl) {
+      // Same protection — autosave restore must not clobber a fresh prompt.
+      loadedFromUrlRef.current = true
       // Clear URL first so a reload / browser-back can't re-fire the same prompt
       router.replace('/workspace', { scroll: false })
       // Show the prompt in the chat so the user sees what's being built
@@ -2165,9 +2178,18 @@ function WorkspaceContent() {
     }
   }, [html, projectName, selectedPreset, pages, activePageId])
 
-  // Load auto-saved work on mount (if no URL params)
+  // Load auto-saved work on mount (if no URL params AND no fresh template/
+  // prompt/project load already happened this mount — otherwise this effect
+  // races the URL-sourced load and overwrites it with stale cached HTML).
   useEffect(() => {
-    if (hasInitialized && !html && !searchParams.get('prompt') && !searchParams.get('project')) {
+    if (
+      hasInitialized
+      && !html
+      && !loadedFromUrlRef.current
+      && !searchParams.get('prompt')
+      && !searchParams.get('project')
+      && !searchParams.get('templateId')
+    ) {
       const autoSaved = localStorage.getItem('webstew-autosave')
       if (autoSaved) {
         try {

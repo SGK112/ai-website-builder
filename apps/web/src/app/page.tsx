@@ -1875,19 +1875,31 @@ export default function HomePage() {
                   </a>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                  {[
-                    { title: 'Personal portfolio', sub: 'Designer/dev work showcase', img: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800&q=80' },
-                    { title: 'SaaS dashboard', sub: 'Analytics, KPIs, charts', img: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80' },
-                    { title: 'Restaurant site', sub: 'Menu, hours, reservations', img: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80' },
-                    { title: 'Fitness mobile app', sub: 'Workouts, stats, streaks', img: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&q=80' },
-                    { title: 'E-commerce store', sub: 'Product grid, cart, checkout', img: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=800&q=80' },
-                    { title: 'Markdown blog', sub: 'Posts, tags, search, RSS', img: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=800&q=80' },
-                    { title: 'Photography portfolio', sub: 'Masonry gallery, lightbox', img: 'https://images.unsplash.com/photo-1452587925148-ce544e77e70d?w=800&q=80' },
-                    { title: 'Documentation site', sub: 'Sidebar, search, code blocks', img: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&q=80' },
-                  ].map((p, i) => (
+                  {([
+                    // libId: ID in @/lib/templates if a pre-built starter
+                    // exists for this category. Click → /workspace?templateId
+                    // loads the HTML directly, no LLM call. Without libId,
+                    // we fall back to AI generation with the title/sub as
+                    // the prompt (industry-aware via detectIndustry).
+                    { title: 'Personal portfolio', sub: 'Designer/dev work showcase', img: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800&q=80', libId: 'agency-portfolio' },
+                    { title: 'SaaS dashboard',     sub: 'Analytics, KPIs, charts',    img: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80', libId: 'saas-landing' },
+                    { title: 'Restaurant site',    sub: 'Menu, hours, reservations',  img: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80', libId: 'restaurant-menu' },
+                    { title: 'Fitness mobile app', sub: 'Workouts, stats, streaks',   img: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&q=80', libId: null },
+                    { title: 'E-commerce store',   sub: 'Product grid, cart, checkout', img: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=800&q=80', libId: 'luxe-ecommerce' },
+                    { title: 'Markdown blog',      sub: 'Posts, tags, search, RSS',   img: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=800&q=80', libId: null },
+                    { title: 'Photography portfolio', sub: 'Masonry gallery, lightbox', img: 'https://images.unsplash.com/photo-1452587925148-ce544e77e70d?w=800&q=80', libId: 'agency-portfolio' },
+                    { title: 'Documentation site', sub: 'Sidebar, search, code blocks', img: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&q=80', libId: null },
+                  ] as Array<{ title: string; sub: string; img: string; libId: string | null }>).map((p, i) => (
                     <motion.button
                       key={p.title}
-                      onClick={() => { setPrompt(`Build me a ${p.title.toLowerCase()} — ${p.sub.toLowerCase()}`); inputRef.current?.focus(); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+                      onClick={() => {
+                        setIsTransitioning(true)
+                        if (p.libId) {
+                          router.push(`/workspace?templateId=${encodeURIComponent(p.libId)}`)
+                        } else {
+                          navigateToWorkspace(`Build me a ${p.title.toLowerCase()} — ${p.sub.toLowerCase()}`)
+                        }
+                      }}
                       initial={{ opacity: 0, y: 16 }}
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true, margin: "-50px" }}
@@ -1941,18 +1953,12 @@ export default function HomePage() {
                   The pantry
                 </p>
                 <h2 className={cn(
-                  // `leading-[1.15] pb-2` — italic Playfair descenders ("g")
-                  // get clipped by bg-clip-text + tight line-height. The
-                  // extra leading + bottom padding give the descender room.
                   "text-center text-3xl md:text-5xl font-bold tracking-tight mb-4 leading-[1.15] pb-2",
                   "text-foreground"
                 )}>
                   The ingredients to
                   <span
                     className={cn(
-                      // pb-3 pr-2: italic Playfair "g" descender + right-lean
-                      // + trailing period all need room inside the bg-clip box.
-                      // pb-1 was insufficient — the descender was clipped.
                       "italic font-normal ml-3 bg-clip-text text-transparent inline-block pb-3 pr-2",
                       isDark
                         ? "bg-gradient-to-r from-amber-200 to-pink-300"
