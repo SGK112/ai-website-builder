@@ -234,7 +234,10 @@ export default function CommunityPage() {
       </header>
 
       {/* Hero Section */}
-      <section className="relative z-10 py-12 border-b border-white/10">
+      <section className={cn(
+        "relative z-10 py-12 border-b",
+        isDark ? "border-white/10" : "border-slate-200"
+      )}>
         <div className="max-w-7xl mx-auto px-4 text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
