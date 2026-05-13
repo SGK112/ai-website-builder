@@ -1763,6 +1763,17 @@ function WorkspaceContent() {
   const [isSharingPreview, setIsSharingPreview] = useState(false)
   const [previewLink, setPreviewLink] = useState<string | null>(null)
 
+  // Signup nudge — fires for anon users at conversion-relevant moments:
+  //   first-build:    once, after their first generation completes (celebratory)
+  //   save:           when they click Save (project lives only in this browser)
+  //   deploy-render:  when they click Deploy (needs an account)
+  //   deploy-github:  when they click Push to GitHub
+  // The "first-build" flavor is dismissable and remembered in sessionStorage
+  // so we don't pop it twice. Action attempts (save/deploy) always nudge —
+  // the work itself can't proceed without an account.
+  type NudgeReason = 'first-build' | 'save' | 'deploy-render' | 'deploy-github'
+  const [signupNudge, setSignupNudge] = useState<{ show: boolean; reason: NudgeReason | null }>({ show: false, reason: null })
+
   // Conversational chat state
   const [showWelcome, setShowWelcome] = useState(true)
   const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string; suggestions?: string[] }[]>([
@@ -2379,6 +2390,11 @@ function WorkspaceContent() {
 
   // Project management
   const saveProject = async () => {
+    // Anon users: still do the local backup (no work lost on refresh), but
+    // pop the signup nudge so they know cloud-save needs an account.
+    if (!session?.user) {
+      setSignupNudge({ show: true, reason: 'save' })
+    }
     const now = new Date()
     const project: Project = {
       id: currentProject?.id || generateId(),
@@ -2510,6 +2526,13 @@ function WorkspaceContent() {
   }
 
   const deployToGitHub = async () => {
+    // Anon users get the signup wall instead of a silent 401. Don't even
+    // hit the API — short-circuit to the nudge so the conversion moment
+    // doesn't get drowned out by a deploy-failed toast.
+    if (!session?.user) {
+      setSignupNudge({ show: true, reason: 'deploy-github' })
+      return
+    }
     if (!html.trim()) {
       addTerminalLine('error', 'No content to deploy')
       addConsoleLog('error', 'Deploy failed: No HTML content')
@@ -2563,6 +2586,10 @@ function WorkspaceContent() {
   }
 
   const deployToRender = async () => {
+    if (!session?.user) {
+      setSignupNudge({ show: true, reason: 'deploy-render' })
+      return
+    }
     if (!html.trim()) {
       addTerminalLine('error', 'No content to deploy')
       addConsoleLog('error', 'Deploy failed: No HTML content')
@@ -3489,6 +3516,20 @@ ${html}
 
       // Refresh credits after generation
       fetchCredits()
+
+      // Anon "first build" nudge — celebrate the win, ask them to claim
+      // their account before they walk away. Once per browser session;
+      // we don't want to nag every time they iterate.
+      if (!session?.user) {
+        try {
+          const alreadyNudged = sessionStorage.getItem('webstew-anon-nudged') === '1'
+          if (!alreadyNudged) {
+            sessionStorage.setItem('webstew-anon-nudged', '1')
+            // Small delay so the preview reveal animation isn't interrupted
+            setTimeout(() => setSignupNudge({ show: true, reason: 'first-build' }), 1800)
+          }
+        } catch { /* sessionStorage can throw in private contexts — ignore */ }
+      }
 
       // Reset build phase after a delay
       setTimeout(() => setBuildPhase('idle'), 500)
@@ -4757,6 +4798,119 @@ ${html}
       "h-screen flex overflow-hidden transition-colors duration-300",
       isDark ? "bg-[#09090b] text-white" : "bg-white text-slate-900"
     )}>
+      {/* Signup nudge modal — fires for anon at conversion-relevant moments
+          (after first build, or when they try to save/deploy). Copy varies
+          by reason so each entry feels native, not like a one-size-fits-all
+          paywall. */}
+      <AnimatePresence>
+        {signupNudge.show && (() => {
+          const r = signupNudge.reason
+          const isCelebration = r === 'first-build'
+          const title = r === 'first-build' ? 'Your first site is ready 🎉'
+            : r === 'save'                  ? 'Save your work to the cloud'
+            : r === 'deploy-render'         ? 'Sign up to deploy live'
+            : r === 'deploy-github'         ? 'Sign up to push to GitHub'
+            : 'Sign up to keep going'
+          const message = r === 'first-build'
+            ? `Nice work. Sign up free to keep this build forever, deploy it to a live URL, and claim 100 free credits every month — that's ~10 fresh generations.`
+            : r === 'save'
+            ? `Your project is backed up to this browser only. Sign up free to save it to your account so it survives a refresh or a different device — plus 100 free credits/month.`
+            : r === 'deploy-render'
+            ? `Deploying gives your site a live URL anyone can visit. Free signup, no card required — includes 100 credits/month and your first deploy.`
+            : r === 'deploy-github'
+            ? `Push to GitHub creates a real repo from your project so you can edit code, share it, or fork it. Free signup unlocks it — plus 100 credits/month.`
+            : `Sign up free to unlock this. 100 credits/month, no card required.`
+          const router_ = router
+          const closeAndRoute = (to: string) => {
+            setSignupNudge({ show: false, reason: null })
+            router_.push(to)
+          }
+          return (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => isCelebration && setSignupNudge({ show: false, reason: null })}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className={cn(
+                  "relative max-w-md w-full p-8 rounded-2xl border shadow-2xl",
+                  isDark
+                    ? "bg-zinc-950 border-violet-500/30 shadow-violet-500/20"
+                    : "bg-white border-violet-300 shadow-violet-200/40"
+                )}
+              >
+                {isCelebration && (
+                  <button
+                    onClick={() => setSignupNudge({ show: false, reason: null })}
+                    className={cn(
+                      "absolute top-4 right-4 p-1 rounded-lg transition",
+                      isDark ? "text-zinc-500 hover:text-white hover:bg-white/5" : "text-slate-400 hover:text-slate-900 hover:bg-slate-100"
+                    )}
+                    aria-label="Close"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                )}
+                <div className="w-12 h-12 mb-4 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+                  <Sparkles className="w-6 h-6 text-white" />
+                </div>
+                <h3 className={cn(
+                  "text-xl font-bold mb-2",
+                  isDark ? "text-white" : "text-slate-900"
+                )}>{title}</h3>
+                <p className={cn(
+                  "text-sm leading-relaxed mb-6",
+                  isDark ? "text-zinc-400" : "text-slate-600"
+                )}>{message}</p>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => closeAndRoute(`/signup?next=${encodeURIComponent('/workspace')}`)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white font-semibold transition shadow-lg shadow-violet-500/30"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Sign up free — claim 100 credits
+                  </button>
+                  <button
+                    onClick={() => closeAndRoute(`/login?next=${encodeURIComponent('/workspace')}`)}
+                    className={cn(
+                      "w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition",
+                      isDark
+                        ? "bg-white/[0.03] border border-white/10 text-zinc-300 hover:bg-white/[0.06]"
+                        : "bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200"
+                    )}
+                  >
+                    I already have an account — sign in
+                  </button>
+                  {isCelebration && (
+                    <button
+                      onClick={() => setSignupNudge({ show: false, reason: null })}
+                      className={cn(
+                        "w-full px-4 py-2 rounded-xl text-xs font-medium transition",
+                        isDark ? "text-zinc-500 hover:text-zinc-300" : "text-slate-500 hover:text-slate-700"
+                      )}
+                    >
+                      Maybe later
+                    </button>
+                  )}
+                </div>
+                <p className={cn(
+                  "mt-5 text-[10px] leading-relaxed",
+                  isDark ? "text-zinc-600" : "text-slate-500"
+                )}>
+                  No credit card. Anytime cancel. Your work in this browser stays saved either way.
+                </p>
+              </motion.div>
+            </motion.div>
+          )
+        })()}
+      </AnimatePresence>
+
       {/* Credit wall modal — shown when /api/builder/generate or /converse hits 402 */}
       <AnimatePresence>
         {creditWall.show && (
