@@ -19,7 +19,7 @@ interface TourStep {
 const tourSteps: TourStep[] = [
   {
     id: 'welcome',
-    title: 'Welcome to WebStew!',
+    title: 'Welcome to Webstew!',
     tip: 'Your AI-powered website builder',
     description: 'Build beautiful websites in minutes with the power of AI. Just describe what you want and watch the magic happen!',
     target: '[data-tour="preview"]',
@@ -47,7 +47,7 @@ const tourSteps: TourStep[] = [
   },
   {
     id: 'webstew',
-    title: 'WebStew Ingredients',
+    title: 'Webstew Ingredients',
     tip: 'Add your own content',
     description: 'Upload your images, documents, or spreadsheets. The AI will incorporate your content directly into the website design. Great for logos, product photos, and brand assets!',
     target: '[data-tour="webstew"]',
