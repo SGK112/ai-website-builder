@@ -1,14 +1,16 @@
 'use client'
 
 // Landing-page lead-gen widget. User types their existing site URL,
-// we run the grader, show overall score + top issues inline, and the
-// "Rebuild with Webstew" CTA drives signup. RemodelyAi pattern —
-// every action surfaces a conversion moment.
+// we run the grader, show overall score + top issues inline (view-only,
+// no signup), and the "Rebuild with Webstew" action gates through
+// /signup before landing in the workspace. RemodelyAi pattern: report
+// is free to view, ACTIONS require an account.
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Loader2, AlertCircle, Award, Sparkles, ArrowRight, CheckCircle2, XCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 
 interface GraderResult {
@@ -32,6 +34,7 @@ interface Props {
 
 export function SiteGraderWidget({ isDark }: Props) {
   const router = useRouter()
+  const { status: sessionStatus } = useSession()
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -65,10 +68,16 @@ export function SiteGraderWidget({ isDark }: Props) {
 
   const handleRebuildCta = () => {
     if (!result) return
-    // Pre-fill the rebuild prompt and send the user into the builder via signup
+    // Pre-fill the rebuild prompt. Gate via /signup for anon (they get the
+    // free trial + credits AFTER signing up, then the prompt auto-fires in
+    // workspace). Signed-in users skip the signup hop.
     const prompt = `Build a better version of ${result.domain} — clean modern design, fast load, mobile-friendly, real content sections.`
-    const nextUrl = `/workspace?prompt=${encodeURIComponent(prompt)}`
-    router.push(nextUrl)
+    const workspaceUrl = `/workspace?prompt=${encodeURIComponent(prompt)}`
+    if (sessionStatus === 'authenticated') {
+      router.push(workspaceUrl)
+    } else {
+      router.push(`/signup?next=${encodeURIComponent(workspaceUrl)}`)
+    }
   }
 
   const gradeColor = (grade: string) => {
@@ -226,39 +235,84 @@ export function SiteGraderWidget({ isDark }: Props) {
                 </div>
               </div>
 
-              {/* Top issues */}
+              {/* Issue-list teaser — anon sees only the FIRST two issues with
+                  the rest blurred / locked. Full list + recommendations +
+                  "Rebuild with Webstew" all gate behind signup. Early lead
+                  capture: a real-feeling free trial unlock, not a paywall. */}
               {result.issues.length > 0 && (
                 <div className={cn("p-6 border-b", isDark ? "border-white/10" : "border-slate-200")}>
-                  <p className={cn("text-xs uppercase tracking-wider mb-3 font-semibold", isDark ? "text-zinc-400" : "text-slate-600")}>
-                    Top issues we found
-                  </p>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className={cn("text-xs uppercase tracking-wider font-semibold", isDark ? "text-zinc-400" : "text-slate-600")}>
+                      Issues we found
+                    </p>
+                    {sessionStatus !== 'authenticated' && (
+                      <span className={cn(
+                        "text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full",
+                        isDark ? "bg-amber-500/15 text-amber-300" : "bg-amber-100 text-amber-700"
+                      )}>
+                        Preview · {Math.min(2, result.issues.length)} of {result.issues.length}
+                      </span>
+                    )}
+                  </div>
                   <ul className="space-y-2">
-                    {result.issues.slice(0, 5).map((issue, i) => (
+                    {result.issues
+                      .slice(0, sessionStatus === 'authenticated' ? result.issues.length : 2)
+                      .map((issue, i) => (
                       <li key={i} className="flex items-start gap-2 text-sm">
                         <XCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-500/70" />
                         <span className={cn(isDark ? "text-zinc-300" : "text-slate-700")}>{issue}</span>
                       </li>
                     ))}
                   </ul>
-                  {result.issues.length > 5 && (
-                    <p className={cn("text-xs mt-3", isDark ? "text-zinc-500" : "text-slate-500")}>
-                      …and {result.issues.length - 5} more
-                    </p>
+                  {sessionStatus !== 'authenticated' && result.issues.length > 2 && (
+                    <div className={cn(
+                      "mt-4 p-3 rounded-xl border-2 border-dashed flex items-center justify-between gap-3",
+                      isDark ? "border-violet-500/30 bg-violet-500/5" : "border-violet-300 bg-violet-50/50"
+                    )}>
+                      <p className={cn("text-sm", isDark ? "text-zinc-300" : "text-slate-700")}>
+                        <span className="font-semibold">{result.issues.length - 2} more issues</span> + {result.recommendations.length} actionable recommendations
+                      </p>
+                      <button
+                        onClick={handleRebuildCta}
+                        className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition"
+                      >
+                        Unlock — sign up free
+                      </button>
+                    </div>
+                  )}
+                  {sessionStatus === 'authenticated' && result.recommendations.length > 0 && (
+                    <div className="mt-5">
+                      <p className={cn("text-xs uppercase tracking-wider mb-2 font-semibold", isDark ? "text-zinc-400" : "text-slate-600")}>
+                        Recommendations
+                      </p>
+                      <ul className="space-y-2">
+                        {result.recommendations.slice(0, 8).map((rec, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm">
+                            <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-500/70" />
+                            <span className={cn(isDark ? "text-zinc-300" : "text-slate-700")}>{rec}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
                 </div>
               )}
 
-              {/* CTA */}
+              {/* Action CTA — always gated for anon, signed-in users skip
+                  the signup hop and land in workspace with the rebuild
+                  prompt pre-fired. */}
               <div className={cn(
                 "p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4",
                 isDark ? "bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10" : "bg-gradient-to-r from-violet-50 to-fuchsia-50"
               )}>
                 <div className="flex-1">
                   <p className={cn("font-semibold text-base", isDark ? "text-white" : "text-slate-900")}>
-                    Want us to rebuild it better?
+                    {sessionStatus === 'authenticated' ? 'Ready to rebuild?' : 'Rebuild it better with Webstew'}
                   </p>
                   <p className={cn("text-sm mt-1", isDark ? "text-zinc-400" : "text-slate-600")}>
-                    Webstew can generate a fresh, modern version of {result.domain} in 60 seconds. AI-visible, mobile-fast, real content.
+                    {sessionStatus === 'authenticated'
+                      ? `We'll generate a fresh, AI-visible, mobile-fast version of ${result.domain} in 60 seconds.`
+                      : `Sign up free to unlock the full report and let Webstew generate a fresh, AI-visible version of ${result.domain}. 100 credits/month, no card.`}
                   </p>
                 </div>
                 <button
@@ -266,7 +320,7 @@ export function SiteGraderWidget({ isDark }: Props) {
                   className="shrink-0 inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white font-semibold transition shadow-lg shadow-violet-500/30"
                 >
                   <Sparkles className="w-4 h-4" />
-                  Rebuild with Webstew
+                  {sessionStatus === 'authenticated' ? 'Rebuild now' : 'Sign up & rebuild'}
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
