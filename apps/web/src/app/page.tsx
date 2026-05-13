@@ -2200,6 +2200,7 @@ export default function HomePage() {
                   <span className={cn("text-xs", isDark ? "text-slate-600" : "text-slate-400")}>· prompts to working code</span>
                 </div>
                 <div className="flex items-center gap-x-5 gap-y-2 flex-wrap justify-center sm:justify-end">
+                  <a href="/grader" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Site Grader</a>
                   <a href="/app-builder" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>App Builder</a>
                   <a href="/community" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Community</a>
                   <a href="/upgrade" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Pricing</a>
