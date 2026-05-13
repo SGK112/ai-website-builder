@@ -212,6 +212,25 @@ const templateGallery = [
   },
 ]
 
+// Maps landing-page template gallery IDs to pre-built HTML template IDs in
+// @/lib/templates. When a tile in this map is clicked, /workspace loads the
+// pre-built HTML directly (instant, no LLM call). When the tile is NOT in
+// the map, we fall through to the prompt path — AI generates from scratch
+// with the new industry-aware system prompt. Both paths produce a starter
+// the user can refine; this just lets people pick "instant known-good HTML"
+// vs "AI riff on the idea".
+const LANDING_TO_LIB_TEMPLATE: Record<string, string> = {
+  'saas-modern': 'saas-landing',
+  'restaurant-elegant': 'restaurant-menu',
+  'agency-creative': 'agency-portfolio',
+  'ecommerce-luxury': 'luxe-ecommerce',
+  'portfolio-minimal': 'agency-portfolio',
+  'startup-bold': 'saas-multipage',
+  'photography-portfolio': 'agency-portfolio',
+  // fitness-gym / realestate-luxury / medical-clinic / blog-magazine /
+  // event-conference: no matching pre-built template yet → AI prompt path
+}
+
 export default function HomePage() {
   const router = useRouter()
   const { status: sessionStatus } = useSession()
@@ -539,9 +558,27 @@ export default function HomePage() {
     }
   }
 
-  // Handle template selection - go to workspace with template prompt
-  const handleTemplateSelect = (templatePrompt: string) => {
-    navigateToWorkspace(templatePrompt)
+  // Handle template selection — two paths depending on whether the landing
+  // template tile maps to a pre-built lib template:
+  //   - mapped: push /workspace?templateId=<libId> → workspace loads the
+  //     pre-built HTML directly, no LLM call (instant starter)
+  //   - unmapped: fall back to the prompt path → AI generates from scratch
+  //     with the industry-aware system prompt
+  const handleTemplateSelect = (template: { id: string; prompt: string }) => {
+    const libTemplateId = LANDING_TO_LIB_TEMPLATE[template.id]
+    if (libTemplateId) {
+      setIsTransitioning(true)
+      const url = `/workspace?templateId=${encodeURIComponent(libTemplateId)}`
+      if (sessionStatus === 'authenticated') {
+        router.push(url)
+      } else {
+        // Templates use the same anon-mode path as fresh website builds —
+        // user can preview the starter, signup-wall fires on Save/Deploy.
+        router.push(url)
+      }
+      return
+    }
+    navigateToWorkspace(template.prompt)
   }
 
   return (
@@ -2430,7 +2467,7 @@ export default function HomePage() {
 
                       {/* CTA */}
                       <button
-                        onClick={() => handleTemplateSelect(selectedTemplate.prompt)}
+                        onClick={() => handleTemplateSelect(selectedTemplate)}
                         className="w-full flex items-center justify-center gap-2 py-3 bg-violet-600 hover:bg-violet-500 text-white font-medium rounded-xl transition-colors"
                       >
                         <Sparkles className="w-4 h-4" />
