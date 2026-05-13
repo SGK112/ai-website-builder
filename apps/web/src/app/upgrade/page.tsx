@@ -162,7 +162,7 @@ export default function UpgradePage() {
             Back to Workspace
           </Link>
           <Link href="/" className="text-xl font-bold bg-gradient-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent">
-            WebStew
+            Webstew
           </Link>
         </div>
       </header>
