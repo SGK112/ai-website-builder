@@ -17,7 +17,15 @@ import {
   Save, X, RefreshCw, Calendar, ChevronLeft, ChevronRight, ExternalLink, AlertCircle,
 } from 'lucide-react'
 
-const ADMIN_EMAIL_HINT = 'joshb@surprisegranite.com'
+// Client-side admin hint list — server enforces the real auth check on every
+// /api/admin/* call. This list just controls whether the dashboard renders
+// or shows a "no access" screen on initial load. Include both Joshua's
+// accounts since memory notes he signs in as either depending on context.
+const ADMIN_EMAIL_HINTS = [
+  'joshb@surprisegranite.com',
+  'aria@surprisegranite.com',
+  'admin@webstew.net',
+]
 
 interface Stats {
   users: { total: number; new_7d: number; new_30d: number; by_plan: Record<string, number> }
@@ -53,7 +61,7 @@ export default function AdminPage() {
   const userEmail = session?.user?.email?.toLowerCase() || ''
   // Client-side check — server enforces auth too, but this lets us render
   // the right view immediately instead of waiting for an API 403.
-  const isAdmin = userEmail === ADMIN_EMAIL_HINT
+  const isAdmin = ADMIN_EMAIL_HINTS.includes(userEmail)
 
   const [stats, setStats] = useState<Stats | null>(null)
   const [users, setUsers] = useState<AdminUser[]>([])

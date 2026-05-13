@@ -459,6 +459,22 @@ export default function UpgradePage() {
           </Link>
         </div>
       </section>
+
+      {/* Legal footer — consistent surface across logged-in pages */}
+      <footer className="py-8 px-6 border-t border-white/5">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+          <div className="flex items-center gap-2">
+            <span className="text-base">🍲</span>
+            <span className="font-semibold text-slate-300">Webstew</span>
+            <span>· © {new Date().getFullYear()} Remodely LLC</span>
+          </div>
+          <div className="flex items-center gap-5">
+            <Link href="/terms" className="hover:text-slate-200 transition-colors">Terms</Link>
+            <Link href="/privacy" className="hover:text-slate-200 transition-colors">Privacy</Link>
+            <a href="mailto:support@webstew.net" className="hover:text-slate-200 transition-colors">Support</a>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }
