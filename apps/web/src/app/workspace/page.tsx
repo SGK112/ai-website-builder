@@ -1757,6 +1757,12 @@ function WorkspaceContent() {
   const [deployUrl, setDeployUrl] = useState<string | null>(null)
   const [deployError, setDeployError] = useState<string | null>(null)
 
+  // Share preview state — anon-friendly /preview/<token> link (7-day TTL).
+  // Skips the GitHub+Render bake; serves the snapshot from Mongo with a
+  // Webstew-branded footer so every share is also a referral surface.
+  const [isSharingPreview, setIsSharingPreview] = useState(false)
+  const [previewLink, setPreviewLink] = useState<string | null>(null)
+
   // Conversational chat state
   const [showWelcome, setShowWelcome] = useState(true)
   const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string; suggestions?: string[] }[]>([
@@ -2472,6 +2478,37 @@ function WorkspaceContent() {
   }
 
   // Deploy functions
+  const sharePreview = async () => {
+    if (!html.trim()) {
+      addToast('error', 'Nothing to share yet — build a site first')
+      return
+    }
+    setIsSharingPreview(true)
+    try {
+      const res = await fetch('/api/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html, name: projectName }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to create preview')
+      setPreviewLink(data.url)
+      try {
+        await navigator.clipboard.writeText(data.url)
+        addToast('success', 'Preview link copied — expires in 7 days')
+      } catch {
+        addToast('success', `Preview link ready: ${data.url}`)
+      }
+      addConsoleLog('success', `Preview link created: ${data.url}`)
+    } catch (e: any) {
+      const msg = e?.message || 'Failed to create preview'
+      addToast('error', msg)
+      addConsoleLog('error', msg)
+    } finally {
+      setIsSharingPreview(false)
+    }
+  }
+
   const deployToGitHub = async () => {
     if (!html.trim()) {
       addTerminalLine('error', 'No content to deploy')
@@ -3083,8 +3120,22 @@ ${html}
     if (editMode) {
       const inlineEditScript = `
 <style>
+  /* Hover + focus indicators rely on outline + box-shadow only — we cannot
+     touch the element's \`background\` property because LLM-generated heroes
+     often use \`background-image: linear-gradient + -webkit-background-clip: text
+     + -webkit-text-fill-color: transparent\` for gradient text. Overriding
+     background there makes the text fall through to transparent and
+     disappear (light-theme presets in particular). The outline + tinted
+     box-shadow ring give the same visual affordance without breaking the
+     site's own paint pipeline. */
   [data-webstew-editable]:hover { outline: 1px dashed rgba(139,92,246,0.5); outline-offset: 2px; cursor: text; }
-  [data-webstew-editable]:focus { outline: 2px solid #8b5cf6; outline-offset: 2px; background: rgba(139,92,246,0.06); }
+  [data-webstew-editable]:focus {
+    outline: 2px solid #8b5cf6;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 6px rgba(139,92,246,0.12);
+    border-radius: 2px;
+    caret-color: #8b5cf6;
+  }
   body::after { content: 'Edit mode on — click any text to edit'; position: fixed; bottom: 12px; right: 12px; background: linear-gradient(90deg, #8b5cf6, #d946ef); color: white; padding: 6px 12px; border-radius: 999px; font-size: 11px; font-family: -apple-system, system-ui, sans-serif; box-shadow: 0 4px 12px rgba(139,92,246,0.4); pointer-events: none; z-index: 2147483647; }
 </style>
 <script>
@@ -4721,20 +4772,32 @@ ${html}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative max-w-md w-full p-8 rounded-2xl bg-zinc-950 border border-violet-500/30 shadow-2xl shadow-violet-500/20"
+              className={cn(
+                "relative max-w-md w-full p-8 rounded-2xl border border-violet-500/30 shadow-2xl shadow-violet-500/20",
+                isDark ? "bg-zinc-950" : "bg-white"
+              )}
             >
               <button
                 onClick={() => setCreditWall({ show: false })}
-                className="absolute top-4 right-4 p-1 rounded-lg text-zinc-500 hover:text-white hover:bg-white/5 transition"
+                className={cn(
+                  "absolute top-4 right-4 p-1 rounded-lg transition",
+                  isDark ? "text-zinc-500 hover:text-white hover:bg-white/5" : "text-slate-400 hover:text-slate-900 hover:bg-slate-100"
+                )}
                 aria-label="Close"
               >
                 <X className="w-5 h-5" />
               </button>
               <div className="w-12 h-12 mb-4 rounded-xl bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 border border-violet-500/30 flex items-center justify-center">
-                <Sparkles className="w-6 h-6 text-violet-400" />
+                <Sparkles className={cn("w-6 h-6", isDark ? "text-violet-400" : "text-violet-600")} />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">{creditWall.title || 'Out of free generations'}</h3>
-              <p className="text-sm text-zinc-400 leading-relaxed mb-6">
+              <h3 className={cn(
+                "text-xl font-bold mb-2",
+                isDark ? "text-white" : "text-slate-900"
+              )}>{creditWall.title || 'Out of free generations'}</h3>
+              <p className={cn(
+                "text-sm leading-relaxed mb-6",
+                isDark ? "text-zinc-400" : "text-slate-600"
+              )}>
                 {creditWall.message || `You've used your free generations on this browser.`}
               </p>
               <div className="space-y-2">
@@ -6769,6 +6832,31 @@ ${html}
 
                 {/* Actions */}
                 <div className="space-y-2 pt-2">
+                  {/* Share preview link — anon-friendly, no signup required.
+                     Lives above Deploy/GitHub because it's the lowest-friction
+                     way to show someone what you just built. */}
+                  <button
+                    onClick={sharePreview}
+                    disabled={isSharingPreview || !html.trim()}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left group",
+                      isSharingPreview || !html.trim()
+                        ? "bg-white/[0.02] border-white/[0.05] opacity-50 cursor-not-allowed"
+                        : "bg-violet-500/10 border-violet-400/30 hover:bg-violet-500/15 hover:border-violet-400/50"
+                    )}
+                  >
+                    {isSharingPreview ? (
+                      <Loader2 className="w-5 h-5 text-violet-400 animate-spin" />
+                    ) : (
+                      <Share2 className="w-5 h-5 text-violet-400 group-hover:text-violet-300" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-white">Share preview link</div>
+                      <div className="text-[10px] text-zinc-500 truncate">
+                        {previewLink ? previewLink.replace(/^https?:\/\//, '') : 'Instant link · expires in 7 days · no signup'}
+                      </div>
+                    </div>
+                  </button>
                   <button
                     onClick={deployToGitHub}
                     disabled={isDeploying || !html.trim()}
@@ -6915,10 +7003,19 @@ ${html}
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    className="absolute bottom-full left-0 mb-2 w-72 max-h-80 overflow-y-auto bg-zinc-900 border border-white/10 rounded-xl shadow-2xl z-50"
+                    className={cn(
+                      "absolute bottom-full left-0 mb-2 w-72 max-h-80 overflow-y-auto rounded-xl shadow-2xl z-50 border",
+                      isDark ? "bg-zinc-900 border-white/10" : "bg-white border-slate-200"
+                    )}
                   >
-                    <div className="p-2 border-b border-white/10">
-                      <p className="text-[10px] font-medium text-zinc-400 px-2">Select AI Model</p>
+                    <div className={cn(
+                      "p-2 border-b",
+                      isDark ? "border-white/10" : "border-slate-200"
+                    )}>
+                      <p className={cn(
+                        "text-[10px] font-medium px-2",
+                        isDark ? "text-zinc-400" : "text-slate-600"
+                      )}>Select AI Model</p>
                     </div>
                     <div className="p-1">
                       {/* Free Models — only shown when user has the corresponding provider key configured. Many free providers (HuggingFace, Together, Cloudflare) require user-supplied tokens and frequently have model-deprecation issues, so we hide them by default to avoid silent failures. */}
@@ -6937,8 +7034,8 @@ ${html}
                           className={cn(
                             "w-full flex items-center gap-2 px-2 py-2 rounded-lg text-left transition-all",
                             selectedModel.id === model.id
-                              ? "bg-violet-500/20 text-white"
-                              : "hover:bg-white/5 text-zinc-300"
+                              ? (isDark ? "bg-violet-500/20 text-white" : "bg-violet-500/15 text-slate-900")
+                              : (isDark ? "hover:bg-white/5 text-zinc-300" : "hover:bg-slate-100 text-slate-800")
                           )}
                         >
                           <div className="w-6 h-6 rounded-md bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
@@ -6949,14 +7046,20 @@ ${html}
                               <span className="text-xs font-medium truncate">{model.name}</span>
                               <span className="text-[8px] px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-400">FREE</span>
                             </div>
-                            <p className="text-[9px] text-zinc-500 truncate">{model.description}</p>
+                            <p className={cn(
+                              "text-[9px] truncate",
+                              isDark ? "text-zinc-500" : "text-slate-500"
+                            )}>{model.description}</p>
                           </div>
                         </button>
                       ))}
 
                       {/* Paid Models */}
                       <div className="px-2 py-1 mt-2">
-                        <p className="text-[9px] font-medium text-zinc-500 uppercase tracking-wide">Premium Models</p>
+                        <p className={cn(
+                          "text-[9px] font-medium uppercase tracking-wide",
+                          isDark ? "text-zinc-500" : "text-slate-500"
+                        )}>Premium Models</p>
                       </div>
                       {aiModels.filter(m => !m.free).map(model => (
                         <button
@@ -6968,8 +7071,8 @@ ${html}
                           className={cn(
                             "w-full flex items-center gap-2 px-2 py-2 rounded-lg text-left transition-all",
                             selectedModel.id === model.id
-                              ? "bg-violet-500/20 text-white"
-                              : "hover:bg-white/5 text-zinc-300"
+                              ? (isDark ? "bg-violet-500/20 text-white" : "bg-violet-500/15 text-slate-900")
+                              : (isDark ? "hover:bg-white/5 text-zinc-300" : "hover:bg-slate-100 text-slate-800")
                           )}
                         >
                           <div className={cn(
@@ -7301,10 +7404,16 @@ ${html}
                     className="fixed inset-0 z-40"
                     onClick={() => setShowHistoryPanel(false)}
                   />
-                  <div className="absolute right-0 top-full mt-1 z-50 w-80 max-h-96 overflow-y-auto rounded-xl border border-white/10 bg-zinc-950/95 backdrop-blur-xl shadow-2xl">
-                    <div className="sticky top-0 px-3 py-2 border-b border-white/5 bg-zinc-950/90 backdrop-blur-xl flex items-center justify-between">
-                      <span className="text-xs font-medium text-white">Version history</span>
-                      <span className="text-[10px] text-zinc-500">{history.length} / 30</span>
+                  <div className={cn(
+                    "absolute right-0 top-full mt-1 z-50 w-80 max-h-96 overflow-y-auto rounded-xl border backdrop-blur-xl shadow-2xl",
+                    isDark ? "border-white/10 bg-zinc-950/95" : "border-slate-200 bg-white/95"
+                  )}>
+                    <div className={cn(
+                      "sticky top-0 px-3 py-2 border-b backdrop-blur-xl flex items-center justify-between",
+                      isDark ? "border-white/5 bg-zinc-950/90" : "border-slate-200 bg-white/90"
+                    )}>
+                      <span className={cn("text-xs font-medium", isDark ? "text-white" : "text-slate-900")}>Version history</span>
+                      <span className={cn("text-[10px]", isDark ? "text-zinc-500" : "text-slate-500")}>{history.length} / 30</span>
                     </div>
                     <div className="py-1">
                       {[...history].map((entry, displayIdx) => {
@@ -7325,21 +7434,27 @@ ${html}
                               addToast('success', `Restored to: ${e.prompt.slice(0, 40)}`)
                             }}
                             className={cn(
-                              "w-full px-3 py-2 text-left flex items-start gap-3 transition",
+                              "w-full px-3 py-2 text-left flex items-start gap-3 transition border-l-2",
                               isCurrent
-                                ? "bg-violet-500/15 border-l-2 border-violet-500"
-                                : "hover:bg-white/5 border-l-2 border-transparent"
+                                ? "bg-violet-500/15 border-violet-500"
+                                : isDark
+                                  ? "hover:bg-white/5 border-transparent"
+                                  : "hover:bg-slate-100 border-transparent"
                             )}
                           >
                             <span className={cn(
                               "mt-0.5 text-[10px] font-mono shrink-0 w-12",
-                              isCurrent ? "text-violet-300" : "text-zinc-500"
+                              isCurrent
+                                ? (isDark ? "text-violet-300" : "text-violet-600")
+                                : (isDark ? "text-zinc-500" : "text-slate-500")
                             )}>
                               {time}
                             </span>
                             <span className={cn(
                               "text-xs flex-1 line-clamp-2 break-words",
-                              isCurrent ? "text-white font-medium" : "text-zinc-300"
+                              isCurrent
+                                ? (isDark ? "text-white font-medium" : "text-slate-900 font-medium")
+                                : (isDark ? "text-zinc-300" : "text-slate-700")
                             )}>
                               {e.prompt || '(no description)'}
                               {isCurrent && <span className="ml-1 text-[9px] text-violet-400">CURRENT</span>}
@@ -7363,14 +7478,23 @@ ${html}
               {showBlocksPanel && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowBlocksPanel(false)} />
-                  <div className="absolute right-0 top-full mt-1 z-50 w-80 max-h-96 overflow-y-auto rounded-xl border border-white/10 bg-zinc-950/95 backdrop-blur-xl shadow-2xl">
-                    <div className="sticky top-0 px-3 py-2 border-b border-white/5 bg-zinc-950/90 backdrop-blur-xl flex items-center justify-between">
-                      <span className="text-xs font-medium text-white">My blocks</span>
-                      <span className="text-[10px] text-zinc-500">{savedBlocks.length} saved</span>
+                  <div className={cn(
+                    "absolute right-0 top-full mt-1 z-50 w-80 max-h-96 overflow-y-auto rounded-xl border backdrop-blur-xl shadow-2xl",
+                    isDark ? "border-white/10 bg-zinc-950/95" : "border-slate-200 bg-white/95"
+                  )}>
+                    <div className={cn(
+                      "sticky top-0 px-3 py-2 border-b backdrop-blur-xl flex items-center justify-between",
+                      isDark ? "border-white/5 bg-zinc-950/90" : "border-slate-200 bg-white/90"
+                    )}>
+                      <span className={cn("text-xs font-medium", isDark ? "text-white" : "text-slate-900")}>My blocks</span>
+                      <span className={cn("text-[10px]", isDark ? "text-zinc-500" : "text-slate-500")}>{savedBlocks.length} saved</span>
                     </div>
                     <div className="py-1">
                       {savedBlocks.length === 0 ? (
-                        <div className="px-3 py-6 text-center text-xs text-zinc-500">
+                        <div className={cn(
+                          "px-3 py-6 text-center text-xs",
+                          isDark ? "text-zinc-500" : "text-slate-500"
+                        )}>
                           No saved blocks yet.
                           <br />
                           Select an element and click "Save block" to start.
@@ -7379,7 +7503,10 @@ ${html}
                         savedBlocks.map(block => (
                           <div
                             key={block.id}
-                            className="group px-3 py-2 hover:bg-white/5 border-l-2 border-transparent hover:border-emerald-500 transition flex items-start gap-2"
+                            className={cn(
+                              "group px-3 py-2 border-l-2 border-transparent hover:border-emerald-500 transition flex items-start gap-2",
+                              isDark ? "hover:bg-white/5" : "hover:bg-slate-100"
+                            )}
                           >
                             <button
                               onClick={() => insertSavedBlock(block)}

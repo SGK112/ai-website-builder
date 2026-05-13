@@ -55,11 +55,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#09090b] flex items-center justify-center p-6">
+    <div className="min-h-screen bg-white dark:bg-[#09090b] flex items-center justify-center p-6">
       {/* Background effects */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-[128px]" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-fuchsia-500/10 rounded-full blur-[128px]" />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-violet-500/5 dark:bg-violet-500/10 rounded-full blur-[128px]" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-fuchsia-500/5 dark:bg-fuchsia-500/10 rounded-full blur-[128px]" />
       </div>
 
       <motion.div
@@ -70,21 +70,21 @@ export default function LoginPage() {
         {/* Back link */}
         <Link
           href="/"
-          className="inline-flex items-center gap-2 text-zinc-500 hover:text-white mb-8 transition-colors"
+          className="inline-flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:text-zinc-500 dark:hover:text-white mb-8 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to home
+          Back to Webstew
         </Link>
 
         {/* Card */}
-        <div className="bg-zinc-900/80 backdrop-blur-xl border border-white/10 rounded-2xl p-8">
+        <div className="bg-white border border-slate-200 shadow-xl shadow-slate-900/5 dark:bg-zinc-900/80 dark:backdrop-blur-xl dark:border-white/10 dark:shadow-none rounded-2xl p-8">
           {/* Header */}
           <div className="text-center mb-8">
             <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
               <Sparkles className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-white mb-2">Welcome back</h1>
-            <p className="text-zinc-400">Sign in to continue building</p>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Welcome back to Webstew</h1>
+            <p className="text-slate-500 dark:text-zinc-400">Sign in to keep building.</p>
           </div>
 
           {/* Error message — surface NextAuth's error code so we can debug
@@ -100,7 +100,7 @@ export default function LoginPage() {
                 NEXTAUTH_URL, or DB unreachable)
               - Default: catch-all */}
           {error && (
-            <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+            <div className="mb-6 p-3 bg-red-500/10 border border-red-500/30 dark:border-red-500/20 rounded-lg text-red-600 dark:text-red-400 text-sm">
               <div className="font-medium mb-1">
                 {error === 'CredentialsSignin' && 'Invalid email or password'}
                 {error === 'OAuthAccountNotLinked' && 'This email is already registered with a different sign-in method'}
@@ -110,11 +110,11 @@ export default function LoginPage() {
                 {error === 'auth_callback_failed' && 'Authentication failed. Please try again.'}
                 {!['CredentialsSignin','OAuthAccountNotLinked','OAuthSignin','OAuthCallback','Configuration','AccessDenied','auth_callback_failed'].includes(error) && 'Sign-in failed'}
               </div>
-              <div className="text-xs text-red-400/70 font-mono">
+              <div className="text-xs text-red-500/80 dark:text-red-400/70 font-mono">
                 Error code: {error}
               </div>
               {(error === 'OAuthSignin' || error === 'OAuthCallback' || error === 'Configuration') && (
-                <div className="text-xs text-red-400/80 mt-2 leading-relaxed">
+                <div className="text-xs text-red-500/90 dark:text-red-400/80 mt-2 leading-relaxed">
                   Likely fix: confirm the OAuth callback URL on the provider matches{' '}
                   <code className="px-1 py-0.5 bg-red-500/10 rounded">https://&lt;your-domain&gt;/api/auth/callback/&lt;provider&gt;</code>
                   {' '}and that GITHUB_ID / GITHUB_SECRET (or Google equivalents) are set on the server.
@@ -130,7 +130,7 @@ export default function LoginPage() {
                 <button
                   onClick={() => handleOAuthLogin('google')}
                   disabled={isLoading !== null}
-                  className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white hover:bg-zinc-100 text-zinc-900 font-medium rounded-xl transition-colors disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-900 dark:bg-white dark:hover:bg-zinc-100 dark:border-transparent font-medium rounded-xl transition-colors disabled:opacity-50"
                 >
                   {isLoading === 'google' ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -150,7 +150,7 @@ export default function LoginPage() {
                 <button
                   onClick={() => handleOAuthLogin('github')}
                   disabled={isLoading !== null}
-                  className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-medium rounded-xl transition-colors disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-slate-900 hover:bg-slate-800 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-white font-medium rounded-xl transition-colors disabled:opacity-50"
                 >
                   {isLoading === 'github' ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -169,10 +169,10 @@ export default function LoginPage() {
           {(availableProviders.has('google') || availableProviders.has('github')) && (
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-zinc-800" />
+              <div className="w-full border-t border-slate-200 dark:border-zinc-800" />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-zinc-900 text-zinc-500">or continue with email</span>
+              <span className="px-4 bg-white text-slate-500 dark:bg-zinc-900 dark:text-zinc-500">or continue with email</span>
             </div>
           </div>
           )}
@@ -180,29 +180,29 @@ export default function LoginPage() {
           {/* Credentials Form */}
           <form onSubmit={handleCredentialsLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">Email</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-zinc-400 mb-2">Email</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-zinc-500" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="w-full pl-10 pr-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 dark:bg-zinc-800/50 dark:border-zinc-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">Password</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-zinc-400 mb-2">Password</label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-zinc-500" />
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 dark:bg-zinc-800/50 dark:border-zinc-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -221,9 +221,9 @@ export default function LoginPage() {
           </form>
 
           {/* Footer */}
-          <p className="mt-6 text-center text-sm text-zinc-500">
+          <p className="mt-6 text-center text-sm text-slate-500 dark:text-zinc-500">
             Don't have an account?{' '}
-            <Link href="/signup" className="text-violet-400 hover:text-violet-300">
+            <Link href="/signup" className="text-violet-600 hover:text-violet-500 dark:text-violet-400 dark:hover:text-violet-300">
               Sign up
             </Link>
           </p>

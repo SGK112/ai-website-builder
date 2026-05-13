@@ -500,21 +500,24 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prompt, buildTarget])
 
-  // Route to the right builder based on the user's chosen target. If not yet
-  // signed in, ride through /signup with ?next= preserving the destination so
-  // the generation auto-fires after auth.
+  // Route to the right builder based on the user's chosen target. Website
+  // target is anon-accessible — they get 1 free generation, then a signup
+  // wall. Webapp / mobile targets still ride through /signup since
+  // /app-builder remains gated.
   const navigateToBuilder = (projectPrompt: string, t: 'website' | 'webapp' | 'mobile' = buildTarget) => {
     setIsTransitioning(true)
     let url: string
+    let anonOk = false
     if (t === 'website') {
       const params = new URLSearchParams({ prompt: projectPrompt, theme: projectTheme })
       url = `/workspace?${params.toString()}`
+      anonOk = true
     } else {
       const apiTarget = t === 'mobile' ? 'expo' : 'nextjs'
       const params = new URLSearchParams({ prompt: projectPrompt, target: apiTarget })
       url = `/app-builder?${params.toString()}`
     }
-    if (sessionStatus === 'authenticated') {
+    if (anonOk || sessionStatus === 'authenticated') {
       router.push(url)
     } else {
       router.push(`/signup?next=${encodeURIComponent(url)}`)

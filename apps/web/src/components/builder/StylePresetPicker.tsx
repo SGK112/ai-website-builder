@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Palette, Check, ChevronDown, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -12,17 +13,43 @@ interface StylePresetPickerProps {
   compact?: boolean
 }
 
+// useLayoutEffect during SSR throws a noisy warning; alias to useEffect on the server.
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
+
 export function StylePresetPicker({ selected, onChange, compact = false }: StylePresetPickerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(null)
   const currentPreset = stylePresets.find(p => p.id === selected) || stylePresets[0]
 
-  // Close on click outside
+  // Compute panel position relative to the button. We render via a portal
+  // because an ancestor with overflow-x-auto on the toolbar otherwise clips
+  // the dropdown vertically (CSS spec: overflow-x:auto forces overflow-y:auto).
+  useIsomorphicLayoutEffect(() => {
+    if (!isOpen || !buttonRef.current) return
+    const update = () => {
+      const r = buttonRef.current!.getBoundingClientRect()
+      setPanelPos({ top: r.bottom + 8, left: r.left })
+    }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true) // capture phase catches scroll on ancestors
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [isOpen])
+
+  // Close on click outside — the panel is portaled, so we have to check it
+  // explicitly in addition to the button wrapper.
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setIsOpen(false)
-      }
+      const t = e.target as Node
+      if (dropdownRef.current?.contains(t)) return
+      if (panelRef.current?.contains(t)) return
+      setIsOpen(false)
     }
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside)
@@ -43,6 +70,7 @@ export function StylePresetPicker({ selected, onChange, compact = false }: Style
     return (
       <div className="relative" ref={dropdownRef}>
         <button
+          ref={buttonRef}
           onClick={() => setIsOpen(!isOpen)}
           className={cn(
             "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 shrink-0 whitespace-nowrap",
@@ -62,22 +90,28 @@ export function StylePresetPicker({ selected, onChange, compact = false }: Style
           )} />
         </button>
 
-        <AnimatePresence>
-          {isOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: -10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              transition={{ duration: 0.15, ease: 'easeOut' }}
-              className="absolute top-full left-0 mt-2 z-[100] w-64 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-xl shadow-2xl shadow-slate-900/10 dark:shadow-black/50 overflow-hidden"
-            >
-              {/* Header */}
-              <div className="px-3 py-2.5 border-b border-slate-200 dark:border-white/[0.05] bg-slate-50 dark:bg-white/[0.02]">
-                <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-zinc-400">
-                  <Palette className="w-3.5 h-3.5" />
-                  <span className="font-medium">Theme Presets</span>
+        {typeof window !== 'undefined' && createPortal(
+          <AnimatePresence>
+            {isOpen && panelPos && (
+              <motion.div
+                ref={panelRef}
+                initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
+                style={{ position: 'fixed', top: panelPos.top, left: panelPos.left }}
+                className="z-[100] w-64 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-xl shadow-2xl shadow-slate-900/10 dark:shadow-black/50 overflow-hidden"
+              >
+                {/* Header */}
+                <div className="px-3 py-2.5 border-b border-slate-200 dark:border-white/[0.05] bg-slate-50 dark:bg-white/[0.02]">
+                  <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-zinc-400">
+                    <Palette className="w-3.5 h-3.5" />
+                    <span className="font-medium">Site theme presets</span>
+                  </div>
+                  <p className="mt-1 text-[10px] text-slate-500 dark:text-zinc-500">
+                    Changes the colors of the site you're building — not the workspace UI.
+                  </p>
                 </div>
-              </div>
 
               {/* Presets List */}
               <div className="max-h-[320px] overflow-y-auto py-1">
@@ -141,7 +175,9 @@ export function StylePresetPicker({ selected, onChange, compact = false }: Style
               </div>
             </motion.div>
           )}
-        </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+        )}
       </div>
     )
   }

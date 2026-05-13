@@ -90,28 +90,28 @@ export default function SignupPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-[#09090b] flex items-center justify-center p-6">
+      <div className="min-h-screen bg-white dark:bg-[#09090b] flex items-center justify-center p-6">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           className="text-center"
         >
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/20 flex items-center justify-center">
-            <Check className="w-8 h-8 text-emerald-400" />
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/15 dark:bg-emerald-500/20 flex items-center justify-center">
+            <Check className="w-8 h-8 text-emerald-500 dark:text-emerald-400" />
           </div>
-          <h1 className="text-2xl font-bold text-white mb-2">Account Created!</h1>
-          <p className="text-zinc-400">Signing you in...</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Welcome to Webstew!</h1>
+          <p className="text-slate-500 dark:text-zinc-400">Signing you in…</p>
         </motion.div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#09090b] flex items-center justify-center p-6">
+    <div className="min-h-screen bg-white dark:bg-[#09090b] flex items-center justify-center p-6">
       {/* Background effects */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-[128px]" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-fuchsia-500/10 rounded-full blur-[128px]" />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-violet-500/5 dark:bg-violet-500/10 rounded-full blur-[128px]" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-fuchsia-500/5 dark:bg-fuchsia-500/10 rounded-full blur-[128px]" />
       </div>
 
       <motion.div
@@ -122,26 +122,28 @@ export default function SignupPage() {
         {/* Back link */}
         <Link
           href="/"
-          className="inline-flex items-center gap-2 text-zinc-500 hover:text-white mb-8 transition-colors"
+          className="inline-flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:text-zinc-500 dark:hover:text-white mb-8 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to home
+          Back to Webstew
         </Link>
 
         {/* Card */}
-        <div className="bg-zinc-900/80 backdrop-blur-xl border border-white/10 rounded-2xl p-8">
+        <div className="bg-white border border-slate-200 shadow-xl shadow-slate-900/5 dark:bg-zinc-900/80 dark:backdrop-blur-xl dark:border-white/10 dark:shadow-none rounded-2xl p-8">
           {/* Header */}
           <div className="text-center mb-8">
             <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
               <Sparkles className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-white mb-2">Create an account</h1>
-            <p className="text-zinc-400">Start building amazing websites</p>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Join Webstew</h1>
+            <p className="text-slate-500 dark:text-zinc-400">
+              Save the site you just built and keep iterating.
+            </p>
           </div>
 
           {/* Error message */}
           {error && (
-            <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm text-center">
+            <div className="mb-6 p-3 bg-red-500/10 border border-red-500/30 dark:border-red-500/20 rounded-lg text-red-600 dark:text-red-400 text-sm text-center">
               {error}
             </div>
           )}
@@ -153,7 +155,7 @@ export default function SignupPage() {
                 <button
                   onClick={() => handleOAuthSignup('google')}
                   disabled={isLoading !== null}
-                  className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white hover:bg-zinc-100 text-zinc-900 font-medium rounded-xl transition-colors disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-900 dark:bg-white dark:hover:bg-zinc-100 dark:border-transparent font-medium rounded-xl transition-colors disabled:opacity-50"
                 >
                   {isLoading === 'google' ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -173,7 +175,7 @@ export default function SignupPage() {
                 <button
                   onClick={() => handleOAuthSignup('github')}
                   disabled={isLoading !== null}
-                  className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-medium rounded-xl transition-colors disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-slate-900 hover:bg-slate-800 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-white font-medium rounded-xl transition-colors disabled:opacity-50"
                 >
                   {isLoading === 'github' ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -192,10 +194,10 @@ export default function SignupPage() {
           {(availableProviders.has('google') || availableProviders.has('github')) && (
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-zinc-800" />
+                <div className="w-full border-t border-slate-200 dark:border-zinc-800" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-zinc-900 text-zinc-500">or sign up with email</span>
+                <span className="px-4 bg-white text-slate-500 dark:bg-zinc-900 dark:text-zinc-500">or sign up with email</span>
               </div>
             </div>
           )}
@@ -203,39 +205,39 @@ export default function SignupPage() {
           {/* Signup Form */}
           <form onSubmit={handleSignup} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">Name</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-zinc-400 mb-2">Name</label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-zinc-500" />
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Your name"
                   required
-                  className="w-full pl-10 pr-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 dark:bg-zinc-800/50 dark:border-zinc-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">Email</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-zinc-400 mb-2">Email</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-zinc-500" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
                   required
-                  className="w-full pl-10 pr-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 dark:bg-zinc-800/50 dark:border-zinc-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">Password</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-zinc-400 mb-2">Password</label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-zinc-500" />
                 <input
                   type="password"
                   value={password}
@@ -243,22 +245,22 @@ export default function SignupPage() {
                   placeholder="At least 8 characters"
                   required
                   minLength={8}
-                  className="w-full pl-10 pr-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 dark:bg-zinc-800/50 dark:border-zinc-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">Confirm Password</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-zinc-400 mb-2">Confirm Password</label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-zinc-500" />
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirm your password"
                   required
-                  className="w-full pl-10 pr-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 dark:bg-zinc-800/50 dark:border-zinc-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -271,23 +273,23 @@ export default function SignupPage() {
               {isLoading === 'credentials' ? (
                 <Loader2 className="w-5 h-5 animate-spin mx-auto" />
               ) : (
-                'Create Account'
+                'Create Webstew account'
               )}
             </button>
           </form>
 
           {/* Terms */}
-          <p className="mt-4 text-center text-xs text-zinc-500">
+          <p className="mt-4 text-center text-xs text-slate-500 dark:text-zinc-500">
             By signing up, you agree to our{' '}
-            <a href="#" className="text-violet-400 hover:text-violet-300">Terms of Service</a>
+            <a href="#" className="text-violet-600 hover:text-violet-500 dark:text-violet-400 dark:hover:text-violet-300">Terms of Service</a>
             {' '}and{' '}
-            <a href="#" className="text-violet-400 hover:text-violet-300">Privacy Policy</a>
+            <a href="#" className="text-violet-600 hover:text-violet-500 dark:text-violet-400 dark:hover:text-violet-300">Privacy Policy</a>
           </p>
 
           {/* Footer */}
-          <p className="mt-6 text-center text-sm text-zinc-500">
+          <p className="mt-6 text-center text-sm text-slate-500 dark:text-zinc-500">
             Already have an account?{' '}
-            <Link href="/login" className="text-violet-400 hover:text-violet-300">
+            <Link href="/login" className="text-violet-600 hover:text-violet-500 dark:text-violet-400 dark:hover:text-violet-300">
               Sign in
             </Link>
           </p>

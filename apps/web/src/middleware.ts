@@ -1,12 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
-// Routes that require an authenticated session. Workspace UI + builder APIs
-// are gated. Static landing, signup/login, and public APIs remain open.
-// `/app-builder` is also gated now — generated apps cost real LLM credits.
-const GATED_PAGE_PREFIXES = ['/workspace', '/app-builder', '/dashboard', '/profile', '/admin']
+// Routes that require an authenticated session. /workspace and the website
+// generate API are anon-accessible (with a 1-gen cookie cap enforced inside
+// the route). /app-builder + multi-target generate routes stay gated — those
+// are the iteration / power-user surfaces, and signup makes sense there.
+// Save/Deploy/CMS/profile/dashboard/admin all remain gated.
+const GATED_PAGE_PREFIXES = ['/app-builder', '/dashboard', '/profile', '/admin']
 const GATED_API_PREFIXES = [
-  '/api/builder/generate',
   '/api/builder/converse',
   '/api/builder/chat',
   // Multi-target builder routes — each makes a Claude call, must be gated.

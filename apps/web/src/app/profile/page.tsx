@@ -27,6 +27,9 @@ import {
   FileCode,
   Download,
   ExternalLink,
+  Share2,
+  Copy,
+  Trash2,
   Calendar,
   Star,
   Gift,
@@ -191,11 +194,67 @@ export default function ProfilePage() {
   const isDark = theme === 'dark'
   const router = useRouter()
   const { data: session, status } = useSession()
-  const [activeTab, setActiveTab] = useState<'profile' | 'billing' | 'usage' | 'settings'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'billing' | 'usage' | 'previews' | 'settings'>('profile')
   const [credits, setCredits] = useState<number | null>(null)
   const [actualPlan, setActualPlan] = useState<string>('free')
   const [portalLoading, setPortalLoading] = useState(false)
   const [portalError, setPortalError] = useState<string | null>(null)
+
+  // Preview links — lazy-loaded when the tab opens.
+  interface PreviewLink {
+    id: string
+    token: string
+    url: string
+    name: string | null
+    createdAt: string
+    expiresAt: string
+  }
+  const [previews, setPreviews] = useState<PreviewLink[] | null>(null)
+  const [previewsLoading, setPreviewsLoading] = useState(false)
+  const [previewsError, setPreviewsError] = useState<string | null>(null)
+  const [deletingPreviewId, setDeletingPreviewId] = useState<string | null>(null)
+  const [copiedPreviewId, setCopiedPreviewId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (activeTab !== 'previews' || !session?.user) return
+    if (previews !== null) return // cached after first load
+    setPreviewsLoading(true)
+    fetch('/api/preview')
+      .then(async (r) => {
+        const d = await r.json()
+        if (!r.ok) throw new Error(d.error || 'Failed to load previews')
+        setPreviews(d.previews || [])
+      })
+      .catch((e) => setPreviewsError(e.message))
+      .finally(() => setPreviewsLoading(false))
+  }, [activeTab, session?.user, previews])
+
+  const copyPreviewUrl = async (p: PreviewLink) => {
+    try {
+      await navigator.clipboard.writeText(p.url)
+      setCopiedPreviewId(p.id)
+      setTimeout(() => setCopiedPreviewId((cur) => (cur === p.id ? null : cur)), 1500)
+    } catch {
+      // Clipboard API can fail under insecure contexts; fall back to selecting the text.
+      window.prompt('Copy this link:', p.url)
+    }
+  }
+
+  const deletePreview = async (id: string) => {
+    setDeletingPreviewId(id)
+    try {
+      const r = await fetch(`/api/preview/${id}`, { method: 'DELETE' })
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}))
+        throw new Error(d.error || 'Failed to delete')
+      }
+      setPreviews((prev) => (prev ? prev.filter((p) => p.id !== id) : prev))
+    } catch (e: any) {
+      setPreviewsError(e.message || 'Failed to delete')
+    } finally {
+      setDeletingPreviewId(null)
+    }
+  }
 
   // Fetch credits + real plan on mount. /api/usage is the canonical source
   // for user.plan + credits — same endpoint /upgrade uses.
@@ -276,6 +335,7 @@ export default function ProfilePage() {
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'billing', label: 'Billing', icon: CreditCard },
     { id: 'usage', label: 'Usage', icon: BarChart3 },
+    { id: 'previews', label: 'Preview links', icon: Share2 },
     { id: 'settings', label: 'Settings', icon: Settings },
   ]
 
@@ -690,6 +750,126 @@ export default function ProfilePage() {
                         </p>
                       </div>
                     </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Preview links Tab */}
+              {activeTab === 'previews' && (
+                <motion.div
+                  key="previews"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="space-y-6"
+                >
+                  <div className={cn(
+                    'rounded-2xl p-6 backdrop-blur-xl',
+                    isDark ? 'bg-zinc-900/50 border border-white/10' : 'bg-white/80 border border-zinc-200 shadow-sm'
+                  )}>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-lg font-semibold">Preview links</h3>
+                      <span className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-600')}>
+                        Auto-delete after 7 days
+                      </span>
+                    </div>
+                    <p className={cn('text-sm mb-6', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+                      Shareable snapshots of sites you built with Webstew. Anyone with the link can view; nothing is indexed by search engines.
+                    </p>
+
+                    {previewsError && (
+                      <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+                        {previewsError}
+                      </div>
+                    )}
+
+                    {previewsLoading && (
+                      <div className={cn('flex items-center gap-2 text-sm', isDark ? 'text-zinc-500' : 'text-zinc-600')}>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Loading preview links…
+                      </div>
+                    )}
+
+                    {!previewsLoading && previews && previews.length === 0 && (
+                      <div className={cn(
+                        'rounded-xl p-8 text-center',
+                        isDark ? 'bg-white/[0.02] border border-white/5' : 'bg-zinc-50 border border-zinc-200'
+                      )}>
+                        <Share2 className={cn('w-8 h-8 mx-auto mb-3', isDark ? 'text-zinc-600' : 'text-zinc-400')} />
+                        <p className={cn('text-sm', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+                          No preview links yet. Build a site, then click <span className="font-medium">Share preview link</span> in the workspace deploy panel.
+                        </p>
+                      </div>
+                    )}
+
+                    {!previewsLoading && previews && previews.length > 0 && (
+                      <ul className="space-y-2">
+                        {previews.map((p) => {
+                          const expiresAt = new Date(p.expiresAt)
+                          const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+                          return (
+                            <li
+                              key={p.id}
+                              className={cn(
+                                'flex items-center gap-3 p-3 rounded-xl border',
+                                isDark
+                                  ? 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04]'
+                                  : 'bg-white border-zinc-200 hover:bg-zinc-50'
+                              )}
+                            >
+                              <div className="w-9 h-9 shrink-0 rounded-lg bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 border border-violet-500/30 flex items-center justify-center">
+                                <Share2 className="w-4 h-4 text-violet-400" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className={cn('text-sm font-medium truncate', isDark ? 'text-white' : 'text-zinc-900')}>
+                                  {p.name || 'Untitled preview'}
+                                </div>
+                                <div className={cn('text-xs truncate', isDark ? 'text-zinc-500' : 'text-zinc-500')}>
+                                  {p.url.replace(/^https?:\/\//, '')} · expires in {daysLeft}d
+                                </div>
+                              </div>
+                              <a
+                                href={p.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={cn(
+                                  'p-2 rounded-lg transition',
+                                  isDark ? 'text-zinc-400 hover:text-white hover:bg-white/5' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
+                                )}
+                                title="Open in new tab"
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                              </a>
+                              <button
+                                onClick={() => copyPreviewUrl(p)}
+                                className={cn(
+                                  'p-2 rounded-lg transition',
+                                  copiedPreviewId === p.id
+                                    ? 'text-emerald-400 bg-emerald-500/10'
+                                    : isDark ? 'text-zinc-400 hover:text-white hover:bg-white/5' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
+                                )}
+                                title={copiedPreviewId === p.id ? 'Copied!' : 'Copy link'}
+                              >
+                                {copiedPreviewId === p.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                              </button>
+                              <button
+                                onClick={() => deletePreview(p.id)}
+                                disabled={deletingPreviewId === p.id}
+                                className={cn(
+                                  'p-2 rounded-lg transition',
+                                  deletingPreviewId === p.id
+                                    ? 'opacity-50'
+                                    : 'text-zinc-400 hover:text-red-400 hover:bg-red-500/10'
+                                )}
+                                title="Delete preview"
+                              >
+                                {deletingPreviewId === p.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                              </button>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
                   </div>
                 </motion.div>
               )}

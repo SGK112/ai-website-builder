@@ -2174,23 +2174,36 @@ export async function POST(req: NextRequest) {
       apiKeys?.google
     )
 
-    // Hard requirement: either a logged-in session or BYOK. Middleware should
-    // catch this for browser requests, but defensive check for direct API hits.
+    // Anon users get a single free generation (cookie-gated). After that,
+    // they hit the signup wall in the workspace UI. BYOK bypasses the cap
+    // entirely — power users pay their own LLM bill so they can iterate freely.
+    // Logged-in users skip this and are governed by plan limits below.
+    const ANON_COOKIE = 'wsanon'
+    const ANON_LIMIT = 1
+    let isAnonFirstGen = false
     if (!session?.user?.id && !hasOwnKey) {
-      return NextResponse.json(
-        {
-          error: 'Authentication required',
-          requireAuth: true,
-          message: 'Sign up to start building, or include your own API key in the request.',
-        },
-        { status: 401 }
-      )
+      const prev = parseInt(req.cookies.get(ANON_COOKIE)?.value || '0', 10) || 0
+      if (prev >= ANON_LIMIT) {
+        return NextResponse.json(
+          {
+            error: "You've used your free generation on this browser. Sign up free to keep building, or paste your own API key.",
+            limit: ANON_LIMIT,
+            signupWall: true,
+          },
+          { status: 402 }
+        )
+      }
+      isAnonFirstGen = true
     }
 
     const streamHeaders: Record<string, string> = {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
+    }
+    if (isAnonFirstGen) {
+      // Mark the cookie as used so the next anon hit walls to signup.
+      streamHeaders['Set-Cookie'] = `${ANON_COOKIE}=1; Path=/; Max-Age=${30 * 24 * 60 * 60}; HttpOnly; SameSite=Lax`
     }
 
     // outputMode: 'static' (default) | 'nextjs' | 'react'
