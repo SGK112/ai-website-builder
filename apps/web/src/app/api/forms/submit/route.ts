@@ -178,6 +178,33 @@ export async function POST(req: NextRequest) {
       console.error('[forms] notification error:', e?.message || e)
     })
 
+    // Slack fan-out via Composio (if owner has it connected). Mirror of the
+    // CMS publish-hook pattern. Best-effort, no blocking, no per-form config
+    // yet — every form fires to the owner's default Slack.
+    ;(async () => {
+      try {
+        const mongoose = (await import('mongoose')).default
+        const db = mongoose.connection.db
+        if (!db) return
+        const proj = await db.collection('projects').findOne(
+          { _id: projectObjectId },
+          { projection: { userId: 1, name: 1 } }
+        )
+        const ownerId = proj?.userId?.toString?.()
+        if (!ownerId) return
+        const { fireFormSubmissionHook } = await import('@/lib/form-submission-hook')
+        await fireFormSubmissionHook({
+          ownerId,
+          projectName: typeof proj?.name === 'string' ? proj.name : 'Your site',
+          formId,
+          data: sanitizedData,
+          submissionId: submission._id.toString(),
+        })
+      } catch (e: any) {
+        console.warn('[forms] slack hook failed:', e?.message)
+      }
+    })()
+
     return NextResponse.json({
       success: true,
       message: 'Form submitted successfully',
