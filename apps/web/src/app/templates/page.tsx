@@ -177,11 +177,18 @@ export default function TemplatesPage() {
   // Paywall modal — fires when a free user clicks a premium template.
   const [paywallTemplate, setPaywallTemplate] = useState<Template | null>(null)
 
-  // Get the full template HTML if available
+  // Get the full template HTML if available.
+  // Order: local builtin > API-returned html_content (Supabase templates).
+  // Falls through to null if neither — the preview area then shows the
+  // thumbnail with a "live preview unavailable" hint instead of a blank
+  // white iframe.
   const previewHtml = useMemo(() => {
     if (!previewTemplate) return null
-    const fullTemplate = getTemplateById(previewTemplate.id)
-    return fullTemplate?.html || null
+    const builtin = getTemplateById(previewTemplate.id)
+    if (builtin?.html) return builtin.html
+    const supabaseHtml = (previewTemplate as any).html_content
+    if (typeof supabaseHtml === 'string' && supabaseHtml.length > 0) return supabaseHtml
+    return null
   }, [previewTemplate])
 
   useEffect(() => {
@@ -313,11 +320,24 @@ export default function TemplatesPage() {
                   className="group relative rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden hover:border-violet-500/50 transition-all"
                 >
                   {/* Thumbnail */}
-                  <div className="relative aspect-[4/3] overflow-hidden">
+                  <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900">
                     <img
                       src={template.thumbnail_url}
                       alt={template.name}
+                      loading="lazy"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      onError={(e) => {
+                        // Broken thumbnail → swap for a deterministic
+                        // picsum.photos seed derived from the template id
+                        // so the card stays presentable instead of showing
+                        // the broken-image icon. Same fallback applies to
+                        // both builtin and Supabase-sourced templates.
+                        const img = e.currentTarget
+                        const seed = encodeURIComponent(template.id || template.name || 'template')
+                        const fallback = `https://picsum.photos/seed/${seed}/800/600`
+                        if (img.src !== fallback) img.src = fallback
+                        else img.style.display = 'none'
+                      }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
@@ -457,11 +477,21 @@ export default function TemplatesPage() {
                     sandbox="allow-scripts"
                   />
                 ) : (
-                  <img
-                    src={previewTemplate.thumbnail_url}
-                    alt={previewTemplate.name}
-                    className="w-full h-full object-cover"
-                  />
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-slate-800 to-slate-900 text-slate-400 px-6">
+                    <img
+                      src={previewTemplate.thumbnail_url}
+                      alt={previewTemplate.name}
+                      className="max-w-full max-h-[60%] object-cover rounded-lg"
+                      onError={(e) => {
+                        const img = e.currentTarget
+                        const seed = encodeURIComponent(previewTemplate.id || previewTemplate.name || 'template')
+                        const fallback = `https://picsum.photos/seed/${seed}/800/600`
+                        if (img.src !== fallback) img.src = fallback
+                        else img.style.display = 'none'
+                      }}
+                    />
+                    <p className="text-sm text-center">Live preview unavailable — click <span className="text-violet-300">Use Template</span> to open in the builder.</p>
+                  </div>
                 )}
               </div>
             </div>
@@ -494,6 +524,13 @@ export default function TemplatesPage() {
                   src={paywallTemplate.thumbnail_url}
                   alt={paywallTemplate.name}
                   className="w-full h-full object-cover opacity-60"
+                  onError={(e) => {
+                    const img = e.currentTarget
+                    const seed = encodeURIComponent(paywallTemplate.id || paywallTemplate.name || 'template')
+                    const fallback = `https://picsum.photos/seed/${seed}/800/600`
+                    if (img.src !== fallback) img.src = fallback
+                    else img.style.display = 'none'
+                  }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-transparent" />
                 <div className="absolute top-3 left-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-bold">
