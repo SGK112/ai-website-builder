@@ -17,6 +17,7 @@ import {
   Code2,
   Palette,
   Store,
+  Plug,
   Settings,
   CreditCard,
   Search,
@@ -120,12 +121,14 @@ export function WorkspaceNav() {
   const isDashboard = pathname.startsWith('/dashboard')
   const isTemplates = pathname.startsWith('/templates')
   const isUpgrade = pathname.startsWith('/upgrade')
+  const isIntegrations = pathname.startsWith('/integrations')
 
   // Navigation items - workspace focused
   const isWorkspace = pathname.startsWith('/workspace')
   const navItems = [
     { href: '/workspace', label: 'Workspace', icon: LayoutDashboard, active: isDashboard || isWorkspace },
     { href: '/templates', label: 'Templates', icon: Store, active: isTemplates },
+    { href: '/integrations', label: 'Integrations', icon: Plug, active: isIntegrations },
   ]
 
   // Don't show on login/auth pages
