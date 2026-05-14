@@ -52,8 +52,24 @@ const GATED_API_PREFIXES = [
   '/api/media/upload',   // server-side Cloudinary secret
 ]
 
+// Render gives every service a stable `<slug>.onrender.com` hostname. If a
+// user lands there directly (bookmark, OAuth redirect when NEXTAUTH_URL was
+// misconfigured, link-share before the custom domain existed), they bypass
+// Cloudflare entirely — no rate limits, no WAF, and cookies set on
+// www.webstew.net never reach this host (so sign-in silently fails with
+// OAuthCallback errors). 301 every such request to the canonical CF-proxied
+// origin so the bypass closes itself in-code, no Render dashboard flip needed.
+const RENDER_HOSTS_TO_CANONICALIZE: Record<string, string> = {
+  'ai-website-builder-ntzg.onrender.com': 'https://www.webstew.net',
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl
+  const host = request.headers.get('host') || ''
+  const canonicalBase = RENDER_HOSTS_TO_CANONICALIZE[host]
+  if (canonicalBase) {
+    return NextResponse.redirect(`${canonicalBase}${pathname}${search}`, 301)
+  }
 
   const isGatedPage = GATED_PAGE_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'))
   const isGatedApi = GATED_API_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'))
