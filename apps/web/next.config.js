@@ -101,4 +101,24 @@ const nextConfig = {
   poweredByHeader: false,
 }
 
-module.exports = nextConfig
+// Wrap with Sentry only when a DSN is configured. Keeps `next build`/`next dev`
+// runnable in environments (local, CI) without Sentry env vars.
+const { withSentryConfig } = require('@sentry/nextjs')
+const sentryEnabled = !!process.env.SENTRY_DSN || !!process.env.NEXT_PUBLIC_SENTRY_DSN
+
+module.exports = sentryEnabled
+  ? withSentryConfig(nextConfig, {
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      silent: !process.env.CI,
+      // Source map upload — only when SENTRY_AUTH_TOKEN is present in CI.
+      // Without it the plugin no-ops gracefully and reports keep working,
+      // they just won't have source-mapped stack traces.
+      widenClientFileUpload: true,
+      // Tunnel through our own domain so ad-blockers / privacy extensions
+      // don't drop client error reports.
+      tunnelRoute: '/monitoring',
+      hideSourceMaps: true,
+      disableLogger: true,
+    })
+  : nextConfig
