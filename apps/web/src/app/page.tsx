@@ -279,146 +279,148 @@ export default function HomePage() {
   const springConfig = { stiffness: 70, damping: 28, mass: 0.5 }
   const smoothProgress = useSpring(previewProgress, springConfig)
 
-  // Section = 200vh, viewport = 100vh, so total scroll progress spans
-  // section + viewport = 300vh. Sticky pins at 100/300 ≈ 0.333 and releases
-  // at 200/300 ≈ 0.666 — about 100vh (a full screen) of locked scroll. The
-  // pin window is split into three deliberate phases:
-  //   • 0.333 → 0.45  HOLD fullscreen  (let the takeover register)
-  //   • 0.45  → 0.56  TRANSITION       (shrink + chrome reveal + dim fade)
-  //   • 0.56  → 0.666 HOLD detached    (let the finished product card sit)
-  // Anchors outside the pin window keep transforms latched at their
-  // start/end values so the entry and exit are clean.
+  // Section = 240vh, viewport = 100vh, so total scroll progress spans
+  // section + viewport = 340vh. Sticky pins at 100/340 ≈ 0.294 and releases
+  // at 240/340 ≈ 0.706 — about 140vh of locked scroll.
+  //
+  // The CRITICAL fix vs. prior version: fullscreen must be REACHED while
+  // the card is still pinned, so users actually see the takeover before
+  // the section scrolls away. Old stop was 0.8 (fullscreen reached AFTER
+  // pin released at 0.666) — visitors only ever saw the bottom half of
+  // the morph because they were already scrolling past it. New stop is
+  // 0.6 (fullscreen reached inside the pin), with ~14% of progress
+  // (≈48vh) of pinned dwell on the fullscreen state before pin releases.
+  //
   // (previewScale + previewRadius removed — replaced by cardWidth /
   // cardHeight / cardRadius below which drive the morph with real size,
   // not scale transform.)
-  // Dim — visible only during the final FULLSCREEN takeover (the end of
-  // the morph in the reversed flow). Starts at 0, ramps up as we approach
-  // fullscreen, peaks while fullscreen, holds through end of section.
+  // Dim — ramps in as we APPROACH fullscreen (0.55), peaks at fullscreen
+  // (0.6), holds through pin release and section exit.
   const previewDim = useTransform(
     smoothProgress,
-    [0.68, 0.78, 1],
+    [0.5, 0.6, 1],
     [0, 1, 1]
   )
   // Halo — dim while small (mobile/tablet/PC), brightens at fullscreen.
   const previewHaloOpacity = useTransform(
     smoothProgress,
-    [0.3, 0.7, 0.8, 1],
+    [0.25, 0.55, 0.6, 1],
     [0.35, 0.5, 1, 1]
   )
-  // Label + caption visible during the small device phases (mobile→PC),
-  // fade out as the card grows into the fullscreen takeover.
+  // Label + caption visible during the SMALL device phases (mobile + tablet),
+  // fade out BEFORE the card grows past the PC state — otherwise both
+  // overlap the iframe content once the card is near-fullscreen. Label
+  // fades earlier (it sits near the top where chrome reveals); caption
+  // fades just after, before chrome chrome paints in.
   const previewLabelY = useTransform(
     smoothProgress,
-    [0.7, 0.8],
+    [0.42, 0.48],
     [0, -24]
   )
   const previewLabelOpacity = useTransform(
     smoothProgress,
-    [0.28, 0.35, 0.7, 0.78],
+    [0.22, 0.32, 0.42, 0.48],
     [0, 1, 1, 0]
   )
   const previewCaptionOpacity = useTransform(
     smoothProgress,
-    [0.28, 0.35, 0.7, 0.78],
+    [0.22, 0.32, 0.46, 0.52],
     [0, 1, 1, 0]
   )
-  // Hint visible only during the final fullscreen hold, before section exits.
+  // Hint visible only during the fullscreen hold, before section exits.
   const previewHintOpacity = useTransform(
     smoothProgress,
-    [0.78, 0.85, 0.95, 1],
+    [0.6, 0.66, 0.92, 1],
     [0, 1, 1, 0]
   )
   // Browser chrome — visible during the PC window. Wider fade windows
-  // (overlap tablet camera on the way in, fullscreen on the way out) so
-  // it ribbons in/out instead of pop-clipping.
+  // so it ribbons in/out instead of pop-clipping.
   const chromeOpacity = useTransform(
     smoothProgress,
-    [0.56, 0.66, 0.74, 0.82],
+    [0.45, 0.52, 0.57, 0.62],
     [0, 1, 1, 0]
   )
-  // CRT scanline — present during the FINAL FULLSCREEN hold (the
-  // tube-warming-up moment at the end of the reversed morph).
+  // Iframe top inset — keeps the demo's first content (its own nav) from
+  // being hidden behind the simulated browser chrome bar when it appears
+  // in PC state. Tracks chrome opacity so the demo content shifts down
+  // exactly when chrome paints in and back up when chrome fades.
+  const iframeTopInset = useTransform(
+    smoothProgress,
+    [0.45, 0.52, 0.57, 0.62],
+    ['0px', '36px', '36px', '0px']
+  )
+  // CRT scanline — present during the FULLSCREEN hold.
   const scanlineOpacity = useTransform(
     smoothProgress,
-    [0.72, 0.78, 0.95, 1],
+    [0.55, 0.6, 0.95, 1],
     [0, 0.18, 0.18, 0]
   )
   // Tube vignette — same window as scanline.
   const vignetteOpacity = useTransform(
     smoothProgress,
-    [0.72, 0.8, 0.95, 1],
+    [0.55, 0.62, 0.95, 1],
     [0, 0.4, 0.4, 0]
   )
 
   // DEVICE MORPH — ONE card whose width / height / border-radius / border
   // thickness / browser-chrome visibility all animate together to walk the
-  // card through four states by scroll position. REVERSED direction —
-  // starts small (mobile) and grows to full screen:
-  //   • Mobile               (9:19, thicker phone bezel, notch)        @ 0.35
-  //   • Tablet               (4:3, thick rounded bezel, camera dot)    @ 0.5
-  //   • PC / desktop card    (16:10, browser chrome visible, thin)     @ 0.65
-  //   • Fullscreen takeover  (covers viewport)                          @ 0.8
+  // card through four states by scroll position. Starts small (mobile)
+  // and grows to fullscreen — and CRITICALLY, fullscreen is reached
+  // inside the sticky pin window so users see the takeover finish:
+  //   • Mobile               (9:19, phone bezel, notch)        @ 0.32
+  //   • Tablet               (4:3, thick rounded bezel)        @ 0.42
+  //   • PC / desktop card    (16:10, browser chrome, thin)     @ 0.52
+  //   • Fullscreen takeover  (covers viewport)                  @ 0.60
   // Width is in vw, height in vh — useTransform interpolates the numbers
   // and keeps the unit suffix.
-  // Card morph stops — kept evenly spaced so each device phase is the
-  // same "scroll budget". Height made monotonically-increasing (no dip
-  // at tablet) so the growth reads as a single continuous swell, not a
-  // wobble. Border-width changes broken into more intermediate stops so
-  // the bezel softens smoothly into the PC's thin border instead of
-  // jumping.
   const cardWidth = useTransform(
     smoothProgress,
-    [0.35, 0.5, 0.65, 0.8],
+    [0.32, 0.42, 0.52, 0.6],
     ['18vw', '40vw', '64vw', '98vw']
   )
   const cardHeight = useTransform(
     smoothProgress,
-    [0.35, 0.5, 0.65, 0.8],
+    [0.32, 0.42, 0.52, 0.6],
     ['56vh', '58vh', '66vh', '100vh']
   )
   const cardRadius = useTransform(
     smoothProgress,
-    [0.35, 0.5, 0.6, 0.7, 0.8],
+    [0.32, 0.42, 0.48, 0.55, 0.6],
     ['36px', '28px', '20px', '14px', '0px']
   )
   const cardBorderWidth = useTransform(
     smoothProgress,
-    [0.35, 0.45, 0.5, 0.58, 0.65, 0.8],
+    [0.32, 0.38, 0.42, 0.48, 0.52, 0.6],
     ['6px', '7px', '8px', '4px', '1px', '1px']
   )
-  // (pcChromeOpacity removed — `chromeOpacity` defined earlier already
-  // covers the PC chrome reveal at the same progress window.)
   // Device-type labels — three overlapping motion spans with WIDE crossfade
   // windows so the handoff between phases reads as a dissolve, not a clip.
-  // Each pair overlaps by ~6% of progress.
   const mobileLabelOpacity = useTransform(
     smoothProgress,
-    [0.28, 0.4, 0.48, 0.55],
+    [0.22, 0.32, 0.38, 0.45],
     [0, 1, 1, 0]
   )
   const tabletLabelOpacity = useTransform(
     smoothProgress,
-    [0.45, 0.54, 0.62, 0.7],
+    [0.38, 0.45, 0.5, 0.56],
     [0, 1, 1, 0]
   )
   const pcLabelOpacity = useTransform(
     smoothProgress,
-    [0.6, 0.7, 0.78, 0.85],
+    [0.5, 0.55, 0.58, 0.62],
     [0, 1, 1, 0]
   )
 
   // Mobile notch + home indicator — visible only during mobile state.
-  // Wider fade-out window so it dissolves into the tablet camera dot.
   const mobileNotchOpacity = useTransform(
     smoothProgress,
-    [0.28, 0.4, 0.5, 0.58],
+    [0.22, 0.32, 0.4, 0.46],
     [0, 1, 1, 0]
   )
-  // Tablet camera dot — wider fade windows on both sides so it crossfades
-  // with the mobile notch on entry and the PC chrome on exit.
+  // Tablet camera dot — crossfades with mobile notch on entry, PC chrome on exit.
   const tabletCameraOpacity = useTransform(
     smoothProgress,
-    [0.45, 0.54, 0.62, 0.7],
+    [0.38, 0.45, 0.5, 0.56],
     [0, 1, 1, 0]
   )
 
@@ -1204,7 +1206,7 @@ export default function HomePage() {
                 (no -mt-8 sucking it up against the logo strip). */}
             <section
               ref={previewRef}
-              className="relative h-[200vh] mt-2 mb-2"
+              className="relative h-[240vh] mt-2 mb-2"
             >
               <div className="sticky top-0 h-screen flex items-center justify-center overflow-hidden">
                 {/* Backdrop dim — covers the rest of the page when preview
@@ -1264,17 +1266,22 @@ export default function HomePage() {
                   )}
                 >
                   <AnimatePresence initial={false}>
-                    <motion.iframe
+                    <motion.div
                       key={demoIdx}
                       initial={{ opacity: 0, scale: 1.02 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 1.0, ease: [0.22, 1, 0.36, 1] }}
-                      srcDoc={DEMO_SITES[demoIdx].html}
-                      sandbox="allow-scripts"
-                      className="absolute inset-0 w-full h-full"
-                      title={`Demo: ${DEMO_SITES[demoIdx].label}`}
-                    />
+                      style={{ paddingTop: iframeTopInset }}
+                      className="absolute inset-0"
+                    >
+                      <iframe
+                        srcDoc={DEMO_SITES[demoIdx].html}
+                        sandbox="allow-scripts"
+                        className="w-full h-full block border-0"
+                        title={`Demo: ${DEMO_SITES[demoIdx].label}`}
+                      />
+                    </motion.div>
                   </AnimatePresence>
 
                   {/* CRT scanline overlay — fine repeating horizontal lines.

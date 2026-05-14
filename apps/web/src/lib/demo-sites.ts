@@ -19,9 +19,16 @@ export interface DemoSite {
 const baseHead = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script src="https://cdn.tailwindcss.com"></script><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet"><style>body{font-family:'Inter',sans-serif}.serif{font-family:'Playfair Display',Georgia,serif}</style></head>`
 
 // Helpers — keep image URLs short + readable inside the HTML strings.
+// PICSUM is kept for filler / texture imagery (random but stable per seed).
+// UNSPLASH is preferred for HERO images that need to match topic (e.g.,
+// "restaurant dining table") — we use stable Unsplash photo IDs that
+// reliably exist on their CDN. Sizes are intentionally small (max ~800px
+// wide) so a demo iframe loads in under a second over typical connections.
 const PICSUM = (seed: string, w: number, h: number) =>
   `https://picsum.photos/seed/${seed}/${w}/${h}`
-const AVATAR = (n: number) => `https://i.pravatar.cc/120?img=${n}`
+const UNSPLASH = (id: string, w: number, h?: number) =>
+  `https://images.unsplash.com/photo-${id}?w=${w}${h ? `&h=${h}&fit=crop` : ''}&q=70&auto=format`
+const AVATAR = (n: number) => `https://i.pravatar.cc/100?img=${n}`
 
 export const DEMO_SITES: DemoSite[] = [
   {
@@ -45,7 +52,7 @@ export const DEMO_SITES: DemoSite[] = [
 </section>
 <section class="px-4 sm:px-8 pb-6 sm:pb-12">
   <div class="max-w-5xl mx-auto rounded-xl sm:rounded-2xl overflow-hidden border border-white/10 shadow-2xl shadow-violet-500/10">
-    <img src="${PICSUM('analytics-dashboard', 1400, 800)}" alt="Aurora dashboard" class="w-full block">
+    <img src="${UNSPLASH('1551288049-bebda4e38f71', 1200, 700)}" alt="Aurora dashboard" loading="eager" decoding="async" class="w-full block aspect-[12/7] object-cover">
   </div>
 </section>
 <section class="px-4 sm:px-8 py-6 sm:py-10 border-t border-white/5">
