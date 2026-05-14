@@ -56,8 +56,22 @@ export async function loadProjectCms(projectId: string, userId: string): Promise
   return { ok: true, project, cms }
 }
 
-// Upsert a collection schema. Returns the persisted schema.
-export async function upsertSchema(projectId: string, schema: CmsStoreSchema): Promise<CmsStoreSchema> {
+// Upsert a collection schema. Returns the persisted schema along with any
+// orphan field keys we cleaned up — fields that existed in the old schema
+// but were dropped from the new one. We strip those keys from every item in
+// the collection so the data stays authoritative under the latest schema.
+// Callers can surface the orphan list to the user as a confirmation.
+export interface UpsertSchemaResult {
+  schema: CmsStoreSchema
+  removedFieldKeys: string[]
+  itemsAffected: number
+}
+
+export async function upsertSchema(
+  projectId: string,
+  schema: CmsStoreSchema,
+  prev?: CmsStoreSchema | null
+): Promise<UpsertSchemaResult> {
   const mongoose = await connectDB()
   const db = mongoose.connection.db!
   const now = new Date()
@@ -67,7 +81,38 @@ export async function upsertSchema(projectId: string, schema: CmsStoreSchema): P
     { _id: new ObjectId(projectId) },
     { $set: { [path]: next, updatedAt: now } }
   )
-  return next
+
+  // Detect dropped field keys and unset them from every item in the
+  // collection. Mongoose-bypass note still applies — direct driver.
+  let removedFieldKeys: string[] = []
+  let itemsAffected = 0
+  if (prev?.fields?.length) {
+    const newKeys = new Set(schema.fields.map((f) => f.key))
+    removedFieldKeys = prev.fields.map((f) => f.key).filter((k) => !newKeys.has(k))
+    if (removedFieldKeys.length > 0) {
+      const unsetSpec: Record<string, ''> = {}
+      // Load fresh to enumerate item slugs in this collection
+      const proj = await db.collection('projects').findOne(
+        { _id: new ObjectId(projectId) },
+        { projection: { [`cms.items.${schema.slug}`]: 1 } }
+      )
+      const items = (proj?.cms?.items?.[schema.slug] || {}) as Record<string, any>
+      for (const itemSlug of Object.keys(items)) {
+        for (const k of removedFieldKeys) {
+          unsetSpec[`cms.items.${schema.slug}.${itemSlug}.fields.${k}`] = ''
+        }
+      }
+      if (Object.keys(unsetSpec).length > 0) {
+        const res = await db.collection('projects').updateOne(
+          { _id: new ObjectId(projectId) },
+          { $unset: unsetSpec, $set: { updatedAt: now } }
+        )
+        itemsAffected = Object.keys(items).length
+      }
+    }
+  }
+
+  return { schema: next, removedFieldKeys, itemsAffected }
 }
 
 export async function deleteSchema(projectId: string, collection: string): Promise<void> {
@@ -86,11 +131,31 @@ export async function upsertItem(projectId: string, collection: string, item: Cm
   const mongoose = await connectDB()
   const db = mongoose.connection.db!
   const now = new Date()
+
+  // Load prior state so we can detect a draft→published transition. A
+  // re-publish (already-published item updated) shouldn't refire the
+  // notification — would be noisy on every edit.
+  const prior = await db.collection('projects').findOne(
+    { _id: new ObjectId(projectId) },
+    { projection: { [`cms.items.${collection}.${item.slug}`]: 1, userId: 1 } }
+  )
+  const wasPublished = prior?.cms?.items?.[collection]?.[item.slug]?.status === 'published'
+  const ownerId: string | undefined = prior?.userId?.toString?.()
+
   const stored: CmsStoreItem = { ...item, updatedAt: now, createdAt: item.createdAt || now }
   await db.collection('projects').updateOne(
     { _id: new ObjectId(projectId) },
     { $set: { [`cms.items.${collection}.${item.slug}`]: stored, updatedAt: now } }
   )
+
+  // Fire publish hook for newly-published items, fire-and-forget so a slow
+  // Composio call doesn't block the write. See lib/cms-publish-hook.ts.
+  if (stored.status === 'published' && !wasPublished && ownerId) {
+    import('@/lib/cms-publish-hook')
+      .then((m) => m.firePublishHook({ projectId, collection, item: stored, ownerId }))
+      .catch((e) => console.warn('[cms] publish hook import failed:', e?.message))
+  }
+
   return stored
 }
 

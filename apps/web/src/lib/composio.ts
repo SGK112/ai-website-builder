@@ -135,6 +135,65 @@ export async function disconnectAccount(connectedAccountId: string): Promise<voi
   })
 }
 
+// ── Tool actions (the verbs the agent can invoke per toolkit) ─────────────────
+
+export interface ToolkitAction {
+  slug: string          // e.g. "GMAIL_SEND_EMAIL"
+  name?: string         // human-readable
+  description?: string
+}
+
+const _actionCache = new Map<string, { at: number; data: ToolkitAction[] }>()
+const ACTION_CACHE_TTL_MS = 5 * 60 * 1000
+
+export async function listToolkitActions(toolkitSlug: string): Promise<ToolkitAction[]> {
+  const cached = _actionCache.get(toolkitSlug)
+  if (cached && Date.now() - cached.at < ACTION_CACHE_TTL_MS) return cached.data
+  // Composio's v3 tools endpoint
+  const data = await composio<{ items: any[] }>(
+    `/tools?toolkit_slugs=${encodeURIComponent(toolkitSlug)}&limit=200`
+  )
+  const out: ToolkitAction[] = (data.items || []).map((t) => ({
+    slug: t.slug || t.name || '',
+    name: t.name,
+    description: t.description?.slice?.(0, 300),
+  }))
+  _actionCache.set(toolkitSlug, { at: Date.now(), data: out })
+  return out
+}
+
+export interface ExecuteResult {
+  successful: boolean
+  data?: any
+  error?: string
+}
+
+// Execute a Composio tool/action on behalf of a connected user. The caller
+// must have previously connected the relevant toolkit — Composio returns an
+// auth error otherwise, which we surface as { successful: false, error }.
+export async function executeAction(opts: {
+  userId: string
+  actionSlug: string
+  args: Record<string, any>
+}): Promise<ExecuteResult> {
+  try {
+    const data = await composio<any>(`/tools/execute/${encodeURIComponent(opts.actionSlug)}`, {
+      method: 'POST',
+      body: {
+        user_id: opts.userId,
+        arguments: opts.args,
+      },
+    })
+    return {
+      successful: data.successful !== false,
+      data: data.data,
+      error: data.error || undefined,
+    }
+  } catch (e: any) {
+    return { successful: false, error: e?.message || String(e) }
+  }
+}
+
 // ── Display metadata for our UI (Composio's slugs vs human labels) ────────────
 
 interface ToolkitMeta {

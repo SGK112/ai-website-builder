@@ -34,11 +34,16 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
   if (!validated.ok) return NextResponse.json({ error: validated.error }, { status: 400 })
 
   const existing = loaded.cms.schemas[params.collection]
-  const saved = await upsertSchema(params.projectId, {
-    ...validated.schema,
-    createdAt: existing?.createdAt,
-  } as any)
-  return NextResponse.json({ schema: saved })
+  const result = await upsertSchema(
+    params.projectId,
+    { ...validated.schema, createdAt: existing?.createdAt } as any,
+    existing as any
+  )
+  return NextResponse.json({
+    schema: result.schema,
+    removedFieldKeys: result.removedFieldKeys,
+    itemsAffected: result.itemsAffected,
+  })
 }
 
 export async function DELETE(req: NextRequest, { params }: Ctx) {

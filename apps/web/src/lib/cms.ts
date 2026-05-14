@@ -87,3 +87,44 @@ export function coerceItemFields(schema: CmsSchema, raw: any): { ok: true; field
   }
   return { ok: true, fields: out }
 }
+
+// Reject when a required field is missing/null/empty in the MERGED result.
+// Use after a PATCH-style merge of existing + coerced.fields, or right after
+// coerceItemFields on a create. Centralizes the rule so PATCH + agent tools
+// don't drift.
+export function enforceRequiredFields(
+  schema: CmsSchema,
+  merged: Record<string, any>
+): { ok: true } | { ok: false; error: string } {
+  for (const f of schema.fields) {
+    if (!f.required) continue
+    const v = merged[f.key]
+    if (v === undefined || v === null || v === '') {
+      return { ok: false, error: `Required field "${f.key}" missing` }
+    }
+  }
+  return { ok: true }
+}
+
+// Validate that every reference-typed field points at an item that actually
+// exists in its target collection. Without this you can persist references
+// to slugs that were deleted or were never created — broken-data territory.
+export function validateReferences(
+  schema: CmsSchema,
+  merged: Record<string, any>,
+  itemsByCollection: Record<string, Record<string, any>>
+): { ok: true } | { ok: false; error: string } {
+  for (const f of schema.fields) {
+    if (f.type !== 'reference') continue
+    const v = merged[f.key]
+    if (v === null || v === undefined || v === '') continue // empty refs allowed unless required
+    const target = f.ref
+    if (!target) {
+      return { ok: false, error: `reference field "${f.key}" has no target collection configured` }
+    }
+    if (!itemsByCollection[target]?.[v]) {
+      return { ok: false, error: `reference field "${f.key}" points at "${target}/${v}" which doesn't exist` }
+    }
+  }
+  return { ok: true }
+}

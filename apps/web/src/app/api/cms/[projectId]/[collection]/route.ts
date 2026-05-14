@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { isSafeSlug, coerceItemFields } from '@/lib/cms'
+import { isSafeSlug, coerceItemFields, validateReferences } from '@/lib/cms'
 import { loadProjectCms, upsertItem } from '@/lib/cms-store'
 
 export const dynamic = 'force-dynamic'
@@ -63,6 +63,15 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       return NextResponse.json({ error: `Required field "${f.key}" missing` }, { status: 400 })
     }
   }
+
+  // Reject references to items that don't exist (was unchecked previously —
+  // broken-data risk).
+  const refOk = validateReferences(
+    schema as any,
+    coerced.fields,
+    loaded.cms.items as Record<string, Record<string, any>>
+  )
+  if (!refOk.ok) return NextResponse.json({ error: refOk.error }, { status: 400 })
 
   const saved = await upsertItem(params.projectId, params.collection, {
     slug: body.slug,

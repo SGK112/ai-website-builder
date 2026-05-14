@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { isSafeSlug, coerceItemFields } from '@/lib/cms'
+import { isSafeSlug, coerceItemFields, enforceRequiredFields, validateReferences } from '@/lib/cms'
 import { loadProjectCms, upsertItem, deleteItem } from '@/lib/cms-store'
 
 export const dynamic = 'force-dynamic'
@@ -53,8 +53,30 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   }
   if (body.status === 'draft' || body.status === 'published') next.status = body.status
 
+  // After merge: re-enforce required fields and reference targets. The audit
+  // turned up that PATCH could clear a required field (set it to null/empty)
+  // because required-check only ran on create. Now it runs everywhere.
+  const reqOk = enforceRequiredFields(r.schema as any, next.fields)
+  if (!reqOk.ok) return NextResponse.json({ error: reqOk.error }, { status: 400 })
+
+  // Reload project so we have all collections' items for the ref check.
+  // Tiny re-read, worth it for data integrity.
+  const fullLoad = await loadCtxAllItems(params.projectId, session.user.id)
+  if (fullLoad) {
+    const refOk = validateReferences(r.schema as any, next.fields, fullLoad)
+    if (!refOk.ok) return NextResponse.json({ error: refOk.error }, { status: 400 })
+  }
+
   const saved = await upsertItem(params.projectId, params.collection, next)
   return NextResponse.json({ item: saved })
+}
+
+// Helper — pulls all-items-by-collection for ref validation only.
+async function loadCtxAllItems(projectId: string, userId: string): Promise<Record<string, Record<string, any>> | null> {
+  const { loadProjectCms } = await import('@/lib/cms-store')
+  const loaded = await loadProjectCms(projectId, userId)
+  if (!loaded.ok) return null
+  return loaded.cms.items as Record<string, Record<string, any>>
 }
 
 export async function DELETE(req: NextRequest, { params }: Ctx) {

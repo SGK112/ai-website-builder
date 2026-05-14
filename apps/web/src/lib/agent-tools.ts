@@ -16,8 +16,22 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import { loadProjectCms, upsertItem, upsertSchema, deleteItem } from '@/lib/cms-store'
-import { isSafeSlug, coerceItemFields, validateSchema, type CmsSchema, type CmsItem } from '@/lib/cms'
+import {
+  isSafeSlug,
+  coerceItemFields,
+  enforceRequiredFields,
+  validateReferences,
+  validateSchema,
+  type CmsSchema,
+  type CmsItem,
+} from '@/lib/cms'
 import { gradeHtml, gradeWebsite } from '@/lib/grader'
+import {
+  SUPPORTED_TOOLKITS,
+  listUserConnections,
+  listToolkitActions,
+  executeAction,
+} from '@/lib/composio'
 
 export type VfsMap = Record<string, string>
 
@@ -173,6 +187,21 @@ export const TOOLS: Anthropic.Messages.Tool[] = [
     },
   },
   {
+    name: 'get_cms_item',
+    description:
+      'Read one CMS item by collection + slug. Returns { item, schema }. Use this when you ' +
+      'need to inspect a single item without paging the whole collection (cheaper than ' +
+      'list_cms_items if you already know the slug).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        collection: { type: 'string' },
+        slug:       { type: 'string' },
+      },
+      required: ['collection', 'slug'],
+    },
+  },
+  {
     name: 'delete_cms_item',
     description: 'Hard-delete one CMS item. Asks no confirmation; only use when the user clearly meant to delete.',
     input_schema: {
@@ -182,6 +211,61 @@ export const TOOLS: Anthropic.Messages.Tool[] = [
         slug:       { type: 'string' },
       },
       required: ['collection', 'slug'],
+    },
+  },
+  {
+    name: 'upload_image',
+    description:
+      'Upload an image from a public URL to Cloudinary, returning the hosted Cloudinary URL ' +
+      'you can store in CMS image fields or paste into <img src>. Use this when the user ' +
+      'gives you an image to "save" or "host" — the result is the durable URL, vs. a ' +
+      'fragile remote URL that might 404. Skip for picsum/unsplash URLs (those are already ' +
+      "fine to embed directly). Returns { url }.",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        sourceUrl: { type: 'string', description: 'http(s) URL to upload' },
+        publicId:  { type: 'string', description: 'Optional Cloudinary public_id (otherwise auto-generated)' },
+      },
+      required: ['sourceUrl'],
+    },
+  },
+  {
+    name: 'list_integrations',
+    description:
+      "List which third-party services the user has connected (Gmail, Slack, HubSpot, etc.). " +
+      "Use this when the user says 'send a Slack message', 'add this to my HubSpot', etc. — " +
+      "if the service isn't in the result, tell the user to connect it at /integrations first.",
+    input_schema: { type: 'object' as const, properties: {} },
+  },
+  {
+    name: 'list_integration_actions',
+    description:
+      'List the available actions (verbs) for a connected toolkit. Returns slugs you can pass to ' +
+      'run_integration_action. Example: for "gmail" you might get GMAIL_SEND_EMAIL, GMAIL_LIST_THREADS, ' +
+      'GMAIL_CREATE_DRAFT, etc.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        toolkit: { type: 'string', description: 'Toolkit slug (e.g. "gmail", "slack")' },
+      },
+      required: ['toolkit'],
+    },
+  },
+  {
+    name: 'run_integration_action',
+    description:
+      'Execute one action on the user\'s behalf via a connected toolkit. Example: send an email, ' +
+      'post a Slack message, create a HubSpot contact. The action slug comes from ' +
+      'list_integration_actions — DO NOT guess slugs. args is a JSON object matching the ' +
+      'action\'s parameter schema.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action: { type: 'string', description: 'Action slug, e.g. "GMAIL_SEND_EMAIL"' },
+        args:   { type: 'object', description: 'Parameters for the action' },
+      },
+      required: ['action', 'args'],
     },
   },
   {
@@ -306,8 +390,8 @@ export async function executeTool(
         if (loaded.cms.schemas[validated.schema.slug]) {
           return { ok: false, content: `Collection "${validated.schema.slug}" already exists` }
         }
-        const saved = await upsertSchema(vfs.cms.projectId, validated.schema as CmsSchema)
-        return { ok: true, content: `Created collection "${saved.slug}" with ${saved.fields.length} fields` }
+        const result = await upsertSchema(vfs.cms.projectId, validated.schema as CmsSchema, null)
+        return { ok: true, content: `Created collection "${result.schema.slug}" with ${result.schema.fields.length} fields` }
       }
       case 'create_cms_item': {
         if (!vfs.cms) return { ok: false, content: 'CMS not available in this session' }
@@ -324,12 +408,17 @@ export async function executeTool(
         }
         const coerced = coerceItemFields(schema as any, input?.fields || {})
         if (!coerced.ok) return { ok: false, content: coerced.error }
-        // Enforce required fields on create only.
-        for (const f of schema.fields) {
-          if (f.required && (coerced.fields[f.key] === undefined || coerced.fields[f.key] === null || coerced.fields[f.key] === '')) {
-            return { ok: false, content: `Required field "${f.key}" missing` }
-          }
-        }
+
+        const reqOk = enforceRequiredFields(schema as any, coerced.fields)
+        if (!reqOk.ok) return { ok: false, content: reqOk.error }
+
+        const refOk = validateReferences(
+          schema as any,
+          coerced.fields,
+          loaded.cms.items as Record<string, Record<string, any>>
+        )
+        if (!refOk.ok) return { ok: false, content: refOk.error }
+
         const item: CmsItem = {
           slug,
           fields: coerced.fields,
@@ -355,8 +444,121 @@ export async function executeTool(
           next.fields = { ...existing.fields, ...coerced.fields }
         }
         if (input?.status === 'draft' || input?.status === 'published') next.status = input.status
+
+        // Required + reference checks AFTER the merge — previously only ran
+        // on create, so a partial update could blank a required field.
+        const reqOk = enforceRequiredFields(schema as any, next.fields)
+        if (!reqOk.ok) return { ok: false, content: reqOk.error }
+        const refOk = validateReferences(
+          schema as any,
+          next.fields,
+          loaded.cms.items as Record<string, Record<string, any>>
+        )
+        if (!refOk.ok) return { ok: false, content: refOk.error }
+
         const saved = await upsertItem(vfs.cms.projectId, collection, next)
         return { ok: true, content: `Updated "${collection}/${saved.slug}" (status: ${saved.status})` }
+      }
+      case 'get_cms_item': {
+        if (!vfs.cms) return { ok: false, content: 'CMS not available in this session' }
+        const collection = String(input?.collection || '').trim()
+        const slug = String(input?.slug || '').trim()
+        if (!isSafeSlug(collection) || !isSafeSlug(slug)) return { ok: false, content: 'Invalid collection or item slug' }
+        const loaded = await loadProjectCms(vfs.cms.projectId, vfs.cms.userId)
+        if (!loaded.ok) return { ok: false, content: `CMS load failed: ${loaded.error}` }
+        const schema = loaded.cms.schemas[collection]
+        const item = loaded.cms.items[collection]?.[slug]
+        if (!schema || !item) return { ok: false, content: `Item "${collection}/${slug}" not found` }
+        return { ok: true, content: JSON.stringify({ schema, item }) }
+      }
+      case 'upload_image': {
+        if (!vfs.cms) return { ok: false, content: 'Upload requires a project context (cms.projectId/userId)' }
+        const sourceUrl = String(input?.sourceUrl || '').trim()
+        if (!/^https?:\/\//i.test(sourceUrl)) return { ok: false, content: 'sourceUrl must be http(s)://' }
+        try {
+          const cloud = process.env.CLOUDINARY_CLOUD_NAME
+          const key = process.env.CLOUDINARY_API_KEY
+          const secret = process.env.CLOUDINARY_API_SECRET
+          if (!cloud || !key || !secret) {
+            return { ok: false, content: 'Cloudinary not configured on this deploy. Embed the source URL directly instead.' }
+          }
+          // Cloudinary's fetch-via-URL upload — no need to stream bytes through
+          // us. Sign per their docs.
+          const timestamp = Math.floor(Date.now() / 1000)
+          const publicId = String(input?.publicId || `agent-${timestamp}`)
+          const folder = `webstew/${vfs.cms.userId}`
+          const paramsToSign = `folder=${folder}&public_id=${publicId}&timestamp=${timestamp}${secret}`
+          const crypto = await import('crypto')
+          const signature = crypto.createHash('sha1').update(paramsToSign).digest('hex')
+          const form = new URLSearchParams()
+          form.set('file', sourceUrl)
+          form.set('api_key', key)
+          form.set('timestamp', String(timestamp))
+          form.set('signature', signature)
+          form.set('public_id', publicId)
+          form.set('folder', folder)
+          const res = await fetch(`https://api.cloudinary.com/v1_1/${cloud}/image/upload`, {
+            method: 'POST',
+            body: form,
+          })
+          const data = await res.json()
+          if (!res.ok || !data.secure_url) {
+            return { ok: false, content: `Cloudinary upload failed: ${data.error?.message || JSON.stringify(data).slice(0, 200)}` }
+          }
+          return { ok: true, content: JSON.stringify({ url: data.secure_url, publicId: data.public_id }) }
+        } catch (e: any) {
+          return { ok: false, content: `upload_image error: ${e?.message || e}` }
+        }
+      }
+      case 'list_integrations': {
+        if (!vfs.cms?.userId) return { ok: false, content: 'Integrations require a user context' }
+        try {
+          const conns = await listUserConnections(vfs.cms.userId)
+          const byToolkit = new Map(conns.map((c) => [c.toolkitSlug, c]))
+          const out = SUPPORTED_TOOLKITS.map((t) => ({
+            toolkit: t.slug,
+            label: t.label,
+            connected: byToolkit.get(t.slug)?.status === 'ACTIVE',
+          }))
+          return { ok: true, content: JSON.stringify(out) }
+        } catch (e: any) {
+          return { ok: false, content: `list_integrations error: ${e?.message || e}` }
+        }
+      }
+      case 'list_integration_actions': {
+        const toolkit = String(input?.toolkit || '').trim().toLowerCase()
+        if (!toolkit) return { ok: false, content: 'toolkit is required' }
+        try {
+          const actions = await listToolkitActions(toolkit)
+          // Return a compact list — slug + 1-line description. The full set
+          // can be 50+ per toolkit; cap to 30 to keep tool_result small.
+          const trimmed = actions.slice(0, 30).map((a) => ({
+            slug: a.slug,
+            description: a.description?.slice(0, 140),
+          }))
+          return { ok: true, content: JSON.stringify({ toolkit, actions: trimmed, total: actions.length }) }
+        } catch (e: any) {
+          return { ok: false, content: `list_integration_actions error: ${e?.message || e}` }
+        }
+      }
+      case 'run_integration_action': {
+        if (!vfs.cms?.userId) return { ok: false, content: 'run_integration_action requires a user context' }
+        const action = String(input?.action || '').trim()
+        if (!action) return { ok: false, content: 'action is required' }
+        const args = (input && typeof input.args === 'object' && input.args) || {}
+        try {
+          const result = await executeAction({ userId: vfs.cms.userId, actionSlug: action, args })
+          if (!result.successful) {
+            return { ok: false, content: `Action failed: ${result.error || 'unknown error'}` }
+          }
+          // Trim the response — Composio sometimes returns huge payloads
+          // (Gmail thread bodies, Drive file lists). Cap to 4KB so the
+          // tool_result doesn't blow the context window.
+          const serialized = JSON.stringify(result.data ?? null)
+          return { ok: true, content: serialized.length > 4000 ? serialized.slice(0, 4000) + '…' : serialized }
+        } catch (e: any) {
+          return { ok: false, content: `run_integration_action error: ${e?.message || e}` }
+        }
       }
       case 'delete_cms_item': {
         if (!vfs.cms) return { ok: false, content: 'CMS not available in this session' }
