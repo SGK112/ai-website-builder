@@ -80,7 +80,13 @@ export async function POST(req: NextRequest) {
     isPublic: true,
   })
 
-  const origin = req.nextUrl.origin
+  // Canonical share URLs MUST point at the production origin, not whatever
+  // hostname/port the request happened to land on (localhost:5001 in dev,
+  // ai-website-builder-ntzg.onrender.com if someone bypasses CF, etc).
+  // NEXT_PUBLIC_SITE_URL is set in env to https://www.webstew.net.
+  const origin =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') ||
+    'https://www.webstew.net'
   return NextResponse.json({
     token,
     shareUrl: `${origin}/grader/r/${token}`,

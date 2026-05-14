@@ -195,6 +195,12 @@ export default function AdminPage() {
             <span className="text-xs text-muted-foreground font-mono">{userEmail}</span>
           </div>
           <div className="flex items-center gap-3">
+            <Link
+              href="/admin/listings"
+              className="text-xs px-2.5 py-1 rounded-lg bg-violet-500/15 border border-violet-500/30 text-violet-200 hover:bg-violet-500/25 transition"
+            >
+              Listings queue
+            </Link>
             <button
               onClick={() => { loadStats(); loadUsers() }}
               className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded transition"

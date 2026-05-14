@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
+import { isAdminEmail } from '@ai-website-builder/database'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,8 +46,30 @@ export async function GET(request: NextRequest) {
     const db = client.db('ai-website-builder')
     const collection = db.collection('community_posts')
 
-    // Build query
+    // Build query. Listings are visible publicly only after admin approval
+    // (status: 'approved'). Posts that pre-date the moderation field don't
+    // have a status — treat those as approved for backwards compat. Hidden
+    // statuses: 'pending' (awaiting review), 'rejected' (admin removed).
+    // Admins see everything; signed-in non-admin users see their own
+    // pending/rejected posts so they know what's happening with submissions.
+    const viewerSession = await getServerSession(authOptions).catch(() => null)
+    const viewerEmail = viewerSession?.user?.email || ''
+    const viewerIsAdmin = !!viewerEmail && isAdminEmail(viewerEmail)
+    const viewerId = viewerSession?.user?.id || ''
+
     const query: any = { isPublic: true }
+    if (!viewerIsAdmin) {
+      if (viewerId) {
+        // Authed but not admin: approved OR your own (regardless of status).
+        query.$or = [
+          { status: { $nin: ['pending', 'rejected'] } },
+          { 'author.id': viewerId },
+        ]
+      } else {
+        // Anon: only approved.
+        query.status = { $nin: ['pending', 'rejected'] }
+      }
+    }
     if (type) query.type = type
     if (category) query.category = category
     if (search) {
@@ -110,8 +133,15 @@ export async function POST(request: NextRequest) {
     const db = client.db('ai-website-builder')
     const collection = db.collection('community_posts')
 
+    // Moderation status. Admins auto-approve their own posts; everyone
+    // else starts in 'pending' until an admin reviews. The author can see
+    // their own pending posts on /community via the per-user $or branch
+    // in the GET handler.
+    const authorIsAdmin = !!session.user.email && isAdminEmail(session.user.email)
+    const status: 'pending' | 'approved' = authorIsAdmin ? 'approved' : 'pending'
+
     // SECURITY: Use server-side session for author info (not client-provided)
-    const post: CommunityPost = {
+    const post: any = {
       type,
       title,
       description: description || '',
@@ -130,6 +160,7 @@ export async function POST(request: NextRequest) {
       downloads: 0,
       comments: 0,
       isPublic,
+      status,
       createdAt: new Date(),
       updatedAt: new Date(),
     }

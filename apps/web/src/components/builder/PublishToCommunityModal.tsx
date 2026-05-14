@@ -103,13 +103,22 @@ export function PublishToCommunityModal({
       if (!res.ok) {
         throw new Error(data.error || `HTTP ${res.status}`)
       }
-      setSuccess('Published! View it in the community feed.')
+      // Status comes back on the post — 'pending' means it's queued for
+      // admin review, 'approved' means it's already live (admin authors
+      // auto-approve their own posts).
+      const isPending = data?.post?.status === 'pending'
+      setSuccess(
+        isPending
+          ? 'Submitted for review. You\'ll see it in the community feed as soon as an admin approves it (usually within a day).'
+          : 'Published! View it in the community feed.'
+      )
       // Close after a moment so the user sees the confirmation.
       setTimeout(() => {
         onClose()
-        // Soft nav to the community feed so they see their listing.
+        // Soft nav to the community feed so they see their listing
+        // (pending posts are visible to their own author).
         window.location.href = '/community'
-      }, 1200)
+      }, 2000)
     } catch (e: any) {
       setError(e?.message || 'Failed to publish')
     } finally {
