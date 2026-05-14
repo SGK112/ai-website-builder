@@ -107,18 +107,21 @@ export function PublishToCommunityModal({
       // admin review, 'approved' means it's already live (admin authors
       // auto-approve their own posts).
       const isPending = data?.post?.status === 'pending'
+      const username: string | undefined = data?.post?.author?.username
+      const profileUrl = username ? `/u/${username}` : '/community'
       setSuccess(
         isPending
-          ? 'Submitted for review. You\'ll see it in the community feed as soon as an admin approves it (usually within a day).'
-          : 'Published! View it in the community feed.'
+          ? `Submitted for review. As soon as an admin approves it, it'll show up on your creator page${username ? ` at /u/${username}` : ''}.`
+          : `Published! View your creator page${username ? ` at /u/${username}` : ''}.`
       )
       // Close after a moment so the user sees the confirmation.
       setTimeout(() => {
         onClose()
-        // Soft nav to the community feed so they see their listing
-        // (pending posts are visible to their own author).
-        window.location.href = '/community'
-      }, 2000)
+        // For approved (auto-admin), land them on their public profile so
+        // they see their listing live. For pending, send to /community
+        // where their own pending posts are visible.
+        window.location.href = isPending ? '/community' : profileUrl
+      }, 2200)
     } catch (e: any) {
       setError(e?.message || 'Failed to publish')
     } finally {
