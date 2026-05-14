@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import {
@@ -40,7 +40,9 @@ interface Project {
   description: string
   author: {
     name: string
-    avatar: string
+    username?: string   // links to /u/<username>; missing for legacy demo data
+    avatar: string       // letter for demo data, URL for real listings
+    avatarUrl?: string   // real avatar URL when available
     badge?: 'pro' | 'top' | 'new'
   }
   thumbnail: string
@@ -155,6 +157,44 @@ const topCreators = [
   { name: 'Lisa Park', projects: 25, followers: 543, avatar: 'L', badge: 'pro' },
 ]
 
+function AuthorAvatar({
+  avatarUrl,
+  fallback,
+  isDark,
+  size = 'md',
+}: {
+  avatarUrl?: string
+  fallback: string
+  isDark: boolean
+  size?: 'sm' | 'md'
+}) {
+  const dim = size === 'sm' ? 'w-7 h-7 text-xs' : 'w-8 h-8 text-sm'
+  if (avatarUrl) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={fallback}
+        className={cn(dim, 'rounded-full object-cover')}
+        onError={(e) => {
+          const img = e.currentTarget
+          // Hide broken avatar; container shows the letter fallback via the
+          // next render if we toggle state — for simplicity just hide.
+          img.style.display = 'none'
+        }}
+      />
+    )
+  }
+  return (
+    <div className={cn(
+      dim,
+      'rounded-full flex items-center justify-center font-medium',
+      isDark ? 'bg-white/10' : 'bg-zinc-100'
+    )}>
+      {fallback}
+    </div>
+  )
+}
+
 export default function CommunityPage() {
   const { theme } = useTheme()
   const isDark = theme === 'dark'
@@ -163,8 +203,70 @@ export default function CommunityPage() {
   const [sortBy, setSortBy] = useState<'trending' | 'recent' | 'popular'>('trending')
   const [likedProjects, setLikedProjects] = useState<string[]>([])
   const [savedProjects, setSavedProjects] = useState<string[]>([])
+  // Real listings from /api/community/posts (replaces the legacy mockProjects
+  // demo data that used to live here as a placeholder). Mock list is kept as
+  // a tail fallback only so the page doesn't go empty during the first hours
+  // post-launch while we're below ~6 approved listings.
+  const [realProjects, setRealProjects] = useState<Project[]>([])
+  const [loadingProjects, setLoadingProjects] = useState(true)
 
-  const filteredProjects = mockProjects.filter(project => {
+  // Map a CommunityPost from /api/community/posts → the local Project shape
+  // this UI was built around. Adapter so we didn't have to rewrite the card.
+  const adaptPost = (post: any): Project => {
+    const username: string = post?.author?.username || ''
+    const name: string = post?.author?.name || username || 'Anonymous'
+    return {
+      id: String(post._id),
+      title: post.title || 'Untitled',
+      description: post.description || '',
+      author: {
+        name,
+        username,
+        avatar: (name[0] || username[0] || '?').toUpperCase(),
+        avatarUrl: post?.author?.avatar,
+      },
+      thumbnail: post.thumbnail || `https://picsum.photos/seed/${post._id}/600/400`,
+      category: post.category || 'general',
+      likes: post.likes || 0,
+      views: post.views || 0,
+      comments: post.comments || 0,
+      createdAt: post.createdAt
+        ? new Date(post.createdAt).toLocaleDateString()
+        : '',
+      featured: false,
+    }
+  }
+
+  useEffect(() => {
+    let alive = true
+    setLoadingProjects(true)
+    const params = new URLSearchParams()
+    if (activeCategory !== 'all') params.set('category', activeCategory)
+    if (searchQuery.trim()) params.set('search', searchQuery.trim())
+    params.set('sort', sortBy === 'recent' ? 'recent' : sortBy === 'popular' ? 'popular' : 'trending')
+    params.set('limit', '60')
+    fetch(`/api/community/posts?${params.toString()}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((data) => {
+        if (!alive) return
+        const items: Project[] = Array.isArray(data?.posts) ? data.posts.map(adaptPost) : []
+        setRealProjects(items)
+      })
+      .catch(() => { if (alive) setRealProjects([]) })
+      .finally(() => { if (alive) setLoadingProjects(false) })
+    return () => { alive = false }
+  }, [activeCategory, searchQuery, sortBy])
+
+  // Combined feed: real listings first, demo data as filler ONLY when the
+  // feed would otherwise feel empty. As real volume picks up, drop the demo
+  // tail entirely — that's a one-line change.
+  const SHOW_DEMOS_BELOW = 6
+  const combined: Project[] =
+    realProjects.length >= SHOW_DEMOS_BELOW
+      ? realProjects
+      : [...realProjects, ...mockProjects]
+
+  const filteredProjects = combined.filter(project => {
     if (activeCategory !== 'all' && project.category !== activeCategory) return false
     if (searchQuery && !project.title.toLowerCase().includes(searchQuery.toLowerCase())) return false
     return true
@@ -500,15 +602,28 @@ export default function CommunityPage() {
                         </div>
                       </div>
                       <div className="p-4 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className={cn(
-                            'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium',
-                            isDark ? 'bg-white/10' : 'bg-zinc-100'
-                          )}>
-                            {project.author.avatar}
+                        {project.author.username ? (
+                          <Link
+                            href={`/u/${project.author.username}`}
+                            className="flex items-center gap-2 group/author hover:opacity-80 transition"
+                          >
+                            <AuthorAvatar
+                              avatarUrl={project.author.avatarUrl}
+                              fallback={project.author.avatar}
+                              isDark={isDark}
+                            />
+                            <span className="text-sm font-medium group-hover/author:underline">{project.author.name}</span>
+                          </Link>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <AuthorAvatar
+                              avatarUrl={project.author.avatarUrl}
+                              fallback={project.author.avatar}
+                              isDark={isDark}
+                            />
+                            <span className="text-sm font-medium">{project.author.name}</span>
                           </div>
-                          <span className="text-sm font-medium">{project.author.name}</span>
-                        </div>
+                        )}
                         <div className="flex items-center gap-3 text-sm text-zinc-500">
                           <span className="flex items-center gap-1">
                             <Heart className="w-4 h-4" />
@@ -591,35 +706,49 @@ export default function CommunityPage() {
 
                     {/* Author & Stats */}
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="relative">
-                          <div className={cn(
-                            'w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium',
-                            isDark ? 'bg-white/10' : 'bg-zinc-100'
-                          )}>
-                            {project.author.avatar}
-                          </div>
-                          {project.author.badge && (
-                            <div className={cn(
-                              'absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full flex items-center justify-center',
-                              project.author.badge === 'pro'
-                                ? 'bg-violet-500'
-                                : project.author.badge === 'top'
-                                  ? 'bg-amber-500'
-                                  : 'bg-emerald-500'
-                            )}>
-                              {project.author.badge === 'pro' ? (
-                                <Crown className="w-2 h-2 text-white" />
-                              ) : project.author.badge === 'top' ? (
-                                <Star className="w-2 h-2 text-white" />
-                              ) : (
-                                <Zap className="w-2 h-2 text-white" />
+                      {(() => {
+                        const inner = (
+                          <>
+                            <div className="relative">
+                              <AuthorAvatar
+                                avatarUrl={project.author.avatarUrl}
+                                fallback={project.author.avatar}
+                                isDark={isDark}
+                                size="sm"
+                              />
+                              {project.author.badge && (
+                                <div className={cn(
+                                  'absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full flex items-center justify-center',
+                                  project.author.badge === 'pro'
+                                    ? 'bg-violet-500'
+                                    : project.author.badge === 'top'
+                                      ? 'bg-amber-500'
+                                      : 'bg-emerald-500'
+                                )}>
+                                  {project.author.badge === 'pro' ? (
+                                    <Crown className="w-2 h-2 text-white" />
+                                  ) : project.author.badge === 'top' ? (
+                                    <Star className="w-2 h-2 text-white" />
+                                  ) : (
+                                    <Zap className="w-2 h-2 text-white" />
+                                  )}
+                                </div>
                               )}
                             </div>
-                          )}
-                        </div>
-                        <span className="text-sm">{project.author.name}</span>
-                      </div>
+                            <span className="text-sm">{project.author.name}</span>
+                          </>
+                        )
+                        return project.author.username ? (
+                          <Link
+                            href={`/u/${project.author.username}`}
+                            className="flex items-center gap-2 hover:opacity-80 transition"
+                          >
+                            {inner}
+                          </Link>
+                        ) : (
+                          <div className="flex items-center gap-2">{inner}</div>
+                        )
+                      })()}
                       <div className="flex items-center gap-3">
                         <button
                           onClick={() => toggleLike(project.id)}
