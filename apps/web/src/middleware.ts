@@ -6,7 +6,7 @@ import { getToken } from 'next-auth/jwt'
 // the route). /app-builder + multi-target generate routes stay gated — those
 // are the iteration / power-user surfaces, and signup makes sense there.
 // Save/Deploy/CMS/profile/dashboard/admin all remain gated.
-const GATED_PAGE_PREFIXES = ['/app-builder', '/dashboard', '/profile', '/admin', '/integrations']
+const GATED_PAGE_PREFIXES = ['/app-builder', '/dashboard', '/profile', '/admin', '/integrations', '/workspace']
 const GATED_API_PREFIXES = [
   '/api/builder/converse',
   '/api/builder/chat',

@@ -31,6 +31,14 @@ export interface Template {
 }
 
 // GET /api/templates - Fetch all templates or filter by category
+//
+// Auth posture:
+// - Metadata (list view + single-by-id without html/css/js): anon-accessible
+//   so the landing page tile grid works without sign-in.
+// - Full source content (html_content, css_content, js_content): REQUIRES
+//   auth. Without this, any anon caller can hit `?id=<x>&select=*` and pull
+//   premium template HTML for free. The metadata fields are kept open
+//   (thumbnail, description, name, etc.) so the catalog still renders.
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
@@ -45,14 +53,23 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    const session = await getServerSession(authOptions).catch(() => null)
+    const isAuthed = !!session?.user?.id
+
     // Build query
     let query = `${SUPABASE_URL}/rest/v1/templates?`
 
     if (id) {
-      // Fetch single template with full HTML
-      query += `id=eq.${id}&select=*`
+      // Single template by id. Authed callers get the full source; anon
+      // gets metadata only — the source is the paid asset.
+      if (isAuthed) {
+        query += `id=eq.${id}&select=*`
+      } else {
+        query += `id=eq.${id}&select=id,name,description,category,industry,thumbnail_url,preview_url,is_premium,price_credits,created_at`
+      }
     } else {
-      // Fetch list (without full HTML to reduce payload)
+      // List view — metadata only regardless of auth state. Same fields for
+      // anon + authed so the catalog UI is consistent.
       query += `select=id,name,description,category,industry,thumbnail_url,preview_url,is_premium,price_credits,created_at`
 
       if (category) {
