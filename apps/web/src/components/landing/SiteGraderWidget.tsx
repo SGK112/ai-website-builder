@@ -26,6 +26,12 @@ interface GraderResult {
   }
   issues: string[]
   recommendations: string[]
+  // Server-stamped quota state — UI shows "X of N free" / "X left today"
+  quota?: {
+    remaining: number
+    limit: number
+    scope: 'anon-lifetime' | 'daily'
+  }
 }
 
 interface Props {
@@ -69,9 +75,15 @@ export function SiteGraderWidget({ isDark }: Props) {
         )
         return
       }
+      // 402 = anon cookie cap exhausted. 401/403 = bot/abuse guard blocked.
+      if (res.status === 402) {
+        const data = await res.json().catch(() => ({}))
+        setError(data?.error || "You've used your 3 free grades. Sign up free for 25/day.")
+        return
+      }
       if (res.status === 401 || res.status === 403) {
         setError(
-          "Free grader limit reached on this browser. Sign up free (no card) and grade unlimited sites."
+          "Sign up free (no card) to continue grading sites."
         )
         return
       }
@@ -116,6 +128,14 @@ export function SiteGraderWidget({ isDark }: Props) {
 
   const handleShare = async () => {
     if (!result || !url.trim() || sharing) return
+    // Sharing is signup-walled (intentional: it's a value-add of having an
+    // account). Don't even hit the API for anon — send them straight to
+    // signup with a next= that reopens the report when they return.
+    if (sessionStatus !== 'authenticated') {
+      const next = `/grader?url=${encodeURIComponent(url.trim())}`
+      router.push(`/signup?next=${encodeURIComponent(next)}`)
+      return
+    }
     setSharing(true)
     try {
       let finalUrl = shareUrl
@@ -401,9 +421,8 @@ export function SiteGraderWidget({ isDark }: Props) {
                 </button>
               </div>
 
-              {/* Share — mints a permalink so the user can send their
-                  report card to a teammate / post it. Native share on
-                  mobile, clipboard fallback on desktop. */}
+              {/* Share — anon goes to /signup, authed mints a permalink
+                  and uses native-share on mobile, clipboard on desktop. */}
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
@@ -415,6 +434,7 @@ export function SiteGraderWidget({ isDark }: Props) {
                       ? "border-white/10 bg-white/[0.03] hover:bg-white/[0.06] text-white"
                       : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
                   )}
+                  title={sessionStatus === 'authenticated' ? undefined : 'Sign up free to share reports'}
                 >
                   {sharing ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -423,7 +443,13 @@ export function SiteGraderWidget({ isDark }: Props) {
                   ) : (
                     <Share2 className="w-4 h-4" />
                   )}
-                  {sharing ? 'Generating link…' : shareCopied ? 'Link copied!' : 'Share report'}
+                  {sharing
+                    ? 'Generating link…'
+                    : shareCopied
+                      ? 'Link copied!'
+                      : sessionStatus === 'authenticated'
+                        ? 'Share report'
+                        : 'Sign up to share'}
                 </button>
                 {shareUrl && !shareCopied && (
                   <a
@@ -439,6 +465,21 @@ export function SiteGraderWidget({ isDark }: Props) {
                   </a>
                 )}
               </div>
+
+              {/* Quota indicator — server stamps the response with usage
+                  state so the user always knows where they stand. */}
+              {result.quota && (
+                <p className={cn(
+                  "mt-3 text-xs",
+                  isDark ? "text-zinc-500" : "text-slate-500"
+                )}>
+                  {result.quota.scope === 'daily'
+                    ? `${result.quota.remaining} of ${result.quota.limit} grades left today.`
+                    : result.quota.remaining > 0
+                      ? `${result.quota.remaining} of ${result.quota.limit} free grades left on this browser. Sign up free for ${25}/day.`
+                      : `Last free grade used on this browser. Sign up free for 25/day.`}
+                </p>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

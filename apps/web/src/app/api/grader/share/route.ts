@@ -22,11 +22,19 @@ function makeToken(): string {
 }
 
 export async function POST(req: NextRequest) {
+  // Share is signed-in-only — viewing reports is public but minting them
+  // requires an account. Per the auth model: anon can grade (3 free) but
+  // sharing/downloading/printing is signup-walled.
   const session = await getServerSession(authOptions).catch(() => null)
   if (!session?.user?.id) {
-    const blocked = guardAnonAbuse(req, { rateLimit: 'anonAi' })
-    if (blocked) return blocked
+    return NextResponse.json(
+      { error: 'Sign up free to share your report cards.', signupWall: true },
+      { status: 401 }
+    )
   }
+  // Bot/reputation guard still applies (defense-in-depth).
+  const blocked = guardAnonAbuse(req)
+  if (blocked) return blocked
 
   let body: { url?: string; result?: any }
   try {
