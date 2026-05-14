@@ -10,6 +10,7 @@ import { authOptions } from '@/lib/auth'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
 import { isAdminEmail } from '@ai-website-builder/database'
+import { sendMail } from '@/lib/mailer'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,6 +64,59 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!r?.value) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   await audit(`listing.${status}`, params.id, session.user!.email!, body.note)
+
+  // Fire-and-forget notification to the author when a listing goes live or
+  // gets rejected. Best-effort — never block the admin response on SMTP.
+  // Skip seed/dummy accounts (their email domain ends in @webstew.demo and
+  // those mailboxes don't exist, would just bounce noise).
+  if (status === 'approved' || status === 'rejected') {
+    const post: any = r.value
+    void (async () => {
+      try {
+        const authorId = post?.author?.id
+        if (!authorId || !ObjectId.isValid(authorId)) return
+        const user = await db
+          .collection('users')
+          .findOne({ _id: new ObjectId(authorId) }, { projection: { email: 1, name: 1, username: 1 } })
+        const to: string | undefined = user?.email
+        if (!to || to.endsWith('@webstew.demo')) return
+        const username: string | undefined = user?.username || post?.author?.username
+        const profileUrl = username ? `https://www.webstew.net/u/${username}` : 'https://www.webstew.net/community'
+        const niceName = user?.name || username || 'there'
+        if (status === 'approved') {
+          await sendMail({
+            to,
+            subject: `Your listing is live · ${post.title}`,
+            text:
+              `Hey ${niceName},\n\n` +
+              `Your listing "${post.title}" was just approved and is live in the Webstew community.\n\n` +
+              `View it: ${profileUrl}\n\n` +
+              `Thanks for sharing your work — keep building.\n` +
+              `— Webstew`,
+            html:
+              `<p>Hey ${niceName},</p>` +
+              `<p>Your listing <strong>${post.title}</strong> was just approved and is live in the Webstew community.</p>` +
+              `<p><a href="${profileUrl}" style="color:#7c3aed">View your creator page →</a></p>` +
+              `<p style="color:#71717a;font-size:12px">— Webstew</p>`,
+          })
+        } else if (status === 'rejected') {
+          const reason = body.note ? `\n\nReason: ${body.note}` : ''
+          await sendMail({
+            to,
+            subject: `Your listing wasn't approved · ${post.title}`,
+            text:
+              `Hey ${niceName},\n\n` +
+              `Your listing "${post.title}" wasn't approved for the community feed this time.${reason}\n\n` +
+              `You can edit + resubmit at any time from your workspace.\n\n` +
+              `— Webstew`,
+          })
+        }
+      } catch (e: any) {
+        console.warn('[listing-moderation] author email failed:', e?.message || e)
+      }
+    })()
+  }
+
   return NextResponse.json({ post: r.value })
 }
 

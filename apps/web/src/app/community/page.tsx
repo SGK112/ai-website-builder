@@ -249,8 +249,15 @@ export default function CommunityPage() {
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((data) => {
         if (!alive) return
-        const items: Project[] = Array.isArray(data?.posts) ? data.posts.map(adaptPost) : []
+        const posts: any[] = Array.isArray(data?.posts) ? data.posts : []
+        const items: Project[] = posts.map(adaptPost)
         setRealProjects(items)
+        // Hydrate the like/save state from the server so the heart and
+        // bookmark icons render in the right state on first paint.
+        const likedIds = posts.filter((p) => p.viewerLiked).map((p) => String(p._id))
+        const savedIds = posts.filter((p) => p.viewerSaved).map((p) => String(p._id))
+        setLikedProjects((prev) => Array.from(new Set([...prev, ...likedIds])))
+        setSavedProjects((prev) => Array.from(new Set([...prev, ...savedIds])))
       })
       .catch(() => { if (alive) setRealProjects([]) })
       .finally(() => { if (alive) setLoadingProjects(false) })
@@ -272,16 +279,42 @@ export default function CommunityPage() {
     return true
   })
 
-  const toggleLike = (id: string) => {
-    setLikedProjects(prev =>
-      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
-    )
+  // Optimistic toggle — flips local state immediately, then calls the
+  // server. If the server rejects (e.g. anon, 401), we route the user to
+  // signup and roll back the local state. Likes & saves are one-per-user
+  // server-side (set semantics) so spam clicks can't inflate counts.
+  const toggleLike = async (id: string) => {
+    const willLike = !likedProjects.includes(id)
+    setLikedProjects(prev => willLike ? [...prev, id] : prev.filter(p => p !== id))
+    try {
+      const res = await fetch(`/api/community/posts/${id}/like`, { method: 'POST' })
+      if (res.status === 401) {
+        // Roll back + walk anon to signup
+        setLikedProjects(prev => willLike ? prev.filter(p => p !== id) : [...prev, id])
+        window.location.href = `/signup?next=${encodeURIComponent('/community')}`
+        return
+      }
+      if (!res.ok) throw new Error(String(res.status))
+    } catch {
+      // Network error — roll back to keep state honest
+      setLikedProjects(prev => willLike ? prev.filter(p => p !== id) : [...prev, id])
+    }
   }
 
-  const toggleSave = (id: string) => {
-    setSavedProjects(prev =>
-      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
-    )
+  const toggleSave = async (id: string) => {
+    const willSave = !savedProjects.includes(id)
+    setSavedProjects(prev => willSave ? [...prev, id] : prev.filter(p => p !== id))
+    try {
+      const res = await fetch(`/api/community/posts/${id}/save`, { method: 'POST' })
+      if (res.status === 401) {
+        setSavedProjects(prev => willSave ? prev.filter(p => p !== id) : [...prev, id])
+        window.location.href = `/signup?next=${encodeURIComponent('/community')}`
+        return
+      }
+      if (!res.ok) throw new Error(String(res.status))
+    } catch {
+      setSavedProjects(prev => willSave ? prev.filter(p => p !== id) : [...prev, id])
+    }
   }
 
   return (

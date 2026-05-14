@@ -6,7 +6,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Check, X, Trash2, ExternalLink, Loader2, AlertCircle, RefreshCw, Crown } from 'lucide-react'
+import { ArrowLeft, Check, X, Trash2, ExternalLink, Loader2, AlertCircle, RefreshCw, Crown, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Listing {
@@ -115,6 +115,24 @@ export default function AdminListingsPage() {
             <h1 className="font-bold text-lg">Listings · Moderation</h1>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={async () => {
+                if (!confirm('Seed marketplace with dummy users + listings? Re-runs are idempotent.')) return
+                try {
+                  const res = await fetch('/api/admin/seed-marketplace', { method: 'POST' })
+                  const data = await res.json()
+                  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+                  alert(`Seeded ${data.listings.total} listings (${data.listings.inserted} new, ${data.listings.updated} updated) across ${data.users} accounts. Visit /community to see them.`)
+                  load()
+                } catch (e: any) {
+                  alert(`Seed failed: ${e?.message || e}`)
+                }
+              }}
+              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-violet-500/15 border border-violet-500/30 text-violet-200 hover:bg-violet-500/25"
+              title="Idempotent seed — safe to re-run"
+            >
+              <Sparkles className="w-3 h-3" /> Seed demo data
+            </button>
             <button
               onClick={load}
               className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded"

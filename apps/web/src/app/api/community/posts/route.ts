@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
 
     const skip = (page - 1) * limit
 
-    const [posts, total] = await Promise.all([
+    const [postsRaw, total] = await Promise.all([
       collection
         .find(query)
         .sort(sortQuery)
@@ -97,6 +97,24 @@ export async function GET(request: NextRequest) {
         .toArray(),
       collection.countDocuments(query),
     ])
+
+    // Stamp per-viewer engagement state so the client can render the
+    // correct "I liked this" / "I saved this" affordance without a
+    // second round-trip. likedBy + savedBy stay on the doc; we expose
+    // only the boolean membership for this viewer.
+    const posts = postsRaw.map((p) => {
+      const liked = viewerId && Array.isArray(p.likedBy) && p.likedBy.includes(viewerId)
+      const saved = viewerId && Array.isArray(p.savedBy) && p.savedBy.includes(viewerId)
+      return {
+        ...p,
+        viewerLiked: !!liked,
+        viewerSaved: !!saved,
+        // Drop the full sets from the response — they can grow large and
+        // contain user IDs that aren't anyone's business.
+        likedBy: undefined,
+        savedBy: undefined,
+      }
+    })
 
     return NextResponse.json({
       posts,
