@@ -94,6 +94,7 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
   const [stats, setStats] = useState<UsageStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [needsAuth, setNeedsAuth] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [showCosts, setShowCosts] = useState(false)
 
@@ -103,6 +104,12 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
       setError(null)
 
       const res = await fetch('/api/usage')
+      // 401 from the middleware just means the viewer isn't signed in.
+      // Don't treat it as an error — surface a "sign in" state and stop polling.
+      if (res.status === 401) {
+        setNeedsAuth(true)
+        return
+      }
       if (!res.ok) throw new Error('Failed to fetch usage')
 
       const data = await res.json()
@@ -110,7 +117,6 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
       setLastRefresh(new Date())
     } catch (err) {
       setError('Unable to load usage data')
-      console.error('Usage fetch error:', err)
     } finally {
       setLoading(false)
     }
@@ -118,11 +124,13 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
 
   useEffect(() => {
     fetchUsage()
+  }, [fetchUsage])
 
-    // Auto-refresh every 30 seconds
+  useEffect(() => {
+    if (needsAuth) return
     const interval = setInterval(fetchUsage, 30000)
     return () => clearInterval(interval)
-  }, [fetchUsage])
+  }, [fetchUsage, needsAuth])
 
   const formatNumber = (num: number | 'unlimited'): string => {
     if (num === 'unlimited') return 'Unlimited'
@@ -175,6 +183,20 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
     return (
       <div className="flex items-center justify-center p-8">
         <RefreshCw className="w-6 h-6 text-purple-400 animate-spin" />
+      </div>
+    )
+  }
+
+  if (needsAuth) {
+    return (
+      <div className="p-4 bg-white/[0.03] border border-white/10 rounded-xl text-center">
+        <p className="text-sm text-slate-300">Sign in to view your usage.</p>
+        <a
+          href="/signup"
+          className="mt-2 inline-block text-xs text-purple-300 hover:text-purple-200"
+        >
+          Sign in or create an account →
+        </a>
       </div>
     )
   }

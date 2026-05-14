@@ -34,6 +34,19 @@ const GATED_API_PREFIXES = [
   '/api/user',
   // Admin endpoints — auth required (handler does the admin-email check).
   '/api/admin',
+  // Legacy / unreferenced routes that nevertheless burn paid quotas or leak
+  // data when hit anonymously. Gate at the edge so a random scanner can't
+  // pull on them. If one of these gets wired back into the UI, swap to a
+  // route-handler auth check so BYOK still works — same pattern as above.
+  '/api/chat',           // edge runtime, calls Anthropic + OpenAI directly
+  // NOTE: /api/forms intentionally NOT gated here — would also block
+  // /api/forms/submit (anon submissions from generated sites). The
+  // /api/forms/route.ts handler does its own auth check.
+  '/api/builder-io',     // proxies Builder.io with a server-side API key
+  '/api/pagespeed',      // arbitrary-URL fetch wrapper around Google PSI
+  '/api/media/pexels',   // server-side PEXELS_API_KEY
+  '/api/media/pixabay',  // server-side PIXABAY_API_KEY
+  '/api/media/upload',   // server-side Cloudinary secret
 ]
 
 export async function middleware(request: NextRequest) {

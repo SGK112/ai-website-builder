@@ -104,7 +104,7 @@ export function AppHeader() {
                         <button
                           onClick={() => {
                             setShowProjects(false)
-                            router.push('/new-project')
+                            router.push('/workspace')
                           }}
                           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-white/5 transition"
                         >
@@ -206,7 +206,7 @@ export function AppHeader() {
         <div className="flex items-center gap-2">
           {!isInBuilder && (
             <Button
-              onClick={() => router.push('/new-project')}
+              onClick={() => router.push('/workspace')}
               className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white"
             >
               <Sparkles className="w-4 h-4 mr-2" />

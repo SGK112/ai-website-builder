@@ -206,7 +206,7 @@ export function ProjectGrid({ projects, onDelete, onDuplicate }: ProjectGridProp
           <p className="text-sm text-slate-400 text-center max-w-sm mx-auto mb-8">
             Create your first project and start building amazing websites with AI
           </p>
-          <Link href="/new-project" className="block">
+          <Link href="/workspace" className="block">
             <Button className="bg-white text-black hover:bg-white/90 rounded-xl font-semibold shadow-lg shadow-white/5">
               <Zap className="h-4 w-4 mr-2" />
               Create Project

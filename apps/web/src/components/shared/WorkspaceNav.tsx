@@ -118,14 +118,14 @@ export function WorkspaceNav() {
   const isInBuilder = pathname.startsWith('/create') || pathname.startsWith('/workspace') || pathname.startsWith('/editor')
   const isHome = pathname === '/'
   const isDashboard = pathname.startsWith('/dashboard')
-  const isMarketplace = pathname.startsWith('/marketplace')
+  const isTemplates = pathname.startsWith('/templates')
   const isUpgrade = pathname.startsWith('/upgrade')
 
   // Navigation items - workspace focused
   const isWorkspace = pathname.startsWith('/workspace')
   const navItems = [
     { href: '/workspace', label: 'Workspace', icon: LayoutDashboard, active: isDashboard || isWorkspace },
-    { href: '/marketplace', label: 'Templates', icon: Store, active: isMarketplace },
+    { href: '/templates', label: 'Templates', icon: Store, active: isTemplates },
   ]
 
   // Don't show on login/auth pages
@@ -152,9 +152,9 @@ export function WorkspaceNav() {
               <motion.div
                 whileHover={{ scale: 1.05, rotate: 5 }}
                 whileTap={{ scale: 0.95 }}
-                className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/25"
+                className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/25"
               >
-                <Zap className="w-5 h-5 text-white" />
+                <span className="text-xl leading-none select-none" aria-hidden>🍲</span>
               </motion.div>
               <span className="font-bold text-lg text-white hidden sm:block">Webstew</span>
             </Link>
@@ -233,7 +233,7 @@ export function WorkspaceNav() {
                                 whileHover={{ scale: 1.02, x: 2 }}
                                 onClick={() => {
                                   setShowProjects(false)
-                                  router.push('/new-project')
+                                  router.push('/workspace')
                                 }}
                                 className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left hover:bg-white/[0.05] transition"
                               >
@@ -364,7 +364,7 @@ export function WorkspaceNav() {
             {!isInBuilder && (
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                 <Button
-                  onClick={() => router.push('/new-project')}
+                  onClick={() => router.push('/workspace')}
                   className="bg-white text-black hover:bg-white/90 font-semibold rounded-xl shadow-lg shadow-white/10"
                 >
                   <Sparkles className="w-4 h-4 mr-2" />
@@ -412,10 +412,10 @@ export function WorkspaceNav() {
                 <div className="p-2">
                   <p className="px-3 py-2 text-xs text-slate-500 uppercase tracking-wider">Quick Actions</p>
                   {[
-                    { label: 'New Project', icon: Plus, href: '/new-project' },
+                    { label: 'New Project', icon: Plus, href: '/workspace' },
                     { label: 'Workspace', icon: LayoutDashboard, href: '/workspace' },
-                    { label: 'Templates', icon: Store, href: '/marketplace' },
-                    { label: 'Settings', icon: Settings, href: '/dashboard/settings' },
+                    { label: 'Templates', icon: Store, href: '/templates' },
+                    { label: 'Settings', icon: Settings, href: '/profile' },
                   ].map((item, i) => (
                     <motion.button
                       key={item.href}
