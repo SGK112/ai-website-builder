@@ -8374,7 +8374,7 @@ ${html}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
-              className="h-full w-[400px]"
+              className="h-full w-full sm:w-[400px] max-w-full"
             >
               <ExportPanel
                 projectName={currentProject?.name || 'Webstew Project'}

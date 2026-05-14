@@ -109,7 +109,7 @@ export function PageSettingsPanel({
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-slate-900 rounded-xl shadow-2xl border border-slate-700 w-[700px] max-h-[85vh] flex flex-col"
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-slate-900 rounded-xl shadow-2xl border border-slate-700 w-[calc(100vw-1.5rem)] max-w-[700px] max-h-[90vh] sm:max-h-[85vh] flex flex-col"
           >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-slate-800">

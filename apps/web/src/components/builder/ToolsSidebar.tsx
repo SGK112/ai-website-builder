@@ -404,7 +404,7 @@ export function ToolsSidebar({
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
             className={cn(
-              "fixed right-0 top-0 h-full w-[420px] z-50 flex flex-col shadow-2xl",
+              "fixed right-0 top-0 h-full w-full sm:w-[420px] max-w-full z-50 flex flex-col shadow-2xl",
               isDark ? "bg-zinc-900" : "bg-white"
             )}
           >

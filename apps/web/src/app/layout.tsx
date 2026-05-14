@@ -10,6 +10,21 @@ import { ThemeProvider } from '@/context/ThemeContext'
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-playfair', style: ['normal', 'italic'] })
 
+// Mobile-first: tell every browser to render at device width and not
+// auto-zoom to a fictional desktop. Without this Next.js does NOT
+// inject a viewport meta tag and mobile renders at the 980px virtual
+// viewport, scaling everything down so text + UI become unreadable.
+// Single biggest mobile UX win.
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)',  color: '#0a0a0f' },
+  ],
+}
+
 // metadataBase resolves the relative `/opengraph-image` URL into an
 // absolute one in production. Falls back to a sensible default during
 // local dev so the file-conventions resolve.

@@ -329,7 +329,7 @@ export function AgentPanel({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 20, scale: 0.95 }}
         className={cn(
-          'fixed bottom-24 right-6 w-[420px] max-h-[75vh] rounded-2xl overflow-hidden',
+          'fixed bottom-20 sm:bottom-24 left-3 right-3 sm:left-auto sm:right-6 sm:w-[420px] max-h-[80vh] sm:max-h-[75vh] rounded-2xl overflow-hidden',
           'bg-gradient-to-b from-zinc-900 to-zinc-950',
           'border border-orange-500/20',
           'shadow-2xl shadow-orange-500/10',
