@@ -5,6 +5,7 @@ import { getApiSession } from '@/lib/api-auth'
 import { connectDB } from '@/lib/db'
 import { generateTextFree, FreeAIProvider } from '@/lib/free-ai-providers'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
+import { guardAnonAbuse } from '@/lib/abuse-guard'
 import {
   User,
   trackUsage,
@@ -2301,13 +2302,20 @@ export async function POST(req: NextRequest) {
     // by IP keeps it from being abused. Save/deploy still require sign-in.
     session = await getApiSession(req)
 
-    // Rate limit: 20 AI generations per minute
-    try {
-      checkApiRateLimit(req, 'aiGeneration')
-    } catch (error) {
-      const rateLimitResponse = handleRateLimitError(error)
-      if (rateLimitResponse) return rateLimitResponse
-      throw error
+    // Anon callers get the strict `anonAi` bucket plus bot-UA / Cloudflare
+    // reputation checks; signed-in users get the looser `aiGeneration` bucket
+    // because there's already a per-user plan-credit ceiling enforced below.
+    if (!session?.user?.id) {
+      const blocked = guardAnonAbuse(req, { rateLimit: 'anonAi' })
+      if (blocked) return blocked
+    } else {
+      try {
+        checkApiRateLimit(req, 'aiGeneration')
+      } catch (error) {
+        const rateLimitResponse = handleRateLimitError(error)
+        if (rateLimitResponse) return rateLimitResponse
+        throw error
+      }
     }
 
     // Parse body. Auth is enforced by middleware (or by Bearer token via

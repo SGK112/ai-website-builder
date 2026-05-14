@@ -170,6 +170,30 @@ export const rateLimitConfigs = {
     windowMs: 60 * 60 * 1000, // 20 projects per hour
     message: 'Project creation limit reached. Please try again later.',
   },
+
+  // Anon signup — very low ceiling per IP. A real user signs up once.
+  // Anything above this is an account-creation farm.
+  signup: {
+    maxRequests: 5,
+    windowMs: 60 * 60 * 1000, // 5 signups per hour per IP
+    message: 'Too many signups from this address. Please try again later.',
+  },
+
+  // Public waitlist capture — gentle but caps obvious flooders.
+  waitlist: {
+    maxRequests: 10,
+    windowMs: 60 * 60 * 1000, // 10 emails per hour per IP
+    message: 'Too many waitlist submissions. Please try again later.',
+  },
+
+  // Anonymous use of paid AI endpoints (grader for unsigned visitors,
+  // anon /api/builder/generate, etc). Tight because every call costs
+  // money and there is no per-user accountability.
+  anonAi: {
+    maxRequests: 8,
+    windowMs: 60 * 60 * 1000, // 8 anon AI calls per hour per IP
+    message: 'Free-tier limit reached. Sign in for more, or try again later.',
+  },
 } as const
 
 export type RateLimitType = keyof typeof rateLimitConfigs

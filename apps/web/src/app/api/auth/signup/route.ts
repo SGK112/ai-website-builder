@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/db'
 import { User } from '@ai-website-builder/database'
 import { z } from 'zod'
+import { guardAnonAbuse } from '@/lib/abuse-guard'
 
 const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -10,6 +11,9 @@ const signupSchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
+  const blocked = guardAnonAbuse(req, { rateLimit: 'signup' })
+  if (blocked) return blocked
+
   try {
     const body = await req.json()
 

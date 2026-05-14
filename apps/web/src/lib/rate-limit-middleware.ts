@@ -19,10 +19,12 @@ export function getClientIdentifier(request: NextRequest): string {
     return `user:${hashString(authHeader)}`
   }
 
-  // Fall back to IP address
-  const forwarded = request.headers.get('x-forwarded-for')
-  const ip = forwarded?.split(',')[0]?.trim() ||
-    request.headers.get('x-real-ip') ||
+  // Fall back to IP address. Cloudflare's cf-connecting-ip is authoritative
+  // when present (CF edge sets it, clients can't spoof). XFF is what Render
+  // gives us behind no-CF setups.
+  const ip = request.headers.get('cf-connecting-ip')?.trim() ||
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip')?.trim() ||
     'unknown'
 
   return `ip:${ip}`

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/db'
-import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
+import { guardAnonAbuse } from '@/lib/abuse-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,19 +9,13 @@ const MAX_FEATURE_LEN = 60
 const MAX_SOURCE_LEN = 80
 
 // POST /api/waitlist — capture an email for a specific feature waitlist
-// (e.g. "voice-builder"). Anon-accessible by design. Per-IP rate limited
-// so it can't be flooded.
+// (e.g. "voice-builder"). Anon-accessible by design.
 //
 // Body: { email: string, feature: string, source?: string }
 // Returns: { ok: true } or { error }
 export async function POST(req: NextRequest) {
-  try {
-    checkApiRateLimit(req, 'api') // 100/min — gentler than aiGeneration
-  } catch (error) {
-    const rateLimitResponse = handleRateLimitError(error)
-    if (rateLimitResponse) return rateLimitResponse
-    throw error
-  }
+  const blocked = guardAnonAbuse(req, { rateLimit: 'waitlist' })
+  if (blocked) return blocked
 
   let body: { email?: unknown; feature?: unknown; source?: unknown }
   try {

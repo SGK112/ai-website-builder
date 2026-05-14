@@ -13,6 +13,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { gradeWebsite, gradeHtml } from '@/lib/grader'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
+import { guardAnonAbuse } from '@/lib/abuse-guard'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 25
@@ -21,20 +22,24 @@ const MAX_HTML_CHARS = 1_500_000 // ~1.5 MB — well above realistic page size
 
 export async function POST(req: NextRequest) {
   // Anon-accessible so the landing-page grader widget can drive lead-gen.
-  // Per-IP rate limit prevents abuse — grading a URL is cheap (one HTTP
-  // fetch + HTML parsing) but at scale could be used as a free scraping
-  // proxy. 20/min/IP matches our other AI-cost endpoints.
-  try {
-    checkApiRateLimit(req, 'aiGeneration')
-  } catch (error) {
-    const rateLimitResponse = handleRateLimitError(error)
-    if (rateLimitResponse) return rateLimitResponse
-    throw error
-  }
+  // Each call hits an external URL and runs an LLM scoring pass, so at
+  // scale it becomes a free scraping/AI proxy. Authed users get the
+  // generous 'aiGeneration' bucket; anon gets a tight 'anonAi' bucket and
+  // is also subject to bot-UA + CF-reputation checks.
+  const session = await getServerSession(authOptions).catch(() => null)
 
-  // Session is OPTIONAL — only used for logging / future per-user history.
-  // Anon callers get the same grader output as signed-in callers.
-  await getServerSession(authOptions).catch(() => null)
+  if (!session?.user?.id) {
+    const blocked = guardAnonAbuse(req, { rateLimit: 'anonAi' })
+    if (blocked) return blocked
+  } else {
+    try {
+      checkApiRateLimit(req, 'aiGeneration')
+    } catch (error) {
+      const rateLimitResponse = handleRateLimitError(error)
+      if (rateLimitResponse) return rateLimitResponse
+      throw error
+    }
+  }
 
   let body: { url?: string; html?: string; contextUrl?: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 }) }
