@@ -50,6 +50,10 @@ const GATED_API_PREFIXES = [
   '/api/media/pexels',   // server-side PEXELS_API_KEY
   '/api/media/pixabay',  // server-side PIXABAY_API_KEY
   '/api/media/upload',   // server-side Cloudinary secret
+  // Closes additional holes found in a gates audit (2026-05-14):
+  '/api/ai/runpod',      // expensive GPU endpoints + RUNPOD_API_KEY
+  '/api/community',      // user content (posts already inline-auth; gate at edge for chat too)
+  '/api/images/search',  // proxies Unsplash/Pexels/Pixabay keys
 ]
 
 // Render gives every service a stable `<slug>.onrender.com` hostname. If a
