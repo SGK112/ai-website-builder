@@ -157,6 +157,7 @@ import { MonacoCodeEditor } from '@/components/editor'
 import { StylePresetPicker, ComponentPicker, ThemeBuilder } from '@/components/builder'
 import { ContentPanel } from '@/components/builder/ContentPanel'
 import { CustomDomainCard } from '@/components/builder/CustomDomainCard'
+import { PublishToCommunityModal } from '@/components/builder/PublishToCommunityModal'
 import { SiteGraderModal } from '@/components/builder/SiteGraderModal'
 import { stylePresets, StylePreset, generatePresetStyles, applyThemeToHtml, generateAllThemesStyles } from '@/lib/builder/style-presets'
 import { getTemplateById } from '@/lib/templates'
@@ -1816,6 +1817,7 @@ function WorkspaceContent() {
 
   // Export panel state
   const [showExportPanel, setShowExportPanel] = useState(false)
+  const [showPublishModal, setShowPublishModal] = useState(false)
 
   // Theme builder panel state
   const [showThemeBuilder, setShowThemeBuilder] = useState(false)
@@ -7130,6 +7132,23 @@ ${html}
                     </div>
                   </button>
 
+                  <button
+                    onClick={() => setShowPublishModal(true)}
+                    disabled={!html.trim()}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left group",
+                      !html.trim()
+                        ? "bg-white/[0.02] border-white/[0.05] opacity-50 cursor-not-allowed"
+                        : "bg-violet-500/10 border-violet-500/30 hover:bg-violet-500/15"
+                    )}
+                  >
+                    <Send className="w-5 h-5 text-violet-300 group-hover:text-white" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-white">Publish to Community</div>
+                      <div className="text-[10px] text-zinc-500">Share your build — others can view + remix</div>
+                    </div>
+                  </button>
+
                   {/* Custom domain — only meaningful after a deploy exists.
                       The card itself handles the "not deployed yet" state. */}
                   <CustomDomainCard
@@ -8386,6 +8405,15 @@ ${html}
             </motion.div>
           </motion.div>
         )}
+
+        {/* Publish-to-community modal — submits the project to /community */}
+        <PublishToCommunityModal
+          isOpen={showPublishModal}
+          onClose={() => setShowPublishModal(false)}
+          projectName={currentProject?.name || 'Untitled site'}
+          projectId={currentProject?.id || null}
+          html={html}
+        />
       </AnimatePresence>
 
       {/* Site grader modal — toolbar button toggles `graderOpen`.
