@@ -8,7 +8,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Loader2, AlertCircle, Award, Sparkles, ArrowRight, CheckCircle2, XCircle } from 'lucide-react'
+import { Search, Loader2, AlertCircle, Award, Sparkles, ArrowRight, CheckCircle2, XCircle, Share2, Check, Link2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { cn } from '@/lib/utils'
@@ -54,13 +54,41 @@ export function SiteGraderWidget({ isDark }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: trimmed }),
       })
-      const data = await res.json()
+      // Map HTTP status to a friendly message BEFORE trying to parse the body
+      // — the body might not be JSON for some failure modes (CF block pages,
+      // 502s, etc.) and bubbling "Unexpected token < in JSON" looks broken.
+      if (res.status === 429) {
+        // Hit the per-IP anon AI cap. Surface the retry hint from
+        // Retry-After if present, otherwise a generic "give it a minute."
+        const retry = res.headers.get('retry-after')
+        const wait = retry ? Math.ceil(Number(retry) / 60) : null
+        setError(
+          wait && wait > 0
+            ? `You've hit the free hourly limit. Sign up free for higher limits, or try again in ~${wait} min.`
+            : "You've hit the free hourly limit. Sign up free for higher limits, or try again in a minute."
+        )
+        return
+      }
+      if (res.status === 401 || res.status === 403) {
+        setError(
+          "Free grader limit reached on this browser. Sign up free (no card) and grade unlimited sites."
+        )
+        return
+      }
+      const data = await res.json().catch(() => ({}))
       if (!res.ok || data.success === false) {
-        throw new Error(data.error || 'Failed to grade site')
+        // Generic upstream failure — keep it human, not "HTTP 500".
+        setError(
+          typeof data?.error === 'string' && data.error.length < 140
+            ? data.error
+            : "Couldn't analyze that site. The URL might be unreachable, or our scorer is busy — try again in a moment."
+        )
+        return
       }
       setResult(data)
     } catch (err: any) {
-      setError(err?.message || 'Something went wrong. Try a different URL?')
+      // Network error or JSON parse blew up — both feel the same to the user.
+      setError("Network hiccup — please try again.")
     } finally {
       setLoading(false)
     }
@@ -77,6 +105,54 @@ export function SiteGraderWidget({ isDark }: Props) {
       router.push(workspaceUrl)
     } else {
       router.push(`/signup?next=${encodeURIComponent(workspaceUrl)}`)
+    }
+  }
+
+  // Share button state — token returned by /api/grader/share + transient
+  // "Copied!" affordance.
+  const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const [shareCopied, setShareCopied] = useState(false)
+  const [sharing, setSharing] = useState(false)
+
+  const handleShare = async () => {
+    if (!result || !url.trim() || sharing) return
+    setSharing(true)
+    try {
+      let finalUrl = shareUrl
+      // Mint a token the first time. After that, reuse the same URL for
+      // this session so repeat-clicks don't create dupes.
+      if (!finalUrl) {
+        const res = await fetch('/api/grader/share', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url.trim(), result }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || !data.shareUrl) {
+          setError(typeof data?.error === 'string' ? data.error : 'Could not generate a share link.')
+          return
+        }
+        finalUrl = data.shareUrl
+        setShareUrl(finalUrl)
+      }
+      // Native share on mobile, clipboard fallback elsewhere.
+      const shareText = `${result.domain} scored ${result.scores.overall}/100 on Webstew — see the full report`
+      const nav = typeof navigator !== 'undefined' ? (navigator as any) : null
+      if (nav && typeof nav.share === 'function') {
+        try {
+          await nav.share({ title: 'Site grade · Webstew', text: shareText, url: finalUrl! })
+        } catch {
+          /* user cancelled the share sheet — silent */
+        }
+      } else if (nav?.clipboard?.writeText) {
+        await nav.clipboard.writeText(finalUrl!)
+        setShareCopied(true)
+        setTimeout(() => setShareCopied(false), 2200)
+      }
+    } catch {
+      setError('Could not generate a share link.')
+    } finally {
+      setSharing(false)
     }
   }
 
@@ -323,6 +399,45 @@ export function SiteGraderWidget({ isDark }: Props) {
                   {sessionStatus === 'authenticated' ? 'Rebuild now' : 'Sign up & rebuild'}
                   <ArrowRight className="w-4 h-4" />
                 </button>
+              </div>
+
+              {/* Share — mints a permalink so the user can send their
+                  report card to a teammate / post it. Native share on
+                  mobile, clipboard fallback on desktop. */}
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleShare}
+                  disabled={sharing}
+                  className={cn(
+                    "inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition",
+                    isDark
+                      ? "border-white/10 bg-white/[0.03] hover:bg-white/[0.06] text-white"
+                      : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                  )}
+                >
+                  {sharing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : shareCopied ? (
+                    <Check className="w-4 h-4 text-emerald-500" />
+                  ) : (
+                    <Share2 className="w-4 h-4" />
+                  )}
+                  {sharing ? 'Generating link…' : shareCopied ? 'Link copied!' : 'Share report'}
+                </button>
+                {shareUrl && !shareCopied && (
+                  <a
+                    href={shareUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={cn(
+                      "inline-flex items-center gap-1.5 text-xs",
+                      isDark ? "text-zinc-400 hover:text-white" : "text-slate-500 hover:text-slate-900"
+                    )}
+                  >
+                    <Link2 className="w-3 h-3" /> Open shareable page
+                  </a>
+                )}
               </div>
             </motion.div>
           )}
