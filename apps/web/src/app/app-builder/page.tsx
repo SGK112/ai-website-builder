@@ -146,6 +146,7 @@ export default function AppBuilderPage() {
   const [target, setTarget] = useState<Target>('website')
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [warning, setWarning] = useState<string | null>(null)
   const [result, setResult] = useState<AppResult | null>(null)
   const [activeFile, setActiveFile] = useState<string | null>(null)
   const hasAutofiredRef = useRef(false)
@@ -180,6 +181,7 @@ export default function AppBuilderPage() {
       return
     }
     setError(null)
+    setWarning(null)
     setIsGenerating(true)
     setResult(null)
     setActiveFile(null)
@@ -208,6 +210,11 @@ export default function AppBuilderPage() {
         const decoder = new TextDecoder()
         let html = ''
         let buffer = ''
+        // Stream-failure surfacing: the route emits {error}, {complete,truncated},
+        // or a final {html, complete} we need to honor. Without these guards the
+        // UI shows a half-generated or empty site as if it succeeded.
+        let streamError: string | null = null
+        let wasTruncated = false
         // Show streaming progress to user via active file
         const showStreaming = (current: string) => {
           if (!current) return
@@ -231,23 +238,44 @@ export default function AppBuilderPage() {
             const dataLine = chunk.split('\n').find((l) => l.startsWith('data:'))
             if (!dataLine) continue
             const raw = dataLine.slice(5).trim()
+            if (raw === '[DONE]') continue
             try {
               const ev = JSON.parse(raw)
+              if (typeof ev.error === 'string') {
+                streamError = ev.error
+                continue
+              }
               if (typeof ev.delta === 'string') {
                 html += ev.delta
                 showStreaming(html)
-              } else if (typeof ev.html === 'string' && ev.replace) {
+              } else if (typeof ev.html === 'string' && (ev.replace || ev.complete)) {
+                // Mid-stream resync (replace:true) OR the route's final post-processed
+                // message (complete:true — has topic-image injection + final cleanups
+                // that aren't in the delta stream).
                 html = ev.html
                 showStreaming(html)
               }
+              if (ev.complete && ev.truncated) {
+                wasTruncated = true
+              }
             } catch {}
           }
+        }
+        if (streamError) {
+          setError(streamError)
+          setResult(null)
+          return
         }
         // Strip markdown fences if present
         let cleanHtml = html.trim()
         if (cleanHtml.startsWith('```html')) cleanHtml = cleanHtml.slice(7).trim()
         if (cleanHtml.startsWith('```')) cleanHtml = cleanHtml.slice(3).trim()
         if (cleanHtml.endsWith('```')) cleanHtml = cleanHtml.slice(0, -3).trim()
+        if (!cleanHtml) {
+          setError('Generation returned no output. Please retry.')
+          setResult(null)
+          return
+        }
         const slug = (finalPrompt.split(/\s+/).slice(0, 4).join('-') || 'site')
           .toLowerCase()
           .replace(/[^a-z0-9-]/g, '')
@@ -261,6 +289,9 @@ export default function AppBuilderPage() {
           target: finalTarget,
         })
         setActiveFile('index.html')
+        if (wasTruncated) {
+          setWarning('Output was cut off before the page finished. The preview may be incomplete — try rerunning or use a more specific prompt.')
+        }
       } else {
         // All other targets — JSON response with { files, name, slug, ... }
         const res = await fetch(cfg.apiPath, {
@@ -506,6 +537,16 @@ export default function AppBuilderPage() {
               </div>
             )}
 
+            {warning && !error && (
+              <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-2 text-left">
+                <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+                <div>
+                  <div className="text-amber-300 text-sm font-medium">Output truncated</div>
+                  <div className="text-amber-300/80 text-xs mt-0.5 break-words">{warning}</div>
+                </div>
+              </div>
+            )}
+
             <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 gap-2">
               {TARGETS[target].examples.map((example) => (
                 <button
@@ -533,7 +574,7 @@ export default function AppBuilderPage() {
             <div className="flex flex-col items-end gap-2 shrink-0">
               <div className="flex gap-2">
                 <button
-                  onClick={() => { setResult(null); setPrompt(''); setError(null); setDeployUrl(null); setDeployError(null) }}
+                  onClick={() => { setResult(null); setPrompt(''); setError(null); setWarning(null); setDeployUrl(null); setDeployError(null) }}
                   className="px-3 py-2 text-sm bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition"
                 >
                   New app
