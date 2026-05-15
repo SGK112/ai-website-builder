@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 180" role="img" aria-label="Webstew">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#c026d3"/>
+    </linearGradient>
+    <linearGradient id="bowl" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#fde8f3"/>
+    </linearGradient>
+    <linearGradient id="word" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#fce7f3"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background tile. rx=24 mirrors the in-app pill on /workspace nav. -->
+  <rect width="600" height="180" rx="24" fill="url(#bg)"/>
+
+  <!-- Bowl + steam: same geometry as /app/icon.svg, scaled up + translated. -->
+  <g transform="translate(40 32) scale(3.6)">
+    <g stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" fill="none" opacity="0.85">
+      <path d="M11 9 q-1.6 -2 0 -3.5 q1.6 -1.5 0 -3.2"/>
+      <path d="M16 9 q-1.6 -2 0 -3.5 q1.6 -1.5 0 -3.2"/>
+      <path d="M21 9 q-1.6 -2 0 -3.5 q1.6 -1.5 0 -3.2"/>
+    </g>
+    <ellipse cx="16" cy="13.5" rx="9.5" ry="1.6" fill="url(#bowl)"/>
+    <path d="M7 13.5 Q7.5 25 16 25 Q24.5 25 25 13.5 Z" fill="url(#bowl)"/>
+    <path d="M9.5 15.5 Q10 21.5 16 21.5 Q22 21.5 22.5 15.5" stroke="#c026d3" stroke-width="0.5" fill="none" opacity="0.35" stroke-linecap="round"/>
+  </g>
+
+  <!-- Wordmark. font-family chain matches the landing page's heading
+       stack so it looks the same when this is rendered next to live UI. -->
+  <text
+    x="200" y="118"
+    font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif"
+    font-size="86"
+    font-weight="800"
+    letter-spacing="-3"
+    fill="url(#word)"
+  >Webstew</text>
+</svg>
