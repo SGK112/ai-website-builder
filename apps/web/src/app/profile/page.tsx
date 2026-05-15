@@ -45,6 +45,7 @@ import { cn } from '@/lib/utils'
 import { useTheme } from '@/context/ThemeContext'
 import { StarryNight, SunriseBackground } from '@/components/landing/BackgroundEffects'
 import { WebStewNav } from '@/components/shared/WebStewNav'
+import { PayoutsCard } from '@/components/profile/PayoutsCard'
 import { SUBSCRIPTION_PLANS } from '@/lib/stripe-plans'
 import { DeployCredentialsCard } from '@/components/profile/DeployCredentialsCard'
 
@@ -603,6 +604,9 @@ export default function ProfilePage() {
                       </div>
                     )}
                   </div>
+
+                  {/* Payouts — Stripe Connect onboarding for sellers */}
+                  <PayoutsCard isDark={isDark} />
 
                   {/* Billing History */}
                   <div className={cn(

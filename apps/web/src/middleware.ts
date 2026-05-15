@@ -37,6 +37,13 @@ const GATED_API_PREFIXES = [
   // Integrations API — every action is per-user, route handlers also check
   // session, gate at the edge as defense-in-depth.
   '/api/integrations',
+  // Stripe Connect (Express onboarding for sellers) — every action is
+  // per-user. Route handlers verify session + ownership; edge gate is
+  // defense-in-depth so anon traffic can't probe the surface.
+  '/api/stripe/connect',
+  // Marketplace purchase + community engagement endpoints — must be
+  // authed for one-per-user semantics + accountability.
+  '/api/marketplace',
   // Legacy / unreferenced routes that nevertheless burn paid quotas or leak
   // data when hit anonymously. Gate at the edge so a random scanner can't
   // pull on them. If one of these gets wired back into the UI, swap to a

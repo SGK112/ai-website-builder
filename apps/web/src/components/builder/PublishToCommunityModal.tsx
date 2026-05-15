@@ -9,7 +9,7 @@
 // listings flowing so the catalog isn't empty.
 
 import { useEffect, useState } from 'react'
-import { X, Send, Loader2, AlertCircle, Check } from 'lucide-react'
+import { X, Send, Loader2, AlertCircle, Check, Image as ImageIcon, Upload } from 'lucide-react'
 
 interface PublishToCommunityModalProps {
   isOpen: boolean
@@ -47,6 +47,33 @@ export function PublishToCommunityModal({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  // Optional custom thumbnail. If unset we'll auto-generate a picsum seed
+  // on the server. If user uploads a real screenshot, we use that.
+  const [thumbnailUrl, setThumbnailUrl] = useState<string>('')
+  const [uploadingThumb, setUploadingThumb] = useState(false)
+
+  const handleThumbUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Thumbnail must be under 5MB.')
+      return
+    }
+    setUploadingThumb(true)
+    setError(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data?.url) throw new Error(data?.error || 'Upload failed')
+      setThumbnailUrl(data.url)
+    } catch (err: any) {
+      setError(err?.message || 'Upload failed')
+    } finally {
+      setUploadingThumb(false)
+    }
+  }
 
   // Reset state every time the modal opens with a fresh project.
   useEffect(() => {
@@ -56,6 +83,7 @@ export function PublishToCommunityModal({
       setCategory('general')
       setTags('')
       setIsPublic(true)
+      setThumbnailUrl('')
       setError(null)
       setSuccess(null)
     }
@@ -75,11 +103,11 @@ export function PublishToCommunityModal({
     }
     setSubmitting(true)
     try {
-      // Thumbnail: deterministic picsum seed so the listing always has SOMETHING
-      // visible. Sellers can replace with a real screenshot from the
-      // dashboard later (v2 — screenshot service not wired).
+      // Thumbnail: prefer the user's uploaded screenshot (real preview of
+      // their site). Fall back to a deterministic picsum seed so the
+      // listing always has SOMETHING visible if they skip the upload.
       const seed = encodeURIComponent((projectId || title || 'webstew').slice(0, 40))
-      const thumbnail = `https://picsum.photos/seed/${seed}/800/600`
+      const thumbnail = thumbnailUrl || `https://picsum.photos/seed/${seed}/800/600`
 
       const res = await fetch('/api/community/posts', {
         method: 'POST',
@@ -197,6 +225,38 @@ export function PublishToCommunityModal({
               className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500"
             />
           </label>
+
+          <div className="block">
+            <span className="text-xs font-medium text-zinc-400 mb-1.5 block">Thumbnail <span className="text-zinc-600">(optional — recommend a real screenshot)</span></span>
+            {thumbnailUrl ? (
+              <div className="flex items-center gap-3">
+                <img src={thumbnailUrl} alt="Thumbnail" className="w-24 h-16 object-cover rounded-lg border border-white/10" />
+                <button
+                  type="button"
+                  onClick={() => setThumbnailUrl('')}
+                  className="text-xs text-zinc-400 hover:text-red-300"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <label className={`flex items-center justify-center gap-2 px-3 py-3 rounded-lg border border-dashed border-white/15 cursor-pointer hover:border-violet-500/40 transition text-sm text-zinc-400 ${uploadingThumb ? 'opacity-60' : ''}`}>
+                {uploadingThumb ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Uploading…</>
+                ) : (
+                  <><Upload className="w-4 h-4" /> Click to upload a screenshot</>
+                )}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={handleThumbUpload}
+                  disabled={uploadingThumb}
+                />
+              </label>
+            )}
+            <span className="text-[10px] text-zinc-600">PNG/JPG/WebP up to 5MB. We'll auto-generate a placeholder if you skip.</span>
+          </div>
 
           <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
             <input
