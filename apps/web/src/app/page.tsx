@@ -276,10 +276,10 @@ export default function HomePage() {
   // Softer spring so the size/opacity transitions feel like silk, not
   // step-jumps. Lower stiffness + higher mass = more flow, more inertia,
   // less reactive to micro-scrolls.
-  // Spring tuned for smooth continuous morph — slightly snappier follow
-  // so the card eases through each size change instead of feeling like
-  // it's snapping between holds.
-  const springConfig = { stiffness: 80, damping: 36, mass: 0.5 }
+  // Spring tuned for scroll-happy users: tracks fast wheel/touch input
+  // without overshooting or feeling laggy, yet stays smooth enough that
+  // gentle scrolls feel liquid. Robust across input speeds.
+  const springConfig = { stiffness: 95, damping: 38, mass: 0.45 }
   const smoothProgress = useSpring(previewProgress, springConfig)
 
   // Mobile viewport check must precede the transforms that read it.
@@ -327,9 +327,12 @@ export default function HomePage() {
     [0.23, 0.36, 0.44, 0.50, 0.58, 0.64, 0.72],
     ['16svh', '16svh', '10svh', '10svh', '4svh', '4svh', '-12svh']
   )
+  // Prompt visible only during MOBILE hold (when "Keep scrolling to
+  // expand" makes sense). Fades out before TABLET morph starts so it
+  // doesn't overlap the growing card top.
   const previewScrollPromptOpacity = useTransform(
     smoothProgress,
-    [0.20, 0.25, 0.64, 0.68],
+    [0.20, 0.26, 0.36, 0.42],
     [0, 1, 1, 0]
   )
   // Hint that appears once fullscreen is held — invites users to actually
@@ -386,26 +389,9 @@ export default function HomePage() {
     [0.23, 0.36, 0.44, 0.50, 0.58, 0.64, 0.72, 0.77],
     ['6px', '6px', '7px', '7px', '8px', '4px', '1px', '1px']
   )
-  const mobileLabelOpacity = useTransform(
-    smoothProgress,
-    [0.22, 0.26, 0.40, 0.46],
-    [0, 1, 1, 0]
-  )
-  const tabletLabelOpacity = useTransform(
-    smoothProgress,
-    [0.42, 0.48, 0.54, 0.60],
-    [0, 1, 1, 0]
-  )
-  const pcLabelOpacity = useTransform(
-    smoothProgress,
-    [0.56, 0.62, 0.68, 0.72],
-    [0, 1, 1, 0]
-  )
-  const fullscreenLabelOpacity = useTransform(
-    smoothProgress,
-    [0.68, 0.74, 0.78, 0.82],
-    [0, 1, 1, 0]
-  )
+  // Device-bezel chrome opacities — drive the on-card visual cues
+  // (mobile notch, tablet camera dot) that telegraph the current state.
+  // No standalone text labels — the bezel shape is the label.
   const mobileNotchOpacity = useTransform(
     smoothProgress,
     [0.22, 0.26, 0.40, 0.46],
@@ -1311,13 +1297,17 @@ export default function HomePage() {
                     'border-slate-300/80 dark:border-slate-800'
                   )}
                 >
-                  <AnimatePresence initial={false}>
+                  {/* mode="popLayout" lets old + new demo crossfade without
+                      jumping the layout when scroll-happy users blast past
+                      multiple sites. iframe is interactive — users can
+                      scroll inside the rendered demo at fullscreen. */}
+                  <AnimatePresence initial={false} mode="popLayout">
                     <motion.div
                       key={demoIdx}
-                      initial={{ opacity: 0, scale: 1.02 }}
+                      initial={{ opacity: 0, scale: 1.03 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 1.0, ease: [0.22, 1, 0.36, 1] }}
+                      exit={{ opacity: 0, scale: 0.98 }}
+                      transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
                       style={{ paddingTop: iframeTopInset }}
                       className="absolute inset-0"
                     >
@@ -1326,6 +1316,7 @@ export default function HomePage() {
                         sandbox="allow-scripts"
                         className="w-full h-full block border-0"
                         title={`Demo: ${DEMO_SITES[demoIdx].label}`}
+                        scrolling="yes"
                       />
                     </motion.div>
                   </AnimatePresence>
@@ -1468,29 +1459,10 @@ export default function HomePage() {
                   </AnimatePresence>
                 </motion.div>
 
-                {/* Device-type label — sits below the morphing card. Three
-                    overlapping spans, one visible at a time depending on
-                    which size state the card is currently in. */}
-                <div
-                  className="absolute bottom-[10vh] left-1/2 -translate-x-1/2 z-20 pointer-events-none"
-                >
-                  <div className="relative w-40 h-7 flex items-center justify-center">
-                    {[
-                      { label: 'Fullscreen', opacity: fullscreenLabelOpacity },
-                      { label: 'PC',         opacity: pcLabelOpacity         },
-                      { label: 'Tablet',     opacity: tabletLabelOpacity     },
-                      { label: 'Mobile',     opacity: mobileLabelOpacity     },
-                    ].map((d) => (
-                      <motion.span
-                        key={d.label}
-                        style={{ opacity: d.opacity }}
-                        className="absolute inset-0 flex items-center justify-center text-[11px] uppercase tracking-[0.32em] font-bold text-muted-foreground"
-                      >
-                        {d.label}
-                      </motion.span>
-                    ))}
-                  </div>
-                </div>
+                {/* Device-type text labels removed — the card's own bezel
+                    chrome (mobile notch, tablet camera, PC browser bar)
+                    already telegraphs the state and the text was crowding
+                    the caption row. */}
 
                 {/* Prompt caption — sits under the card and pushes down as
                     the card grows. Position is driven by previewCaptionBottom
