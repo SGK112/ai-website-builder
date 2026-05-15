@@ -17,9 +17,11 @@ import {
 } from './types'
 import { toolRegistry } from './tool-registry'
 
-// Default agent configuration
+// Default agent configuration.
+// claude-3-5-sonnet retired long ago; claude-sonnet-4 retires 2026-06-15.
+// 4-6 is current and the price is the same as the deprecated bare 4.
 const DEFAULT_CONFIG: AgentConfig = {
-  model: 'claude-3-5-sonnet-20241022',
+  model: 'claude-sonnet-4-6',
   provider: 'anthropic',
   maxSteps: 20,
   maxRetries: 3,

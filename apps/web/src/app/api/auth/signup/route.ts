@@ -39,12 +39,16 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Create new user
+    // Create new user. app:'webstew' tags this as a Webstew-side signup
+    // so the shared users collection (with VoiceNow + Webstew co-tenants)
+    // can be filtered cleanly in /admin queries.
     const user = await User.create({
       name,
       email,
       password,
       plan: 'free',
+      app: 'webstew',
+      firstSeenWebstewAt: new Date(),
     })
 
     return NextResponse.json({

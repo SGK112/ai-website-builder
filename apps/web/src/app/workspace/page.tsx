@@ -242,10 +242,11 @@ const aiModels: AIModel[] = [
   { id: 'cf-mistral-7b', name: 'Mistral 7B', provider: 'cloudflare', description: 'FREE 10K/day - Fast edge', contextWindow: '8K', speed: 'fast', quality: 'good', free: true },
 
   // PAID MODELS
-  // Anthropic Claude
-  { id: 'claude-opus-4', name: 'Claude Opus 4', provider: 'anthropic', description: 'Most capable, best for complex tasks', contextWindow: '200K', speed: 'medium', quality: 'best' },
-  { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', provider: 'anthropic', description: 'Balanced speed and quality', contextWindow: '200K', speed: 'fast', quality: 'great' },
-  { id: 'claude-haiku-3.5', name: 'Claude Haiku 3.5', provider: 'anthropic', description: 'Fastest responses', contextWindow: '200K', speed: 'fast', quality: 'good' },
+  // Anthropic Claude — claude-sonnet-4 retires 2026-06-15 per Anthropic
+  // deprecation notice; bumped to 4.6/4.7. Same price, higher quality.
+  { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', provider: 'anthropic', description: 'Most capable, best for complex tasks', contextWindow: '200K', speed: 'medium', quality: 'best' },
+  { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', provider: 'anthropic', description: 'Balanced speed and quality', contextWindow: '200K', speed: 'fast', quality: 'great' },
+  { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', provider: 'anthropic', description: 'Fastest responses', contextWindow: '200K', speed: 'fast', quality: 'good' },
   // OpenAI
   { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai', description: 'Latest GPT-4 Omni model', contextWindow: '128K', speed: 'fast', quality: 'best' },
   { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', provider: 'openai', description: 'High capability with vision', contextWindow: '128K', speed: 'medium', quality: 'great' },
@@ -1163,6 +1164,7 @@ function WorkspaceContent() {
   const [viewMode, setViewMode] = useState<ViewMode>('preview')
   const [activePanel, setActivePanel] = useState<Panel>('build')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   const [skillLevel, setSkillLevel] = useState<SkillLevel>('no-code')
   const [selectedPreset, setSelectedPreset] = useState<string>('modern-dark')
   const [hasInitialized, setHasInitialized] = useState(false)
@@ -1507,6 +1509,22 @@ function WorkspaceContent() {
         if (Array.isArray(parsed)) setSavedBlocks(parsed)
       }
     } catch {}
+  }, [])
+
+  // Mobile detection — sidebar becomes a slide-over drawer below md (768px)
+  // instead of a flex sibling that eats the viewport. Auto-collapse on first
+  // mobile render so the preview is visible by default.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mq = window.matchMedia('(max-width: 767px)')
+    const apply = (matches: boolean) => {
+      setIsMobile(matches)
+      if (matches) setSidebarCollapsed(true)
+    }
+    apply(mq.matches)
+    const handler = (e: MediaQueryListEvent) => apply(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
   }, [])
 
   useEffect(() => {
@@ -4855,7 +4873,7 @@ ${html}
 
   return (
     <div className={cn(
-      "h-screen flex overflow-hidden transition-colors duration-300",
+      "h-screen flex overflow-hidden transition-colors duration-300 max-w-full",
       isDark ? "bg-[#09090b] text-white" : "bg-white text-slate-900"
     )}>
       {/* Signup nudge modal — fires for anon at conversion-relevant moments
@@ -5091,15 +5109,32 @@ ${html}
         </div>
       )}
 
-      {/* Sidebar */}
+      {/* Mobile drawer backdrop — only when sidebar is open on mobile */}
+      {isMobile && !sidebarCollapsed && !focusMode && (
+        <div
+          onClick={() => setSidebarCollapsed(true)}
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+          aria-label="Close sidebar"
+        />
+      )}
+
+      {/* Sidebar — flex sibling on desktop (width animated), slide-over drawer
+          on mobile (transform animated; width is set via class). */}
       <motion.aside
-        initial={{ width: 380 }}
-        animate={{ width: focusMode ? 0 : sidebarCollapsed ? 56 : 380 }}
+        initial={false}
+        animate={
+          isMobile
+            ? { x: sidebarCollapsed || focusMode ? '-100%' : '0%' }
+            : { width: focusMode ? 0 : sidebarCollapsed ? 56 : 380, x: '0%' }
+        }
         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
         className={cn(
-          "relative h-full border-r flex flex-col z-10 overflow-hidden",
+          "h-full border-r flex flex-col overflow-hidden",
+          isMobile
+            ? "fixed inset-y-0 left-0 z-50 shadow-2xl w-[85vw] max-w-[340px]"
+            : "relative z-10",
           isDark ? "border-white/[0.08] bg-zinc-900/95 backdrop-blur-xl" : "border-slate-200 bg-white",
-          focusMode && "opacity-0 pointer-events-none"
+          focusMode && !isMobile && "opacity-0 pointer-events-none"
         )}
       >
         {/* Top accent line */}
@@ -7363,7 +7398,7 @@ ${html}
       </motion.aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden relative">
+      <main className="flex-1 min-w-0 flex flex-col overflow-hidden relative">
         {/* Focus Mode Indicator */}
         <AnimatePresence>
           {focusMode && (
@@ -7395,6 +7430,21 @@ ${html}
               min-w-0 + overflow-x-auto here the LHS would push the RHS
               (Save / Export buttons) off-screen. */}
           <div className="flex items-center gap-3 min-w-0 overflow-x-auto scrollbar-hide flex-1">
+            {/* Mobile drawer toggle — only visible below md (768px). Opens the
+                sidebar (which becomes a slide-over on mobile). On desktop the
+                sidebar is already a flex sibling, so this would be redundant. */}
+            <button
+              onClick={() => setSidebarCollapsed(v => !v)}
+              className={cn(
+                "md:hidden p-1.5 rounded-lg shrink-0 transition-colors",
+                isDark ? "hover:bg-white/5 text-zinc-400 hover:text-white" : "hover:bg-slate-100 text-slate-600 hover:text-slate-900"
+              )}
+              title="Toggle sidebar"
+              aria-label="Toggle sidebar"
+            >
+              {sidebarCollapsed ? <PanelLeft className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+            </button>
+
             {/* Device toggles */}
             <div className={cn(
               "flex rounded-lg p-0.5 border",
@@ -7605,7 +7655,7 @@ ${html}
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto scrollbar-hide max-w-[60%] md:max-w-none">
             <button
               onClick={handleUndo}
               disabled={historyIndex <= 0}

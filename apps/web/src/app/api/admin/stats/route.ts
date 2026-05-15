@@ -10,7 +10,7 @@ import { connectDB, isAdminEmail } from '@ai-website-builder/database'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 20
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.email || !isAdminEmail(session.user.email)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -30,6 +30,11 @@ export async function GET(_req: NextRequest) {
     const projects = db.collection('projects')
     const activity = db.collection('activitylogs')
 
+    // Tenant filter — Webstew users only. See /api/admin/users for the
+    // long form. Set ?all=1 to count all rows in the shared collection.
+    const all = new URL(req.url).searchParams.get('all') === '1'
+    const tenantFilter: any = all ? {} : { app: 'webstew' }
+
     const [
       userCount,
       planBreakdown,
@@ -40,13 +45,14 @@ export async function GET(_req: NextRequest) {
       generationsDay,
       generationsWeek,
     ] = await Promise.all([
-      users.countDocuments(),
+      users.countDocuments(tenantFilter),
       users.aggregate([
+        { $match: tenantFilter },
         { $group: { _id: '$plan', count: { $sum: 1 } } },
         { $sort: { count: -1 } },
       ]).toArray(),
-      users.countDocuments({ createdAt: { $gte: weekAgo } }),
-      users.countDocuments({ createdAt: { $gte: monthAgo } }),
+      users.countDocuments({ ...tenantFilter, createdAt: { $gte: weekAgo } }),
+      users.countDocuments({ ...tenantFilter, createdAt: { $gte: monthAgo } }),
       projects.countDocuments(),
       projects.countDocuments({ createdAt: { $gte: weekAgo } }),
       activity.countDocuments({

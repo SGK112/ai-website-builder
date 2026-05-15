@@ -20,6 +20,10 @@ export async function GET(req: NextRequest) {
   const plan = url.searchParams.get('plan')?.trim() || ''
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10) || 50, 200)
   const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10) || 0, 0)
+  // Pass ?all=1 to bypass the Webstew tenant filter — useful for ops
+  // debugging cross-tenant questions ("did this VoiceNow user ever
+  // touch Webstew?"). Defaults OFF so admin sees Webstew users only.
+  const all = url.searchParams.get('all') === '1'
 
   try {
     const mongoose = await connectDB()
@@ -29,6 +33,12 @@ export async function GET(req: NextRequest) {
     const filter: any = {}
     if (q) filter.email = { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' }
     if (plan) filter.plan = plan
+    // Tenant isolation — only show Webstew users by default.
+    // 'app' field stamped on signup (credentials + OAuth) and via the
+    // backfill scan (any user with a Webstew project or purchase).
+    // Without this filter the admin shows the whole shared collection
+    // which is mostly VoiceNow users in the voiceflow-crm DB.
+    if (!all) filter.app = 'webstew'
 
     const [rows, total] = await Promise.all([
       db.collection('users')

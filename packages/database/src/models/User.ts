@@ -22,6 +22,15 @@ export interface IUser extends Document {
   createdAt: Date
   updatedAt: Date
   lastLoginAt?: Date
+  // Tenant marker — see schema below. 'webstew' separates this product
+  // from VoiceNow co-tenants in the shared users collection.
+  app?: 'webstew' | string
+  firstSeenWebstewAt?: Date
+  // Marketplace seller fields (Stripe Connect + earnings ledger).
+  marketplace_earnings_credits?: number
+  stripe_account_id?: string
+  stripe_account_created_at?: Date
+  seed?: string
   matchPassword(enteredPassword: string): Promise<boolean>
 }
 
@@ -77,6 +86,23 @@ const userSchema = new Schema<IUser>(
       tourCompleted: { type: Boolean, default: false },
     },
     lastLoginAt: Date,
+    // Tenant marker. MONGODB_URI's default DB is 'voiceflow-crm' which is
+    // shared with the VoiceNow app — both products write to the same
+    // `users` collection. This field separates them at query time so the
+    // Webstew admin panel doesn't show VoiceNow accounts.
+    //   'webstew' — signed up / signed in through Webstew at any point
+    //   undefined — legacy or VoiceNow-only user
+    app: { type: String, index: true },
+    firstSeenWebstewAt: Date,
+    // Marketplace earnings ledger (credits). Cashout to Stripe Connect
+    // happens via /api/stripe/connect/payout (v2). Field added late;
+    // safe to keep in schema so future writes don't get stripped per
+    // the doc.save()-strips-unknown-fields rule.
+    marketplace_earnings_credits: { type: Number, default: 0 },
+    stripe_account_id: String,
+    stripe_account_created_at: Date,
+    // Admin seed marker for the marketplace demo data.
+    seed: String,
   },
   {
     timestamps: true,

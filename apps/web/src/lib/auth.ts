@@ -122,6 +122,8 @@ export const authOptions: NextAuthOptions = {
             googleId: account.provider === 'google' ? providerId : undefined,
             githubId: account.provider === 'github' ? providerId : undefined,
             plan: 'free',
+            app: 'webstew',
+            firstSeenWebstewAt: new Date(),
           })
         } else {
           // Backfill missing fields without overwriting existing data
@@ -137,6 +139,21 @@ export const authOptions: NextAuthOptions = {
           if (!existingUser.avatar && user.image) {
             existingUser.avatar = user.image
             dirty = true
+          }
+          // Tenant stamp: any existing user who signs in via Webstew gets
+          // marked. Existing VoiceNow-only users in the shared collection
+          // who NEVER log into Webstew stay un-stamped and stay out of
+          // the admin panel. Bypass mongoose .save() bleed-through by
+          // using raw collection update for the new field.
+          if (!existingUser.app) {
+            const mongoose = (await import('mongoose')).default
+            const db = mongoose.connection.db
+            if (db) {
+              await db.collection('users').updateOne(
+                { _id: existingUser._id },
+                { $set: { app: 'webstew', firstSeenWebstewAt: new Date(), updatedAt: new Date() } }
+              )
+            }
           }
           if (dirty) await existingUser.save()
         }

@@ -142,6 +142,23 @@ export default function AdminListingsPage() {
               <Sparkles className="w-3 h-3" /> Seed demo data
             </button>
             <button
+              onClick={async () => {
+                if (!confirm("Backfill tenant marker on Webstew users? Scans projects + purchases + community posts. Safe to re-run.")) return
+                try {
+                  const res = await fetch('/api/admin/backfill-tenant', { method: 'POST' })
+                  const data = await res.json()
+                  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+                  alert(`Backfill: ${data.stamped} users stamped (of ${data.candidates} candidates). Total Webstew users now: ${data.totalWebstewUsers}.`)
+                } catch (e: any) {
+                  alert(`Backfill failed: ${e?.message || e}`)
+                }
+              }}
+              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/25"
+              title="Stamps app:'webstew' on users with Webstew activity. Safe to re-run."
+            >
+              <Sparkles className="w-3 h-3" /> Backfill tenant
+            </button>
+            <button
               onClick={load}
               className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded"
             >

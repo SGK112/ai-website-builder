@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
         { _id: dummyId },
         {
           $setOnInsert: { _id: dummyId, createdAt: new Date(), seed: seedTag },
-          $set: { email, name, username, avatar: a.avatar, plan: 'free', updatedAt: new Date() },
+          $set: { email, name, username, avatar: a.avatar, plan: 'free', app: 'webstew', updatedAt: new Date() },
         },
         { upsert: true }
       )
