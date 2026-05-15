@@ -841,40 +841,17 @@ export default function HomePage() {
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="flex items-center gap-2 sm:gap-2.5 min-w-0"
+                  className="flex items-center gap-1.5 sm:gap-2 min-w-0"
                 >
-                  {/* Premium W glyph — geometric, gradient-filled tile. Replaces
-                      the 🍲 emoji as part of the Webstew → Webstew AI brand
-                      evolution. Theme-aware via conditional gradient stops:
-                      violet→fuchsia on dark, orange→fuchsia on light. */}
                   <span
-                    className="shrink-0 cursor-pointer hover:scale-110 hover:rotate-3 transition-all duration-500 ease-out"
+                    className="text-4xl sm:text-6xl leading-none select-none cursor-pointer hover:scale-110 hover:rotate-6 transition-all duration-500 ease-out shrink-0"
                     style={{
                       filter: isDark
-                        ? 'drop-shadow(0 0 18px rgba(167, 139, 250, 0.55))'
-                        : 'drop-shadow(0 0 18px rgba(251, 146, 60, 0.55))',
+                        ? 'drop-shadow(0 0 20px rgba(167, 139, 250, 0.6))'
+                        : 'drop-shadow(0 0 20px rgba(251, 146, 60, 0.6))',
                       animation: 'float 4s ease-in-out infinite'
                     }}
-                    aria-label="Webstew AI"
-                  >
-                    <svg viewBox="0 0 64 64" className="w-9 h-9 sm:w-12 sm:h-12 block" role="img">
-                      <defs>
-                        <linearGradient id="wbg-header" x1="0" y1="0" x2="1" y2="1">
-                          <stop offset="0%" stopColor={isDark ? '#7c3aed' : '#f97316'} />
-                          <stop offset="100%" stopColor={isDark ? '#c026d3' : '#a855f7'} />
-                        </linearGradient>
-                      </defs>
-                      <rect width="64" height="64" rx="14" fill="url(#wbg-header)" />
-                      <path
-                        d="M14 18 L24 48 L32 32 L40 48 L50 18"
-                        fill="none"
-                        stroke="#ffffff"
-                        strokeWidth="6"
-                        strokeLinejoin="miter"
-                        strokeLinecap="butt"
-                      />
-                    </svg>
-                  </span>
+                  >🍲</span>
                   <span
                     className={cn(
                       "text-2xl sm:text-3xl tracking-tight truncate inline-flex items-baseline",
