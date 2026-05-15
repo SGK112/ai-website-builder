@@ -852,23 +852,31 @@ export default function HomePage() {
                       animation: 'float 4s ease-in-out infinite'
                     }}
                   >🍲</span>
+                  {/* Wordmark — mirrors the "Petra & Salt" treatment used in the
+                      restaurant demo (serif italic, bold, with positive tracking)
+                      because that styling is what gives the brand its premium
+                      editorial feel. AI mark stays sans-serif uppercase. */}
                   <span
                     className={cn(
-                      "text-2xl sm:text-3xl tracking-tight truncate inline-flex items-baseline",
+                      "text-3xl sm:text-5xl truncate inline-flex items-baseline gap-1.5 sm:gap-2",
                       isDark
                         ? "bg-gradient-to-r from-white via-violet-200 to-fuchsia-200 bg-clip-text text-transparent"
                         : "bg-gradient-to-r from-orange-600 via-pink-600 to-purple-600 bg-clip-text text-transparent"
                     )}
                     style={{
-                      fontFamily: "'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, system-ui, sans-serif",
-                      fontWeight: 800,
-                      letterSpacing: '-0.03em'
+                      fontFamily: 'var(--font-playfair), Georgia, serif',
+                      fontWeight: 700,
+                      fontStyle: 'italic',
+                      letterSpacing: '0.025em',
                     }}
                   >
                     Webstew<span
-                      className="ml-0.5 text-xs sm:text-sm font-bold tracking-[0.05em] align-baseline"
-                      style={{ opacity: 0.75 }}
-                    >.ai</span>
+                      className="text-sm sm:text-lg font-extrabold tracking-[0.15em] uppercase not-italic"
+                      style={{
+                        fontFamily: 'var(--font-inter), system-ui, sans-serif',
+                        opacity: 0.88,
+                      }}
+                    >AI</span>
                   </span>
                 </motion.div>
 
@@ -2248,8 +2256,22 @@ export default function HomePage() {
               <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
                 <div className="flex items-center gap-2">
                   <span className="text-lg">🍲</span>
-                  <span className={cn("font-semibold", isDark ? "text-white" : "text-slate-800")}>
-                    Webstew<span className="opacity-70">.ai</span>
+                  <span
+                    className={cn(
+                      "inline-flex items-baseline gap-1",
+                      isDark ? "text-white" : "text-slate-800"
+                    )}
+                    style={{
+                      fontFamily: 'var(--font-playfair), serif',
+                      fontStyle: 'italic',
+                      fontWeight: 700,
+                      fontSize: '1.05rem',
+                    }}
+                  >
+                    Webstew<span
+                      className="text-[10px] font-extrabold tracking-[0.18em] uppercase not-italic"
+                      style={{ fontFamily: 'var(--font-inter), system-ui, sans-serif', opacity: 0.85 }}
+                    >AI</span>
                   </span>
                   <span className={cn("text-xs", isDark ? "text-slate-600" : "text-slate-400")}>· AI website builder</span>
                 </div>

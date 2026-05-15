@@ -42,15 +42,22 @@ window.submitForm=function(e,id){e.preventDefault();var m=document.getElementByI
 const baseHead = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script src="https://cdn.tailwindcss.com"></script><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet"><style>body{font-family:'Inter',sans-serif}.serif{font-family:'Playfair Display',Georgia,serif}</style>${formScript}</head>`
 
 // Helpers — keep image URLs short + readable inside the HTML strings.
-// PICSUM is kept for filler / texture imagery (random but stable per seed).
-// UNSPLASH is preferred for HERO images that need to match topic (e.g.,
-// "restaurant dining table") — we use stable Unsplash photo IDs that
-// reliably exist on their CDN. Sizes are intentionally small (max ~800px
-// wide) so a demo iframe loads in under a second over typical connections.
+// PICSUM is kept for filler / texture imagery (random but stable per seed)
+//   — note: the seed string does NOT influence subject matter, only the
+//   deterministic random pick. Don't use it for content-matched imagery.
+// UNSPLASH is preferred for HERO images with a specific look — we pass a
+//   stable photo ID that reliably exists on their CDN.
+// FLICKR is the keyword-matched escape hatch: pass comma-separated tags
+//   ("pearl,necklace,gold") and LoremFlickr returns a Flickr photo
+//   tagged with those terms. Quality varies but topic is always on-target.
+//   Sizes intentionally small (max ~800px wide) so a demo iframe loads
+//   in under a second over typical connections.
 const PICSUM = (seed: string, w: number, h: number) =>
   `https://picsum.photos/seed/${seed}/${w}/${h}`
 const UNSPLASH = (id: string, w: number, h?: number) =>
   `https://images.unsplash.com/photo-${id}?w=${w}${h ? `&h=${h}&fit=crop` : ''}&q=70&auto=format`
+const FLICKR = (tags: string, w: number, h: number) =>
+  `https://loremflickr.com/${w}/${h}/${tags}`
 const AVATAR = (n: number) => `https://i.pravatar.cc/100?img=${n}`
 
 export const DEMO_SITES: DemoSite[] = [
