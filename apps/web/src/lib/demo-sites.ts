@@ -16,7 +16,17 @@ export interface DemoSite {
   html: string
 }
 
-const baseHead = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script src="https://cdn.tailwindcss.com"></script><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet"><style>body{font-family:'Inter',sans-serif}.serif{font-family:'Playfair Display',Georgia,serif}</style></head>`
+// Shared modal helpers — every demo loads them via baseHead, but only demos
+// that mount a <div id="..."> modal use them. Functions live on window so
+// inline onclick handlers in srcDoc'd iframes can reach them without
+// needing a module loader.
+const formScript = `<script>
+window.openForm=function(id){var m=document.getElementById(id);if(m){m.classList.remove('hidden');m.classList.add('flex')}};
+window.closeForm=function(id){var m=document.getElementById(id);if(m){m.classList.add('hidden');m.classList.remove('flex');var f=m.querySelector('[data-form]');var s=m.querySelector('[data-success]');if(f&&s){f.classList.remove('hidden');s.classList.add('hidden')}}};
+window.submitForm=function(e,id){e.preventDefault();var m=document.getElementById(id);if(!m)return;var f=m.querySelector('[data-form]');var s=m.querySelector('[data-success]');if(f)f.classList.add('hidden');if(s)s.classList.remove('hidden');setTimeout(function(){window.closeForm(id)},2400)};
+</script>`
+
+const baseHead = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script src="https://cdn.tailwindcss.com"></script><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet"><style>body{font-family:'Inter',sans-serif}.serif{font-family:'Playfair Display',Georgia,serif}</style>${formScript}</head>`
 
 // Helpers — keep image URLs short + readable inside the HTML strings.
 // PICSUM is kept for filler / texture imagery (random but stable per seed).
@@ -46,7 +56,7 @@ export const DEMO_SITES: DemoSite[] = [
   <h1 class="text-3xl sm:text-5xl md:text-6xl font-bold mb-3 sm:mb-4 tracking-tight leading-[1.05]">Analytics that finally <span class="serif italic bg-gradient-to-r from-violet-300 to-fuchsia-300 bg-clip-text text-transparent">make sense.</span></h1>
   <p class="text-xs sm:text-base text-slate-400 mb-5 sm:mb-8 max-w-xl mx-auto leading-relaxed">Real-time metrics your team will actually use. Stop spelunking SQL — ship faster.</p>
   <div class="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center mb-6 sm:mb-10 px-4 sm:px-0">
-    <button class="px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 font-semibold text-xs sm:text-sm shadow-lg shadow-violet-500/30">Get started — free</button>
+    <button onclick="openForm('saas-form')" class="px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 font-semibold text-xs sm:text-sm shadow-lg shadow-violet-500/30">Get started — free</button>
     <button class="px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-white/5 border border-white/10 font-semibold text-xs sm:text-sm">Watch 90s demo →</button>
   </div>
 </section>
@@ -74,7 +84,29 @@ export const DEMO_SITES: DemoSite[] = [
     <div><div class="text-xl sm:text-3xl font-bold mb-1">2.1%</div><div class="text-[10px] sm:text-xs text-slate-400">Churn · ↓ 0.4</div></div>
     <div><div class="text-xl sm:text-3xl font-bold mb-1">99.9%</div><div class="text-[10px] sm:text-xs text-slate-400">Uptime</div></div>
   </div>
-</section></body></html>`,
+</section>
+<div id="saas-form" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm items-center justify-center p-4" onclick="if(event.target===this)closeForm('saas-form')">
+  <div class="bg-white rounded-2xl p-5 sm:p-7 max-w-sm w-full text-slate-900 shadow-2xl relative">
+    <button onclick="closeForm('saas-form')" class="absolute top-2 right-3 text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
+    <div data-form>
+      <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[10px] font-semibold uppercase tracking-wider mb-3">Early access</div>
+      <h3 class="text-xl sm:text-2xl font-bold mb-1.5">Get on the list.</h3>
+      <p class="text-sm text-slate-500 mb-4">We'll email you when Aurora opens up for your team.</p>
+      <form onsubmit="submitForm(event,'saas-form')" class="space-y-2.5">
+        <input required type="email" placeholder="you@company.com" class="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:border-violet-500 focus:outline-none"/>
+        <input type="text" placeholder="Company (optional)" class="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:border-violet-500 focus:outline-none"/>
+        <button type="submit" class="w-full px-4 py-2.5 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white font-semibold text-sm shadow-lg shadow-violet-500/20">Get early access →</button>
+      </form>
+      <p class="text-[10px] text-slate-400 mt-3 text-center">No spam. Unsubscribe anytime.</p>
+    </div>
+    <div data-success class="hidden text-center py-4">
+      <div class="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 text-3xl mx-auto mb-3">✓</div>
+      <div class="font-bold text-lg mb-1">You're on the list.</div>
+      <div class="text-sm text-slate-500">Look for an email from us shortly.</div>
+    </div>
+  </div>
+</div>
+</body></html>`,
   },
   {
     id: 'portfolio',
@@ -272,7 +304,7 @@ export const DEMO_SITES: DemoSite[] = [
 <nav class="absolute top-0 inset-x-0 z-20 px-4 sm:px-10 py-4 sm:py-6 flex items-center justify-between">
   <span class="serif italic text-base sm:text-2xl font-bold tracking-wide">Petra & Salt</span>
   <div class="hidden md:flex gap-6 text-xs uppercase tracking-[0.2em] text-white/80">Menu · Reservations · Story · Visit</div>
-  <button class="hidden md:inline-flex px-4 py-2 border border-white/40 text-xs tracking-wider uppercase hover:bg-white/10">Reserve</button>
+  <button onclick="openForm('restaurant-form')" class="hidden md:inline-flex px-4 py-2 border border-white/40 text-xs tracking-wider uppercase hover:bg-white/10">Reserve</button>
 </nav>
 <section class="relative h-[220px] sm:h-[320px] md:h-[400px] overflow-hidden">
   <img src="${PICSUM('candlelit-restaurant-table', 1600, 700)}" class="absolute inset-0 w-full h-full object-cover" alt="">
@@ -310,7 +342,35 @@ export const DEMO_SITES: DemoSite[] = [
     <div class="serif italic text-base sm:text-lg">Reserve your table.</div>
     <div class="text-[10px] sm:text-xs text-stone-400">Tue–Sun · 5:30 PM – 11:00 PM · 47 Ash Lane</div>
   </div>
-  <button class="px-5 sm:px-6 py-2.5 sm:py-3 bg-amber-200 text-stone-900 text-xs sm:text-sm tracking-wider uppercase">Book now</button>
-</section></body></html>`,
+  <button onclick="openForm('restaurant-form')" class="px-5 sm:px-6 py-2.5 sm:py-3 bg-amber-200 text-stone-900 text-xs sm:text-sm tracking-wider uppercase">Book now</button>
+</section>
+<div id="restaurant-form" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm items-center justify-center p-4" onclick="if(event.target===this)closeForm('restaurant-form')">
+  <div class="bg-stone-50 rounded-lg p-5 sm:p-7 max-w-sm w-full text-stone-900 shadow-2xl relative">
+    <button onclick="closeForm('restaurant-form')" class="absolute top-2 right-3 text-stone-400 hover:text-stone-700 text-2xl leading-none">×</button>
+    <div data-form>
+      <div class="text-[10px] sm:text-xs uppercase tracking-[0.3em] text-amber-700 mb-2">Petra &amp; Salt</div>
+      <h3 class="serif text-2xl sm:text-3xl mb-4 leading-tight">Reserve your <span class="italic">table.</span></h3>
+      <form onsubmit="submitForm(event,'restaurant-form')" class="space-y-2.5">
+        <input required type="text" placeholder="Full name" class="w-full px-3 py-2.5 rounded border border-stone-300 text-sm focus:border-amber-700 focus:outline-none"/>
+        <div class="grid grid-cols-2 gap-2">
+          <input required type="date" class="px-3 py-2.5 rounded border border-stone-300 text-sm focus:border-amber-700 focus:outline-none"/>
+          <select required class="px-3 py-2.5 rounded border border-stone-300 text-sm focus:border-amber-700 focus:outline-none bg-white">
+            <option value="">Party size</option>
+            <option>2</option><option>3</option><option>4</option><option>5</option><option>6+</option>
+          </select>
+        </div>
+        <input type="tel" placeholder="Phone (optional)" class="w-full px-3 py-2.5 rounded border border-stone-300 text-sm focus:border-amber-700 focus:outline-none"/>
+        <button type="submit" class="w-full px-4 py-2.5 bg-stone-900 text-amber-100 text-xs tracking-wider uppercase hover:bg-stone-800">Request reservation</button>
+      </form>
+      <p class="text-[10px] text-stone-500 mt-3 text-center">We'll confirm within the hour.</p>
+    </div>
+    <div data-success class="hidden text-center py-4">
+      <div class="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 text-3xl mx-auto mb-3">✓</div>
+      <div class="serif text-xl mb-1">Reservation requested.</div>
+      <div class="text-sm text-stone-500">We'll text you a confirmation shortly.</div>
+    </div>
+  </div>
+</div>
+</body></html>`,
   },
 ]

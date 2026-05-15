@@ -56,7 +56,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       const purchase = await db
         .collection('marketplace_purchases')
         .findOne(
-          { buyerId: viewerId, listingId: String(listing._id) },
+          // Refunded purchases revoke entitlement. The row stays for audit
+          // history but no longer counts as ownership.
+          { buyerId: viewerId, listingId: String(listing._id), status: { $ne: 'refunded' } },
           { projection: { _id: 1 } }
         )
       owned = !!purchase

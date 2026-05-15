@@ -31,7 +31,9 @@ export async function GET(_req: NextRequest) {
       .sort({ createdAt: -1 })
       .toArray(),
     db.collection('marketplace_purchases')
-      .find({ buyerId: userId })
+      // Refunded purchases drop out of the library tab — buyer no longer
+      // has access. Audit row stays in the collection for reporting.
+      .find({ buyerId: userId, status: { $ne: 'refunded' } })
       .sort({ purchasedAt: -1 })
       .toArray(),
     db.collection('community_posts')

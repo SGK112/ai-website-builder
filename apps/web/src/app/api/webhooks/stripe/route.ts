@@ -92,10 +92,13 @@ export async function POST(req: NextRequest) {
               const db = mongoose.connection.db
               if (db) {
                 // Idempotent: marketplace_purchases keyed on (buyerId, listingId)
-                // so retried webhook deliveries don't double-record.
+                // so retried webhook deliveries don't double-record. We
+                // explicitly ignore refunded rows here so a buyer who got
+                // refunded and re-purchases gets a fresh active row.
                 const already = await db.collection('marketplace_purchases').findOne({
                   buyerId,
                   listingId,
+                  status: { $ne: 'refunded' },
                 })
                 if (!already) {
                   const listing = await db
@@ -231,6 +234,107 @@ export async function POST(req: NextRequest) {
           user.subscriptionStatus = 'past_due'
           await user.save()
           console.log(`Payment failed for user ${user._id}`)
+        }
+        break
+      }
+
+      case 'charge.refunded': {
+        // Marketplace refund. Buyer (or admin via Dashboard) issued a full
+        // or partial refund on a destination charge. We observe the event,
+        // revoke entitlement on full refund, and write an audit row.
+        // Stripe handles the application-fee reversal + transfer reversal
+        // when the refund is created with reverse_transfer:true, so we
+        // don't touch transfers here.
+        const charge: any = event.data.object
+        try {
+          const paymentIntentId =
+            typeof charge.payment_intent === 'string'
+              ? charge.payment_intent
+              : charge.payment_intent?.id
+          if (!paymentIntentId) {
+            console.log('[marketplace] charge.refunded: no payment_intent on charge, ignoring')
+            break
+          }
+          const mongoose = (await import('mongoose')).default
+          const db = mongoose.connection.db
+          if (!db) break
+          const purchase = await db
+            .collection('marketplace_purchases')
+            .findOne({ stripePaymentIntentId: paymentIntentId })
+          if (!purchase) {
+            console.log(`[marketplace] charge.refunded: no purchase row for PI ${paymentIntentId}`)
+            break
+          }
+          if (purchase.status === 'refunded') {
+            console.log(`[marketplace] charge.refunded: ${purchase._id} already refunded, skipping`)
+            break
+          }
+          const amountRefunded = Number(charge.amount_refunded) || 0
+          const amountTotal = Number(charge.amount) || 0
+          const isFullRefund = amountRefunded >= amountTotal && amountTotal > 0
+          if (!isFullRefund) {
+            // Partial refund — log it but leave entitlement intact. The
+            // buyer still gets the asset they paid (most of) for.
+            await db.collection('marketplace_purchases').updateOne(
+              { _id: purchase._id },
+              {
+                $set: {
+                  partialRefundCents: amountRefunded,
+                  partialRefundedAt: new Date(),
+                },
+              }
+            )
+            console.log(
+              `[marketplace] partial refund logged: ${amountRefunded}/${amountTotal} on ${purchase._id}`
+            )
+            break
+          }
+          // Full refund — revoke entitlement, reverse counters.
+          await db.collection('marketplace_purchases').updateOne(
+            { _id: purchase._id },
+            {
+              $set: {
+                status: 'refunded',
+                refundedAt: new Date(),
+                refundAmountCents: amountRefunded,
+                stripeChargeId: charge.id,
+              },
+            }
+          )
+          if (purchase.listingId && ObjectId.isValid(purchase.listingId)) {
+            await db
+              .collection('community_posts')
+              .updateOne({ _id: new ObjectId(purchase.listingId) }, { $inc: { downloads: -1 } })
+          }
+          const priceCredits = Number(purchase.priceCredits) || 0
+          if (
+            purchase.sellerId &&
+            ObjectId.isValid(purchase.sellerId) &&
+            priceCredits > 0
+          ) {
+            await db
+              .collection('users')
+              .updateOne(
+                { _id: new ObjectId(purchase.sellerId) },
+                { $inc: { marketplace_earnings_credits: -priceCredits } }
+              )
+          }
+          await db.collection('audit_log').insertOne({
+            type: 'marketplace_refund',
+            listingId: purchase.listingId,
+            buyerId: purchase.buyerId,
+            sellerId: purchase.sellerId,
+            stripePaymentIntentId: paymentIntentId,
+            stripeChargeId: charge.id,
+            amountRefundedCents: amountRefunded,
+            priceCredits,
+            at: new Date(),
+          })
+          console.log(
+            `[marketplace] refund processed for ${purchase._id} buyer=${purchase.buyerId} listing=${purchase.listingId}`
+          )
+        } catch (e: any) {
+          console.error('[marketplace] charge.refunded handler:', e?.message || e)
         }
         break
       }
