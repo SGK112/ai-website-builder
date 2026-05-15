@@ -207,16 +207,46 @@ export async function getUserUsageThisMonth(userId: string | mongoose.Types.Obje
 }
 
 // Admin emails with unlimited access.
-// Joshua signs into Webstew as aria@surprisegranite.com (Google OAuth on
-// that account); joshb@ is the SG ops mailbox. Both stay admin.
+//
+// Three layers of admin grant, in priority order:
+//   1. Explicit allowlist below (hardcoded — survives env wipes)
+//   2. ADMIN_EMAILS env var (comma-separated, additive — for ops without
+//      a deploy)
+//   3. ADMIN_DOMAINS env var (defaults to 'surprisegranite.com,webstew.net'
+//      — anyone on these domains is admin so Joshua doesn't get locked
+//      out depending on which email he Google-OAuthed with)
 export const ADMIN_EMAILS = [
   'joshb@surprisegranite.com',
   'aria@surprisegranite.com',
 ]
 
-// Check if email is an admin
+const DEFAULT_ADMIN_DOMAINS = ['surprisegranite.com', 'webstew.net']
+
+// Check if email is an admin. Layered grant:
+//   • baked-in list, OR
+//   • env-var ADMIN_EMAILS (comma-separated additions, no deploy needed), OR
+//   • email's domain is in ADMIN_DOMAINS env var
+//     (or the safe defaults surprisegranite.com / webstew.net)
 export function isAdminEmail(email: string): boolean {
-  return ADMIN_EMAILS.includes(email.toLowerCase())
+  if (!email) return false
+  const lower = email.toLowerCase().trim()
+  if (ADMIN_EMAILS.map((e) => e.toLowerCase()).includes(lower)) return true
+
+  const envEmails = (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+  if (envEmails.includes(lower)) return true
+
+  const envDomains = (process.env.ADMIN_DOMAINS || '')
+    .split(',')
+    .map((d) => d.trim().toLowerCase())
+    .filter(Boolean)
+  const domains = envDomains.length > 0 ? envDomains : DEFAULT_ADMIN_DOMAINS
+  const at = lower.indexOf('@')
+  if (at < 0) return false
+  const userDomain = lower.slice(at + 1)
+  return domains.includes(userDomain)
 }
 
 export type UserPlan = 'free' | 'starter' | 'pro' | 'scale' | 'enterprise'

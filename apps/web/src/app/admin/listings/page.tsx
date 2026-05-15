@@ -6,8 +6,10 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
+import { useSession } from 'next-auth/react'
 import { ArrowLeft, Check, X, Trash2, ExternalLink, Loader2, AlertCircle, RefreshCw, Crown, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { AdminNav } from '@/components/admin/AdminNav'
 
 interface Listing {
   _id: string
@@ -26,6 +28,7 @@ interface Listing {
 type StatusFilter = 'pending' | 'approved' | 'rejected' | 'legacy'
 
 export default function AdminListingsPage() {
+  const { data: session } = useSession()
   const [status, setStatus] = useState<StatusFilter>('pending')
   const [posts, setPosts] = useState<Listing[]>([])
   const [counts, setCounts] = useState<Record<string, number>>({})
@@ -107,12 +110,17 @@ export default function AdminListingsPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground flex">
+      <AdminNav email={session?.user?.email || ''} />
+      <div className="flex-1 min-w-0">
       <header className="border-b border-border bg-card/40 backdrop-blur-xl sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 md:hidden">
             <Crown className="w-5 h-5 text-amber-400" />
             <h1 className="font-bold text-lg">Listings · Moderation</h1>
+          </div>
+          <div className="hidden md:block">
+            <h1 className="font-bold text-lg">Listings moderation</h1>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -246,6 +254,7 @@ export default function AdminListingsPage() {
           </div>
         )}
       </main>
+      </div>
     </div>
   )
 }
