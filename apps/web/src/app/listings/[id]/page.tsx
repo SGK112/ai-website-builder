@@ -102,7 +102,7 @@ export default async function ListingPage({ params }: PageProps) {
               <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded bg-white/5 text-zinc-400">{l.type}</span>
               {l.isPremium && (
                 <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                  <Crown className="w-3 h-3" /> {l.priceCredits} credits
+                  <Crown className="w-3 h-3" /> ${((l.priceCredits || 0) / 100).toFixed(2)}
                 </span>
               )}
               {l.category && (

@@ -100,17 +100,35 @@ export function ListingActions({ listingId, title, isPremium, priceCredits }: Pr
     setError(null)
     setFlash(null)
     try {
-      const res = await fetch(`/api/marketplace/buy/${listingId}`, { method: 'POST' })
-      if (res.status === 401) { requireAuth('buy'); return }
-      const data = await res.json()
-      if (res.status === 402) {
-        // Buyer is short on credits — punt them to /upgrade with a return
-        router.push(`/upgrade?next=${encodeURIComponent(`/listings/${listingId}`)}&reason=marketplace_credits`)
+      // Direct-USD Stripe Checkout first — real money to seller's Connect
+      // account (minus platform fee). If the seller hasn't completed
+      // Stripe onboarding (422) or Stripe isn't configured (503), fall
+      // back to credit-based buy so the path still works.
+      const sres = await fetch(`/api/marketplace/checkout/${listingId}`, { method: 'POST' })
+      if (sres.status === 401) { requireAuth('buy'); return }
+      const sdata = await sres.json()
+      if (sres.ok && sdata?.url) {
+        window.location.href = sdata.url
         return
       }
-      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`)
-      setFlash(data?.message || 'Purchased.')
-      await load()
+      if (sdata?.alreadyOwned && sdata?.redirect) {
+        router.push(sdata.redirect)
+        return
+      }
+      if (sres.status === 422 || sres.status === 503) {
+        const res = await fetch(`/api/marketplace/buy/${listingId}`, { method: 'POST' })
+        if (res.status === 401) { requireAuth('buy'); return }
+        const data = await res.json()
+        if (res.status === 402) {
+          router.push(`/upgrade?next=${encodeURIComponent(`/listings/${listingId}`)}&reason=marketplace_credits`)
+          return
+        }
+        if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`)
+        setFlash(data?.message || 'Purchased.')
+        await load()
+        return
+      }
+      throw new Error(sdata?.error || `HTTP ${sres.status}`)
     } catch (e: any) {
       setError(e?.message || 'Purchase failed')
     } finally {
@@ -165,7 +183,7 @@ export function ListingActions({ listingId, title, isPremium, priceCredits }: Pr
           className="ml-auto inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:shadow-lg hover:shadow-amber-500/25 text-white font-semibold text-sm disabled:opacity-60"
         >
           {busy === 'buy' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingBag className="w-4 h-4" />}
-          Buy for {priceCredits} credits
+          Buy · ${(priceCredits / 100).toFixed(2)}
         </button>
       )}
 

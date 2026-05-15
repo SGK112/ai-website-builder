@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import mongoose from 'mongoose'
+import { ObjectId } from 'mongodb'
 import Stripe from 'stripe'
 import { getStripe, getPlanCredits, type PlanId } from '@/lib/stripe'
 import { connectDB } from '@/lib/db'
@@ -77,6 +78,63 @@ export async function POST(req: NextRequest) {
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
+        const sess: any = event.data.object
+        // Marketplace direct-USD purchase path. Identified by metadata.source.
+        // (Plan/credit Checkout sessions go through the legacy branch below.)
+        if (sess?.metadata?.source === 'webstew-marketplace') {
+          try {
+            const listingId = sess.metadata.listing_id
+            const buyerId = sess.metadata.buyer_user_id
+            const sellerId = sess.metadata.seller_user_id
+            const creditsValue = parseInt(sess.metadata.credits || '0', 10) || 0
+            if (listingId && buyerId && ObjectId.isValid(listingId)) {
+              const mongoose = (await import('mongoose')).default
+              const db = mongoose.connection.db
+              if (db) {
+                // Idempotent: marketplace_purchases keyed on (buyerId, listingId)
+                // so retried webhook deliveries don't double-record.
+                const already = await db.collection('marketplace_purchases').findOne({
+                  buyerId,
+                  listingId,
+                })
+                if (!already) {
+                  const listing = await db
+                    .collection('community_posts')
+                    .findOne({ _id: new ObjectId(listingId) }, { projection: { title: 1, type: 1 } })
+                  await db.collection('marketplace_purchases').insertOne({
+                    buyerId,
+                    sellerId,
+                    listingId,
+                    listingTitle: listing?.title || sess.metadata.listing_title || '',
+                    listingType: listing?.type || 'website',
+                    priceCredits: creditsValue,
+                    stripeSessionId: sess.id,
+                    stripePaymentIntentId: sess.payment_intent,
+                    amountTotalCents: sess.amount_total,
+                    amountCurrency: sess.currency,
+                    source: 'stripe-checkout',
+                    purchasedAt: new Date(),
+                  })
+                  // Bump downloads + seller ledger.
+                  await db
+                    .collection('community_posts')
+                    .updateOne({ _id: new ObjectId(listingId) }, { $inc: { downloads: 1 } })
+                  if (sellerId && ObjectId.isValid(sellerId) && creditsValue > 0) {
+                    await db.collection('users').updateOne(
+                      { _id: new ObjectId(sellerId) },
+                      { $inc: { marketplace_earnings_credits: creditsValue } }
+                    )
+                  }
+                  console.log(`[marketplace] checkout completed → minted purchase for ${buyerId} on ${listingId}`)
+                }
+              }
+            }
+          } catch (e: any) {
+            console.error('[marketplace] checkout.completed handler:', e?.message || e)
+          }
+          break
+        }
+        // Fall-through to legacy plan-checkout path below.
         const session = event.data.object as Stripe.Checkout.Session
         const metadata = session.metadata
 
