@@ -159,6 +159,7 @@ import { ContentPanel } from '@/components/builder/ContentPanel'
 import { CustomDomainCard } from '@/components/builder/CustomDomainCard'
 import { PublishToCommunityModal } from '@/components/builder/PublishToCommunityModal'
 import { SiteGraderModal } from '@/components/builder/SiteGraderModal'
+import { SectionChat, type ChatSubmitPayload } from '@/components/builder/SectionChat'
 import { stylePresets, StylePreset, generatePresetStyles, applyThemeToHtml, generateAllThemesStyles } from '@/lib/builder/style-presets'
 import { getTemplateById } from '@/lib/templates'
 import { componentLibrary, ComponentSection, assemblePage } from '@/lib/builder/component-library'
@@ -10659,6 +10660,36 @@ ${html}
           })}
         </AnimatePresence>
       </div>
+
+      {/* Floating contextual chat — mobile-first FAB + bottom-sheet.
+          Hidden on desktop where the existing side panel is the primary
+          chat surface. Section-aware: tap an element on the canvas →
+          sheet auto-opens with the element pinned as context.
+          Architected with input-source abstraction so the Aria voice
+          bridge can call onSubmit() with the same shape later
+          (see feedback_aria_in_workspace_north_star.md). */}
+      <SectionChat
+        messages={chatMessages.map((m) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : String(m.content || '') }))}
+        isThinking={isThinking || isGenerating}
+        selectedElement={
+          selectedElement
+            ? {
+                tagName: selectedElement.tagName,
+                outerHtml: selectedElement.outerHTML,
+                textSnippet: selectedElement.textContent?.slice(0, 80) || '',
+              }
+            : null
+        }
+        onClearSelection={() => setSelectedElement(null)}
+        onSubmit={(payload: ChatSubmitPayload) => {
+          // Single submit pathway. Text and (future) voice both route here;
+          // selection metadata is already on chatMessages's enriched-prompt
+          // step inside handleChatMessage (it reads selectedElement state).
+          handleChatMessage(payload.text)
+        }}
+        ariaStatus={null}
+        hideFabOnDesktop
+      />
     </div>
   )
 }
