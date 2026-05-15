@@ -841,20 +841,43 @@ export default function HomePage() {
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="flex items-center gap-1.5 sm:gap-2 min-w-0"
+                  className="flex items-center gap-2 sm:gap-2.5 min-w-0"
                 >
+                  {/* Premium W glyph — geometric, gradient-filled tile. Replaces
+                      the 🍲 emoji as part of the Webstew → Webstew AI brand
+                      evolution. Theme-aware via conditional gradient stops:
+                      violet→fuchsia on dark, orange→fuchsia on light. */}
                   <span
-                    className="text-4xl sm:text-6xl leading-none select-none cursor-pointer hover:scale-110 hover:rotate-6 transition-all duration-500 ease-out shrink-0"
+                    className="shrink-0 cursor-pointer hover:scale-110 hover:rotate-3 transition-all duration-500 ease-out"
                     style={{
                       filter: isDark
-                        ? 'drop-shadow(0 0 20px rgba(167, 139, 250, 0.6))'
-                        : 'drop-shadow(0 0 20px rgba(251, 146, 60, 0.6))',
+                        ? 'drop-shadow(0 0 18px rgba(167, 139, 250, 0.55))'
+                        : 'drop-shadow(0 0 18px rgba(251, 146, 60, 0.55))',
                       animation: 'float 4s ease-in-out infinite'
                     }}
-                  >🍲</span>
+                    aria-label="Webstew AI"
+                  >
+                    <svg viewBox="0 0 64 64" className="w-9 h-9 sm:w-12 sm:h-12 block" role="img">
+                      <defs>
+                        <linearGradient id="wbg-header" x1="0" y1="0" x2="1" y2="1">
+                          <stop offset="0%" stopColor={isDark ? '#7c3aed' : '#f97316'} />
+                          <stop offset="100%" stopColor={isDark ? '#c026d3' : '#a855f7'} />
+                        </linearGradient>
+                      </defs>
+                      <rect width="64" height="64" rx="14" fill="url(#wbg-header)" />
+                      <path
+                        d="M14 18 L24 48 L32 32 L40 48 L50 18"
+                        fill="none"
+                        stroke="#ffffff"
+                        strokeWidth="6"
+                        strokeLinejoin="miter"
+                        strokeLinecap="butt"
+                      />
+                    </svg>
+                  </span>
                   <span
                     className={cn(
-                      "text-2xl sm:text-3xl tracking-tight truncate",
+                      "text-2xl sm:text-3xl tracking-tight truncate inline-flex items-baseline",
                       isDark
                         ? "bg-gradient-to-r from-white via-violet-200 to-fuchsia-200 bg-clip-text text-transparent"
                         : "bg-gradient-to-r from-orange-600 via-pink-600 to-purple-600 bg-clip-text text-transparent"
@@ -865,7 +888,10 @@ export default function HomePage() {
                       letterSpacing: '-0.03em'
                     }}
                   >
-                    Webstew
+                    Webstew<span
+                      className="ml-0.5 text-xs sm:text-sm font-bold tracking-[0.05em] align-baseline"
+                      style={{ opacity: 0.75 }}
+                    >.ai</span>
                   </span>
                 </motion.div>
 
@@ -1170,17 +1196,30 @@ export default function HomePage() {
                               : "bg-white/70 border-slate-200/80 hover:bg-white hover:border-slate-300"
                           )}
                         >
-                          <svg
-                            viewBox="0 0 24 24"
-                            xmlns="http://www.w3.org/2000/svg"
-                            className={cn(
-                              "w-5 h-5",
-                              isDark ? "fill-slate-200" : "fill-slate-700"
-                            )}
-                            aria-hidden="true"
-                          >
-                            <path d={TECH_ICONS[tech.slug] || ''} />
-                          </svg>
+                          {tech.slug === 'vercel' ? (
+                            // Official Vercel asset (theme-aware) — black triangle on light,
+                            // white on dark, per their brand guidelines.
+                            <img
+                              src={isDark
+                                ? '/brand/partners/vercel/vercel-icon-dark.svg'
+                                : '/brand/partners/vercel/vercel-icon-light.svg'}
+                              alt="Vercel"
+                              className="w-5 h-5"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <svg
+                              viewBox="0 0 24 24"
+                              xmlns="http://www.w3.org/2000/svg"
+                              className={cn(
+                                "w-5 h-5",
+                                isDark ? "fill-slate-200" : "fill-slate-700"
+                              )}
+                              aria-hidden="true"
+                            >
+                              <path d={TECH_ICONS[tech.slug] || ''} />
+                            </svg>
+                          )}
                           <span className={cn(
                             "text-sm font-semibold tracking-tight whitespace-nowrap",
                             isDark ? "text-slate-200" : "text-slate-800"
@@ -1232,7 +1271,7 @@ export default function HomePage() {
                       'text-[10px] sm:text-xs uppercase tracking-[0.18em] sm:tracking-[0.28em] font-semibold text-center sm:whitespace-nowrap',
                       isDark ? 'text-violet-300/80' : 'text-violet-600/80'
                     )}>
-                      Live Preview · Made with Webstew
+                      Live Preview · Made with Webstew AI
                     </p>
                   </motion.div>
                 </div>
@@ -2053,17 +2092,29 @@ export default function HomePage() {
                                 : "bg-white/70 border-slate-200/80 hover:bg-white hover:border-slate-300 hover:shadow-md"
                             )}
                           >
-                            <svg
-                              viewBox="0 0 24 24"
-                              xmlns="http://www.w3.org/2000/svg"
-                              className={cn(
-                                "w-8 h-8",
-                                isDark ? "fill-slate-200" : "fill-slate-700"
-                              )}
-                              aria-hidden="true"
-                            >
-                              <path d={TECH_ICONS[tech.slug] || ''} />
-                            </svg>
+                            {tech.slug === 'vercel' ? (
+                              // Official Vercel asset (theme-aware).
+                              <img
+                                src={isDark
+                                  ? '/brand/partners/vercel/vercel-icon-dark.svg'
+                                  : '/brand/partners/vercel/vercel-icon-light.svg'}
+                                alt="Vercel"
+                                className="w-8 h-8"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <svg
+                                viewBox="0 0 24 24"
+                                xmlns="http://www.w3.org/2000/svg"
+                                className={cn(
+                                  "w-8 h-8",
+                                  isDark ? "fill-slate-200" : "fill-slate-700"
+                                )}
+                                aria-hidden="true"
+                              >
+                                <path d={TECH_ICONS[tech.slug] || ''} />
+                              </svg>
+                            )}
                             <span className={cn(
                               "text-base font-semibold tracking-tight whitespace-nowrap",
                               isDark ? "text-slate-100" : "text-slate-900"
@@ -2220,8 +2271,10 @@ export default function HomePage() {
               <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
                 <div className="flex items-center gap-2">
                   <span className="text-lg">🍲</span>
-                  <span className={cn("font-semibold", isDark ? "text-white" : "text-slate-800")}>Webstew</span>
-                  <span className={cn("text-xs", isDark ? "text-slate-600" : "text-slate-400")}>· prompts to working code</span>
+                  <span className={cn("font-semibold", isDark ? "text-white" : "text-slate-800")}>
+                    Webstew<span className="opacity-70">.ai</span>
+                  </span>
+                  <span className={cn("text-xs", isDark ? "text-slate-600" : "text-slate-400")}>· AI website builder</span>
                 </div>
                 <div className="flex items-center gap-x-5 gap-y-2 flex-wrap justify-center sm:justify-end">
                   <a href="/grader" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Site Grader</a>
@@ -2240,7 +2293,7 @@ export default function HomePage() {
                 "max-w-5xl mx-auto mt-4 text-center sm:text-right text-xs",
                 isDark ? "text-slate-600" : "text-slate-400"
               )}>
-                Webstew is operated by Remodely LLC.
+                Webstew AI is operated by Remodely LLC.
               </p>
             </footer>
 

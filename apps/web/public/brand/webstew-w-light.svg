@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Webstew">
+  <path d="M14 18 L24 48 L32 32 L40 48 L50 18"
+    fill="none"
+    stroke="#0a0a0f"
+    stroke-width="6"
+    stroke-linejoin="miter"
+    stroke-linecap="butt"/>
+</svg>

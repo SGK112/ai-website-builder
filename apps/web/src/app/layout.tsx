@@ -30,20 +30,45 @@ export const viewport = {
 // local dev so the file-conventions resolve.
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://webstew.net'),
-  title: 'Webstew | AI Website & App Builder',
-  description: 'Webstew turns a single prompt into a polished website or working mobile app. No code required — describe it, ship it.',
-  keywords: ['Webstew', 'website builder', 'app builder', 'AI', 'Next.js', 'Expo', 'React Native'],
+  title: {
+    default: 'Webstew AI — The AI Website Builder',
+    template: '%s · Webstew AI',
+  },
+  description:
+    'Webstew AI is an AI website builder that turns one prompt into a production-ready site, app, or store. Multi-target (Next.js, Astro, Expo, React Native), free to start, no code required.',
+  keywords: [
+    'Webstew AI',
+    'Webstew',
+    'AI website builder',
+    'AI app builder',
+    'no-code website builder',
+    'AI web design',
+    'generate website with AI',
+    'AI landing page builder',
+    'prompt to website',
+    'Next.js AI builder',
+    'Astro AI builder',
+    'Expo AI builder',
+    'React Native AI builder',
+  ],
+  applicationName: 'Webstew AI',
+  authors: [{ name: 'Remodely LLC' }],
+  creator: 'Remodely LLC',
+  publisher: 'Webstew AI',
+  alternates: { canonical: '/' },
   openGraph: {
-    title: 'Webstew — AI Website & App Builder',
-    description: 'Describe it, ship it. AI-built websites & apps.',
+    title: 'Webstew AI — The AI Website Builder',
+    description: 'One prompt → production site, app, or store. Free to start, multi-target.',
     type: 'website',
-    siteName: 'Webstew',
+    siteName: 'Webstew AI',
+    url: '/',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Webstew — AI Website & App Builder',
-    description: 'Describe it, ship it. AI-built websites & apps.',
+    title: 'Webstew AI — The AI Website Builder',
+    description: 'One prompt → production site, app, or store. Free to start, multi-target.',
   },
+  category: 'technology',
 }
 
 export default function RootLayout({
