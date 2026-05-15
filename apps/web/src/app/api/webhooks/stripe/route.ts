@@ -176,6 +176,60 @@ export async function POST(req: NextRequest) {
         }
         break
       }
+
+      // ────────── Stripe Connect (marketplace) events ──────────
+      // These fire on Connect platform events. `event.account` is set when
+      // the event is on a connected account (Express seller). For platform-
+      // level events (transfer succeeded/failed) `event.account` is absent.
+      case 'account.updated': {
+        // A seller's onboarding state changed (e.g., charges_enabled flipped).
+        // Cache the latest flags on the user doc so the PayoutsCard reflects
+        // status without hitting Stripe on every page load.
+        const acct: any = event.data.object
+        if (acct?.id) {
+          const mongoose = (await import('mongoose')).default
+          const db = mongoose.connection.db
+          if (db) {
+            await db.collection('users').updateOne(
+              { stripe_account_id: acct.id },
+              {
+                $set: {
+                  stripe_charges_enabled: !!acct.charges_enabled,
+                  stripe_payouts_enabled: !!acct.payouts_enabled,
+                  stripe_details_submitted: !!acct.details_submitted,
+                  stripe_account_status_updated_at: new Date(),
+                },
+              }
+            )
+          }
+        }
+        break
+      }
+      case 'transfer.created':
+      case 'transfer.updated':
+      case 'transfer.reversed': {
+        // Record the transfer state on our payouts_log row.
+        const tr: any = event.data.object
+        const mongoose = (await import('mongoose')).default
+        const db = mongoose.connection.db
+        if (db && tr?.id) {
+          await db.collection('payouts_log').updateOne(
+            { stripeTransferId: tr.id },
+            {
+              $set: {
+                status: event.type.split('.')[1],
+                stripeStatus: tr.status,
+                stripeAmount: tr.amount,
+                stripeCurrency: tr.currency,
+                updatedAt: new Date(),
+              },
+              $setOnInsert: { stripeTransferId: tr.id, createdAt: new Date() },
+            },
+            { upsert: true }
+          )
+        }
+        break
+      }
     }
 
     return NextResponse.json({ received: true })
