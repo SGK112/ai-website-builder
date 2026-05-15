@@ -142,7 +142,7 @@ export default function LibraryPage() {
             {items.map((l) => (
               <Link
                 key={l._id}
-                href={`/listings/${l._id}`}
+                href={tab === 'purchased' ? `/workspace?from=library&listingId=${l._id}` : `/listings/${l._id}`}
                 className="group rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden hover:border-violet-500/40 transition"
               >
                 <div className="aspect-[16/10] bg-gradient-to-br from-slate-800 to-slate-900 overflow-hidden relative">

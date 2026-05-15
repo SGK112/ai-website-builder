@@ -2094,6 +2094,7 @@ function WorkspaceContent() {
     const promptFromUrl = searchParams.get('prompt')
     const projectId = searchParams.get('project')
     const templateId = searchParams.get('templateId')
+    const listingId = searchParams.get('listingId')
 
     if (projectId) {
       // Mark before loading so the autosave-restore effect later in the file
@@ -2123,6 +2124,42 @@ function WorkspaceContent() {
       } else {
         addToast('error', `Template "${templateId}" not found`)
       }
+      setHasInitialized(true)
+    } else if (listingId) {
+      // Marketplace deep-link — buyer hit "Open in workspace" from /library
+      // or /listings/[id]. API gates html on ownership, so if the viewer
+      // doesn't own the listing we'll get back no html and bounce them to
+      // the detail page where they can buy it.
+      loadedFromUrlRef.current = true
+      ;(async () => {
+        try {
+          const res = await fetch(`/api/listings/${listingId}`, { cache: 'no-store' })
+          const json = await res.json().catch(() => ({}))
+          const l = json?.listing
+          if (!res.ok || !l) {
+            addToast('error', json?.error || `Listing not found`)
+            router.replace('/workspace', { scroll: false })
+            return
+          }
+          if (!l.owned || !l.html) {
+            addToast('error', `You don't own this listing yet`)
+            router.replace(`/listings/${listingId}`, { scroll: false })
+            return
+          }
+          router.replace('/workspace', { scroll: false })
+          try { localStorage.setItem('webstew-onboarding-complete', 'true') } catch {}
+          setHasCompletedOnboarding(true)
+          setHtml(l.html)
+          setProjectName(l.title || 'Untitled listing')
+          setChatMessages([
+            { role: 'assistant', content: `Loaded "${l.title}" from your library. Make any changes you want — I'll edit the site directly.` }
+          ])
+          addToast('success', `Loaded "${l.title}"`)
+        } catch (e: any) {
+          addToast('error', `Failed to load listing: ${e?.message || 'unknown error'}`)
+          router.replace('/workspace', { scroll: false })
+        }
+      })()
       setHasInitialized(true)
     } else if (promptFromUrl) {
       // Same protection — autosave restore must not clobber a fresh prompt.
@@ -2224,6 +2261,7 @@ function WorkspaceContent() {
       && !searchParams.get('prompt')
       && !searchParams.get('project')
       && !searchParams.get('templateId')
+      && !searchParams.get('listingId')
     ) {
       const autoSaved = localStorage.getItem('webstew-autosave')
       if (autoSaved) {
