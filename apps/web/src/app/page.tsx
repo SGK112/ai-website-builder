@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { motion, AnimatePresence, useScroll, useSpring, useTransform } from 'framer-motion'
+import { motion, AnimatePresence, useScroll, useSpring, useTransform, useMotionValueEvent } from 'framer-motion'
 import {
   Sparkles,
   ArrowRight,
@@ -276,140 +276,144 @@ export default function HomePage() {
   // Softer spring so the size/opacity transitions feel like silk, not
   // step-jumps. Lower stiffness + higher mass = more flow, more inertia,
   // less reactive to micro-scrolls.
-  const springConfig = { stiffness: 70, damping: 28, mass: 0.5 }
+  // Spring tuned for smooth continuous morph — slightly snappier follow
+  // so the card eases through each size change instead of feeling like
+  // it's snapping between holds.
+  const springConfig = { stiffness: 80, damping: 36, mass: 0.5 }
   const smoothProgress = useSpring(previewProgress, springConfig)
 
   // Mobile viewport check must precede the transforms that read it.
   const isMobileVp = viewport.w < 768
 
-  // Section = 180vh, viewport = 100vh → total scroll = 280vh.
-  // Pin window: 100/280 ≈ 0.357  →  180/280 ≈ 0.643  (80vh of pinned scroll).
+  // Section = 340vh, viewport = 100vh → total scroll = 440vh.
+  // Pin window: 100/440 ≈ 0.227  →  340/440 ≈ 0.773  (240vh of pinned scroll).
   //
-  // The stat strip below uses -mt-[100vh] + pt-[100vh] + bg-background, so
-  // it sits BEHIND the preview's sticky element (z-0 vs z-10) during pin
-  // and naturally fills the trailing 100vh of scroll-out — no white gap.
-  //
-  //   • 0.357          Pin engages; card queued at MOBILE
-  //   • 0.36 – 0.45    HOLD at MOBILE
-  //   • 0.45 – 0.47    Transition MOBILE → TABLET
-  //   • 0.47 – 0.55    HOLD at TABLET
-  //   • 0.55 – 0.57    Transition TABLET → PC
-  //   • 0.57 – 0.62    HOLD at PC
-  //   • 0.62 – 0.64    Morph to FULLSCREEN (climactic exit)
-  //   • 0.643          Pin release; stat strip revealed from behind
-  // 180vh-section timing.
+  //   • 0.227          Pin engages; card queued at MOBILE
+  //   • 0.23 – 0.46    HOLD at MOBILE         (~100vh of scroll)
+  //   • 0.46 – 0.48    Transition → TABLET
+  //   • 0.48 – 0.60    HOLD at TABLET         (~53vh)
+  //   • 0.60 – 0.62    Transition → PC
+  //   • 0.62 – 0.72    HOLD at PC             (~44vh)
+  //   • 0.72 – 0.77    Morph to FULLSCREEN + HOLD (~22vh)
+  //   • 0.773          Pin release; stat strip revealed
+  // 340vh-section timing.
   const previewDim = useTransform(
     smoothProgress,
-    [0.60, 0.643, 1],
+    [0.66, 0.70, 1],
     [0, 1, 1]
   )
   const previewHaloOpacity = useTransform(
     smoothProgress,
-    [0.30, 0.60, 0.643, 1],
+    [0.20, 0.66, 0.70, 1],
     [0.35, 0.5, 1, 1]
   )
   const previewLabelY = useTransform(
     smoothProgress,
-    [0.45, 0.52],
+    [0.43, 0.50],
     [0, -24]
   )
   const previewLabelOpacity = useTransform(
     smoothProgress,
-    [0.25, 0.33, 0.48, 0.54],
+    [0.15, 0.22, 0.43, 0.48],
     [0, 1, 1, 0]
   )
   const previewCaptionOpacity = useTransform(
     smoothProgress,
-    [0.25, 0.33, 0.60, 0.62],
+    [0.15, 0.22, 0.64, 0.68],
     [0, 1, 1, 0]
   )
-  // Caption position — anchored close to viewport bottom throughout the
-  // holds; slides off-screen as fullscreen takes over.
   const previewCaptionBottom = useTransform(
     smoothProgress,
-    [0.33, 0.45, 0.47, 0.55, 0.57, 0.62, 0.643],
+    [0.23, 0.36, 0.44, 0.50, 0.58, 0.64, 0.72],
     ['16svh', '16svh', '10svh', '10svh', '4svh', '4svh', '-12svh']
   )
   const previewScrollPromptOpacity = useTransform(
     smoothProgress,
-    [0.30, 0.35, 0.60, 0.62],
+    [0.20, 0.25, 0.64, 0.68],
     [0, 1, 1, 0]
   )
-  // Fullscreen-phase hint stays off.
+  // Hint that appears once fullscreen is held — invites users to actually
+  // scroll inside the iframe and explore the demo before they leave.
   const previewHintOpacity = useTransform(
     smoothProgress,
-    [0.65, 0.66, 0.66, 0.66],
-    [0, 0, 0, 0]
+    [0.72, 0.74, 0.78, 0.80],
+    [0, 1, 1, 0]
   )
   const chromeOpacity = useTransform(
     smoothProgress,
-    [0.55, 0.57, 0.62, 0.64],
+    [0.56, 0.58, 0.66, 0.69],
     [0, 1, 1, 0]
   )
   const iframeTopInset = useTransform(
     smoothProgress,
-    [0.55, 0.57, 0.62, 0.64],
+    [0.56, 0.58, 0.66, 0.69],
     ['0px', '36px', '36px', '0px']
   )
   const scanlineOpacity = useTransform(
     smoothProgress,
-    [0.62, 0.643, 0.85, 1],
+    [0.68, 0.70, 0.92, 1],
     [0, 0.18, 0.18, 0]
   )
   const vignetteOpacity = useTransform(
     smoothProgress,
-    [0.62, 0.643, 0.85, 1],
+    [0.68, 0.70, 0.92, 1],
     [0, 0.4, 0.4, 0]
   )
 
-  // DEVICE MORPH — 7 stops covering: start, mobile-hold-end, tablet-in,
-  // tablet-hold-end, pc-in, pc-hold-end, fullscreen-in. Fullscreen
-  // completes right at pin release; the trailing 100vh of scroll-out is
-  // already covered by the stat strip's bg-background behind the sticky.
+  // DEVICE MORPH — 340vh section. Wider transition windows between holds
+  // so the morph eases continuously rather than holding-then-snapping
+  // (the "clippy" feeling). Holds are short pauses; transitions stretch
+  // across 8% of progress (~35vh of scroll) to feel fluid.
+  // start → mobile-hold-end → tablet-in → tablet-hold-end →
+  // pc-in → pc-hold-end → fullscreen-in → fullscreen-hold-end.
   const cardWidth = useTransform(
     smoothProgress,
-    [0.33, 0.45, 0.47, 0.55, 0.57, 0.62, 0.643],
-    ['80vw', '80vw', '88vw', '88vw', '94vw', '94vw', '100vw']
+    [0.23, 0.36, 0.44, 0.50, 0.58, 0.64, 0.72, 0.77],
+    ['88vw', '88vw', '94vw', '94vw', '98vw', '98vw', '100vw', '100vw']
   )
   const cardHeight = useTransform(
     smoothProgress,
-    [0.33, 0.45, 0.47, 0.55, 0.57, 0.62, 0.643],
-    ['60svh', '60svh', '72svh', '72svh', '84svh', '84svh', '100svh']
+    [0.23, 0.36, 0.44, 0.50, 0.58, 0.64, 0.72, 0.77],
+    ['80svh', '80svh', '88svh', '88svh', '95svh', '95svh', '100svh', '100svh']
   )
   const cardRadius = useTransform(
     smoothProgress,
-    [0.33, 0.45, 0.47, 0.55, 0.57, 0.62, 0.643],
-    ['36px', '36px', '28px', '28px', '20px', '14px', '0px']
+    [0.23, 0.36, 0.44, 0.50, 0.58, 0.64, 0.72, 0.77],
+    ['36px', '36px', '28px', '28px', '20px', '14px', '0px', '0px']
   )
   const cardBorderWidth = useTransform(
     smoothProgress,
-    [0.33, 0.45, 0.47, 0.55, 0.57, 0.62, 0.643],
-    ['6px', '6px', '7px', '7px', '8px', '4px', '1px']
+    [0.23, 0.36, 0.44, 0.50, 0.58, 0.64, 0.72, 0.77],
+    ['6px', '6px', '7px', '7px', '8px', '4px', '1px', '1px']
   )
-  // Device-type labels.
   const mobileLabelOpacity = useTransform(
     smoothProgress,
-    [0.32, 0.34, 0.45, 0.47],
+    [0.22, 0.26, 0.40, 0.46],
     [0, 1, 1, 0]
   )
   const tabletLabelOpacity = useTransform(
     smoothProgress,
-    [0.45, 0.47, 0.55, 0.57],
+    [0.42, 0.48, 0.54, 0.60],
     [0, 1, 1, 0]
   )
   const pcLabelOpacity = useTransform(
     smoothProgress,
-    [0.55, 0.57, 0.62, 0.64],
+    [0.56, 0.62, 0.68, 0.72],
+    [0, 1, 1, 0]
+  )
+  const fullscreenLabelOpacity = useTransform(
+    smoothProgress,
+    [0.68, 0.74, 0.78, 0.82],
     [0, 1, 1, 0]
   )
   const mobileNotchOpacity = useTransform(
     smoothProgress,
-    [0.32, 0.34, 0.45, 0.47],
+    [0.22, 0.26, 0.40, 0.46],
     [0, 1, 1, 0]
   )
   const tabletCameraOpacity = useTransform(
     smoothProgress,
-    [0.45, 0.47, 0.55, 0.57],
+    [0.42, 0.48, 0.54, 0.60],
     [0, 1, 1, 0]
   )
 
@@ -457,8 +461,15 @@ export default function HomePage() {
 
   // Cycle the demo iframe through DEMO_SITES every ~7s with a brief
   // "generating" overlay so it looks like Webstew is rebuilding each time.
+  // Pauses when the user is INSIDE the scroll-driven showcase section
+  // (pin window: progress 0.23-0.77) — scroll progress drives demo
+  // selection in there so every demo gets seen during the presentation.
   useEffect(() => {
     const tick = () => {
+      // Skip auto-cycle while user is in the pinned showcase; scroll
+      // handles demo selection during that window.
+      const p = smoothProgress.get()
+      if (p > 0.20 && p < 0.80) return
       setDemoGenerating(true)
       setTimeout(() => {
         setDemoIdx(i => (i + 1) % DEMO_SITES.length)
@@ -467,7 +478,17 @@ export default function HomePage() {
     }
     const t = setInterval(tick, 7000)
     return () => clearInterval(t)
-  }, [])
+  }, [smoothProgress])
+
+  // Scroll-driven demo selection during the pinned showcase. Maps the
+  // pin progress (0.23 → 0.77) to demo index 0 → DEMO_SITES.length-1 so
+  // users see every "pretty site" while they scroll through the morph.
+  useMotionValueEvent(smoothProgress, 'change', (v) => {
+    if (v < 0.23 || v > 0.77) return
+    const t = (v - 0.23) / (0.77 - 0.23)
+    const idx = Math.min(DEMO_SITES.length - 1, Math.floor(t * DEMO_SITES.length))
+    setDemoIdx((current) => (current === idx ? current : idx))
+  })
 
   // Typewriter for the placeholder — types out one example, holds, deletes,
   // types the next. Pauses entirely when the user starts typing. Examples
@@ -601,7 +622,7 @@ export default function HomePage() {
           initial={mounted ? { opacity: 0 } : false}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="min-h-screen relative overflow-x-hidden"
+          className="min-h-screen relative"
         >
           {/* Fixed scroll progress bar — thin gradient line at the very top
               of the viewport that fills as the user scrolls through the
@@ -1196,7 +1217,7 @@ export default function HomePage() {
                 (no -mt-8 sucking it up against the logo strip). */}
             <section
               ref={previewRef}
-              className="relative z-10 h-[180vh] mt-2 mb-2"
+              className="relative z-10 h-[340vh] mt-2 mb-2"
             >
               <div className="sticky top-0 h-[100svh] sm:h-screen flex items-center justify-center overflow-hidden">
                 {/* Backdrop dim — covers the rest of the page when preview
@@ -1216,7 +1237,7 @@ export default function HomePage() {
                     can't combine -translate-x-1/2 with framer-motion's `y`
                     style — framer rewrites the whole transform string and
                     clobbers the Tailwind translate, pushing the label right. */}
-                <div className="absolute top-[5vh] sm:top-[8vh] inset-x-0 z-20 flex justify-center px-4 pointer-events-none">
+                <div className="absolute top-[2vh] sm:top-[3vh] inset-x-0 z-20 flex justify-center px-4 pointer-events-none">
                   <motion.div
                     style={{ opacity: previewLabelOpacity, y: previewLabelY }}
                     className="flex items-center gap-2 max-w-[92vw]"
@@ -1234,7 +1255,7 @@ export default function HomePage() {
                     invites the user to keep scrolling so the morph begins.
                     Fades in with the title pause window and fades out as the
                     card emerges. */}
-                <div className="absolute top-[10vh] sm:top-[13vh] inset-x-0 z-20 flex justify-center px-4 pointer-events-none">
+                <div className="absolute top-[7vh] sm:top-[8vh] inset-x-0 z-20 flex justify-center px-4 pointer-events-none">
                   <motion.div
                     style={{ opacity: previewScrollPromptOpacity }}
                     className="flex flex-col items-center gap-1.5"
@@ -1453,11 +1474,12 @@ export default function HomePage() {
                 <div
                   className="absolute bottom-[10vh] left-1/2 -translate-x-1/2 z-20 pointer-events-none"
                 >
-                  <div className="relative w-32 h-7 flex items-center justify-center">
+                  <div className="relative w-40 h-7 flex items-center justify-center">
                     {[
-                      { label: 'PC',     opacity: pcLabelOpacity     },
-                      { label: 'Tablet', opacity: tabletLabelOpacity },
-                      { label: 'Mobile', opacity: mobileLabelOpacity },
+                      { label: 'Fullscreen', opacity: fullscreenLabelOpacity },
+                      { label: 'PC',         opacity: pcLabelOpacity         },
+                      { label: 'Tablet',     opacity: tabletLabelOpacity     },
+                      { label: 'Mobile',     opacity: mobileLabelOpacity     },
                     ].map((d) => (
                       <motion.span
                         key={d.label}
@@ -1495,27 +1517,18 @@ export default function HomePage() {
                   </div>
                 </motion.div>
 
-                {/* Scroll hint — appears only during fullscreen state */}
+                {/* Fullscreen-dwell hint — invites users to actually explore
+                    the demo (scroll inside the iframe) before scrolling out. */}
                 <motion.div
                   style={{ opacity: previewHintOpacity }}
-                  className="absolute bottom-[6vh] left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 pointer-events-none"
+                  className="absolute bottom-[4vh] left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 pointer-events-none"
                 >
                   <span className={cn(
-                    'text-[10px] uppercase tracking-[0.32em] font-semibold',
-                    isDark ? 'text-white/70' : 'text-slate-700/80'
+                    'text-[10px] uppercase tracking-[0.32em] font-semibold backdrop-blur-sm px-3 py-1.5 rounded-full',
+                    isDark ? 'text-white/90 bg-black/30' : 'text-slate-900/90 bg-white/40'
                   )}>
-                    Keep scrolling
+                    Look around · Keep scrolling to continue
                   </span>
-                  <motion.div
-                    animate={{ y: [0, 6, 0] }}
-                    transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
-                    className={cn(
-                      'w-5 h-8 rounded-full border-2 flex items-start justify-center pt-1.5',
-                      isDark ? 'border-white/50' : 'border-slate-700/50'
-                    )}
-                  >
-                    <div className={cn('w-1 h-1.5 rounded-full', isDark ? 'bg-white/70' : 'bg-slate-700/70')} />
-                  </motion.div>
                 </motion.div>
               </div>
             </section>

@@ -159,13 +159,51 @@ export async function DELETE(
 
     await connectDB()
 
-    // Only allow users to delete their own projects
-    const query = { _id: params.id, userId: session.user.id }
+    // Find-first pattern so we can distinguish "doesn't exist" (404) from
+    // "exists but not yours" (403). Previously this used a single deleteOne
+    // with a combined filter and returned an ambiguous "not found or access
+    // denied" 404 — which made anon-orphaned projects (POST /api/projects
+    // assigns a random ObjectId when there's no session) indistinguishable
+    // from missing IDs.
+    //
+    // Drop into the raw driver with explicit ObjectId casts (matches the
+    // PATCH route). Mongoose's implicit cast can mismatch when older docs
+    // stored userId as a string.
+    const mongooseConn = await connectDB()
+    const db = mongooseConn.connection.db
+    if (!db) {
+      return NextResponse.json({ error: 'DB not connected' }, { status: 500 })
+    }
+    const { ObjectId } = await import('mongodb')
 
-    const result = await Project.deleteOne(query)
+    const projectOid = new ObjectId(params.id)
+    const existing = await db.collection('projects').findOne(
+      { _id: projectOid },
+      { projection: { userId: 1 } }
+    )
 
+    if (!existing) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    }
+
+    // Owner check: compare as strings so both ObjectId-stored and
+    // legacy-string-stored userIds work.
+    const ownerId = existing.userId?.toString?.() || String(existing.userId || '')
+    if (ownerId !== session.user.id) {
+      console.warn('DELETE project: owner mismatch', {
+        projectId: params.id,
+        projectOwner: ownerId,
+        requester: session.user.id,
+      })
+      return NextResponse.json(
+        { error: 'You do not own this project' },
+        { status: 403 }
+      )
+    }
+
+    const result = await db.collection('projects').deleteOne({ _id: projectOid })
     if (result.deletedCount === 0) {
-      return NextResponse.json({ error: 'Project not found or access denied' }, { status: 404 })
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
 
     return NextResponse.json({ success: true })
