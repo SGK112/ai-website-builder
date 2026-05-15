@@ -279,148 +279,137 @@ export default function HomePage() {
   const springConfig = { stiffness: 70, damping: 28, mass: 0.5 }
   const smoothProgress = useSpring(previewProgress, springConfig)
 
-  // Section = 240vh, viewport = 100vh, so total scroll progress spans
-  // section + viewport = 340vh. Sticky pins at 100/340 ≈ 0.294 and releases
-  // at 240/340 ≈ 0.706 — about 140vh of locked scroll.
+  // Mobile viewport check must precede the transforms that read it.
+  const isMobileVp = viewport.w < 768
+
+  // Section = 180vh, viewport = 100vh → total scroll = 280vh.
+  // Pin window: 100/280 ≈ 0.357  →  180/280 ≈ 0.643  (80vh of pinned scroll).
   //
-  // The CRITICAL fix vs. prior version: fullscreen must be REACHED while
-  // the card is still pinned, so users actually see the takeover before
-  // the section scrolls away. Old stop was 0.8 (fullscreen reached AFTER
-  // pin released at 0.666) — visitors only ever saw the bottom half of
-  // the morph because they were already scrolling past it. New stop is
-  // 0.6 (fullscreen reached inside the pin), with ~14% of progress
-  // (≈48vh) of pinned dwell on the fullscreen state before pin releases.
+  // The stat strip below uses -mt-[100vh] + pt-[100vh] + bg-background, so
+  // it sits BEHIND the preview's sticky element (z-0 vs z-10) during pin
+  // and naturally fills the trailing 100vh of scroll-out — no white gap.
   //
-  // (previewScale + previewRadius removed — replaced by cardWidth /
-  // cardHeight / cardRadius below which drive the morph with real size,
-  // not scale transform.)
-  // Dim — ramps in as we APPROACH fullscreen (0.55), peaks at fullscreen
-  // (0.6), holds through pin release and section exit.
+  //   • 0.357          Pin engages; card queued at MOBILE
+  //   • 0.36 – 0.45    HOLD at MOBILE
+  //   • 0.45 – 0.47    Transition MOBILE → TABLET
+  //   • 0.47 – 0.55    HOLD at TABLET
+  //   • 0.55 – 0.57    Transition TABLET → PC
+  //   • 0.57 – 0.62    HOLD at PC
+  //   • 0.62 – 0.64    Morph to FULLSCREEN (climactic exit)
+  //   • 0.643          Pin release; stat strip revealed from behind
+  // 180vh-section timing.
   const previewDim = useTransform(
     smoothProgress,
-    [0.5, 0.6, 1],
+    [0.60, 0.643, 1],
     [0, 1, 1]
   )
-  // Halo — dim while small (mobile/tablet/PC), brightens at fullscreen.
   const previewHaloOpacity = useTransform(
     smoothProgress,
-    [0.25, 0.55, 0.6, 1],
+    [0.30, 0.60, 0.643, 1],
     [0.35, 0.5, 1, 1]
   )
-  // Label + caption visible during the SMALL device phases (mobile + tablet),
-  // fade out BEFORE the card grows past the PC state — otherwise both
-  // overlap the iframe content once the card is near-fullscreen. Label
-  // fades earlier (it sits near the top where chrome reveals); caption
-  // fades just after, before chrome chrome paints in.
   const previewLabelY = useTransform(
     smoothProgress,
-    [0.42, 0.48],
+    [0.45, 0.52],
     [0, -24]
   )
   const previewLabelOpacity = useTransform(
     smoothProgress,
-    [0.22, 0.32, 0.42, 0.48],
+    [0.25, 0.33, 0.48, 0.54],
     [0, 1, 1, 0]
   )
   const previewCaptionOpacity = useTransform(
     smoothProgress,
-    [0.22, 0.32, 0.46, 0.52],
+    [0.25, 0.33, 0.60, 0.62],
     [0, 1, 1, 0]
   )
-  // Hint visible only during the fullscreen hold, before section exits.
+  // Caption position — anchored close to viewport bottom throughout the
+  // holds; slides off-screen as fullscreen takes over.
+  const previewCaptionBottom = useTransform(
+    smoothProgress,
+    [0.33, 0.45, 0.47, 0.55, 0.57, 0.62, 0.643],
+    ['16svh', '16svh', '10svh', '10svh', '4svh', '4svh', '-12svh']
+  )
+  const previewScrollPromptOpacity = useTransform(
+    smoothProgress,
+    [0.30, 0.35, 0.60, 0.62],
+    [0, 1, 1, 0]
+  )
+  // Fullscreen-phase hint stays off.
   const previewHintOpacity = useTransform(
     smoothProgress,
-    [0.6, 0.66, 0.92, 1],
-    [0, 1, 1, 0]
+    [0.65, 0.66, 0.66, 0.66],
+    [0, 0, 0, 0]
   )
-  // Browser chrome — visible during the PC window. Wider fade windows
-  // so it ribbons in/out instead of pop-clipping.
   const chromeOpacity = useTransform(
     smoothProgress,
-    [0.45, 0.52, 0.57, 0.62],
+    [0.55, 0.57, 0.62, 0.64],
     [0, 1, 1, 0]
   )
-  // Iframe top inset — keeps the demo's first content (its own nav) from
-  // being hidden behind the simulated browser chrome bar when it appears
-  // in PC state. Tracks chrome opacity so the demo content shifts down
-  // exactly when chrome paints in and back up when chrome fades.
   const iframeTopInset = useTransform(
     smoothProgress,
-    [0.45, 0.52, 0.57, 0.62],
+    [0.55, 0.57, 0.62, 0.64],
     ['0px', '36px', '36px', '0px']
   )
-  // CRT scanline — present during the FULLSCREEN hold.
   const scanlineOpacity = useTransform(
     smoothProgress,
-    [0.55, 0.6, 0.95, 1],
+    [0.62, 0.643, 0.85, 1],
     [0, 0.18, 0.18, 0]
   )
-  // Tube vignette — same window as scanline.
   const vignetteOpacity = useTransform(
     smoothProgress,
-    [0.55, 0.62, 0.95, 1],
+    [0.62, 0.643, 0.85, 1],
     [0, 0.4, 0.4, 0]
   )
 
-  // DEVICE MORPH — ONE card whose width / height / border-radius / border
-  // thickness / browser-chrome visibility all animate together to walk the
-  // card through four states by scroll position. Starts small (mobile)
-  // and grows to fullscreen — and CRITICALLY, fullscreen is reached
-  // inside the sticky pin window so users see the takeover finish:
-  //   • Mobile               (9:19, phone bezel, notch)        @ 0.32
-  //   • Tablet               (4:3, thick rounded bezel)        @ 0.42
-  //   • PC / desktop card    (16:10, browser chrome, thin)     @ 0.52
-  //   • Fullscreen takeover  (covers viewport)                  @ 0.60
-  // Width is in vw, height in vh — useTransform interpolates the numbers
-  // and keeps the unit suffix.
+  // DEVICE MORPH — 7 stops covering: start, mobile-hold-end, tablet-in,
+  // tablet-hold-end, pc-in, pc-hold-end, fullscreen-in. Fullscreen
+  // completes right at pin release; the trailing 100vh of scroll-out is
+  // already covered by the stat strip's bg-background behind the sticky.
   const cardWidth = useTransform(
     smoothProgress,
-    [0.32, 0.42, 0.52, 0.6],
-    ['18vw', '40vw', '64vw', '98vw']
+    [0.33, 0.45, 0.47, 0.55, 0.57, 0.62, 0.643],
+    ['80vw', '80vw', '88vw', '88vw', '94vw', '94vw', '100vw']
   )
   const cardHeight = useTransform(
     smoothProgress,
-    [0.32, 0.42, 0.52, 0.6],
-    ['56vh', '58vh', '66vh', '100vh']
+    [0.33, 0.45, 0.47, 0.55, 0.57, 0.62, 0.643],
+    ['60svh', '60svh', '72svh', '72svh', '84svh', '84svh', '100svh']
   )
   const cardRadius = useTransform(
     smoothProgress,
-    [0.32, 0.42, 0.48, 0.55, 0.6],
-    ['36px', '28px', '20px', '14px', '0px']
+    [0.33, 0.45, 0.47, 0.55, 0.57, 0.62, 0.643],
+    ['36px', '36px', '28px', '28px', '20px', '14px', '0px']
   )
   const cardBorderWidth = useTransform(
     smoothProgress,
-    [0.32, 0.38, 0.42, 0.48, 0.52, 0.6],
-    ['6px', '7px', '8px', '4px', '1px', '1px']
+    [0.33, 0.45, 0.47, 0.55, 0.57, 0.62, 0.643],
+    ['6px', '6px', '7px', '7px', '8px', '4px', '1px']
   )
-  // Device-type labels — three overlapping motion spans with WIDE crossfade
-  // windows so the handoff between phases reads as a dissolve, not a clip.
+  // Device-type labels.
   const mobileLabelOpacity = useTransform(
     smoothProgress,
-    [0.22, 0.32, 0.38, 0.45],
+    [0.32, 0.34, 0.45, 0.47],
     [0, 1, 1, 0]
   )
   const tabletLabelOpacity = useTransform(
     smoothProgress,
-    [0.38, 0.45, 0.5, 0.56],
+    [0.45, 0.47, 0.55, 0.57],
     [0, 1, 1, 0]
   )
   const pcLabelOpacity = useTransform(
     smoothProgress,
-    [0.5, 0.55, 0.58, 0.62],
+    [0.55, 0.57, 0.62, 0.64],
     [0, 1, 1, 0]
   )
-
-  // Mobile notch + home indicator — visible only during mobile state.
   const mobileNotchOpacity = useTransform(
     smoothProgress,
-    [0.22, 0.32, 0.4, 0.46],
+    [0.32, 0.34, 0.45, 0.47],
     [0, 1, 1, 0]
   )
-  // Tablet camera dot — crossfades with mobile notch on entry, PC chrome on exit.
   const tabletCameraOpacity = useTransform(
     smoothProgress,
-    [0.38, 0.45, 0.5, 0.56],
+    [0.45, 0.47, 0.55, 0.57],
     [0, 1, 1, 0]
   )
 
@@ -612,7 +601,7 @@ export default function HomePage() {
           initial={mounted ? { opacity: 0 } : false}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="min-h-screen relative"
+          className="min-h-screen relative overflow-x-hidden"
         >
           {/* Fixed scroll progress bar — thin gradient line at the very top
               of the viewport that fills as the user scrolls through the
@@ -840,15 +829,15 @@ export default function HomePage() {
           {/* Content overlay */}
           <div className="relative z-10">
             {/* Header */}
-            <header className="p-6">
-              <div className="max-w-5xl mx-auto flex items-center justify-between">
+            <header className="px-4 py-4 sm:p-6">
+              <div className="max-w-5xl mx-auto flex items-center justify-between gap-2">
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-1.5 sm:gap-2 min-w-0"
                 >
                   <span
-                    className="text-6xl leading-none select-none cursor-pointer hover:scale-110 hover:rotate-6 transition-all duration-500 ease-out"
+                    className="text-4xl sm:text-6xl leading-none select-none cursor-pointer hover:scale-110 hover:rotate-6 transition-all duration-500 ease-out shrink-0"
                     style={{
                       filter: isDark
                         ? 'drop-shadow(0 0 20px rgba(167, 139, 250, 0.6))'
@@ -858,7 +847,7 @@ export default function HomePage() {
                   >🍲</span>
                   <span
                     className={cn(
-                      "text-3xl tracking-tight",
+                      "text-2xl sm:text-3xl tracking-tight truncate",
                       isDark
                         ? "bg-gradient-to-r from-white via-violet-200 to-fuchsia-200 bg-clip-text text-transparent"
                         : "bg-gradient-to-r from-orange-600 via-pink-600 to-purple-600 bg-clip-text text-transparent"
@@ -876,12 +865,12 @@ export default function HomePage() {
                 <motion.nav
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-1 sm:gap-2 shrink-0"
                 >
                   <a
                     href="/community"
                     className={cn(
-                      "px-3 py-2 rounded-lg text-sm font-medium transition-all hidden sm:block",
+                      "px-3 py-2 rounded-lg text-sm font-medium transition-all hidden md:block",
                       isDark
                         ? "text-slate-400 hover:text-white hover:bg-white/10"
                         : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
@@ -892,7 +881,7 @@ export default function HomePage() {
                   <a
                     href="/app-builder"
                     className={cn(
-                      "px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5",
+                      "px-3 py-2 rounded-lg text-sm font-medium transition-all hidden sm:flex items-center gap-1.5",
                       isDark
                         ? "text-slate-400 hover:text-white hover:bg-white/10"
                         : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
@@ -907,7 +896,7 @@ export default function HomePage() {
                   <a
                     href="/login"
                     className={cn(
-                      "px-3 py-2 rounded-lg text-sm font-medium transition-all",
+                      "px-3 py-2 rounded-lg text-sm font-medium transition-all hidden sm:block",
                       isDark
                         ? "text-slate-400 hover:text-white hover:bg-white/10"
                         : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
@@ -918,7 +907,7 @@ export default function HomePage() {
                   <a
                     href={sessionStatus === 'authenticated' ? '/workspace' : '/signup?next=%2Fworkspace'}
                     className={cn(
-                      "px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                      "px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap",
                       isDark
                         ? "bg-violet-600 hover:bg-violet-500 text-white"
                         : "bg-orange-500 hover:bg-orange-400 text-white"
@@ -929,11 +918,12 @@ export default function HomePage() {
                   <button
                     onClick={() => setTheme(isDark ? 'light' : 'dark')}
                     className={cn(
-                      "p-2.5 rounded-lg backdrop-blur-sm transition-all duration-300",
+                      "p-2 sm:p-2.5 rounded-lg backdrop-blur-sm transition-all duration-300 shrink-0",
                       isDark
                         ? "bg-white/10 hover:bg-white/20 text-white"
                         : "bg-white/50 hover:bg-white/70 text-slate-700"
                     )}
+                    aria-label="Toggle theme"
                   >
                     {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                   </button>
@@ -1206,9 +1196,9 @@ export default function HomePage() {
                 (no -mt-8 sucking it up against the logo strip). */}
             <section
               ref={previewRef}
-              className="relative h-[240vh] mt-2 mb-2"
+              className="relative z-10 h-[180vh] mt-2 mb-2"
             >
-              <div className="sticky top-0 h-screen flex items-center justify-center overflow-hidden">
+              <div className="sticky top-0 h-[100svh] sm:h-screen flex items-center justify-center overflow-hidden">
                 {/* Backdrop dim — covers the rest of the page when preview
                     takes over. Blurred so background motion is felt, not seen. */}
                 <motion.div
@@ -1220,18 +1210,53 @@ export default function HomePage() {
                   )}
                 />
 
-                {/* Section label — fades out when preview goes fullscreen */}
-                <motion.div
-                  style={{ opacity: previewLabelOpacity, y: previewLabelY }}
-                  className="absolute top-[14vh] left-1/2 -translate-x-1/2 z-20 flex items-center gap-2"
-                >
-                  <p className={cn(
-                    'text-xs uppercase tracking-[0.28em] font-semibold whitespace-nowrap',
-                    isDark ? 'text-violet-300/80' : 'text-violet-600/80'
-                  )}>
-                    Live Preview · Made with Webstew
-                  </p>
-                </motion.div>
+                {/* Section label — fades out when preview goes fullscreen.
+                    Wrapper handles horizontal centering (left-0 right-0 flex
+                    justify-center); inner motion handles opacity + y. We
+                    can't combine -translate-x-1/2 with framer-motion's `y`
+                    style — framer rewrites the whole transform string and
+                    clobbers the Tailwind translate, pushing the label right. */}
+                <div className="absolute top-[5vh] sm:top-[8vh] inset-x-0 z-20 flex justify-center px-4 pointer-events-none">
+                  <motion.div
+                    style={{ opacity: previewLabelOpacity, y: previewLabelY }}
+                    className="flex items-center gap-2 max-w-[92vw]"
+                  >
+                    <p className={cn(
+                      'text-[10px] sm:text-xs uppercase tracking-[0.18em] sm:tracking-[0.28em] font-semibold text-center sm:whitespace-nowrap',
+                      isDark ? 'text-violet-300/80' : 'text-violet-600/80'
+                    )}>
+                      Live Preview · Made with Webstew
+                    </p>
+                  </motion.div>
+                </div>
+
+                {/* Pause-phase scroll prompt — sits just below the title and
+                    invites the user to keep scrolling so the morph begins.
+                    Fades in with the title pause window and fades out as the
+                    card emerges. */}
+                <div className="absolute top-[10vh] sm:top-[13vh] inset-x-0 z-20 flex justify-center px-4 pointer-events-none">
+                  <motion.div
+                    style={{ opacity: previewScrollPromptOpacity }}
+                    className="flex flex-col items-center gap-1.5"
+                  >
+                    <span className={cn(
+                      'text-[10px] uppercase tracking-[0.28em] font-medium',
+                      isDark ? 'text-white/55' : 'text-slate-600/70'
+                    )}>
+                      Keep scrolling to expand
+                    </span>
+                    <motion.span
+                      animate={{ y: [0, 4, 0] }}
+                      transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+                      className={cn(
+                        'text-base leading-none',
+                        isDark ? 'text-white/55' : 'text-slate-600/70'
+                      )}
+                    >
+                      ↓
+                    </motion.span>
+                  </motion.div>
+                </div>
 
                 {/* Halo behind the preview card — brightens while fullscreen */}
                 <motion.div
@@ -1445,10 +1470,14 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                {/* Prompt caption — visible at the start + end, hidden during fullscreen */}
+                {/* Prompt caption — sits under the card and pushes down as
+                    the card grows. Position is driven by previewCaptionBottom
+                    so it stays tucked just below the card's bottom edge
+                    through every device state, then slides off-screen as
+                    fullscreen takes over (opacity also fades by then). */}
                 <motion.div
-                  style={{ opacity: previewCaptionOpacity }}
-                  className="absolute bottom-[16vh] left-1/2 -translate-x-1/2 z-20 px-6 max-w-[92vw]"
+                  style={{ opacity: previewCaptionOpacity, bottom: previewCaptionBottom }}
+                  className="absolute left-1/2 -translate-x-1/2 z-20 px-6 max-w-[92vw]"
                 >
                   <div className={cn(
                     'flex items-center gap-3 px-5 py-3 rounded-full border shadow-lg backdrop-blur-md',
@@ -1491,9 +1520,12 @@ export default function HomePage() {
               </div>
             </section>
 
-            {/* Stats strip — Webflow-style stat callouts. Compact, confident,
-                no chart vibes. Each one is a single number + small label. */}
-            <motion.section initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} className="px-6 py-20">
+            {/* Stats strip — sits BEHIND (z-0) the preview's pinned sticky
+                (z-10) but is pulled UP via -mt so its content layout
+                coincides with the preview section's bottom 100vh. During
+                pin the sticky covers it; as the sticky scrolls up post-pin
+                the stat strip is revealed naturally with no white gap. */}
+            <motion.section initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-50px" }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} className="relative z-0 -mt-[100vh] pt-[100vh] px-6 pb-20 bg-background">
               <div className={cn(
                 "max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-px overflow-hidden rounded-3xl border",
                 "bg-foreground/[0.04] border-border"
@@ -2216,6 +2248,15 @@ export default function HomePage() {
                   <a href="/login" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Sign in</a>
                 </div>
               </div>
+              {/* Legal-entity disclosure. Stripe receipts + customer
+                  portal show 'Remodely LLC' (the registered parent),
+                  so we surface it here too — same name, end-to-end. */}
+              <p className={cn(
+                "max-w-5xl mx-auto mt-4 text-center sm:text-right text-xs",
+                isDark ? "text-slate-600" : "text-slate-400"
+              )}>
+                Webstew is operated by Remodely LLC.
+              </p>
             </footer>
 
             {/* Template Preview Modal - Side by Side Card */}
