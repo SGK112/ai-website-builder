@@ -11,6 +11,7 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SiteGraderWidget } from '@/components/landing/SiteGraderWidget'
+import { WebstewLogo } from '@/components/brand/WebstewLogo'
 
 function GraderInner() {
   const { theme } = useTheme()
@@ -29,7 +30,7 @@ function GraderInner() {
           )}
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to Webstew
+          <WebstewLogo size="sm" isDark={isDark} />
         </Link>
 
         <div className="text-center mb-4">

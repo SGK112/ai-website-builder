@@ -853,13 +853,13 @@ export default function HomePage() {
                     }}
                   >🍲</span>
                   {/* Wordmark — Webstew in Inter Tight (chosen 2026-05-15)
-                      paired with the "Ai Website Builder" tagline as a small
-                      secondary mark to the right. Brand + descriptor on one
-                      line with a visible gap. */}
-                  <span className="inline-flex items-baseline gap-3 sm:gap-4 min-w-0">
+                      stacked over the "Ai Website Builder" tagline. Tight
+                      leading so the two lines feel like one mark, not two
+                      separate elements. */}
+                  <span className="inline-flex flex-col items-center min-w-0 leading-none">
                     <span
                       className={cn(
-                        "text-3xl sm:text-5xl tracking-tight truncate",
+                        "text-2xl sm:text-4xl tracking-tight truncate",
                         isDark
                           ? "bg-gradient-to-r from-white via-violet-200 to-fuchsia-200 bg-clip-text text-transparent"
                           : "bg-gradient-to-r from-orange-600 via-pink-600 to-purple-600 bg-clip-text text-transparent"
@@ -868,19 +868,19 @@ export default function HomePage() {
                         fontFamily: 'var(--font-inter-tight), system-ui, sans-serif',
                         fontWeight: 800,
                         letterSpacing: '-0.03em',
+                        lineHeight: 1,
                       }}
                     >
                       Webstew
                     </span>
                     <span
                       className={cn(
-                        "hidden sm:inline-flex items-baseline gap-1 text-[10px] uppercase tracking-[0.18em] font-semibold whitespace-nowrap",
+                        "mt-1 text-[9px] sm:text-[10px] uppercase tracking-[0.22em] font-semibold whitespace-nowrap",
                         isDark ? "text-slate-400" : "text-slate-500"
                       )}
                       style={{ fontFamily: 'var(--font-inter), system-ui, sans-serif' }}
                     >
-                      <span className="text-violet-400 font-bold">Ai</span>
-                      Website Builder
+                      <span className="text-violet-400 font-bold">Ai</span> Website Builder
                     </span>
                   </span>
                 </motion.div>
@@ -2263,7 +2263,7 @@ export default function HomePage() {
                   <span className="text-lg">🍲</span>
                   <span
                     className={cn(
-                      "inline-flex items-baseline gap-2",
+                      "inline-flex flex-col items-center leading-none",
                       isDark ? "text-white" : "text-slate-800"
                     )}
                   >
@@ -2271,15 +2271,16 @@ export default function HomePage() {
                       style={{
                         fontFamily: 'var(--font-inter-tight), system-ui, sans-serif',
                         fontWeight: 800,
-                        fontSize: '1.05rem',
+                        fontSize: '1rem',
                         letterSpacing: '-0.03em',
+                        lineHeight: 1,
                       }}
                     >
                       Webstew
                     </span>
                     <span
                       className={cn(
-                        "text-[9px] uppercase tracking-[0.18em] font-semibold",
+                        "mt-0.5 text-[8px] uppercase tracking-[0.22em] font-semibold",
                         isDark ? "text-slate-400" : "text-slate-500"
                       )}
                       style={{ fontFamily: 'var(--font-inter), system-ui, sans-serif' }}
@@ -2293,6 +2294,7 @@ export default function HomePage() {
                   <a href="/grader" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Site Grader</a>
                   <a href="/app-builder" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>App Builder</a>
                   <a href="/community" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Community</a>
+                  <a href="/community?tab=feedback" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Feedback</a>
                   <a href="/upgrade" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Pricing</a>
                   <a href="/terms" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Terms</a>
                   <a href="/privacy" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Privacy</a>

@@ -42,22 +42,23 @@ window.submitForm=function(e,id){e.preventDefault();var m=document.getElementByI
 const baseHead = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script src="https://cdn.tailwindcss.com"></script><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet"><style>body{font-family:'Inter',sans-serif}.serif{font-family:'Playfair Display',Georgia,serif}</style>${formScript}</head>`
 
 // Helpers — keep image URLs short + readable inside the HTML strings.
-// PICSUM is kept for filler / texture imagery (random but stable per seed)
-//   — note: the seed string does NOT influence subject matter, only the
-//   deterministic random pick. Don't use it for content-matched imagery.
-// UNSPLASH is preferred for HERO images with a specific look — we pass a
-//   stable photo ID that reliably exists on their CDN.
-// FLICKR is the keyword-matched escape hatch: pass comma-separated tags
-//   ("pearl,necklace,gold") and LoremFlickr returns a Flickr photo
-//   tagged with those terms. Quality varies but topic is always on-target.
-//   Sizes intentionally small (max ~800px wide) so a demo iframe loads
-//   in under a second over typical connections.
+// PEXELS is the primary content-matched source: passes a keyword query
+//   through our /api/media proxy which hits the Pexels API on first call
+//   and caches the resolved CDN URL in Mongo. Photographer credit lives
+//   in the cache row. Absolute URL is required because the demos render
+//   inside iframe srcDoc — relative URLs there resolve against
+//   about:srcdoc, not the parent's origin. /api/media falls back to a
+//   deterministic Picsum URL on its own if Pexels is unavailable, so
+//   this never breaks.
+// PICSUM stays as the texture/random helper for non-topical imagery.
+// UNSPLASH is for HERO images with a specific look — stable photo IDs.
+const MEDIA_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+const PEXELS = (q: string, w: number, h: number) =>
+  `${MEDIA_ORIGIN}/api/media?q=${encodeURIComponent(q)}&w=${w}&h=${h}`
 const PICSUM = (seed: string, w: number, h: number) =>
   `https://picsum.photos/seed/${seed}/${w}/${h}`
 const UNSPLASH = (id: string, w: number, h?: number) =>
   `https://images.unsplash.com/photo-${id}?w=${w}${h ? `&h=${h}&fit=crop` : ''}&q=70&auto=format`
-const FLICKR = (tags: string, w: number, h: number) =>
-  `https://loremflickr.com/${w}/${h}/${tags}`
 const AVATAR = (n: number) => `https://i.pravatar.cc/100?img=${n}`
 
 export const DEMO_SITES: DemoSite[] = [
@@ -143,27 +144,27 @@ export const DEMO_SITES: DemoSite[] = [
   <p class="text-xs sm:text-base text-stone-600 max-w-lg mb-6 sm:mb-10">Brand systems & editorial design for studios who want to feel less like everyone else. Selected work below.</p>
   <div class="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-5">
     <div class="aspect-[4/5] rounded-xl overflow-hidden relative group">
-      <img src="${PICSUM('magazine-spread', 600, 750)}" class="w-full h-full object-cover" alt="Folio Magazine">
+      <img src="${PEXELS('magazine editorial spread', 600, 750)}" class="w-full h-full object-cover" alt="Folio Magazine">
       <div class="absolute inset-x-0 bottom-0 p-3 sm:p-4 bg-gradient-to-t from-black/70 to-transparent text-white"><div class="text-[10px] sm:text-xs opacity-80">2025 · Editorial</div><div class="text-sm sm:text-base font-bold">Folio Magazine</div></div>
     </div>
     <div class="aspect-[4/5] rounded-xl overflow-hidden relative">
-      <img src="${PICSUM('cocktail-bar', 600, 750)}" class="w-full h-full object-cover" alt="Nightbar">
+      <img src="${PEXELS('cocktail bar neon night', 600, 750)}" class="w-full h-full object-cover" alt="Nightbar">
       <div class="absolute inset-x-0 bottom-0 p-3 sm:p-4 bg-gradient-to-t from-black/70 to-transparent text-white"><div class="text-[10px] sm:text-xs opacity-80">2024 · Brand</div><div class="text-sm sm:text-base font-bold">Nightbar Identity</div></div>
     </div>
     <div class="aspect-[4/5] rounded-xl overflow-hidden relative">
-      <img src="${PICSUM('coffee-shop', 600, 750)}" class="w-full h-full object-cover" alt="Verdant Coffee">
+      <img src="${PEXELS('coffee shop interior packaging', 600, 750)}" class="w-full h-full object-cover" alt="Verdant Coffee">
       <div class="absolute inset-x-0 bottom-0 p-3 sm:p-4 bg-gradient-to-t from-black/70 to-transparent text-white"><div class="text-[10px] sm:text-xs opacity-80">2024 · Packaging</div><div class="text-sm sm:text-base font-bold">Verdant Coffee</div></div>
     </div>
     <div class="aspect-[4/5] rounded-xl overflow-hidden relative hidden md:block">
-      <img src="${PICSUM('book-cover-art', 600, 750)}" class="w-full h-full object-cover" alt="Tide & Salt">
+      <img src="${PEXELS('book cover minimal typography', 600, 750)}" class="w-full h-full object-cover" alt="Tide & Salt">
       <div class="absolute inset-x-0 bottom-0 p-3 sm:p-4 bg-gradient-to-t from-black/70 to-transparent text-white"><div class="text-[10px] sm:text-xs opacity-80">2024 · Book design</div><div class="text-sm sm:text-base font-bold">Tide & Salt</div></div>
     </div>
     <div class="aspect-[4/5] rounded-xl overflow-hidden relative hidden md:block">
-      <img src="${PICSUM('fashion-lookbook', 600, 750)}" class="w-full h-full object-cover" alt="Almer">
+      <img src="${PEXELS('fashion model lookbook studio', 600, 750)}" class="w-full h-full object-cover" alt="Almer">
       <div class="absolute inset-x-0 bottom-0 p-3 sm:p-4 bg-gradient-to-t from-black/70 to-transparent text-white"><div class="text-[10px] sm:text-xs opacity-80">2023 · Fashion</div><div class="text-sm sm:text-base font-bold">Almer Lookbook</div></div>
     </div>
     <div class="aspect-[4/5] rounded-xl overflow-hidden relative hidden md:block">
-      <img src="${PICSUM('architecture-print', 600, 750)}" class="w-full h-full object-cover" alt="Linework">
+      <img src="${PEXELS('architecture line print drawing', 600, 750)}" class="w-full h-full object-cover" alt="Linework">
       <div class="absolute inset-x-0 bottom-0 p-3 sm:p-4 bg-gradient-to-t from-black/70 to-transparent text-white"><div class="text-[10px] sm:text-xs opacity-80">2023 · Print</div><div class="text-sm sm:text-base font-bold">Linework Series</div></div>
     </div>
   </div>
@@ -177,7 +178,7 @@ export const DEMO_SITES: DemoSite[] = [
 <div class="relative">
   <div class="w-[240px] sm:w-[300px] h-[500px] sm:h-[600px] rounded-[36px] sm:rounded-[44px] bg-slate-950 border-[8px] sm:border-[10px] border-slate-800 shadow-2xl shadow-violet-500/30 overflow-hidden relative">
     <div class="absolute top-2 sm:top-3 left-1/2 -translate-x-1/2 w-16 sm:w-20 h-4 sm:h-5 bg-slate-900 rounded-full z-20"></div>
-    <img src="${PICSUM('runner-trail', 600, 1200)}" class="absolute inset-0 w-full h-full object-cover opacity-40" alt="">
+    <img src="${PEXELS('runner trail sunrise mountain', 600, 1200)}" class="absolute inset-0 w-full h-full object-cover opacity-40" alt="">
     <div class="absolute inset-0 bg-gradient-to-b from-slate-950/40 via-slate-950/70 to-slate-950"></div>
     <div class="relative px-4 sm:px-6 pt-10 sm:pt-14 pb-4 sm:pb-6 text-white h-full overflow-hidden">
       <div class="flex items-center justify-between mb-3 sm:mb-5">
@@ -202,7 +203,7 @@ export const DEMO_SITES: DemoSite[] = [
       <div class="rounded-2xl bg-white/10 backdrop-blur p-3 sm:p-4 border border-white/15">
         <div class="flex items-center justify-between mb-2 sm:mb-3"><div class="text-xs sm:text-sm font-bold">Today's workout</div><div class="text-[10px] sm:text-xs text-white/60">45 min</div></div>
         <div class="flex items-center gap-2 sm:gap-3">
-          <img src="${PICSUM('treadmill', 100, 100)}" class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl object-cover" alt="">
+          <img src="${PEXELS('running track morning', 100, 100)}" class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl object-cover" alt="">
           <div class="flex-1 min-w-0">
             <div class="text-xs sm:text-sm font-semibold">Morning Run</div>
             <div class="text-[10px] sm:text-xs text-white/60">Zone 3 · 5.2 km · 6:18 pace</div>
@@ -226,7 +227,7 @@ export const DEMO_SITES: DemoSite[] = [
   <div class="flex items-center gap-3 text-stone-700"><span class="text-base sm:text-lg">⌕</span><span class="text-base sm:text-lg relative">⌬<span class="absolute -top-1 -right-2 w-3.5 h-3.5 bg-stone-900 text-white text-[8px] rounded-full flex items-center justify-center">2</span></span></div>
 </nav>
 <section class="relative h-[200px] sm:h-[280px] md:h-[340px] overflow-hidden">
-  <img src="${PICSUM('jewelry-hand-model', 1400, 600)}" class="w-full h-full object-cover" alt="">
+  <img src="${PEXELS('gold jewelry hand model', 1400, 600)}" class="w-full h-full object-cover" alt="">
   <div class="absolute inset-0 bg-gradient-to-r from-stone-50/90 via-stone-50/30 to-transparent"></div>
   <div class="absolute inset-y-0 left-0 flex items-center px-4 sm:px-10 max-w-md">
     <div>
@@ -243,22 +244,22 @@ export const DEMO_SITES: DemoSite[] = [
   </div>
   <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-5">
     <div>
-      <div class="aspect-square rounded-lg overflow-hidden bg-stone-100 mb-2 sm:mb-3"><img src="${PICSUM('gold-necklace-pearl', 400, 400)}" class="w-full h-full object-cover" alt=""></div>
+      <div class="aspect-square rounded-lg overflow-hidden bg-stone-100 mb-2 sm:mb-3"><img src="${PEXELS('pearl drop necklace', 400, 400)}" class="w-full h-full object-cover" alt=""></div>
       <div class="text-xs sm:text-sm font-medium">Pearl Drop Chain</div>
       <div class="text-[10px] sm:text-xs text-stone-500">$248</div>
     </div>
     <div>
-      <div class="aspect-square rounded-lg overflow-hidden bg-stone-100 mb-2 sm:mb-3"><img src="${PICSUM('gold-ring-diamond', 400, 400)}" class="w-full h-full object-cover" alt=""></div>
+      <div class="aspect-square rounded-lg overflow-hidden bg-stone-100 mb-2 sm:mb-3"><img src="${PEXELS('solitaire diamond ring', 400, 400)}" class="w-full h-full object-cover" alt=""></div>
       <div class="text-xs sm:text-sm font-medium">Solitaire Ring</div>
       <div class="text-[10px] sm:text-xs text-stone-500">$1,420</div>
     </div>
     <div>
-      <div class="aspect-square rounded-lg overflow-hidden bg-stone-100 mb-2 sm:mb-3 relative"><img src="${PICSUM('gold-earrings-hoop', 400, 400)}" class="w-full h-full object-cover" alt=""><span class="absolute top-2 left-2 px-1.5 py-0.5 bg-amber-700 text-white text-[8px] tracking-wider uppercase rounded">New</span></div>
+      <div class="aspect-square rounded-lg overflow-hidden bg-stone-100 mb-2 sm:mb-3 relative"><img src="${PEXELS('gold hoop earrings', 400, 400)}" class="w-full h-full object-cover" alt=""><span class="absolute top-2 left-2 px-1.5 py-0.5 bg-amber-700 text-white text-[8px] tracking-wider uppercase rounded">New</span></div>
       <div class="text-xs sm:text-sm font-medium">Sora Hoops</div>
       <div class="text-[10px] sm:text-xs text-stone-500">$184</div>
     </div>
     <div>
-      <div class="aspect-square rounded-lg overflow-hidden bg-stone-100 mb-2 sm:mb-3"><img src="${PICSUM('gold-bracelet-flat', 400, 400)}" class="w-full h-full object-cover" alt=""></div>
+      <div class="aspect-square rounded-lg overflow-hidden bg-stone-100 mb-2 sm:mb-3"><img src="${PEXELS('gold chain bracelet flat', 400, 400)}" class="w-full h-full object-cover" alt=""></div>
       <div class="text-xs sm:text-sm font-medium">Flat Curb Bracelet</div>
       <div class="text-[10px] sm:text-xs text-stone-500">$312</div>
     </div>
@@ -289,26 +290,26 @@ export const DEMO_SITES: DemoSite[] = [
     </div>
   </div>
   <div class="aspect-[5/4] rounded-xl overflow-hidden">
-    <img src="${PICSUM('handmade-pasta-flour', 800, 640)}" class="w-full h-full object-cover" alt="">
+    <img src="${PEXELS('handmade pasta flour dough', 800, 640)}" class="w-full h-full object-cover" alt="">
   </div>
 </section>
 <section class="px-4 sm:px-10 py-4 sm:py-8 border-t border-stone-200">
   <h2 class="serif text-lg sm:text-2xl mb-3 sm:mb-5">More from this issue</h2>
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5">
     <article>
-      <div class="aspect-[4/3] rounded-lg overflow-hidden mb-2 sm:mb-3"><img src="${PICSUM('saigon-street-food', 500, 380)}" class="w-full h-full object-cover" alt=""></div>
+      <div class="aspect-[4/3] rounded-lg overflow-hidden mb-2 sm:mb-3"><img src="${PEXELS('banh mi saigon street food', 500, 380)}" class="w-full h-full object-cover" alt=""></div>
       <div class="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-amber-800 mb-1">Travel</div>
       <h3 class="serif text-sm sm:text-lg leading-snug mb-1">The bánh mì shop that never closes.</h3>
       <div class="text-[10px] sm:text-xs text-stone-500">Saigon, 4 a.m. · 6 min</div>
     </article>
     <article>
-      <div class="aspect-[4/3] rounded-lg overflow-hidden mb-2 sm:mb-3"><img src="${PICSUM('grandmas-kitchen-stew', 500, 380)}" class="w-full h-full object-cover" alt=""></div>
+      <div class="aspect-[4/3] rounded-lg overflow-hidden mb-2 sm:mb-3"><img src="${PEXELS('lamb stew rustic kitchen', 500, 380)}" class="w-full h-full object-cover" alt=""></div>
       <div class="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-amber-800 mb-1">Recipe</div>
       <h3 class="serif text-sm sm:text-lg leading-snug mb-1">Lamb stew, three generations.</h3>
       <div class="text-[10px] sm:text-xs text-stone-500">Hours · 8 min</div>
     </article>
     <article>
-      <div class="aspect-[4/3] rounded-lg overflow-hidden mb-2 sm:mb-3"><img src="${PICSUM('coffee-roasting-mill', 500, 380)}" class="w-full h-full object-cover" alt=""></div>
+      <div class="aspect-[4/3] rounded-lg overflow-hidden mb-2 sm:mb-3"><img src="${PEXELS('coffee roasting beans bag', 500, 380)}" class="w-full h-full object-cover" alt=""></div>
       <div class="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-amber-800 mb-1">Long-read</div>
       <h3 class="serif text-sm sm:text-lg leading-snug mb-1">The coffee roaster who quit.</h3>
       <div class="text-[10px] sm:text-xs text-stone-500">Portland, OR · 14 min</div>
@@ -327,7 +328,7 @@ export const DEMO_SITES: DemoSite[] = [
   <button onclick="openForm('restaurant-form')" class="demo-hint demo-hint-amber hidden md:inline-flex px-4 py-2 border border-white/40 text-xs tracking-wider uppercase hover:bg-white/10">Reserve</button>
 </nav>
 <section class="relative h-[220px] sm:h-[320px] md:h-[400px] overflow-hidden">
-  <img src="${PICSUM('candlelit-restaurant-table', 1600, 700)}" class="absolute inset-0 w-full h-full object-cover" alt="">
+  <img src="${PEXELS('candlelit restaurant dining table moody', 1600, 700)}" class="absolute inset-0 w-full h-full object-cover" alt="">
   <div class="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/40 to-transparent"></div>
   <div class="absolute inset-x-0 bottom-0 px-4 sm:px-10 pb-6 sm:pb-10">
     <div class="text-[10px] sm:text-xs uppercase tracking-[0.3em] text-amber-200 mb-2 sm:mb-3">Open · Tuesday – Sunday</div>
@@ -338,19 +339,19 @@ export const DEMO_SITES: DemoSite[] = [
   <h2 class="text-[10px] sm:text-xs uppercase tracking-[0.3em] text-amber-300 mb-4 sm:mb-6">From the kitchen</h2>
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
     <div>
-      <div class="aspect-[4/3] rounded overflow-hidden mb-2 sm:mb-3"><img src="${PICSUM('grilled-octopus-plate', 500, 380)}" class="w-full h-full object-cover" alt=""></div>
+      <div class="aspect-[4/3] rounded overflow-hidden mb-2 sm:mb-3"><img src="${PEXELS('grilled octopus plate gourmet', 500, 380)}" class="w-full h-full object-cover" alt=""></div>
       <div class="serif text-base sm:text-xl mb-1">Charred Octopus</div>
       <div class="text-[10px] sm:text-xs text-stone-400 mb-1">Smoked paprika, blistered lemon, fennel pollen</div>
       <div class="text-xs sm:text-sm text-amber-200">$28</div>
     </div>
     <div>
-      <div class="aspect-[4/3] rounded overflow-hidden mb-2 sm:mb-3"><img src="${PICSUM('seared-lamb-rosemary', 500, 380)}" class="w-full h-full object-cover" alt=""></div>
+      <div class="aspect-[4/3] rounded overflow-hidden mb-2 sm:mb-3"><img src="${PEXELS('seared lamb rosemary plated', 500, 380)}" class="w-full h-full object-cover" alt=""></div>
       <div class="serif text-base sm:text-xl mb-1">Slow-Braised Lamb</div>
       <div class="text-[10px] sm:text-xs text-stone-400 mb-1">Saffron jus, preserved lemon, mint-tahini</div>
       <div class="text-xs sm:text-sm text-amber-200">$42</div>
     </div>
     <div>
-      <div class="aspect-[4/3] rounded overflow-hidden mb-2 sm:mb-3"><img src="${PICSUM('rustic-bread-olive-oil', 500, 380)}" class="w-full h-full object-cover" alt=""></div>
+      <div class="aspect-[4/3] rounded overflow-hidden mb-2 sm:mb-3"><img src="${PEXELS('rustic sourdough bread olive oil', 500, 380)}" class="w-full h-full object-cover" alt=""></div>
       <div class="serif text-base sm:text-xl mb-1">House Bread Service</div>
       <div class="text-[10px] sm:text-xs text-stone-400 mb-1">Wood-fired sourdough, cultured butter, sea salt</div>
       <div class="text-xs sm:text-sm text-amber-200">$9</div>

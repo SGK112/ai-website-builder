@@ -215,6 +215,14 @@ export default function ProfilePage() {
   const [previewsError, setPreviewsError] = useState<string | null>(null)
   const [deletingPreviewId, setDeletingPreviewId] = useState<string | null>(null)
   const [copiedPreviewId, setCopiedPreviewId] = useState<string | null>(null)
+  // Public profile (bio + tagline) — surfaces on /u/<username> and the
+  // community author cards. Username is derived from email and shown
+  // read-only for now.
+  const [bio, setBio] = useState('')
+  const [tagline, setTagline] = useState('')
+  const [publicUsername, setPublicUsername] = useState('')
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [profileSaveMsg, setProfileSaveMsg] = useState<string | null>(null)
 
   useEffect(() => {
     if (activeTab !== 'previews' || !session?.user) return
@@ -295,6 +303,42 @@ export default function ProfilePage() {
       router.push('/login')
     }
   }, [status, router])
+
+  // Fetch public profile (bio/tagline/derived username) once we have a session.
+  useEffect(() => {
+    if (status !== 'authenticated') return
+    let alive = true
+    fetch('/api/user/profile', { cache: 'no-store' })
+      .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+      .then((data) => {
+        if (!alive) return
+        const p = data?.profile || {}
+        setBio(p.bio || '')
+        setTagline(p.tagline || '')
+        setPublicUsername(p.username || '')
+      })
+      .catch(() => { /* leave fields empty on failure */ })
+    return () => { alive = false }
+  }, [status])
+
+  const saveProfile = async () => {
+    setSavingProfile(true)
+    setProfileSaveMsg(null)
+    try {
+      const res = await fetch('/api/user/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bio: bio.slice(0, 600), tagline: tagline.slice(0, 80) }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setProfileSaveMsg('Saved')
+      setTimeout(() => setProfileSaveMsg(null), 2200)
+    } catch (e: any) {
+      setProfileSaveMsg(`Save failed: ${e?.message || 'unknown'}`)
+    } finally {
+      setSavingProfile(false)
+    }
+  }
 
   // Show loading while checking auth
   if (status === 'loading') {
@@ -489,15 +533,97 @@ export default function ProfilePage() {
                           )}
                         />
                       </div>
+                      {publicUsername && (
+                        <div>
+                          <label className={cn('text-sm font-medium mb-2 block', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+                            Your public page
+                          </label>
+                          <div className={cn(
+                            'flex items-center gap-2 px-4 py-3 rounded-xl border text-sm',
+                            isDark ? 'bg-white/5 border-white/10 text-zinc-300' : 'bg-zinc-50 border-zinc-200 text-zinc-700'
+                          )}>
+                            <span className="opacity-60">webstew.net</span>
+                            <a
+                              href={`/u/${publicUsername}`}
+                              target="_blank"
+                              rel="noopener"
+                              className={cn(
+                                'font-mono font-semibold hover:underline',
+                                isDark ? 'text-violet-300' : 'text-violet-700'
+                              )}
+                            >
+                              /u/{publicUsername}
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                      <div>
+                        <label className={cn('text-sm font-medium mb-2 block', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+                          Tagline <span className="opacity-50 font-normal">(80 chars · one-liner under your name)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={tagline}
+                          onChange={(e) => setTagline(e.target.value.slice(0, 80))}
+                          maxLength={80}
+                          placeholder="Designer & maker · Brooklyn"
+                          className={cn(
+                            'w-full px-4 py-3 rounded-xl border text-sm transition-all',
+                            isDark
+                              ? 'bg-white/5 border-white/10 focus:border-violet-500/50 placeholder:text-zinc-600'
+                              : 'bg-zinc-50 border-zinc-200 focus:border-orange-500/50 placeholder:text-zinc-400'
+                          )}
+                        />
+                        <p className={cn('text-[11px] mt-1 text-right', isDark ? 'text-zinc-600' : 'text-zinc-400')}>
+                          {tagline.length} / 80
+                        </p>
+                      </div>
+                      <div>
+                        <label className={cn('text-sm font-medium mb-2 block', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+                          Bio <span className="opacity-50 font-normal">(600 chars · shown on /u/{publicUsername || 'username'})</span>
+                        </label>
+                        <textarea
+                          value={bio}
+                          onChange={(e) => setBio(e.target.value.slice(0, 600))}
+                          maxLength={600}
+                          rows={4}
+                          placeholder="A short paragraph about you, your work, what you're building."
+                          className={cn(
+                            'w-full px-4 py-3 rounded-xl border text-sm transition-all resize-none',
+                            isDark
+                              ? 'bg-white/5 border-white/10 focus:border-violet-500/50 placeholder:text-zinc-600'
+                              : 'bg-zinc-50 border-zinc-200 focus:border-orange-500/50 placeholder:text-zinc-400'
+                          )}
+                        />
+                        <p className={cn('text-[11px] mt-1 text-right', isDark ? 'text-zinc-600' : 'text-zinc-400')}>
+                          {bio.length} / 600
+                        </p>
+                      </div>
                     </div>
-                    <button className={cn(
-                      'mt-6 px-6 py-2.5 rounded-xl text-sm font-medium transition-all',
-                      isDark
-                        ? 'bg-violet-500 text-white hover:bg-violet-600'
-                        : 'bg-orange-500 text-white hover:bg-orange-600'
-                    )}>
-                      Save Changes
-                    </button>
+                    <div className="mt-6 flex items-center gap-3">
+                      <button
+                        onClick={saveProfile}
+                        disabled={savingProfile}
+                        className={cn(
+                          'px-6 py-2.5 rounded-xl text-sm font-medium transition-all disabled:opacity-50',
+                          isDark
+                            ? 'bg-violet-500 text-white hover:bg-violet-600'
+                            : 'bg-orange-500 text-white hover:bg-orange-600'
+                        )}
+                      >
+                        {savingProfile ? 'Saving…' : 'Save Changes'}
+                      </button>
+                      {profileSaveMsg && (
+                        <span className={cn(
+                          'text-sm',
+                          profileSaveMsg === 'Saved'
+                            ? (isDark ? 'text-emerald-400' : 'text-emerald-600')
+                            : (isDark ? 'text-red-400' : 'text-red-600')
+                        )}>
+                          {profileSaveMsg}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Quick Stats */}

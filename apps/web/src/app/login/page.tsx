@@ -5,6 +5,7 @@ import { signIn, getProviders } from 'next-auth/react'
 import { motion } from 'framer-motion'
 import { Sparkles, Mail, Lock, Loader2, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
+import { WebstewLogo } from '@/components/brand/WebstewLogo'
 import { useSearchParams } from 'next/navigation'
 
 export default function LoginPage() {
@@ -73,17 +74,19 @@ export default function LoginPage() {
           className="inline-flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:text-zinc-500 dark:hover:text-white mb-8 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to Webstew
+          <WebstewLogo size="sm" isDark={false} className="dark:hidden" />
+          <WebstewLogo size="sm" isDark={true} className="hidden dark:inline-flex" />
         </Link>
 
         {/* Card */}
         <div className="bg-white border border-slate-200 shadow-xl shadow-slate-900/5 dark:bg-zinc-900/80 dark:backdrop-blur-xl dark:border-white/10 dark:shadow-none rounded-2xl p-8">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-white" />
+            <div className="flex items-center justify-center mb-4">
+              <WebstewLogo size="md" isDark={false} className="dark:hidden" />
+              <WebstewLogo size="md" isDark={true} className="hidden dark:inline-flex" />
             </div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Welcome back to Webstew</h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Welcome back</h1>
             <p className="text-slate-500 dark:text-zinc-400">Sign in to keep building.</p>
           </div>
 

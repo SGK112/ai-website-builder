@@ -31,6 +31,10 @@ export interface IUser extends Document {
   stripe_account_id?: string
   stripe_account_created_at?: Date
   seed?: string
+  // Public profile fields — rendered on /u/<username>. Optional; defaults
+  // to empty so existing accounts don't show "undefined" anywhere.
+  bio?: string
+  tagline?: string
   matchPassword(enteredPassword: string): Promise<boolean>
 }
 
@@ -103,6 +107,9 @@ const userSchema = new Schema<IUser>(
     stripe_account_created_at: Date,
     // Admin seed marker for the marketplace demo data.
     seed: String,
+    // Public profile fields. Length caps prevent abuse + keep the UI tight.
+    bio: { type: String, maxlength: 600, default: '' },
+    tagline: { type: String, maxlength: 80, default: '' },
   },
   {
     timestamps: true,

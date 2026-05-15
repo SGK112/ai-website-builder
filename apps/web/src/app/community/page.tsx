@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import {
@@ -33,6 +34,8 @@ import {
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/context/ThemeContext'
 import { StarryNight, SunriseBackground } from '@/components/landing/BackgroundEffects'
+import { WebstewLogo } from '@/components/brand/WebstewLogo'
+import { FeedbackBoard } from '@/components/community/FeedbackBoard'
 
 interface Project {
   id: string
@@ -198,6 +201,21 @@ function AuthorAvatar({
 export default function CommunityPage() {
   const { theme } = useTheme()
   const isDark = theme === 'dark'
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  // Top-level community tab — Projects (default) or Feedback. Deep-linkable
+  // via ?tab=feedback so /feedback redirect can land here.
+  const [tab, setTab] = useState<'projects' | 'feedback'>(
+    searchParams.get('tab') === 'feedback' ? 'feedback' : 'projects'
+  )
+  const switchTab = (next: 'projects' | 'feedback') => {
+    setTab(next)
+    const sp = new URLSearchParams(searchParams.toString())
+    if (next === 'feedback') sp.set('tab', 'feedback')
+    else sp.delete('tab')
+    const q = sp.toString()
+    router.replace(`/community${q ? `?${q}` : ''}`, { scroll: false })
+  }
   const [activeCategory, setActiveCategory] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<'trending' | 'recent' | 'popular'>('trending')
@@ -334,17 +352,7 @@ export default function CommunityPage() {
       )}>
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/" className="flex items-center gap-2">
-              <div className={cn(
-                'w-8 h-8 rounded-lg flex items-center justify-center',
-                isDark
-                  ? 'bg-gradient-to-br from-violet-500 to-fuchsia-500'
-                  : 'bg-gradient-to-br from-orange-400 to-pink-500'
-              )}>
-                <Sparkles className="w-4 h-4 text-white" />
-              </div>
-              <span className="font-bold">Webstew</span>
-            </Link>
+            <WebstewLogo href="/" size="sm" isDark={isDark} />
             <ChevronRight className="w-4 h-4 text-zinc-500" />
             <div className="flex items-center gap-2">
               <Users className={isDark ? 'w-4 h-4 text-violet-400' : 'w-4 h-4 text-orange-500'} />
@@ -448,7 +456,61 @@ export default function CommunityPage() {
         </div>
       </section>
 
-      {/* Main Content */}
+      {/* Tab switcher — Projects (showcase) vs Feedback (bugs/features/team replies).
+          Deep-linkable via ?tab=feedback. */}
+      <div className={cn(
+        'relative z-10 border-b',
+        isDark ? 'border-white/10 bg-black/40' : 'border-slate-200 bg-white/60'
+      )}>
+        <div className="max-w-7xl mx-auto px-4 flex items-center gap-1">
+          <button
+            onClick={() => switchTab('projects')}
+            aria-pressed={tab === 'projects'}
+            className={cn(
+              'relative px-4 py-3 text-sm font-semibold transition-colors',
+              tab === 'projects'
+                ? isDark ? 'text-white' : 'text-zinc-900'
+                : isDark ? 'text-zinc-500 hover:text-zinc-200' : 'text-zinc-500 hover:text-zinc-900'
+            )}
+          >
+            Projects
+            {tab === 'projects' && (
+              <span className={cn(
+                'absolute left-3 right-3 -bottom-px h-0.5 rounded',
+                isDark ? 'bg-gradient-to-r from-violet-400 to-fuchsia-400' : 'bg-gradient-to-r from-orange-400 to-pink-500'
+              )} />
+            )}
+          </button>
+          <button
+            onClick={() => switchTab('feedback')}
+            aria-pressed={tab === 'feedback'}
+            className={cn(
+              'relative px-4 py-3 text-sm font-semibold transition-colors',
+              tab === 'feedback'
+                ? isDark ? 'text-white' : 'text-zinc-900'
+                : isDark ? 'text-zinc-500 hover:text-zinc-200' : 'text-zinc-500 hover:text-zinc-900'
+            )}
+          >
+            Feedback
+            {tab === 'feedback' && (
+              <span className={cn(
+                'absolute left-3 right-3 -bottom-px h-0.5 rounded',
+                isDark ? 'bg-gradient-to-r from-violet-400 to-fuchsia-400' : 'bg-gradient-to-r from-orange-400 to-pink-500'
+              )} />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Feedback tab body */}
+      {tab === 'feedback' && (
+        <section className="relative z-10 max-w-3xl mx-auto px-4 py-8">
+          <FeedbackBoard isDark={isDark} />
+        </section>
+      )}
+
+      {/* Projects tab body — existing showcase grid + filters */}
+      {tab === 'projects' && (
       <main className="relative z-10 max-w-7xl mx-auto px-4 py-8">
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Sidebar */}
@@ -832,6 +894,7 @@ export default function CommunityPage() {
           </div>
         </div>
       </main>
+      )}
 
       {/* Footer CTA */}
       <section className={cn(

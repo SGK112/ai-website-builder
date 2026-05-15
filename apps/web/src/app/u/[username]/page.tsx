@@ -13,6 +13,7 @@ import { notFound } from 'next/navigation'
 import { ArrowLeft, Sparkles, BadgeCheck, ExternalLink, Calendar, Eye, Heart } from 'lucide-react'
 import type { Metadata } from 'next'
 import clientPromise from '@/lib/mongodb'
+import { ObjectId } from 'mongodb'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -26,6 +27,8 @@ interface Author {
   name: string
   username: string
   avatar?: string
+  bio?: string
+  tagline?: string
 }
 
 interface Listing {
@@ -77,13 +80,35 @@ async function loadProfile(username: string): Promise<ProfileData | null> {
   if (posts.length === 0) return null
 
   const first = posts[0]
+
+  // Look up the live User doc by listing-embedded author.id so we get the
+  // current bio + tagline (the embedded copy on the listing is just for
+  // listing-time author display, not live profile data).
+  let userExtras: { bio?: string; tagline?: string; avatar?: string; name?: string } = {}
+  if (first.author?.id && ObjectId.isValid(first.author.id)) {
+    const userDoc = await db.collection('users').findOne(
+      { _id: new ObjectId(first.author.id) },
+      { projection: { bio: 1, tagline: 1, avatar: 1, name: 1 } }
+    )
+    if (userDoc) {
+      userExtras = {
+        bio: userDoc.bio || '',
+        tagline: userDoc.tagline || '',
+        avatar: userDoc.avatar || first.author?.avatar,
+        name: userDoc.name || first.author?.name,
+      }
+    }
+  }
+
   return {
     username,
     author: {
       id: String(first.author?.id || ''),
-      name: first.author?.name || username,
+      name: userExtras.name || first.author?.name || username,
       username: first.author?.username || username,
-      avatar: first.author?.avatar,
+      avatar: userExtras.avatar || first.author?.avatar,
+      bio: userExtras.bio,
+      tagline: userExtras.tagline,
     },
     listings: posts.map((p) => ({
       _id: String(p._id),
@@ -171,6 +196,16 @@ export default async function PublicProfilePage({ params }: PageProps) {
           <div className="flex-1 text-center sm:text-left">
             <h1 className="text-2xl sm:text-3xl font-bold">{data.author.name}</h1>
             <p className="text-sm text-zinc-500 mt-1">@{data.author.username}</p>
+            {data.author.tagline && (
+              <p className="text-sm sm:text-base text-violet-300 mt-2 font-medium">
+                {data.author.tagline}
+              </p>
+            )}
+            {data.author.bio && (
+              <p className="text-sm text-zinc-300 mt-3 max-w-2xl whitespace-pre-line leading-relaxed">
+                {data.author.bio}
+              </p>
+            )}
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 mt-4 text-sm text-zinc-400">
               <span className="inline-flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4 text-violet-400" />

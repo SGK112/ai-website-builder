@@ -5,6 +5,7 @@ import { signIn, getProviders } from 'next-auth/react'
 import { motion } from 'framer-motion'
 import { Sparkles, Mail, Lock, User, Loader2, ArrowLeft, Check } from 'lucide-react'
 import Link from 'next/link'
+import { WebstewLogo } from '@/components/brand/WebstewLogo'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 export default function SignupPage() {
@@ -99,7 +100,7 @@ export default function SignupPage() {
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/15 dark:bg-emerald-500/20 flex items-center justify-center">
             <Check className="w-8 h-8 text-emerald-500 dark:text-emerald-400" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Welcome to Webstew!</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Welcome to Webstew AI!</h1>
           <p className="text-slate-500 dark:text-zinc-400">Signing you in…</p>
         </motion.div>
       </div>
@@ -125,17 +126,19 @@ export default function SignupPage() {
           className="inline-flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:text-zinc-500 dark:hover:text-white mb-8 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to Webstew
+          <WebstewLogo size="sm" isDark={false} className="dark:hidden" />
+          <WebstewLogo size="sm" isDark={true} className="hidden dark:inline-flex" />
         </Link>
 
         {/* Card */}
         <div className="bg-white border border-slate-200 shadow-xl shadow-slate-900/5 dark:bg-zinc-900/80 dark:backdrop-blur-xl dark:border-white/10 dark:shadow-none rounded-2xl p-8">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-white" />
+            <div className="flex items-center justify-center mb-4">
+              <WebstewLogo size="md" isDark={false} className="dark:hidden" />
+              <WebstewLogo size="md" isDark={true} className="hidden dark:inline-flex" />
             </div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Join Webstew</h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Create your account</h1>
             <p className="text-slate-500 dark:text-zinc-400">
               Save the site you just built and keep iterating.
             </p>
@@ -273,7 +276,7 @@ export default function SignupPage() {
               {isLoading === 'credentials' ? (
                 <Loader2 className="w-5 h-5 animate-spin mx-auto" />
               ) : (
-                'Create Webstew account'
+                'Create Webstew AI account'
               )}
             </button>
           </form>

@@ -24,6 +24,7 @@ import {
 import { SUBSCRIPTION_PLANS, CREDIT_PACKAGES } from '@/lib/stripe-plans'
 import { useTheme } from '@/context/ThemeContext'
 import { cn } from '@/lib/utils'
+import { WebstewLogo } from '@/components/brand/WebstewLogo'
 
 const PLAN_META: Record<string, { icon: typeof Zap; color: string; description: string }> = {
   free: { icon: Zap, color: 'from-slate-500 to-slate-600', description: 'Perfect for trying out the platform' },
@@ -174,14 +175,7 @@ export default function UpgradePage() {
             <ArrowLeft className="w-4 h-4" />
             Back to Workspace
           </Link>
-          <Link href="/" className={cn(
-            'text-xl font-bold bg-clip-text text-transparent',
-            isDark
-              ? 'bg-gradient-to-r from-violet-400 to-fuchsia-400'
-              : 'bg-gradient-to-r from-violet-600 to-fuchsia-600'
-          )}>
-            Webstew
-          </Link>
+          <WebstewLogo href="/" size="sm" isDark={isDark} />
         </div>
       </header>
 
@@ -550,8 +544,7 @@ export default function UpgradePage() {
           isDark ? 'text-slate-500' : 'text-slate-500'
         )}>
           <div className="flex items-center gap-2">
-            <span className="text-base">🍲</span>
-            <span className={cn('font-semibold', isDark ? 'text-slate-300' : 'text-slate-700')}>Webstew</span>
+            <WebstewLogo size="sm" isDark={isDark} />
             <span>· © {new Date().getFullYear()} Remodely LLC</span>
           </div>
           <div className="flex items-center gap-5">
