@@ -18,6 +18,7 @@ import {
   Palette,
   Store,
   Plug,
+  Library,
   Settings,
   CreditCard,
   Search,
@@ -122,12 +123,14 @@ export function WorkspaceNav() {
   const isTemplates = pathname.startsWith('/templates')
   const isUpgrade = pathname.startsWith('/upgrade')
   const isIntegrations = pathname.startsWith('/integrations')
+  const isLibrary = pathname.startsWith('/library')
 
   // Navigation items - workspace focused
   const isWorkspace = pathname.startsWith('/workspace')
   const navItems = [
     { href: '/workspace', label: 'Workspace', icon: LayoutDashboard, active: isDashboard || isWorkspace },
     { href: '/templates', label: 'Templates', icon: Store, active: isTemplates },
+    { href: '/library', label: 'Library', icon: Library, active: isLibrary },
     { href: '/integrations', label: 'Integrations', icon: Plug, active: isIntegrations },
   ]
 

@@ -6,7 +6,7 @@ import { getToken } from 'next-auth/jwt'
 // the route). /app-builder + multi-target generate routes stay gated — those
 // are the iteration / power-user surfaces, and signup makes sense there.
 // Save/Deploy/CMS/profile/dashboard/admin all remain gated.
-const GATED_PAGE_PREFIXES = ['/app-builder', '/dashboard', '/profile', '/admin', '/integrations', '/workspace']
+const GATED_PAGE_PREFIXES = ['/app-builder', '/dashboard', '/profile', '/admin', '/integrations', '/workspace', '/library']
 const GATED_API_PREFIXES = [
   '/api/builder/converse',
   '/api/builder/chat',
@@ -44,6 +44,8 @@ const GATED_API_PREFIXES = [
   // Marketplace purchase + community engagement endpoints — must be
   // authed for one-per-user semantics + accountability.
   '/api/marketplace',
+  // User's owned listings + purchases. Inline auth in route too.
+  '/api/library',
   // Legacy / unreferenced routes that nevertheless burn paid quotas or leak
   // data when hit anonymously. Gate at the edge so a random scanner can't
   // pull on them. If one of these gets wired back into the UI, swap to a

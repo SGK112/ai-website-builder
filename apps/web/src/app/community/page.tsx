@@ -727,9 +727,16 @@ export default function CommunityPage() {
                     </div>
                   </div>
 
-                  {/* Content */}
+                  {/* Content. Title is the click target → listing detail
+                      page. Demo data with no MongoId-shaped id just
+                      links to /community to avoid 404. */}
                   <div className="p-4">
-                    <h4 className="font-semibold mb-1 line-clamp-1">{project.title}</h4>
+                    <Link
+                      href={/^[a-f0-9]{24}$/i.test(project.id) ? `/listings/${project.id}` : '/community'}
+                      className="block"
+                    >
+                      <h4 className="font-semibold mb-1 line-clamp-1 hover:underline">{project.title}</h4>
+                    </Link>
                     <p className={cn(
                       'text-sm line-clamp-2 mb-4',
                       isDark ? 'text-zinc-400' : 'text-zinc-600'
