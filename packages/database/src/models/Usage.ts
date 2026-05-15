@@ -206,9 +206,12 @@ export async function getUserUsageThisMonth(userId: string | mongoose.Types.Obje
   return result[0] || { generations: 0, images: 0, tokens: 0, credits: 0 }
 }
 
-// Admin emails with unlimited access
+// Admin emails with unlimited access.
+// Joshua signs into Webstew as aria@surprisegranite.com (Google OAuth on
+// that account); joshb@ is the SG ops mailbox. Both stay admin.
 export const ADMIN_EMAILS = [
   'joshb@surprisegranite.com',
+  'aria@surprisegranite.com',
 ]
 
 // Check if email is an admin
