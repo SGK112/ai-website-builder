@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Inter, Playfair_Display } from 'next/font/google'
+import { Inter, Playfair_Display, Inter_Tight } from 'next/font/google'
 import './globals.css'
 import { Toaster } from '@/components/ui/toaster'
 import { AuthProvider } from '@/components/shared/AuthProvider'
@@ -9,6 +9,13 @@ import { ThemeProvider } from '@/context/ThemeContext'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-playfair', style: ['normal', 'italic'] })
+// Inter Tight — chosen for the Webstew wordmark on 2026-05-15. Tighter
+// metrics than regular Inter, confident at display sizes.
+const interTight = Inter_Tight({
+  subsets: ['latin'],
+  variable: '--font-inter-tight',
+  weight: ['600', '700', '800', '900'],
+})
 
 // Mobile-first: tell every browser to render at device width and not
 // auto-zoom to a fictional desktop. Without this Next.js does NOT
@@ -77,7 +84,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${playfair.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${playfair.variable} ${interTight.variable}`}>
       <head>
         {/* Pre-hydration theme setter. Runs synchronously BEFORE React or
             any CSS paints, so `data-theme` (and the `.dark` class) are on
