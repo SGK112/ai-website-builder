@@ -12,7 +12,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, Sparkles, X, Loader2, Mic, ChevronDown } from 'lucide-react'
+import { Send, Sparkles, X, Loader2, Mic, ChevronDown, MousePointer2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface SectionContext {
@@ -44,6 +44,10 @@ interface Props {
   // Hide the FAB when the host already shows a chat panel (desktop default).
   // Mobile keeps it visible regardless because side panels eat too much space.
   hideFabOnDesktop?: boolean
+  // Lets the user enable canvas-pick mode from inside the sheet. Without
+  // this, mobile users had to find a toolbar button hidden behind a menu.
+  selectMode?: boolean
+  onToggleSelectMode?: (next: boolean) => void
 }
 
 const QUICK_PROMPTS = [
@@ -61,6 +65,8 @@ export function SectionChat({
   onSubmit,
   ariaStatus = null,
   hideFabOnDesktop = false,
+  selectMode = false,
+  onToggleSelectMode,
 }: Props) {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
@@ -205,8 +211,31 @@ export function SectionChat({
                     <div className="text-sm text-zinc-400 mb-3">
                       {selectedElement
                         ? 'Tell me what to change about this section.'
-                        : 'Tap any section on the canvas to edit it, or describe a change below.'}
+                        : selectMode
+                          ? 'Tap any section on the canvas — the sheet will reopen with it pinned.'
+                          : 'Describe a change below, or pick a section on the canvas first.'}
                     </div>
+                    {!selectedElement && onToggleSelectMode && (
+                      <button
+                        onClick={() => {
+                          const next = !selectMode
+                          onToggleSelectMode(next)
+                          // When entering pick-mode, close the sheet so the
+                          // user can see the canvas. selectedElement change
+                          // will auto-reopen it.
+                          if (next) setOpen(false)
+                        }}
+                        className={cn(
+                          'inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors mb-3',
+                          selectMode
+                            ? 'bg-violet-600 text-white'
+                            : 'bg-white/10 hover:bg-white/15 text-zinc-200 border border-white/10'
+                        )}
+                      >
+                        <MousePointer2 className="w-3.5 h-3.5" />
+                        {selectMode ? 'Cancel · tap a section' : 'Pick a section on the canvas'}
+                      </button>
+                    )}
                     <div className="flex flex-wrap gap-2 justify-center">
                       {QUICK_PROMPTS.map((p) => (
                         <button

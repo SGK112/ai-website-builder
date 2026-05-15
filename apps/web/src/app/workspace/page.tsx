@@ -10689,6 +10689,8 @@ ${html}
         }}
         ariaStatus={null}
         hideFabOnDesktop
+        selectMode={selectMode}
+        onToggleSelectMode={(next) => setSelectMode(next)}
       />
     </div>
   )

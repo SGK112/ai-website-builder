@@ -20,11 +20,24 @@ export interface DemoSite {
 // that mount a <div id="..."> modal use them. Functions live on window so
 // inline onclick handlers in srcDoc'd iframes can reach them without
 // needing a module loader.
+//
+// The .demo-hint class adds a soft pulsing halo + cursor-pointer on
+// interactive elements so visitors browsing the morphing preview know the
+// button actually does something. Pure CSS, no JS — won't fire timers in
+// the iframe that survive a srcDoc swap.
 const formScript = `<script>
 window.openForm=function(id){var m=document.getElementById(id);if(m){m.classList.remove('hidden');m.classList.add('flex')}};
 window.closeForm=function(id){var m=document.getElementById(id);if(m){m.classList.add('hidden');m.classList.remove('flex');var f=m.querySelector('[data-form]');var s=m.querySelector('[data-success]');if(f&&s){f.classList.remove('hidden');s.classList.add('hidden')}}};
 window.submitForm=function(e,id){e.preventDefault();var m=document.getElementById(id);if(!m)return;var f=m.querySelector('[data-form]');var s=m.querySelector('[data-success]');if(f)f.classList.add('hidden');if(s)s.classList.remove('hidden');setTimeout(function(){window.closeForm(id)},2400)};
-</script>`
+</script>
+<style>
+.demo-hint{position:relative;cursor:pointer;animation:demo-hint-pulse 2.4s ease-in-out infinite}
+.demo-hint::after{content:'';position:absolute;inset:-4px;border-radius:inherit;box-shadow:0 0 0 0 rgba(139,92,246,0.55);animation:demo-hint-ring 2.4s ease-out infinite;pointer-events:none}
+@keyframes demo-hint-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.025)}}
+@keyframes demo-hint-ring{0%{box-shadow:0 0 0 0 rgba(139,92,246,0.55)}70%{box-shadow:0 0 0 12px rgba(139,92,246,0)}100%{box-shadow:0 0 0 0 rgba(139,92,246,0)}}
+.demo-hint-amber::after{box-shadow:0 0 0 0 rgba(217,119,6,0.55);animation:demo-hint-ring-amber 2.4s ease-out infinite}
+@keyframes demo-hint-ring-amber{0%{box-shadow:0 0 0 0 rgba(217,119,6,0.55)}70%{box-shadow:0 0 0 12px rgba(217,119,6,0)}100%{box-shadow:0 0 0 0 rgba(217,119,6,0)}}
+</style>`
 
 const baseHead = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script src="https://cdn.tailwindcss.com"></script><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet"><style>body{font-family:'Inter',sans-serif}.serif{font-family:'Playfair Display',Georgia,serif}</style>${formScript}</head>`
 
@@ -56,7 +69,7 @@ export const DEMO_SITES: DemoSite[] = [
   <h1 class="text-3xl sm:text-5xl md:text-6xl font-bold mb-3 sm:mb-4 tracking-tight leading-[1.05]">Analytics that finally <span class="serif italic bg-gradient-to-r from-violet-300 to-fuchsia-300 bg-clip-text text-transparent">make sense.</span></h1>
   <p class="text-xs sm:text-base text-slate-400 mb-5 sm:mb-8 max-w-xl mx-auto leading-relaxed">Real-time metrics your team will actually use. Stop spelunking SQL — ship faster.</p>
   <div class="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center mb-6 sm:mb-10 px-4 sm:px-0">
-    <button onclick="openForm('saas-form')" class="px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 font-semibold text-xs sm:text-sm shadow-lg shadow-violet-500/30">Get started — free</button>
+    <button onclick="openForm('saas-form')" class="demo-hint px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 font-semibold text-xs sm:text-sm shadow-lg shadow-violet-500/30">Get started — free</button>
     <button class="px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-white/5 border border-white/10 font-semibold text-xs sm:text-sm">Watch 90s demo →</button>
   </div>
 </section>
@@ -304,7 +317,7 @@ export const DEMO_SITES: DemoSite[] = [
 <nav class="absolute top-0 inset-x-0 z-20 px-4 sm:px-10 py-4 sm:py-6 flex items-center justify-between">
   <span class="serif italic text-base sm:text-2xl font-bold tracking-wide">Petra & Salt</span>
   <div class="hidden md:flex gap-6 text-xs uppercase tracking-[0.2em] text-white/80">Menu · Reservations · Story · Visit</div>
-  <button onclick="openForm('restaurant-form')" class="hidden md:inline-flex px-4 py-2 border border-white/40 text-xs tracking-wider uppercase hover:bg-white/10">Reserve</button>
+  <button onclick="openForm('restaurant-form')" class="demo-hint demo-hint-amber hidden md:inline-flex px-4 py-2 border border-white/40 text-xs tracking-wider uppercase hover:bg-white/10">Reserve</button>
 </nav>
 <section class="relative h-[220px] sm:h-[320px] md:h-[400px] overflow-hidden">
   <img src="${PICSUM('candlelit-restaurant-table', 1600, 700)}" class="absolute inset-0 w-full h-full object-cover" alt="">
@@ -342,7 +355,7 @@ export const DEMO_SITES: DemoSite[] = [
     <div class="serif italic text-base sm:text-lg">Reserve your table.</div>
     <div class="text-[10px] sm:text-xs text-stone-400">Tue–Sun · 5:30 PM – 11:00 PM · 47 Ash Lane</div>
   </div>
-  <button onclick="openForm('restaurant-form')" class="px-5 sm:px-6 py-2.5 sm:py-3 bg-amber-200 text-stone-900 text-xs sm:text-sm tracking-wider uppercase">Book now</button>
+  <button onclick="openForm('restaurant-form')" class="demo-hint demo-hint-amber px-5 sm:px-6 py-2.5 sm:py-3 bg-amber-200 text-stone-900 text-xs sm:text-sm tracking-wider uppercase">Book now</button>
 </section>
 <div id="restaurant-form" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm items-center justify-center p-4" onclick="if(event.target===this)closeForm('restaurant-form')">
   <div class="bg-stone-50 rounded-lg p-5 sm:p-7 max-w-sm w-full text-stone-900 shadow-2xl relative">
