@@ -305,111 +305,71 @@ export function BridgePanel() {
 
       {/* ── UNPAIRED (first-time setup) ── */}
       {!isConnected && !isPaired && (
-        <div className="space-y-4">
-          {/* Prerequisite */}
-          <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3 flex items-start gap-3">
-            <div className="w-7 h-7 rounded-lg bg-orange-500/20 flex items-center justify-center shrink-0 mt-0.5">
-              <ExternalLink className="w-3.5 h-3.5 text-orange-400" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-white mb-0.5">Requires Claude Code + Node.js 18+</p>
-              <div className="flex flex-wrap gap-2">
-                <a href="https://claude.ai/download" target="_blank" rel="noreferrer"
-                  className="text-[11px] text-orange-400 hover:text-orange-300 underline underline-offset-2 transition">
-                  Get Claude Code (free) ↗
-                </a>
-                <span className="text-zinc-600 text-[11px]">·</span>
-                <a href="https://nodejs.org" target="_blank" rel="noreferrer"
-                  className="text-[11px] text-zinc-500 hover:text-white underline underline-offset-2 transition">
-                  Get Node.js ↗
-                </a>
-              </div>
-            </div>
+        <div className="space-y-3">
+
+          {/* Step 1 — Open Terminal */}
+          <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3">
+            <p className="text-xs font-semibold text-white mb-1.5">
+              Step 1 — Open Terminal on your Mac
+            </p>
+            <p className="text-[11px] text-zinc-400">
+              Press{' '}
+              <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-mono text-white">⌘</kbd>
+              {' + '}
+              <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-mono text-white">Space</kbd>
+              {', type '}
+              <span className="font-mono text-white">Terminal</span>
+              {', press '}
+              <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-mono text-white">Enter</kbd>
+            </p>
+            <p className="text-[10px] text-zinc-600 mt-1.5">
+              Needs <a href="https://nodejs.org" target="_blank" rel="noreferrer" className="underline hover:text-zinc-400">Node.js 18+</a>
+              {' and '}
+              <a href="https://claude.ai/download" target="_blank" rel="noreferrer" className="underline hover:text-zinc-400">Claude Code</a>
+              {' installed first.'}
+            </p>
           </div>
 
-          {/* Connection flow */}
-          {loadingPairing ? (
-            <div className="flex items-center justify-center gap-2 py-4 text-sm text-zinc-500">
-              <Loader2 className="w-4 h-4 animate-spin text-orange-400" />
-              Generating your connection key…
-            </div>
-          ) : pairing ? (
-            <div className="space-y-3">
-              {/* Command — big copy button is the hero action */}
-              <CommandBlock
-                command={connectCmd}
-                copied={copied === 'connect'}
-                onCopy={() => copyText(connectCmd, 'connect')}
-                onDownload={() => downloadScript(connectCmd)}
-              />
+          {/* Step 2 — Generate key and copy command */}
+          <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3 space-y-2.5">
+            <p className="text-xs font-semibold text-white">
+              Step 2 — Copy this command and paste it in Terminal
+            </p>
 
-              {/* Step-by-step for non-technical users */}
-              <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3 space-y-2">
-                <p className="text-[11px] font-semibold text-zinc-300">How to run it:</p>
-                <div className="space-y-1.5">
-                  <div className="flex items-start gap-2 text-[11px] text-zinc-400">
-                    <span className="w-4 h-4 rounded-full bg-orange-500/30 text-orange-300 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">1</span>
-                    <span>Click <span className="text-white font-medium">Copy</span> above</span>
-                  </div>
-                  <div className="flex items-start gap-2 text-[11px] text-zinc-400">
-                    <span className="w-4 h-4 rounded-full bg-orange-500/30 text-orange-300 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">2</span>
-                    <span>
-                      Open <span className="text-white font-medium">Terminal</span>
-                      <span className="text-zinc-600"> — press </span>
-                      <kbd className="px-1 py-0.5 rounded bg-white/10 text-[10px] font-mono">⌘ Space</kbd>
-                      <span className="text-zinc-600">, type </span>
-                      <span className="text-white font-mono text-[10px]">Terminal</span>
-                      <span className="text-zinc-600">, press Enter</span>
-                    </span>
-                  </div>
-                  <div className="flex items-start gap-2 text-[11px] text-zinc-400">
-                    <span className="w-4 h-4 rounded-full bg-orange-500/30 text-orange-300 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">3</span>
-                    <span>
-                      Paste <kbd className="px-1 py-0.5 rounded bg-white/10 text-[10px] font-mono">⌘ V</kbd>
-                      <span className="text-zinc-600"> and press </span>
-                      <kbd className="px-1 py-0.5 rounded bg-white/10 text-[10px] font-mono">Enter</kbd>
-                      <span className="text-zinc-600"> — done. This panel turns green.</span>
-                    </span>
-                  </div>
-                </div>
+            {loadingPairing ? (
+              <div className="flex items-center gap-2 text-[11px] text-zinc-500 py-1">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-orange-400" />
+                Generating key…
               </div>
-
-              {/* Windows users */}
-              <details className="group">
-                <summary className="text-[11px] text-zinc-600 hover:text-zinc-400 cursor-pointer transition list-none flex items-center gap-1">
-                  <span className="text-[10px]">▸</span> On Windows?
-                </summary>
-                <p className="mt-1.5 text-[11px] text-zinc-500 pl-3">
-                  Open <span className="text-white">PowerShell</span> or <span className="text-white">Command Prompt</span>, paste the command, press Enter.
-                  Or download the{' '}
-                  <button onClick={() => downloadScript(connectCmd, 'windows')}
-                    className="text-orange-400 underline underline-offset-2 hover:text-orange-300 transition">
-                    .bat installer
+            ) : pairing ? (
+              <>
+                <CommandBlock
+                  command={connectCmd}
+                  copied={copied === 'connect'}
+                  onCopy={() => copyText(connectCmd, 'connect')}
+                  onDownload={() => downloadScript(connectCmd)}
+                />
+                <div className="flex items-center gap-2 text-[11px] text-zinc-500">
+                  <Loader2 className="w-3 h-3 animate-spin text-orange-400 shrink-0" />
+                  <span>Waiting… this panel turns green when connected.</span>
+                  <span className="ml-auto tabular-nums text-zinc-600 shrink-0">
+                    {Math.max(0, Math.floor((pairing.expiresAt - Date.now()) / 60_000))}m left
+                  </span>
+                  <button onClick={initPairing} disabled={loadingPairing}
+                    className="text-zinc-600 hover:text-zinc-400 underline underline-offset-2 transition shrink-0">
+                    New key
                   </button>
-                  {' '}and double-click it.
-                </p>
-              </details>
+                </div>
+              </>
+            ) : (
+              <button onClick={initPairing} disabled={loadingPairing}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-br from-orange-500 to-amber-500 hover:brightness-110 text-white text-sm font-semibold transition shadow-md shadow-orange-500/20">
+                <Terminal className="w-3.5 h-3.5" />
+                Generate my connection key
+              </button>
+            )}
+          </div>
 
-              {/* Waiting + expiry */}
-              <div className="flex items-center gap-2 text-[11px] text-zinc-500">
-                <Loader2 className="w-3 h-3 animate-spin text-orange-400 shrink-0" />
-                Waiting for connection…
-                <span className="ml-auto tabular-nums text-zinc-600">
-                  Key expires in {Math.max(0, Math.floor((pairing.expiresAt - Date.now()) / 60_000))}m
-                </span>
-                <button onClick={initPairing} disabled={loadingPairing}
-                  className="text-zinc-600 hover:text-zinc-400 underline underline-offset-2 transition ml-1">
-                  Refresh
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={initPairing} disabled={loadingPairing}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 hover:brightness-110 text-white font-semibold transition shadow-lg shadow-orange-500/25">
-              <Terminal className="w-4 h-4" />
-              Connect your Chef
-            </button>
-          )}
         </div>
       )}
     </div>
