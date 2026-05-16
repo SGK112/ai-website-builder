@@ -8834,12 +8834,12 @@ ${html}
                                   setUnsplashLoading?.(true)
                                   // Generate Unsplash URLs directly (no API key needed for source.unsplash.com)
                                   const results = [
-                                    `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=1`,
-                                    `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=2`,
-                                    `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=3`,
-                                    `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=4`,
-                                    `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=5`,
-                                    `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=6`,
+                                    `/api/media?q=${encodeURIComponent(query)}&w=800&h=600&v=1`,
+                                    `/api/media?q=${encodeURIComponent(query)}&w=800&h=600&v=2`,
+                                    `/api/media?q=${encodeURIComponent(query)}&w=800&h=600&v=3`,
+                                    `/api/media?q=${encodeURIComponent(query)}&w=800&h=600&v=4`,
+                                    `/api/media?q=${encodeURIComponent(query)}&w=800&h=600&v=5`,
+                                    `/api/media?q=${encodeURIComponent(query)}&w=800&h=600&v=6`,
                                   ]
                                   setUnsplashResults?.(results)
                                   setUnsplashLoading?.(false)
@@ -8855,12 +8855,12 @@ ${html}
                                 setUnsplashResults?.([])
                                 setUnsplashLoading?.(true)
                                 const results = [
-                                  `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=1`,
-                                  `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=2`,
-                                  `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=3`,
-                                  `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=4`,
-                                  `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=5`,
-                                  `https://source.unsplash.com/800x600/?${encodeURIComponent(query)}&sig=6`,
+                                  `/api/media?q=${encodeURIComponent(query)}&w=800&h=600&v=1`,
+                                  `/api/media?q=${encodeURIComponent(query)}&w=800&h=600&v=2`,
+                                  `/api/media?q=${encodeURIComponent(query)}&w=800&h=600&v=3`,
+                                  `/api/media?q=${encodeURIComponent(query)}&w=800&h=600&v=4`,
+                                  `/api/media?q=${encodeURIComponent(query)}&w=800&h=600&v=5`,
+                                  `/api/media?q=${encodeURIComponent(query)}&w=800&h=600&v=6`,
                                 ]
                                 setUnsplashResults?.(results)
                                 setUnsplashLoading?.(false)
@@ -8879,12 +8879,12 @@ ${html}
                               key={cat}
                               onClick={() => {
                                 const results = [
-                                  `https://source.unsplash.com/800x600/?${cat}&sig=${Date.now()}1`,
-                                  `https://source.unsplash.com/800x600/?${cat}&sig=${Date.now()}2`,
-                                  `https://source.unsplash.com/800x600/?${cat}&sig=${Date.now()}3`,
-                                  `https://source.unsplash.com/800x600/?${cat}&sig=${Date.now()}4`,
-                                  `https://source.unsplash.com/800x600/?${cat}&sig=${Date.now()}5`,
-                                  `https://source.unsplash.com/800x600/?${cat}&sig=${Date.now()}6`,
+                                  `/api/media?q=${encodeURIComponent(cat)}&w=800&h=600&v=1`,
+                                  `/api/media?q=${encodeURIComponent(cat)}&w=800&h=600&v=2`,
+                                  `/api/media?q=${encodeURIComponent(cat)}&w=800&h=600&v=3`,
+                                  `/api/media?q=${encodeURIComponent(cat)}&w=800&h=600&v=4`,
+                                  `/api/media?q=${encodeURIComponent(cat)}&w=800&h=600&v=5`,
+                                  `/api/media?q=${encodeURIComponent(cat)}&w=800&h=600&v=6`,
                                 ]
                                 setUnsplashResults?.(results)
                               }}

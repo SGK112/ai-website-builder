@@ -65,6 +65,12 @@ export async function GET(req: NextRequest) {
   const w = Math.max(50, Math.min(2400, parseInt(sp.get('w') || '600', 10) || 600))
   const h = Math.max(50, Math.min(2400, parseInt(sp.get('h') || '600', 10) || 600))
   const type: 'photo' | 'video' = sp.get('type') === 'video' ? 'video' : 'photo'
+  // Variant index (0..5) — used by the workspace Stock Photos picker to
+  // show 6 thumbnails for the same query without burning 6 Pexels API
+  // calls. We fetch per_page=6 once on cache miss, then resolve v=N from
+  // the cached batch row.
+  const vRaw = sp.get('v')
+  const v = vRaw !== null ? Math.max(0, Math.min(5, parseInt(vRaw, 10) || 0)) : null
 
   if (!q) {
     return NextResponse.json({ error: 'q (query) required' }, { status: 400 })
@@ -80,9 +86,13 @@ export async function GET(req: NextRequest) {
   }
 
   // Normalise the cache key so "Pearl Necklace" and "pearl,necklace" both
-  // map to the same row when the photo would be reusable.
+  // map to the same row when the photo would be reusable. Variant batches
+  // share a key — we resolve v=N from the row's `variants` array.
   const normQuery = q.toLowerCase().replace(/[,\s]+/g, '_').replace(/[^a-z0-9_]/g, '')
-  const cacheKey = `pexels:${type}:${normQuery}:${w}x${h}`
+  const isBatch = v !== null
+  const cacheKey = isBatch
+    ? `pexels:${type}:${normQuery}:${w}x${h}:batch6`
+    : `pexels:${type}:${normQuery}:${w}x${h}`
 
   // Try the cache, but never let a slow/down Mongo block the route.
   // withTimeout returns null on miss/timeout/error so we fall through to
@@ -95,18 +105,26 @@ export async function GET(req: NextRequest) {
     })(),
     3000
   )
-  if (cached?.url) {
-    return NextResponse.redirect(cached.url, {
-      status: 302,
-      headers: { 'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800' },
-    })
+  if (cached) {
+    const hitUrl = isBatch
+      ? (Array.isArray(cached.variants) ? cached.variants[v!] : undefined)
+      : cached.url
+    if (hitUrl) {
+      return NextResponse.redirect(hitUrl, {
+        status: 302,
+        headers: { 'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800' },
+      })
+    }
   }
 
-  // Cache miss (or unreachable) — call Pexels.
+  // Cache miss (or unreachable) — call Pexels. For variant requests we
+  // pull per_page=6 once so all 6 thumbnails resolve from a single API
+  // call (vs 6 round trips).
+  const perPage = isBatch ? 6 : 1
   const endpoint =
     type === 'video'
-      ? `https://api.pexels.com/videos/search?query=${encodeURIComponent(q)}&per_page=1&orientation=landscape`
-      : `https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&per_page=1&orientation=${w > h ? 'landscape' : h > w ? 'portrait' : 'square'}`
+      ? `https://api.pexels.com/videos/search?query=${encodeURIComponent(q)}&per_page=${perPage}&orientation=landscape`
+      : `https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&per_page=${perPage}&orientation=${w > h ? 'landscape' : h > w ? 'portrait' : 'square'}`
 
   let data: any
   try {
@@ -126,36 +144,52 @@ export async function GET(req: NextRequest) {
   }
 
   let url: string | undefined
+  let variants: string[] | undefined
   let credit: Record<string, any> = {}
 
   if (type === 'video') {
-    const v: PexelsVideo | undefined = data?.videos?.[0]
-    url = v ? pickVideoFile(v.video_files || [], w) : undefined
-    if (v) {
-      credit = {
-        provider: 'pexels',
-        mediaId: v.id,
-        pexelsUrl: v.url,
-        photographer: v.user?.name,
-        photographerUrl: v.user?.url,
+    const items: PexelsVideo[] = Array.isArray(data?.videos) ? data.videos : []
+    if (isBatch) {
+      variants = items.map((vd) => pickVideoFile(vd.video_files || [], w)).filter(Boolean) as string[]
+      url = variants[v!]
+    } else {
+      const vd = items[0]
+      url = vd ? pickVideoFile(vd.video_files || [], w) : undefined
+      if (vd) {
+        credit = {
+          provider: 'pexels',
+          mediaId: vd.id,
+          pexelsUrl: vd.url,
+          photographer: vd.user?.name,
+          photographerUrl: vd.user?.url,
+        }
       }
     }
   } else {
-    const p: PexelsPhoto | undefined = data?.photos?.[0]
-    url = p?.src?.original ? sizedPhotoUrl(p.src.original, w, h) : undefined
-    if (p) {
-      credit = {
-        provider: 'pexels',
-        mediaId: p.id,
-        pexelsUrl: p.url,
-        photographer: p.photographer,
-        photographerUrl: p.photographer_url,
+    const items: PexelsPhoto[] = Array.isArray(data?.photos) ? data.photos : []
+    if (isBatch) {
+      variants = items
+        .map((p) => p?.src?.original ? sizedPhotoUrl(p.src.original, w, h) : null)
+        .filter(Boolean) as string[]
+      url = variants[v!]
+    } else {
+      const p = items[0]
+      url = p?.src?.original ? sizedPhotoUrl(p.src.original, w, h) : undefined
+      if (p) {
+        credit = {
+          provider: 'pexels',
+          mediaId: p.id,
+          pexelsUrl: p.url,
+          photographer: p.photographer,
+          photographerUrl: p.photographer_url,
+        }
       }
     }
   }
 
   if (!url) {
-    // Pexels returned 200 but no results for this query — fall back.
+    // Pexels returned 200 but no results for this query (or the requested
+    // variant index is out of range) — fall back.
     return NextResponse.redirect(fallback, { status: 302 })
   }
 
@@ -165,16 +199,21 @@ export async function GET(req: NextRequest) {
     (async () => {
       const client = await clientPromise
       const db = client.db('ai-website-builder')
-      await db.collection('media_cache').insertOne({
+      const row: Record<string, any> = {
         key: cacheKey,
-        url,
-        ...credit,
         query: q,
         width: w,
         height: h,
         type,
         createdAt: new Date(),
-      })
+      }
+      if (isBatch && variants) {
+        row.variants = variants
+      } else {
+        row.url = url
+        Object.assign(row, credit)
+      }
+      await db.collection('media_cache').insertOne(row)
     })(),
     3000
   ).catch(() => {})
