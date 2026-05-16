@@ -8149,7 +8149,7 @@ npx eas build --platform all
                   }}
                   title={t.title}
                   className={cn(
-                    'px-2 py-1 rounded-md text-[11px] font-medium transition-all',
+                    'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
                     buildTarget === t.id
                       ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300'
                       : 'text-slate-500 hover:text-slate-900 dark:text-zinc-500 dark:hover:text-white'
@@ -8174,13 +8174,13 @@ npx eas build --platform all
                   : 'Grade my site (SEO / technical / presence)'
               }
               className={cn(
-                'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all border',
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border',
                 (!html && !vfsFiles['index.html'])
-                  ? 'bg-slate-200 text-slate-500 border-slate-300 dark:bg-white/[0.03] dark:text-zinc-600 dark:border-white/[0.06] cursor-not-allowed'
+                  ? 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-white/[0.03] dark:text-zinc-600 dark:border-white/[0.06] cursor-not-allowed'
                   : 'bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30 dark:hover:bg-emerald-500/25'
               )}
             >
-              <Award className="w-3 h-3" />
+              <Award className="w-3.5 h-3.5" />
               Grade
             </button>
 
@@ -8201,15 +8201,15 @@ npx eas build --platform all
                       : 'Click text in preview to edit inline'
               }
               className={cn(
-                'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all border',
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border',
                 (buildTarget !== 'website' || !html)
-                  ? 'bg-slate-200 text-slate-500 border-slate-300 dark:bg-white/[0.03] dark:text-zinc-600 dark:border-white/[0.06] cursor-not-allowed'
+                  ? 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-white/[0.03] dark:text-zinc-600 dark:border-white/[0.06] cursor-not-allowed'
                   : editMode
                     ? 'bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white border-violet-500 shadow-sm'
                     : 'bg-violet-100 text-violet-700 border-violet-300 hover:bg-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:border-violet-500/30 dark:hover:bg-violet-500/25'
               )}
             >
-              <Pencil className="w-3 h-3" />
+              <Pencil className="w-3.5 h-3.5" />
               {editMode ? 'Editing' : 'Edit'}
             </button>
 
@@ -8237,7 +8237,7 @@ npx eas build --platform all
                 disabled={isGenerating || isThinking}
                 title="Convert this website to a React Native mobile app"
                 className={cn(
-                  'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all border whitespace-nowrap',
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border whitespace-nowrap',
                   (isGenerating || isThinking)
                     ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200 dark:bg-white/5 dark:text-zinc-500 dark:border-white/10'
                     : 'bg-violet-100 text-violet-700 border-violet-300 hover:bg-violet-200 dark:bg-gradient-to-r dark:from-violet-500/20 dark:to-fuchsia-500/20 dark:text-violet-300 dark:border-violet-500/30 dark:hover:from-violet-500/30 dark:hover:to-fuchsia-500/30'
