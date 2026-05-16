@@ -160,8 +160,11 @@ import { CustomDomainCard } from '@/components/builder/CustomDomainCard'
 import { PublishToCommunityModal } from '@/components/builder/PublishToCommunityModal'
 import { SiteGraderModal } from '@/components/builder/SiteGraderModal'
 import { SectionChat, type ChatSubmitPayload } from '@/components/builder/SectionChat'
+import { ChefDock } from '@/components/builder/ChefSpotlight'
+import { BridgePanel } from '@/components/integrations/BridgePanel'
 import { stylePresets, StylePreset, generatePresetStyles, applyThemeToHtml, generateAllThemesStyles } from '@/lib/builder/style-presets'
 import { getTemplateById } from '@/lib/templates'
+import { SUBSCRIPTION_PLANS, CREDIT_PACKAGES } from '@/lib/stripe-plans'
 import { componentLibrary, ComponentSection, assemblePage } from '@/lib/builder/component-library'
 import { imageService, getUnsplashImage, enhanceImagesInHtml } from '@/lib/builder/image-service'
 import { ChefLoader } from '@/components/loading'
@@ -1165,6 +1168,42 @@ function WorkspaceContent() {
   const [viewMode, setViewMode] = useState<ViewMode>('preview')
   const [activePanel, setActivePanel] = useState<Panel>('build')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  // Spotlight-style AI chat overlay (⌘J). When sidebar is open the side
+  // panel chat is primary; bubble + spotlight are for collapsed-sidebar
+  // and quick one-shot asks from anywhere in the workspace.
+  const [chefSpotlightOpen, setChefSpotlightOpen] = useState(false)
+  // Permission prompt — chef-initiated workspace actions (switch_target,
+  // open_panel) await user approval. SSE event sets this; the modal
+  // resolves via POST /api/mcp/permission/resolve which unblocks the
+  // MCP tool's awaiting Promise on the server.
+  const resolvePermissionFromChat = async (permissionId: string, approved: boolean) => {
+    setChatMessages(prev => prev.map(m =>
+      m.permission?.permissionId === permissionId
+        ? { ...m, permission: { ...m.permission!, resolved: approved ? 'approved' as const : 'denied' as const } }
+        : m
+    ))
+    try {
+      await fetch('/api/mcp/permission/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ permissionId, approved }),
+      })
+    } catch (e) {
+      console.warn('Permission resolve failed:', e)
+    }
+  }
+  // Post-Stripe success celebration. Populated from URL params when the
+  // user lands on /workspace?upgraded=true after Checkout. Stripe success
+  // URLs now include &plan= or &pack= so the modal renders without an
+  // extra round-trip. See /api/checkout/route.ts.
+  const [upgradeSuccess, setUpgradeSuccess] = useState<{
+    kind: 'plan'
+    plan: typeof SUBSCRIPTION_PLANS[number]
+    period: 'monthly' | 'annual'
+  } | {
+    kind: 'pack'
+    pack: typeof CREDIT_PACKAGES[number]
+  } | null>(null)
   const [isMobile, setIsMobile] = useState(false)
   const [skillLevel, setSkillLevel] = useState<SkillLevel>('no-code')
   const [selectedPreset, setSelectedPreset] = useState<string>('modern-dark')
@@ -1724,6 +1763,49 @@ function WorkspaceContent() {
     aiModels[0]
   )
   const [showApiKeyModal, setShowApiKeyModal] = useState(false)
+  // Local Claude bridge status — polled from /api/bridge/status every
+  // ~10s. When connected, chat requests auto-route through the user's
+  // installed Claude Code (their Pro/Max subscription drives the call)
+  // by passing useBridge:true to /api/builder/agent. The route falls
+  // back to direct Anthropic if no bridge is up — but here we just
+  // never set useBridge unless we know one's connected, so there's no
+  // silent surprise either way.
+  const [bridgeConnected, setBridgeConnected] = useState(false)
+  useEffect(() => {
+    let alive = true
+    const check = async () => {
+      try {
+        const r = await fetch('/api/bridge/status', { cache: 'no-store' })
+        if (!r.ok) return
+        const d = await r.json() as { connected: boolean }
+        if (alive) setBridgeConnected(!!d.connected)
+      } catch {}
+    }
+    check()
+    const id = setInterval(check, 10_000)
+    return () => { alive = false; clearInterval(id) }
+  }, [])
+  // Per-session toggle: when ON + bridge connected, requests skip
+  // Webstew credits entirely and bill against the user's Claude
+  // subscription. When OFF, requests use the server's Anthropic key
+  // (decrementing monthlyCredits as before). Defaults ON so paired
+  // users get the cheaper path automatically; persisted so a
+  // deliberate "use Webstew credits" choice sticks across sessions.
+  const [bridgePathEnabled, setBridgePathEnabled] = useState(true)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('webstew-bridge-path-enabled')
+      if (raw === '0') setBridgePathEnabled(false)
+    } catch {}
+  }, [])
+  const toggleBridgePath = () => {
+    setBridgePathEnabled((prev) => {
+      const next = !prev
+      try { localStorage.setItem('webstew-bridge-path-enabled', next ? '1' : '0') } catch {}
+      return next
+    })
+  }
+  const bridgeActive = bridgeConnected && bridgePathEnabled
   const [userCredits, setUserCredits] = useState<number | null>(null)
   const [apiKeys, setApiKeys] = useState<{
     anthropic: string
@@ -1819,13 +1901,38 @@ function WorkspaceContent() {
 
   // Conversational chat state
   const [showWelcome, setShowWelcome] = useState(true)
-  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string; suggestions?: string[] }[]>([
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string; suggestions?: string[]; permission?: { permissionId: string; action: string; approveLabel: string; denyLabel: string; resolved?: 'approved' | 'denied' } }[]>([
     { role: 'assistant', content: "Welcome! I'm your AI creative assistant. What would you like to create today?", suggestions: ['Build a website', 'Generate an image', 'Create a video'] }
   ])
   const [chatSuggestions, setChatSuggestions] = useState<string[]>(['Build a website', 'Generate an image', 'Create a video'])
   const [conversationIntent, setConversationIntent] = useState<'website' | 'image' | 'video' | 'edit' | null>(null)
   const [isThinking, setIsThinking] = useState(false)
+  // Lets the user abort a stuck/long agent turn from the UI. Stamped
+  // when a request starts, aborted by the Stop button below the chat
+  // input, and cleared when isThinking flips off.
+  const agentAbortRef = useRef<AbortController | null>(null)
+  const stopAgent = () => {
+    const c = agentAbortRef.current
+    if (!c) return
+    try { c.abort() } catch {}
+    agentAbortRef.current = null
+    setIsThinking(false)
+  }
   const chatContainerRef = useRef<HTMLDivElement>(null)
+  // Auto-scroll the chat thread to the bottom as messages arrive AND
+  // as the streaming assistant message mutates (each token chunk
+  // mutates the same last message). Respects user scroll-up: if they
+  // scrolled away from the bottom (>120px), we don't yank them back —
+  // they're reading history. Returns to auto-scroll once they
+  // scroll back near the bottom or send a new message.
+  useEffect(() => {
+    const el = chatContainerRef.current
+    if (!el) return
+    const distanceFromBottom = el.scrollHeight - (el.scrollTop + el.clientHeight)
+    if (distanceFromBottom < 120) {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+    }
+  }, [chatMessages, isThinking])
 
   // Drag and drop state for images
   const [draggedImageUrl, setDraggedImageUrl] = useState<string | null>(null)
@@ -3876,6 +3983,34 @@ ${html}
     setCommandIndex(0)
   }
 
+  // Stripe Checkout success — once per arrival. Reads ?upgraded=true&plan=…
+  // (or &pack=…) populated by /api/checkout, opens the celebration modal,
+  // then strips the params so a reload doesn't re-fire the modal.
+  useEffect(() => {
+    if (searchParams.get('upgraded') !== 'true') return
+    const planId = searchParams.get('plan')
+    const packId = searchParams.get('pack')
+    const period = (searchParams.get('period') === 'annual' ? 'annual' : 'monthly') as 'monthly' | 'annual'
+    if (planId) {
+      const plan = SUBSCRIPTION_PLANS.find((p) => p.id === planId)
+      if (plan) setUpgradeSuccess({ kind: 'plan', plan, period })
+    } else if (packId) {
+      const pack = CREDIT_PACKAGES.find((p) => p.id === packId)
+      if (pack) setUpgradeSuccess({ kind: 'pack', pack })
+    } else {
+      // Older success URLs without plan/pack params — still acknowledge.
+      addToast('success', 'Upgrade complete — welcome aboard.')
+    }
+    // Strip the params from the URL so refresh doesn't replay the modal.
+    const url = new URL(window.location.href)
+    url.searchParams.delete('upgraded')
+    url.searchParams.delete('plan')
+    url.searchParams.delete('pack')
+    url.searchParams.delete('period')
+    router.replace(url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''), { scroll: false })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Command Palette keyboard shortcut
   useEffect(() => {
     const handleCommandPalette = (e: KeyboardEvent) => {
@@ -3885,6 +4020,14 @@ ${html}
         setShowCommandPalette(prev => !prev)
         setCommandSearch('')
         setCommandIndex(0)
+      }
+
+      // Cmd+J or Ctrl+J — open the Chef spotlight (AI builder quick chat).
+      // ⌘K is taken by the command palette above; ⌘J is the next-most
+      // conventional shortcut and free across major browsers + macOS.
+      if ((e.metaKey || e.ctrlKey) && e.key === 'j') {
+        e.preventDefault()
+        setChefSpotlightOpen(prev => !prev)
       }
 
       // F for focus mode (when not typing)
@@ -4065,6 +4208,30 @@ ${html}
   }, [])
 
   const contextMenuActions = useMemo(() => ({
+    // "Speak with the Chef" — opens the agent chat focused on this exact
+    // element. Sets selectedElement so handleChatMessage's existing prompt
+    // enrichment (workspace/page.tsx ~4306) wraps the user's request with
+    // the outerHTML, and the agent's edit_file tool can target the right
+    // node by literal substring instead of guessing.
+    speakWithChef: () => {
+      if (!contextMenu.element) return
+      const el = contextMenu.element
+      setSelectedElement({
+        tagName: el.tagName,
+        outerHTML: el.outerHTML,
+        textContent: el.textContent,
+      })
+      setActivePanel('build')
+      closeContextMenu()
+      // Focus the chat input on the next tick so the panel mount completes.
+      setTimeout(() => {
+        const input = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+          '[data-command-input]'
+        )
+        input?.focus()
+      }, 80)
+    },
+
     editText: () => {
       if (!contextMenu.element) return
       const element = contextMenu.element
@@ -4273,6 +4440,33 @@ ${html}
     setChatSuggestions([])
     setCommandInput('')
 
+    // Intent-based target detection — fires before the agent so target
+    // switches work even when MCP isn't loaded in the bridge session. If the
+    // user's message clearly implies a different runtime, switch the target
+    // and scaffold directly without needing the agent's MCP tools.
+    const TARGET_INTENTS: Array<{ target: Exclude<BuildTarget, 'website'>; pattern: RegExp }> = [
+      { target: 'expo',   pattern: /mobile\s*app|ios\s*app|android|react\s*native|\bnative\s*app|\bexpo\b|build.*mobile|iphone\s*app|smartphone\s*app/i },
+      { target: 'nextjs', pattern: /next\.?js\s*(app|site|project)?|server[\s-]side\s*render|ssr\b|server\s*components|api\s*routes\b/i },
+      { target: 'react',  pattern: /\breact\s*(spa|vite|app)\b|vite\s*react|single[\s-]page\s*app\b/i },
+      { target: 'astro',  pattern: /\bastro\s*(site|app|project)?|mdx\b|static\s*site\s*gen/i },
+    ]
+    if (buildTarget === 'website' && !selectedElement) {
+      for (const { target, pattern } of TARGET_INTENTS) {
+        if (pattern.test(message)) {
+          setHtml('')
+          setVfsFiles({})
+          setVfsProjectMeta(null)
+          setPages([{ id: 'home', name: 'Home', slug: 'index', html: '', isHome: true }])
+          setActivePageId('home')
+          setPreviewBumpKey(k => k + 1)
+          setBuildTarget(target)
+          addToast('info', `Switched to ${target} — scaffolding now.`)
+          await handleGenerateMultiTarget(target, message)
+          return
+        }
+      }
+    }
+
     // First-prompt bootstrap for non-website targets: the agent loop is for
     // refining an existing project, not scaffolding one from scratch. With an
     // empty VFS it hits the iteration cap before finishing. Route the kickoff
@@ -4320,8 +4514,12 @@ ${html}
       const agentFiles = buildTarget === 'website'
         ? { 'index.html': html }
         : vfsFiles
+      // Fresh abort controller per request — Stop button below the
+      // chat input flips this to recover from a wedged stream.
+      agentAbortRef.current = new AbortController()
       const response = await fetch('/api/builder/agent', {
         method: 'POST',
+        signal: agentAbortRef.current.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: agentPrompt,
@@ -4334,6 +4532,14 @@ ${html}
           // content collections on this project. Persists file changes to
           // Mongo via the onWrite/onDelete hooks too. Skip if no saved project.
           projectId: currentProject?.id,
+          // If the user has a local bridge connected AND hasn't
+          // explicitly toggled off (the path chip near the chat
+          // input), route through their Claude Code subscription
+          // instead of the server's Anthropic key. /api/builder/agent
+          // 503s with a clear message if the bridge dropped between
+          // our status poll and now — no silent fallback to API
+          // billing.
+          useBridge: bridgeActive || undefined,
         })
       })
 
@@ -4439,6 +4645,44 @@ ${html}
               })
               wroteAnyFile = true
             }
+          } else if (evtName === 'workspace.switch_target') {
+            // User already approved via permission modal. Clear the old
+            // project state exactly as the manual target-switch button does,
+            // then flip the target so the preview starts fresh.
+            const t = String(payload?.target || '')
+            const validTargets = ['website', 'nextjs', 'react', 'astro', 'expo']
+            if (validTargets.includes(t)) {
+              setHtml('')
+              setVfsFiles({})
+              setVfsProjectMeta(null)
+              setPages([{ id: 'home', name: 'Home', slug: 'index', html: '', isHome: true }])
+              setActivePageId('home')
+              setPreviewBumpKey(k => k + 1)
+              setBuildTarget(t as BuildTarget)
+              addToast('info', `Switched to ${t} — ready to build.`)
+            }
+          } else if (evtName === 'workspace.open_panel') {
+            // User already approved — open the panel.
+            const p = String(payload?.panel || '')
+            if (p) {
+              setActivePanel(p as Panel)
+              if (sidebarCollapsed) setSidebarCollapsed(false)
+              addToast('info', `Opened ${p}.`)
+            }
+          } else if (evtName === 'permission_request') {
+            if (payload?.permissionId && payload?.title) {
+              const desc = String(payload.description || '')
+              setChatMessages(prev => [...prev, {
+                role: 'assistant' as const,
+                content: `**${String(payload.title)}**${desc ? '\n' + desc : ''}`,
+                permission: {
+                  permissionId: String(payload.permissionId),
+                  action: String(payload.action || ''),
+                  approveLabel: String(payload.approveLabel || 'Approve'),
+                  denyLabel: String(payload.denyLabel || 'Deny'),
+                },
+              }])
+            }
           } else if (evtName === 'done') {
             streamDone = true
             toolStatus = ''
@@ -4458,15 +4702,31 @@ ${html}
       if (latestHtml && latestHtml !== html) {
         setHtml(latestHtml)
         addToHistory(latestHtml, 'AI Edit: ' + message.slice(0, 60))
-        addToast('success', 'Changes applied!')
+        addToast('success', 'Dish is up. 🍽️')
       }
       setConversationIntent(null)
 
-    } catch (error) {
+    } catch (error: any) {
+      // User-initiated abort (Stop button) — not an error. Replace the
+      // pending "…" placeholder with a quiet "(stopped)" so the user
+      // knows the request was cancelled cleanly.
+      if (error?.name === 'AbortError') {
+        setChatMessages(prev => {
+          const next = [...prev]
+          for (let i = next.length - 1; i >= 0; i--) {
+            if (next[i].role === 'assistant') {
+              next[i] = { ...next[i], content: '_(scrapped — pulled off the heat)_' }
+              break
+            }
+          }
+          return next
+        })
+        return
+      }
       console.error('Chat error:', error)
       setChatMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Sorry, I had trouble processing that. Could you try again?'
+        content: 'Burnt that one in the pan — give the chef another shot?'
       }])
     } finally {
       setIsThinking(false)
@@ -5028,6 +5288,118 @@ ${html}
         })()}
       </AnimatePresence>
 
+      {/* Upgrade success celebration — shown when user returns from Stripe
+          Checkout via /workspace?upgraded=true&plan=…. Closes with X or
+          the "Start building" CTA. Note: this confirms the *Checkout
+          session completed*, not necessarily that the webhook fulfilled
+          the upgrade. If credits don't appear within ~30s, it means
+          Stripe's webhook didn't reach the server (almost always a prod
+          vs local environment split). */}
+      <AnimatePresence>
+        {upgradeSuccess && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setUpgradeSuccess(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 8 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 8 }}
+              transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+              onClick={(e) => e.stopPropagation()}
+              className={cn(
+                'relative max-w-md w-full p-8 rounded-2xl border shadow-2xl',
+                isDark
+                  ? 'bg-zinc-950 border-orange-500/30 shadow-orange-500/20'
+                  : 'bg-white border-orange-300 shadow-orange-200/40'
+              )}
+            >
+              <button
+                onClick={() => setUpgradeSuccess(null)}
+                className={cn(
+                  'absolute top-4 right-4 p-1 rounded-lg transition',
+                  isDark
+                    ? 'text-zinc-500 hover:text-white hover:bg-white/5'
+                    : 'text-slate-400 hover:text-slate-900 hover:bg-slate-100'
+                )}
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="w-12 h-12 mb-4 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center">
+                <Sparkles className="w-6 h-6 text-white" />
+              </div>
+
+              {upgradeSuccess.kind === 'plan' ? (
+                <>
+                  <h3 className={cn('text-xl font-bold mb-1', isDark ? 'text-white' : 'text-slate-900')}>
+                    Welcome to {upgradeSuccess.plan.name} 🎉
+                  </h3>
+                  <p className={cn('text-sm mb-5', isDark ? 'text-zinc-400' : 'text-slate-600')}>
+                    Your {upgradeSuccess.period === 'annual' ? 'annual' : 'monthly'} subscription is active. Here&apos;s what just unlocked:
+                  </p>
+                  <div className={cn(
+                    'rounded-xl p-4 mb-5 flex items-baseline gap-2',
+                    isDark ? 'bg-orange-500/10 border border-orange-500/20' : 'bg-orange-50 border border-orange-100'
+                  )}>
+                    <span className={cn('text-3xl font-bold', isDark ? 'text-orange-300' : 'text-orange-600')}>
+                      +{upgradeSuccess.plan.monthlyCredits.toLocaleString()}
+                    </span>
+                    <span className={cn('text-sm', isDark ? 'text-zinc-400' : 'text-slate-600')}>
+                      credits / month
+                    </span>
+                  </div>
+                  <ul className="space-y-2 mb-6">
+                    {upgradeSuccess.plan.features.slice(0, 5).map((f) => (
+                      <li
+                        key={f}
+                        className={cn('flex items-start gap-2 text-sm', isDark ? 'text-zinc-300' : 'text-slate-700')}
+                      >
+                        <span className={cn('mt-1.5 w-1 h-1 rounded-full shrink-0', isDark ? 'bg-orange-400' : 'bg-orange-500')} />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <>
+                  <h3 className={cn('text-xl font-bold mb-1', isDark ? 'text-white' : 'text-slate-900')}>
+                    Credits added 🎉
+                  </h3>
+                  <p className={cn('text-sm mb-5', isDark ? 'text-zinc-400' : 'text-slate-600')}>
+                    {upgradeSuccess.pack.name} purchased — credits should appear in your balance within a few seconds.
+                  </p>
+                  <div className={cn(
+                    'rounded-xl p-4 mb-5 flex items-baseline gap-2',
+                    isDark ? 'bg-orange-500/10 border border-orange-500/20' : 'bg-orange-50 border border-orange-100'
+                  )}>
+                    <span className={cn('text-3xl font-bold', isDark ? 'text-orange-300' : 'text-orange-600')}>
+                      +{upgradeSuccess.pack.credits.toLocaleString()}
+                    </span>
+                    <span className={cn('text-sm', isDark ? 'text-zinc-400' : 'text-slate-600')}>
+                      credits
+                    </span>
+                  </div>
+                </>
+              )}
+
+              <button
+                onClick={() => setUpgradeSuccess(null)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:brightness-110 text-white font-semibold transition shadow-lg shadow-orange-500/30"
+              >
+                <Sparkles className="w-4 h-4" />
+                Start building
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+
       {/* Credit wall modal — shown when /api/builder/generate or /converse hits 402 */}
       <AnimatePresence>
         {creditWall.show && (
@@ -5570,6 +5942,30 @@ ${html}
                             ))}
                           </div>
                         )}
+                        {msg.permission && (
+                          <div className="mt-3 pt-2 border-t border-white/10">
+                            {msg.permission.resolved ? (
+                              <span className={cn('text-xs font-medium', msg.permission.resolved === 'approved' ? 'text-emerald-400' : 'text-zinc-500')}>
+                                {msg.permission.resolved === 'approved' ? '✓ Approved' : '✗ Denied'}
+                              </span>
+                            ) : (
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => resolvePermissionFromChat(msg.permission!.permissionId, false)}
+                                  className={cn('flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition border', isDark ? 'border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100')}
+                                >
+                                  {msg.permission.denyLabel}
+                                </button>
+                                <button
+                                  onClick={() => resolvePermissionFromChat(msg.permission!.permissionId, true)}
+                                  className="flex-1 px-3 py-1.5 rounded-lg bg-gradient-to-br from-orange-500 to-amber-500 hover:brightness-110 text-white text-xs font-semibold transition"
+                                >
+                                  {msg.permission.approveLabel}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                       {msg.role === 'user' && (
                         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center flex-shrink-0">
@@ -5993,6 +6389,13 @@ ${html}
                 exit={{ opacity: 0 }}
                 className="flex-1 overflow-y-auto"
               >
+                {/* Local Claude bridge — pair + status. Lives here so the
+                    user can swap chat infra (Webstew Claude → their
+                    Pro/Max subscription) without leaving the workspace. */}
+                <div className="p-3 border-b border-white/[0.05]">
+                  <BridgePanel />
+                </div>
+
                 {/* Category Filter */}
                 <div className="p-2 border-b border-white/[0.05]">
                   <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide">
@@ -7270,18 +7673,31 @@ ${html}
                     : "bg-white border-slate-200 text-slate-900 placeholder-slate-400"
                 )}
               />
-              <button
-                onClick={handleCommandSubmit}
-                disabled={!commandInput.trim() || isGenerating}
-                className={cn(
-                  'w-8 h-8 rounded-lg flex items-center justify-center transition-all',
-                  commandInput.trim() && !isGenerating
-                    ? 'bg-violet-500 hover:bg-violet-400 text-white'
-                    : isDark ? 'bg-white/5 text-zinc-500' : 'bg-slate-200 text-slate-400'
-                )}
-              >
-                <Send className="w-4 h-4" />
-              </button>
+              {/* Send / Stop — when a request is in flight (isThinking or
+                  isGenerating), this morphs into a Stop button that aborts
+                  the fetch. Recovery for stuck "thinking" states. */}
+              {isThinking || isGenerating ? (
+                <button
+                  onClick={stopAgent}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-500 transition-all"
+                  title="Stop"
+                >
+                  <Square className="w-3.5 h-3.5 fill-current" />
+                </button>
+              ) : (
+                <button
+                  onClick={handleCommandSubmit}
+                  disabled={!commandInput.trim()}
+                  className={cn(
+                    'w-8 h-8 rounded-lg flex items-center justify-center transition-all',
+                    commandInput.trim()
+                      ? 'bg-violet-500 hover:bg-violet-400 text-white'
+                      : isDark ? 'bg-white/5 text-zinc-500' : 'bg-slate-200 text-slate-400'
+                  )}
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              )}
             </div>
             {/* Model selector */}
             <div className="flex items-center justify-between mt-2 relative">
@@ -7403,17 +7819,48 @@ ${html}
                 )}
               </AnimatePresence>
 
-              {session?.user && userCredits !== null && (
-                <div className={cn(
-                  'flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium',
-                  userCredits < 10 ? 'bg-red-500/10 text-red-400' :
-                  userCredits < 50 ? 'bg-amber-500/10 text-amber-400' :
-                  'bg-emerald-500/10 text-emerald-400'
-                )}>
-                  <Coins className="w-3 h-3" />
-                  <span>{userCredits}</span>
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                {/* Bridge path chip — shows only when bridge is paired
+                    AND online. Click toggles between routing through
+                    the local bridge (subscription quota) and the
+                    server's Anthropic key (decrements Webstew credits).
+                    Persists via localStorage so the choice sticks. */}
+                {bridgeConnected && (
+                  <button
+                    onClick={toggleBridgePath}
+                    title={
+                      bridgePathEnabled
+                        ? 'Your chef is on the line — your Claude subscription cooks this one. No Webstew credits charged. Click to send it back to the Webstew kitchen.'
+                        : 'Webstew kitchen is cooking — credits charged. Click to send to your own chef.'
+                    }
+                    className={cn(
+                      'flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all',
+                      bridgePathEnabled
+                        ? 'bg-gradient-to-br from-orange-500/20 to-amber-500/15 border border-orange-500/40 text-orange-700 dark:text-orange-300 hover:from-orange-500/30 hover:to-amber-500/25'
+                        : isDark
+                          ? 'bg-white/5 border border-white/10 text-zinc-500 hover:text-zinc-300'
+                          : 'bg-slate-100 border border-slate-200 text-slate-500 hover:text-slate-700'
+                    )}
+                  >
+                    <ChefHat className="w-3 h-3" />
+                    <span>{bridgePathEnabled ? 'Your chef' : 'House kitchen'}</span>
+                  </button>
+                )}
+                {session?.user && userCredits !== null && (
+                  <div className={cn(
+                    'flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium',
+                    bridgeActive ? 'bg-white/[0.03] text-zinc-500 line-through opacity-60' :
+                    userCredits < 10 ? 'bg-red-500/10 text-red-400' :
+                    userCredits < 50 ? 'bg-amber-500/10 text-amber-400' :
+                    'bg-emerald-500/10 text-emerald-400'
+                  )}
+                  title={bridgeActive ? 'Your chef is cooking — credits stay on the shelf' : `${userCredits} credits in the pantry`}
+                  >
+                    <Coins className="w-3 h-3" />
+                    <span>{userCredits}</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -7612,6 +8059,41 @@ ${html}
               <Pencil className="w-3 h-3" />
               {editMode ? 'Editing' : 'Edit'}
             </button>
+
+            {/* Convert to App — only shown when a website has been built */}
+            {buildTarget === 'website' && !!html && (
+              <button
+                onClick={async () => {
+                  if (isGenerating || isThinking) return
+                  // Extract a brief description from the HTML title/h1 for context
+                  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
+                  const h1Match = html.match(/<h1[^>]*>([^<]*)<\/h1>/i)
+                  const siteName = (titleMatch?.[1] || h1Match?.[1] || 'this website')
+                    .replace(/\s*[-|–]\s*.*/g, '').trim().slice(0, 60)
+                  const conversionPrompt = `Convert "${siteName}" to a React Native mobile app. Keep the same branding, color scheme, content structure, and key features. Generate a complete, working Expo app with the main screens from the website.`
+                  setHtml('')
+                  setVfsFiles({})
+                  setVfsProjectMeta(null)
+                  setPages([{ id: 'home', name: 'Home', slug: 'index', html: '', isHome: true }])
+                  setActivePageId('home')
+                  setPreviewBumpKey(k => k + 1)
+                  setBuildTarget('expo')
+                  setChatMessages(prev => [...prev, { role: 'user', content: conversionPrompt }])
+                  await handleGenerateMultiTarget('expo', conversionPrompt)
+                }}
+                disabled={isGenerating || isThinking}
+                title="Convert this website to a React Native mobile app"
+                className={cn(
+                  'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all border whitespace-nowrap',
+                  (isGenerating || isThinking)
+                    ? 'opacity-40 cursor-not-allowed bg-white/5 text-zinc-500 border-white/10'
+                    : 'bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 text-violet-300 border-violet-500/30 hover:from-violet-500/30 hover:to-fuchsia-500/30 dark:bg-gradient-to-r dark:from-violet-500/20 dark:to-fuchsia-500/20'
+                )}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                → App
+              </button>
+            )}
 
             {/* Style Preset Picker - Auto-applies on selection */}
             <div data-tour="styles" className="flex items-center gap-1">
@@ -8368,7 +8850,11 @@ ${html}
                   // Multi-file projects run inside WebContainer. The component
                   // owns its own toolbar (refresh, device size) so we don't
                   // wrap it in our iframe chrome.
-                  <WebContainerPreview key={previewBumpKey} files={vfsFiles} />
+                  <WebContainerPreview
+                    key={previewBumpKey}
+                    files={vfsFiles}
+                    devCommand={buildTarget === 'expo' ? ['run', 'web'] : ['run', 'dev']}
+                  />
                 ) : html ? (
                   <iframe
                     key={previewBumpKey}
@@ -8384,6 +8870,39 @@ ${html}
                     sandbox="allow-scripts allow-forms allow-modals allow-popups allow-presentation"
                     title="Preview"
                   />
+                ) : buildTarget === 'expo' ? (
+                  /* iPhone simulator frame — shown when mobile target has no files yet */
+                  <div className="w-full h-full flex items-center justify-center bg-zinc-950 p-4 sm:p-8">
+                    <div className="relative flex flex-col items-center w-[200px] h-[400px] sm:w-[260px] sm:h-[520px] lg:w-[320px] lg:h-[640px]">
+                      {/* Phone bezel */}
+                      <div className="absolute inset-0 rounded-[12%] bg-zinc-800 border-2 border-zinc-600 shadow-2xl shadow-black/60" />
+                      {/* Side buttons */}
+                      <div className="absolute -left-[3px] top-[18%] w-[3px] h-[7%] rounded-l-sm bg-zinc-600" />
+                      <div className="absolute -left-[3px] top-[27%] w-[3px] h-[9%] rounded-l-sm bg-zinc-600" />
+                      <div className="absolute -left-[3px] top-[38%] w-[3px] h-[9%] rounded-l-sm bg-zinc-600" />
+                      <div className="absolute -right-[3px] top-[22%] w-[3px] h-[12%] rounded-r-sm bg-zinc-600" />
+                      {/* Screen */}
+                      <div className="absolute inset-[3%] rounded-[10%] bg-zinc-900 overflow-hidden flex flex-col">
+                        {/* Dynamic island */}
+                        <div className="flex justify-center pt-[5%] pb-[2%] shrink-0">
+                          <div className="w-[38%] h-[5%] rounded-full bg-black" />
+                        </div>
+                        {/* Screen content */}
+                        <div className="flex-1 flex flex-col items-center justify-center px-4 gap-3">
+                          <div className="w-12 h-12 lg:w-16 lg:h-16 rounded-2xl bg-gradient-to-br from-violet-500/30 to-fuchsia-500/30 flex items-center justify-center border border-violet-500/20">
+                            <svg className="w-6 h-6 lg:w-8 lg:h-8 text-violet-400/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                          </div>
+                          <p className="text-zinc-500 text-[10px] sm:text-xs font-medium text-center leading-relaxed">
+                            Describe your app<br />in the chat to start
+                          </p>
+                        </div>
+                        {/* Home indicator */}
+                        <div className="flex justify-center pb-[3%] shrink-0">
+                          <div className="w-[35%] h-1 rounded-full bg-zinc-600" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-zinc-900/50 p-6">
                     <div className="text-center max-w-md">
@@ -10415,6 +10934,30 @@ ${html}
 
               {/* Menu items */}
               <div className="py-1">
+                {/* Speak with the Chef — primary AI action. Always available,
+                    works on any element. Opens the build/chat panel with this
+                    element pre-selected so the agent edits THIS node and
+                    nothing else. */}
+                <button
+                  onClick={contextMenuActions.speakWithChef}
+                  className={cn(
+                    'w-full px-3 py-2.5 flex items-center gap-2.5 transition-colors text-left border-b',
+                    isDark
+                      ? 'border-slate-700/50 bg-gradient-to-r from-orange-500/15 to-amber-500/10 hover:from-orange-500/25 hover:to-amber-500/20'
+                      : 'border-slate-100 bg-gradient-to-r from-orange-50 to-amber-50 hover:from-orange-100 hover:to-amber-100'
+                  )}
+                >
+                  <ChefHat className={cn('w-4 h-4', isDark ? 'text-orange-300' : 'text-orange-600')} />
+                  <div className="flex-1 min-w-0">
+                    <div className={cn('text-[13px] font-semibold leading-tight', isDark ? 'text-orange-100' : 'text-orange-900')}>
+                      Speak with the Chef
+                    </div>
+                    <div className={cn('text-[10px] leading-tight mt-0.5', isDark ? 'text-orange-300/70' : 'text-orange-700/80')}>
+                      Edit this {contextMenu.element.tagName.toLowerCase()} with AI
+                    </div>
+                  </div>
+                </button>
+
                 {/* Primary action based on element type */}
                 {contextMenu.element.isImage ? (
                   <>
@@ -10691,6 +11234,35 @@ ${html}
         hideFabOnDesktop
         selectMode={selectMode}
         onToggleSelectMode={(next) => setSelectMode(next)}
+      />
+
+      {/* Chef dock — glassmorphic in-canvas chat anchored center-bottom.
+          Only shown when the sidebar is collapsed (otherwise the side panel
+          chat is primary, no need to duplicate). Bubble click or ⌘J
+          expands it in place into a texting-style thread. Same
+          handleChatMessage path as the side panel + section chat. */}
+      <ChefDock
+        visible={sidebarCollapsed && !focusMode}
+        expanded={chefSpotlightOpen}
+        onToggle={setChefSpotlightOpen}
+        messages={chatMessages.map((m) => ({
+          role: m.role as 'user' | 'assistant',
+          content: typeof m.content === 'string' ? m.content : String(m.content || ''),
+        }))}
+        isThinking={isThinking || isGenerating}
+        selectedElement={
+          selectedElement
+            ? {
+                tagName: selectedElement.tagName,
+                outerHtml: selectedElement.outerHTML,
+                textSnippet: selectedElement.textContent?.slice(0, 80) || '',
+              }
+            : null
+        }
+        onClearSelection={() => setSelectedElement(null)}
+        onSubmit={(payload) => {
+          handleChatMessage(payload.text)
+        }}
       />
     </div>
   )

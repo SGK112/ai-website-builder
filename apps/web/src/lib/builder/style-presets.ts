@@ -537,18 +537,18 @@ export function applyThemeToHtml(html: string, preset: StylePreset): string {
     font-family: var(--font-family) !important;
   }
 
-  /* === OVERRIDE ALL DARK BACKGROUNDS FOR LIGHT THEMES === */
+  /* === OVERRIDE DARK BACKGROUNDS FOR LIGHT THEMES ===
+     Explicit class names only — broad attribute selectors like
+     [class*="-900"] also hit opacity-modifier overlays (bg-slate-900/50)
+     which become opaque white and bury hero images. */
   ${isLightTheme ? `
-  .bg-slate-950, .bg-slate-900, .bg-slate-800,
-  .bg-zinc-950, .bg-zinc-900, .bg-zinc-800,
-  .bg-gray-950, .bg-gray-900, .bg-gray-800,
-  .bg-stone-950, .bg-stone-900, .bg-stone-800,
-  .bg-neutral-950, .bg-neutral-900, .bg-neutral-800,
-  .bg-black, [class*="bg-"][class*="-950"], [class*="bg-"][class*="-900"] {
+  .bg-slate-950, .bg-zinc-950, .bg-gray-950, .bg-stone-950, .bg-neutral-950,
+  .bg-black {
     background-color: var(--bg) !important;
   }
 
-  .bg-slate-800, .bg-zinc-800, .bg-gray-800, .bg-stone-800 {
+  .bg-slate-900, .bg-zinc-900, .bg-gray-900, .bg-stone-900, .bg-neutral-900,
+  .bg-slate-800, .bg-zinc-800, .bg-gray-800, .bg-stone-800, .bg-neutral-800 {
     background-color: var(--bg-alt) !important;
   }
 
@@ -579,18 +579,12 @@ export function applyThemeToHtml(html: string, preset: StylePreset): string {
     background-color: var(--bg-alt) !important;
   }
 
-  /* Fix gradients for light theme */
+  /* Recolor small decorative gradient tints only — NOT full gradient backgrounds */
   .from-indigo-600\\/20, .from-violet-600\\/20, .from-purple-600\\/20,
   .to-violet-600\\/20, .to-fuchsia-600\\/20 {
     --tw-gradient-from: var(--primary) !important;
     --tw-gradient-to: var(--secondary) !important;
     opacity: 0.1;
-  }
-
-  /* Remove dark gradient overlays */
-  .bg-gradient-to-br, .bg-gradient-to-r, .bg-gradient-to-b {
-    background-image: none !important;
-    background-color: transparent !important;
   }
   ` : `
   /* === DARK THEME OVERRIDES === */
@@ -684,18 +678,19 @@ export function applyThemeToHtml(html: string, preset: StylePreset): string {
     --tw-shadow-color: var(--primary) !important;
   }
 
-  /* === SECTION ALTERNATING BACKGROUNDS === */
-  section:nth-child(even) {
+  /* === SECTION ALTERNATING BACKGROUNDS ===
+     Only applies to sections without an inline background-image — hero
+     sections use background-image/style and must not be overridden. */
+  section:not([style*="background-image"]):not([style*="background:"]):nth-child(even) {
     background-color: var(--bg-alt) !important;
   }
 
-  section:nth-child(odd) {
+  section:not([style*="background-image"]):not([style*="background:"]):nth-child(odd) {
     background-color: var(--bg) !important;
   }
 
-  /* === NAVIGATION === */
-  nav, header {
-    background-color: color-mix(in srgb, var(--bg) 80%, transparent) !important;
+  /* === NAVIGATION — only tint color, preserve any background-image === */
+  nav {
     backdrop-filter: blur(12px) !important;
     -webkit-backdrop-filter: blur(12px) !important;
   }

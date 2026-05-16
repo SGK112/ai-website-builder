@@ -42,6 +42,7 @@ import { authOptions } from '@/lib/auth'
 import { TOOLS, executeTool, type AgentVfs } from '@/lib/agent-tools'
 import { connectDB, User, trackUsage, getUserUsageThisMonth, PLAN_LIMITS, isAdminEmail } from '@ai-website-builder/database'
 import mongoose from 'mongoose'
+import { dispatchToBridge, getBridgeStatus } from '@/lib/bridge-store'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120 // give it real time for multi-step loops
@@ -50,14 +51,30 @@ const SYSTEM_PROMPT_BASE = `You are Webstew Agent — an expert web/app develope
 
 You have tools that let you READ and WRITE files, AND manage the project's CMS (content collections). Use them efficiently. You have a HARD LIMIT of ~14 tool turns per request — burn them like a credit card.
 
+SCOPE — THE MOST IMPORTANT RULE:
+- Make the SMALLEST possible change that satisfies the literal request. Nothing more.
+- When you write_file, the new contents MUST be byte-identical to the original EXCEPT for the specific change the user asked for. Same image URLs, same copy, same layout, same classes, same comments, same whitespace. If the user said "change the title", change the <title> tag (and h1 if clearly implied) and NOTHING ELSE.
+- Do NOT improve, modernize, refactor, replace placeholders, swap images, fix typos, upgrade tailwind classes, or "while you're in there" anything. Every unrequested edit is a bug.
+- If a section LOOKS bad to you but the user didn't mention it, leave it alone.
+- Before write_file, mentally diff your new contents vs what you read. If the diff contains anything not directly required by the request, narrow it.
+
+COLOR / THEME CHANGES — special rule (high-bug-rate area):
+- "Change the theme colors" / "make it blue" / "warmer palette" means: change ONLY color tokens — color: values, background-color: values, text-/bg-/border-/from-/via-/to- Tailwind class color words, and CSS custom properties like --primary.
+- DO NOT touch: background-image, src="...", url(...) references, srcset, og:image meta, or anything inside <picture>/<source>. The hero header bg-image breaks because the model rewrites the section and forgets the URL. Don't.
+- Use edit_file for each color reference one at a time. Multiple small edit_file calls > one risky write_file.
+- If the file has <style> with CSS variables, prefer editing the variables instead of every consumer site.
+
+SELECTED-ELEMENT REQUESTS — when the user's prompt starts with "User has selected this element in the live preview:" followed by a code block, edit ONLY that exact node. Locate it by literal substring match (use edit_file with that outerHTML as old_string). Touch nothing outside it.
+
 EFFICIENT WORKING STYLE:
 - Call list_files() ONCE at the start, only if you don't already know the file layout. If the user names a specific file or you can infer one from the request, skip list_files.
 - Read only the files you'll actually edit. Don't speculatively read every file.
-- write_file overwrites the entire file — include the FULL final contents.
+- For NARROW changes (rename a heading, change one attribute, swap one class, edit one line of copy): use edit_file(path, old_string, new_string). 5x faster than write_file and physically cannot drift unrelated code. For multiple small changes in the same file, make multiple edit_file calls — DO NOT bundle into a write_file.
+- write_file is ONLY for: creating a new file, OR rewriting >50% of an existing one. Defaulting to write_file for tiny edits is the #1 cause of slow responses and accidental over-editing.
+- When using write_file (rare), include the FULL final contents — copy unchanged sections VERBATIM (see SCOPE above).
 - One sentence of prose max before tool calls. No "let me start by…" preambles.
 - The moment the visible task is done, call \`done\` IMMEDIATELY. Do NOT verify your own work by re-reading files you just wrote — trust the write succeeded.
 - If you encounter the wrong file on a read, just read another one. Don't apologize.
-- Edit only what the user asked for. Preserve unrelated code exactly.
 
 REQUEST INTERPRETATION:
 - For ambiguous edits ("change the hero image"), find the relevant section, identify the source — could be <img src>, style="background-image: url(...)", <meta og:image>, or schema.org JSON-LD — and update all of them consistently in ONE write_file call.
@@ -106,6 +123,11 @@ interface AgentRequest {
   projectId?: string
   maxIterations?: number
   target?: 'website' | 'nextjs' | 'react' | 'astro' | 'expo'
+  // If true, route this turn through the user's local @webstew/bridge
+  // (their installed Claude Code → Pro/Max subscription) instead of
+  // calling Anthropic with the server's API key. Errors with 503 if
+  // the bridge is offline so billing surprises don't happen silently.
+  useBridge?: boolean
 }
 
 function pickModel(name?: string): string {
@@ -142,6 +164,132 @@ export async function POST(req: NextRequest) {
     })
   }
 
+  // ── Bridge dispatch ────────────────────────────────────────────────
+  // If the user explicitly opted in (useBridge=true), route the request
+  // through their local @webstew/bridge process — their Claude Code
+  // subscription handles the call. Server's Anthropic key is not used
+  // for this turn; no monthlyCredits decrement; no BYOK gate.
+  // Errors with 503 if no bridge is connected so billing surprises
+  // don't happen silently (we never fall back to direct Anthropic
+  // without an explicit opt-out).
+  if (body.useBridge === true) {
+    const status = await getBridgeStatus(session.user.id)
+    if (!status.connected) {
+      return new Response(
+        JSON.stringify({
+          error:
+            'Your chef is off the line. Run `webstew-bridge connect` ' +
+            'in your terminal to clock back in (no new code needed if already paired).',
+          bridge: { connected: false },
+        }),
+        { status: 503, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+    // Stable workspace ID for the bridge. Real projects → use the
+    // projectId so Claude Code's CLAUDE.md memory namespaces correctly
+    // (~/.webstew/workspaces/<projectId>/). Drafts (no saved project)
+    // → use a per-user "draft-<userid>" id so each user still gets
+    // their own workspace dir + memory namespace instead of every
+    // anon turn dumping into the shared _unscoped_ workspace. Mongo
+    // persist hooks only fire when body.projectId is the real value,
+    // so the synthesized draft id never tries to write to a
+    // nonexistent project doc.
+    const bridgeWorkspaceId = body.projectId || `draft-${session.user.id}`
+    const dispatched = dispatchToBridge(session.user.id, {
+      prompt,
+      files: body.files || {},
+      history: body.history,
+      model: body.model,
+      target: body.target,
+      projectId: bridgeWorkspaceId,
+      maxIterations: body.maxIterations,
+    })
+    const { stream, cancel: cancelDispatch } = dispatched
+
+    // Mirror file_update / file_delete events into Mongo so bridge edits
+    // survive a page refresh, same as the direct-Anthropic path's
+    // persistHook/persistDeleteHook. No-op when projectId is absent
+    // (anon / draft workflows that haven't saved a project).
+    let persistUpdate: ((path: string, contents: string) => Promise<void>) | null = null
+    let persistDelete: ((path: string) => Promise<void>) | null = null
+    if (body.projectId) {
+      try {
+        const m = await connectDB()
+        const db = m.connection.db
+        if (db) {
+          const { ObjectId } = await import('mongodb')
+          let oid: any
+          try { oid = new ObjectId(body.projectId) } catch { oid = body.projectId }
+          persistUpdate = async (path, contents) => {
+            await db.collection('projects').updateOne(
+              { _id: oid },
+              { $set: { [`files.${path}`]: contents, updatedAt: new Date() } }
+            )
+          }
+          persistDelete = async (path) => {
+            await db.collection('projects').updateOne(
+              { _id: oid },
+              { $unset: { [`files.${path}`]: '' }, $set: { updatedAt: new Date() } }
+            )
+          }
+        }
+      } catch (e: any) {
+        console.warn('[agent-bridge] Mongo persist hook unavailable:', e?.message)
+      }
+    }
+
+    const encoder = new TextEncoder()
+    const sse = new ReadableStream({
+      async start(controller) {
+        const send = (event: string, data: unknown) => {
+          try {
+            controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
+          } catch {}
+        }
+        try { controller.enqueue(encoder.encode(`: connected\n\n`)) } catch {}
+        try {
+          for await (const chunk of stream) {
+            // Persist BEFORE forwarding so even if the SSE client
+            // disconnects mid-stream, the file is saved.
+            if (chunk.kind === 'file_update' && persistUpdate) {
+              try {
+                await persistUpdate(chunk.data.path, chunk.data.contents)
+              } catch (e: any) {
+                console.warn('[agent-bridge] persist update failed:', e?.message)
+              }
+            } else if (chunk.kind === 'file_delete' && persistDelete) {
+              try {
+                await persistDelete(chunk.data.path)
+              } catch (e: any) {
+                console.warn('[agent-bridge] persist delete failed:', e?.message)
+              }
+            }
+            send(chunk.kind, chunk.data)
+          }
+        } catch (e: any) {
+          send('error', { message: e?.message || 'Bridge stream failed' })
+        } finally {
+          try { controller.close() } catch {}
+        }
+      },
+      cancel() {
+        // Browser closed the fetch. Clean up dispatcher state so the
+        // bridge sees BridgeCancelled on its next POST and stops the
+        // claude child (see runtime.ts).
+        try { cancelDispatch() } catch {}
+      },
+    })
+    return new Response(sse, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no',
+        'Alt-Svc': 'clear',
+      },
+    })
+  }
+
   const anthropicKey = body.apiKey || process.env.ANTHROPIC_API_KEY
   const usingBYOK = !!body.apiKey
   if (!anthropicKey) {
@@ -162,7 +310,8 @@ export async function POST(req: NextRequest) {
         ? await User.findById(session.user.id).select('plan email').lean()
         : await User.findOne({ email: session.user.email }).select('plan email').lean()
       const userEmail = userDoc?.email || session.user.email || ''
-      const planKey = (PLAN_LIMITS[userDoc?.plan as keyof typeof PLAN_LIMITS] ? userDoc.plan : 'free') as keyof typeof PLAN_LIMITS
+      const rawPlanKey = userDoc?.plan === 'custom' ? 'enterprise' : (userDoc?.plan || 'free')
+      const planKey = (PLAN_LIMITS[rawPlanKey as keyof typeof PLAN_LIMITS] ? rawPlanKey : 'free') as keyof typeof PLAN_LIMITS
       const limits = PLAN_LIMITS[planKey]
       if (!isAdminEmail(userEmail) && limits.monthlyCredits !== -1) {
         const monthUsage = await getUserUsageThisMonth(session.user.id)
@@ -262,10 +411,23 @@ export async function POST(req: NextRequest) {
   }
   const stream = new ReadableStream({
     async start(controller) {
+      // Heartbeat — flushes a tiny SSE comment every 15s so Cloudflare /
+      // Render's HTTP/3 edge doesn't idle-timeout the response body during
+      // long Claude turns. The first call to Anthropic on a complex prompt
+      // can take 20-40s; without bytes flowing, the edge kills the QUIC
+      // stream and the browser reports ERR_QUIC_PROTOCOL_ERROR + fetch
+      // rejects with TypeError: network error. Comment lines start with `:`
+      // and are ignored by EventSource clients, so they don't surface in
+      // the UI.
+      let heartbeat: ReturnType<typeof setInterval> | null = null
+      const stopHeartbeat = () => {
+        if (heartbeat) { clearInterval(heartbeat); heartbeat = null }
+      }
       // Safe close — controller throws "Invalid state" if already closed
       // (the client disconnect path). Swallow so it doesn't bubble into
       // the catch and produce a misleading "Loop failed" log.
       const safeClose = () => {
+        stopHeartbeat()
         try { controller.close() } catch {}
       }
       const send = (event: string, data: any) => {
@@ -276,6 +438,14 @@ export async function POST(req: NextRequest) {
           aborted = true
         }
       }
+      // Send an immediate first byte so the edge starts streaming the
+      // response right away (not after Claude's first reply). EventSource
+      // ignores `:` comment lines.
+      try { controller.enqueue(encoder.encode(`: connected\n\n`)) } catch {}
+      heartbeat = setInterval(() => {
+        if (aborted) { stopHeartbeat(); return }
+        try { controller.enqueue(encoder.encode(`: ping\n\n`)) } catch { aborted = true; stopHeartbeat() }
+      }, 15000)
 
       // Token accumulator across all iterations of this turn — we trackUsage
       // once at the end with the full total instead of one record per loop
@@ -340,6 +510,13 @@ export async function POST(req: NextRequest) {
             // For file mutations, emit a separate event so the client can update its view
             if (result.ok && tu.name === 'write_file') {
               send('file_update', { path: (tu.input as any).path, contents: (tu.input as any).contents })
+            } else if (result.ok && tu.name === 'edit_file') {
+              // edit_file mutates by replacement — we look up the post-edit contents
+              // from the vfs (executeTool already wrote it back) and ship the full
+              // updated file so the client iframe + editor state stay in sync.
+              const path = (tu.input as any).path
+              const contents = vfs.files[path]
+              if (contents != null) send('file_update', { path, contents })
             } else if (result.ok && tu.name === 'delete_file') {
               send('file_delete', { path: (tu.input as any).path })
             }
@@ -430,6 +607,11 @@ export async function POST(req: NextRequest) {
       'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',
       'X-Accel-Buffering': 'no',
+      // Tell Chrome to stop using HTTP/3 for this origin. QUIC dropping
+      // long SSE streams was producing ERR_QUIC_PROTOCOL_ERROR before the
+      // first byte arrived. HTTP/2 doesn't have the same edge idle
+      // behavior on Render and proves more reliable for the agent loop.
+      'Alt-Svc': 'clear',
     },
   })
 }

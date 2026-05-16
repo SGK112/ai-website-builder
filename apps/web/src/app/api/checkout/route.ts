@@ -32,7 +32,6 @@ export async function POST(req: NextRequest) {
     const { planId, packageId, billingPeriod } = body
 
     const origin = req.headers.get('origin') || process.env.NEXTAUTH_URL || 'http://localhost:3000'
-    const successUrl = `${origin}/workspace?upgraded=true`
     const cancelUrl = `${origin}/upgrade?canceled=true`
 
     // Handle subscription checkout
@@ -54,6 +53,10 @@ export async function POST(req: NextRequest) {
       }
 
       const period = billingPeriod === 'annual' || billingPeriod === 'yearly' ? 'annual' : 'monthly'
+
+      // Pass plan + period in the success URL so /workspace's celebration
+      // modal can render immediately without an extra fetch.
+      const successUrl = `${origin}/workspace?upgraded=true&plan=${encodeURIComponent(planId)}&period=${encodeURIComponent(period)}`
 
       const checkoutUrl = await createSubscriptionCheckoutSession(
         canonicalUserId,
@@ -84,6 +87,11 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         )
       }
+
+      // Credit-pack purchases land back on /workspace with a 'credits'
+      // signal; the celebration modal reads pack details from /api/usage
+      // when no plan param is set.
+      const successUrl = `${origin}/workspace?upgraded=true&pack=${encodeURIComponent(packageId)}`
 
       const checkoutUrl = await createCreditsCheckoutSession(
         canonicalUserId,
