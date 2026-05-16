@@ -6650,12 +6650,18 @@ npx eas build --platform all
                               exit={{ height: 0, opacity: 0 }}
                               className="overflow-hidden"
                             >
-                              <div className="px-3 pb-3 space-y-2 border-t border-white/[0.05] pt-2">
+                              <div className={cn(
+                                "px-3 pb-3 space-y-2 pt-2 border-t",
+                                isDark ? "border-white/[0.05]" : "border-violet-200"
+                              )}>
                                 {integration.envKeys.map(envKey => {
                                   const envVar = envVars.find(e => e.key === envKey.key)
                                   return (
                                     <div key={envKey.key}>
-                                      <label className="block text-[10px] text-zinc-500 mb-1">
+                                      <label className={cn(
+                                        "block text-[10px] mb-1 font-medium",
+                                        isDark ? "text-zinc-400" : "text-violet-800"
+                                      )}>
                                         {envKey.label}
                                       </label>
                                       <input
@@ -6667,7 +6673,12 @@ npx eas build --platform all
                                           ))
                                         }}
                                         placeholder={envKey.placeholder}
-                                        className="w-full px-2.5 py-1.5 rounded-lg bg-black/30 border border-white/[0.08] text-[11px] text-white font-mono focus:outline-none focus:border-violet-500/50"
+                                        className={cn(
+                                          "w-full px-2.5 py-1.5 rounded-lg text-[11px] font-mono focus:outline-none transition",
+                                          isDark
+                                            ? "bg-black/30 border border-white/[0.08] text-white placeholder:text-zinc-600 focus:border-violet-500/50"
+                                            : "bg-white border border-violet-300 text-slate-900 placeholder:text-slate-400 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 shadow-sm"
+                                        )}
                                       />
                                     </div>
                                   )
@@ -6681,7 +6692,12 @@ npx eas build --platform all
                                     inputRef.current?.focus()
                                     setActivePanel('build')
                                   }}
-                                  className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-violet-500/20 hover:bg-violet-500/30 text-violet-400 text-[11px] font-medium transition-colors"
+                                  className={cn(
+                                    "w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium transition-colors",
+                                    isDark
+                                      ? "bg-violet-500/20 hover:bg-violet-500/30 text-violet-400"
+                                      : "bg-violet-600 hover:bg-violet-700 text-white"
+                                  )}
                                 >
                                   <Zap className="w-3 h-3" />
                                   Add to Website
@@ -6731,8 +6747,8 @@ npx eas build --platform all
                           <Target className="w-4 h-4 text-amber-400" />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-xs font-medium text-amber-300">Image Selected</p>
-                          <p className="text-[10px] text-amber-400/70 truncate">Click Insert to replace image #{(selectedMediaElement.index || 0) + 1}</p>
+                          <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Image Selected</p>
+                          <p className="text-[10px] text-amber-600/70 dark:text-amber-400/70 truncate">Click Insert to replace image #{(selectedMediaElement.index || 0) + 1}</p>
                         </div>
                       </div>
                       <button
@@ -6758,7 +6774,7 @@ npx eas build --platform all
 
                 {/* AI Image Generation */}
                 <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20">
-                  <label className="block text-xs text-blue-300 mb-2 flex items-center gap-1.5 font-medium">
+                  <label className="block text-xs text-blue-700 dark:text-blue-300 mb-2 flex items-center gap-1.5 font-medium">
                     <ImagePlus className="w-3.5 h-3.5" />
                     AI Image Generator
                   </label>
@@ -6952,7 +6968,7 @@ npx eas build --platform all
                     <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
                       <Star className="w-4 h-4 text-emerald-400" />
                     </div>
-                    <span className="text-[10px] font-medium text-emerald-300">Logo Generator</span>
+                    <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-300">Logo Generator</span>
                   </button>
                   <button
                     onClick={() => {
@@ -6967,7 +6983,7 @@ npx eas build --platform all
                     <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
                       <Box className="w-4 h-4 text-amber-400" />
                     </div>
-                    <span className="text-[10px] font-medium text-amber-300">Icon Generator</span>
+                    <span className="text-[10px] font-medium text-amber-700 dark:text-amber-300">Icon Generator</span>
                   </button>
                   <button
                     onClick={() => {
@@ -6982,7 +6998,7 @@ npx eas build --platform all
                     <div className="w-8 h-8 rounded-lg bg-pink-500/20 flex items-center justify-center">
                       <Layout className="w-4 h-4 text-pink-400" />
                     </div>
-                    <span className="text-[10px] font-medium text-pink-300">Banner Maker</span>
+                    <span className="text-[10px] font-medium text-pink-700 dark:text-pink-300">Banner Maker</span>
                   </button>
                   <button
                     onClick={() => {
@@ -6998,7 +7014,7 @@ npx eas build --platform all
                     <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center">
                       <ImageIcon className="w-4 h-4 text-violet-400" />
                     </div>
-                    <span className="text-[10px] font-medium text-violet-300">Hero Image</span>
+                    <span className="text-[10px] font-medium text-violet-700 dark:text-violet-300">Hero Image</span>
                   </button>
                 </div>
 
@@ -8033,7 +8049,7 @@ npx eas build --platform all
             >
               <button
                 onClick={() => setFocusMode(false)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-500/30 text-violet-300 text-xs hover:bg-violet-500/30 transition-colors backdrop-blur-sm"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-100 border border-violet-300 text-violet-700 dark:bg-violet-500/20 dark:border-violet-500/30 dark:text-violet-300 text-xs hover:bg-violet-200 dark:hover:bg-violet-500/30 transition-colors backdrop-blur-sm"
               >
                 <Maximize className="w-3.5 h-3.5" />
                 <span>Focus Mode</span>
@@ -8135,8 +8151,8 @@ npx eas build --platform all
                   className={cn(
                     'px-2 py-1 rounded-md text-[11px] font-medium transition-all',
                     buildTarget === t.id
-                      ? 'bg-violet-500/20 text-violet-300 dark:bg-violet-500/20 dark:text-violet-300 bg-violet-100 text-violet-700'
-                      : 'text-zinc-600 dark:text-zinc-500 hover:text-white dark:hover:text-white text-slate-500 hover:text-slate-900'
+                      ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300'
+                      : 'text-slate-500 hover:text-slate-900 dark:text-zinc-500 dark:hover:text-white'
                   )}
                 >
                   {t.label}
@@ -8223,8 +8239,8 @@ npx eas build --platform all
                 className={cn(
                   'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-all border whitespace-nowrap',
                   (isGenerating || isThinking)
-                    ? 'opacity-40 cursor-not-allowed bg-white/5 text-zinc-500 border-white/10'
-                    : 'bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 text-violet-300 border-violet-500/30 hover:from-violet-500/30 hover:to-fuchsia-500/30 dark:bg-gradient-to-r dark:from-violet-500/20 dark:to-fuchsia-500/20'
+                    ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200 dark:bg-white/5 dark:text-zinc-500 dark:border-white/10'
+                    : 'bg-violet-100 text-violet-700 border-violet-300 hover:bg-violet-200 dark:bg-gradient-to-r dark:from-violet-500/20 dark:to-fuchsia-500/20 dark:text-violet-300 dark:border-violet-500/30 dark:hover:from-violet-500/30 dark:hover:to-fuchsia-500/30'
                 )}
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
