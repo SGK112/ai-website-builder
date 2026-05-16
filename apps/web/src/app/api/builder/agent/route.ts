@@ -408,11 +408,9 @@ export async function POST(req: NextRequest) {
       } catch (e: any) {
         const msg = e?.message || String(e)
         // Distinguish client-disconnect from real errors. The first is
-        // common (user navigated away mid-stream) and shouldn't pollute
-        // logs as "Loop failed".
-        if (aborted || /already closed|Invalid state/i.test(msg)) {
-          console.log('[agent] stream cancelled by client')
-        } else {
+        // common (user navigated away mid-stream); we silently swallow
+        // rather than log every cancelled stream.
+        if (!aborted && !/already closed|Invalid state/i.test(msg)) {
           console.error('[agent] Loop failed:', msg)
           send('error', { message: msg })
         }
