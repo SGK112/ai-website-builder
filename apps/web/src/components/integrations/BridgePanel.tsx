@@ -327,7 +327,7 @@ export function BridgePanel() {
             </div>
           </div>
 
-          {/* Primary CTA — Download */}
+          {/* Connection flow */}
           {loadingPairing ? (
             <div className="flex items-center justify-center gap-2 py-4 text-sm text-zinc-500">
               <Loader2 className="w-4 h-4 animate-spin text-orange-400" />
@@ -335,76 +335,79 @@ export function BridgePanel() {
             </div>
           ) : pairing ? (
             <div className="space-y-3">
-              {/* Big download button */}
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  onClick={() => downloadScript(connectCmd, 'mac')}
-                  className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 hover:brightness-110 text-white transition shadow-lg shadow-orange-500/25"
-                >
-                  <Download className="w-5 h-5" />
-                  <span className="text-[11px] font-semibold">macOS</span>
-                  <span className="text-[9px] opacity-75">.command</span>
-                </button>
-                <button
-                  onClick={() => downloadScript(connectCmd, 'windows')}
-                  className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.10] border border-white/10 text-slate-300 transition"
-                >
-                  <Download className="w-5 h-5" />
-                  <span className="text-[11px] font-semibold">Windows</span>
-                  <span className="text-[9px] opacity-50">.bat</span>
-                </button>
-                <button
-                  onClick={() => downloadScript(connectCmd, 'linux')}
-                  className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.10] border border-white/10 text-slate-300 transition"
-                >
-                  <Download className="w-5 h-5" />
-                  <span className="text-[11px] font-semibold">Linux</span>
-                  <span className="text-[9px] opacity-50">.sh</span>
-                </button>
-              </div>
+              {/* Command — big copy button is the hero action */}
+              <CommandBlock
+                command={connectCmd}
+                copied={copied === 'connect'}
+                onCopy={() => copyText(connectCmd, 'connect')}
+                onDownload={() => downloadScript(connectCmd)}
+              />
 
-              {/* macOS tip */}
-              <p className="text-[11px] text-zinc-500 text-center">
-                <span className="text-orange-400 font-medium">macOS:</span> download → double-click → Terminal opens automatically
-                <br />
-                <span className="text-zinc-600">Windows: download → double-click the .bat file</span>
-              </p>
-
-              {/* Waiting indicator */}
-              <div className="flex items-center gap-2 text-[11px] text-zinc-500 justify-center">
-                <Loader2 className="w-3 h-3 animate-spin text-orange-400" />
-                Waiting for connection…
-                <span className="tabular-nums text-zinc-600">
-                  Key expires in {Math.max(0, Math.floor((pairing.expiresAt - Date.now()) / 60_000))}m
-                </span>
-              </div>
-
-              {/* Collapsed terminal option */}
-              <details className="group">
-                <summary className="text-[11px] text-zinc-600 hover:text-zinc-400 cursor-pointer transition list-none flex items-center justify-center gap-1">
-                  <Terminal className="w-3 h-3" />
-                  Prefer the terminal? Show command
-                </summary>
-                <div className="mt-2">
-                  <CommandBlock
-                    command={connectCmd}
-                    copied={copied === 'connect'}
-                    onCopy={() => copyText(connectCmd, 'connect')}
-                    onDownload={() => downloadScript(connectCmd)}
-                  />
+              {/* Step-by-step for non-technical users */}
+              <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3 space-y-2">
+                <p className="text-[11px] font-semibold text-zinc-300">How to run it:</p>
+                <div className="space-y-1.5">
+                  <div className="flex items-start gap-2 text-[11px] text-zinc-400">
+                    <span className="w-4 h-4 rounded-full bg-orange-500/30 text-orange-300 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">1</span>
+                    <span>Click <span className="text-white font-medium">Copy</span> above</span>
+                  </div>
+                  <div className="flex items-start gap-2 text-[11px] text-zinc-400">
+                    <span className="w-4 h-4 rounded-full bg-orange-500/30 text-orange-300 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">2</span>
+                    <span>
+                      Open <span className="text-white font-medium">Terminal</span>
+                      <span className="text-zinc-600"> — press </span>
+                      <kbd className="px-1 py-0.5 rounded bg-white/10 text-[10px] font-mono">⌘ Space</kbd>
+                      <span className="text-zinc-600">, type </span>
+                      <span className="text-white font-mono text-[10px]">Terminal</span>
+                      <span className="text-zinc-600">, press Enter</span>
+                    </span>
+                  </div>
+                  <div className="flex items-start gap-2 text-[11px] text-zinc-400">
+                    <span className="w-4 h-4 rounded-full bg-orange-500/30 text-orange-300 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">3</span>
+                    <span>
+                      Paste <kbd className="px-1 py-0.5 rounded bg-white/10 text-[10px] font-mono">⌘ V</kbd>
+                      <span className="text-zinc-600"> and press </span>
+                      <kbd className="px-1 py-0.5 rounded bg-white/10 text-[10px] font-mono">Enter</kbd>
+                      <span className="text-zinc-600"> — done. This panel turns green.</span>
+                    </span>
+                  </div>
                 </div>
+              </div>
+
+              {/* Windows users */}
+              <details className="group">
+                <summary className="text-[11px] text-zinc-600 hover:text-zinc-400 cursor-pointer transition list-none flex items-center gap-1">
+                  <span className="text-[10px]">▸</span> On Windows?
+                </summary>
+                <p className="mt-1.5 text-[11px] text-zinc-500 pl-3">
+                  Open <span className="text-white">PowerShell</span> or <span className="text-white">Command Prompt</span>, paste the command, press Enter.
+                  Or download the{' '}
+                  <button onClick={() => downloadScript(connectCmd, 'windows')}
+                    className="text-orange-400 underline underline-offset-2 hover:text-orange-300 transition">
+                    .bat installer
+                  </button>
+                  {' '}and double-click it.
+                </p>
               </details>
 
-              <button onClick={initPairing} disabled={loadingPairing}
-                className="block w-full text-center text-[11px] text-zinc-600 hover:text-zinc-400 underline underline-offset-2 transition">
-                Refresh key
-              </button>
+              {/* Waiting + expiry */}
+              <div className="flex items-center gap-2 text-[11px] text-zinc-500">
+                <Loader2 className="w-3 h-3 animate-spin text-orange-400 shrink-0" />
+                Waiting for connection…
+                <span className="ml-auto tabular-nums text-zinc-600">
+                  Key expires in {Math.max(0, Math.floor((pairing.expiresAt - Date.now()) / 60_000))}m
+                </span>
+                <button onClick={initPairing} disabled={loadingPairing}
+                  className="text-zinc-600 hover:text-zinc-400 underline underline-offset-2 transition ml-1">
+                  Refresh
+                </button>
+              </div>
             </div>
           ) : (
             <button onClick={initPairing} disabled={loadingPairing}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 hover:brightness-110 text-white font-semibold transition shadow-lg shadow-orange-500/25">
-              <Download className="w-4 h-4" />
-              Get connection key &amp; download installer
+              <Terminal className="w-4 h-4" />
+              Connect your Chef
             </button>
           )}
         </div>
