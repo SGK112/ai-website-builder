@@ -1,18 +1,18 @@
 {
   "name": "@webstew/agent-tools",
   "version": "0.1.0",
-  "description": "MCP server that exposes Webstew's CMS, integrations, image proxy, grader, and workspace-control tools to any MCP-capable client (Claude Code, etc.). Authenticates via the @webstew/bridge pairing token at ~/.webstew/bridge.json.",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "description": "MCP server exposing Webstew CMS, integrations, image, grader, and workspace tools to Claude Code via the local bridge.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "bin": {
-    "webstew-agent-tools": "./src/index.ts"
+    "webstew-agent-tools": "./dist/index.js"
   },
+  "files": ["dist/", "README.md"],
   "scripts": {
-    "build": "tsc",
-    "dev": "tsx src/index.ts",
-    "lint": "eslint src/"
+    "build": "tsc && node -e \"const fs=require('fs'),f='dist/index.js';let c=fs.readFileSync(f,'utf8');c=c.replace(/^#!.*\\n/,'');fs.writeFileSync(f,'#!/usr/bin/env node\\n'+c);fs.chmodSync(f,0o755)\"",
+    "prepack": "npm run build",
+    "dev": "tsx src/index.ts"
   },
-  "files": ["src/", "README.md"],
   "dependencies": {
     "tsx": "^4.7.0"
   },

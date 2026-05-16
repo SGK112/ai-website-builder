@@ -114,7 +114,7 @@ export function ensureMcpConfig(): string {
   // Detect monorepo dev. __dirname of this module sits at
   // packages/bridge/src/ during dev; sibling packages/agent-tools/src/index.ts
   // tells us we're in the monorepo and can run tsx directly.
-  const dirname = path.dirname(new URL(import.meta.url).pathname)
+  const dirname = __dirname
   const siblingTs = path.resolve(dirname, '..', '..', 'agent-tools', 'src', 'index.ts')
   const isMonorepo = fs.existsSync(siblingTs)
 

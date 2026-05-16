@@ -2,14 +2,15 @@
   "name": "@webstew/bridge",
   "version": "0.1.0",
   "description": "Local bridge — run Webstew workspace AI against your Claude Code Pro/Max subscription instead of API credits.",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "bin": {
-    "webstew-bridge": "./src/cli.ts"
+    "webstew-bridge": "./dist/cli.js"
   },
-  "files": ["src/", "README.md"],
+  "files": ["dist/", "README.md"],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node -e \"const fs=require('fs'),f='dist/cli.js';let c=fs.readFileSync(f,'utf8');c=c.replace(/^#!.*\\n/,'');fs.writeFileSync(f,'#!/usr/bin/env node\\n'+c);fs.chmodSync(f,0o755)\"",
+    "prepack": "npm run build",
     "dev": "tsx src/cli.ts"
   },
   "dependencies": {
