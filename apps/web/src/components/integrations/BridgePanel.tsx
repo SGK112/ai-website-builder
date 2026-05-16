@@ -46,39 +46,77 @@ function buildResumeCommand(serverUrl?: string): string {
     : 'npx @webstew/bridge connect'
 }
 
-function downloadScript(command: string): void {
-  const isWindows = typeof navigator !== 'undefined' && /win/i.test(navigator.platform)
+type Platform = 'mac' | 'windows' | 'linux'
+
+function detectPlatform(): Platform {
+  if (typeof navigator === 'undefined') return 'mac'
+  const p = navigator.platform.toLowerCase()
+  const ua = navigator.userAgent.toLowerCase()
+  if (p.includes('win') || ua.includes('windows')) return 'windows'
+  if (p.includes('linux') && !ua.includes('android')) return 'linux'
+  return 'mac'
+}
+
+function downloadScript(command: string, platform?: Platform): void {
+  const p = platform || detectPlatform()
+
   let content: string
   let filename: string
   let type: string
 
-  if (isWindows) {
+  if (p === 'windows') {
     content = [
       '@echo off',
-      'echo Webstew Chef Setup',
+      'title Webstew Local Bridge',
       'echo.',
-      'node --version >nul 2>&1 || (echo Node.js not found. Download at https://nodejs.org && pause && exit /b 1)',
-      `echo Running: ${command}`,
+      'echo  ============================================',
+      'echo   Webstew Local Bridge — connecting chef...',
+      'echo  ============================================',
+      'echo.',
+      'node --version >nul 2>&1',
+      'if %errorlevel% neq 0 (',
+      '  echo  ERROR: Node.js not found.',
+      '  echo  Download it free at https://nodejs.org then run this again.',
+      '  echo.',
+      '  pause',
+      '  exit /b 1',
+      ')',
+      'echo  Node.js found. Starting bridge...',
+      'echo.',
       command,
-      'echo.',
-      'echo Chef is running! Keep this window open.',
-      'pause',
     ].join('\r\n')
-    filename = 'webstew-bridge-connect.bat'
+    filename = 'connect-webstew-bridge.bat'
     type = 'text/plain'
   } else {
+    // .command extension = macOS Terminal opens and runs on double-click.
+    // .sh requires right-click → Open in Terminal or manual chmod/exec.
+    const ext = p === 'mac' ? 'command' : 'sh'
     content = [
       '#!/bin/sh',
-      'echo "Webstew Chef Setup"',
+      '# Webstew Local Bridge — double-click to connect your chef.',
+      '# Requires: Node.js 18+  https://nodejs.org',
+      '',
+      'clear',
       'echo ""',
+      'echo "  ============================================"',
+      'echo "   Webstew Local Bridge — connecting chef..."',
+      'echo "  ============================================"',
+      'echo ""',
+      '',
       'if ! command -v node >/dev/null 2>&1; then',
-      '  echo "Node.js not found. Download at https://nodejs.org"',
+      '  echo "  ERROR: Node.js not found."',
+      '  echo "  Download it free at https://nodejs.org"',
+      '  echo "  Then double-click this file again."',
+      p === 'mac' ? '  read -p "  Press Enter to open nodejs.org..." _; open https://nodejs.org' : '',
       '  exit 1',
       'fi',
-      `echo "Running: ${command}"`,
+      '',
+      'echo "  Node.js $(node --version) found."',
+      'echo "  Starting bridge — keep this window open..."',
+      'echo ""',
       command,
-    ].join('\n')
-    filename = 'webstew-bridge-connect.sh'
+    ].filter(l => l !== undefined).join('\n')
+    filename = `connect-webstew-bridge.${ext}`
     type = 'text/x-sh'
   }
 
@@ -268,76 +306,107 @@ export function BridgePanel() {
       {/* ── UNPAIRED (first-time setup) ── */}
       {!isConnected && !isPaired && (
         <div className="space-y-4">
-          {/* Step 1 */}
-          <div className="flex gap-3">
-            <StepDot n={1} done={false} />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-white mb-1">
-                Install Claude Code{' '}
-                <span className="font-normal text-zinc-400">(free, needs Pro/Max subscription)</span>
-              </p>
-              <a href="https://claude.ai/download" target="_blank" rel="noreferrer"
-                className="inline-flex items-center gap-1 text-[11px] text-orange-400 hover:text-orange-300 transition">
-                <ExternalLink className="w-3 h-3" />
-                Download Claude Code → claude.ai/download
-              </a>
-              <p className="text-[11px] text-zinc-500 mt-1">
-                Already installed? Skip to step 2. Also requires{' '}
-                <a href="https://nodejs.org" target="_blank" rel="noreferrer" className="underline">Node.js 18+</a>.
-              </p>
+          {/* Prerequisite */}
+          <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3 flex items-start gap-3">
+            <div className="w-7 h-7 rounded-lg bg-orange-500/20 flex items-center justify-center shrink-0 mt-0.5">
+              <ExternalLink className="w-3.5 h-3.5 text-orange-400" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-white mb-0.5">Requires Claude Code + Node.js 18+</p>
+              <div className="flex flex-wrap gap-2">
+                <a href="https://claude.ai/download" target="_blank" rel="noreferrer"
+                  className="text-[11px] text-orange-400 hover:text-orange-300 underline underline-offset-2 transition">
+                  Get Claude Code (free) ↗
+                </a>
+                <span className="text-zinc-600 text-[11px]">·</span>
+                <a href="https://nodejs.org" target="_blank" rel="noreferrer"
+                  className="text-[11px] text-zinc-500 hover:text-white underline underline-offset-2 transition">
+                  Get Node.js ↗
+                </a>
+              </div>
             </div>
           </div>
 
-          {/* Step 2 */}
-          <div className="flex gap-3">
-            <StepDot n={2} done={false} />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-white mb-2">
-                Run this command in your terminal
+          {/* Primary CTA — Download */}
+          {loadingPairing ? (
+            <div className="flex items-center justify-center gap-2 py-4 text-sm text-zinc-500">
+              <Loader2 className="w-4 h-4 animate-spin text-orange-400" />
+              Generating your connection key…
+            </div>
+          ) : pairing ? (
+            <div className="space-y-3">
+              {/* Big download button */}
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => downloadScript(connectCmd, 'mac')}
+                  className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 hover:brightness-110 text-white transition shadow-lg shadow-orange-500/25"
+                >
+                  <Download className="w-5 h-5" />
+                  <span className="text-[11px] font-semibold">macOS</span>
+                  <span className="text-[9px] opacity-75">.command</span>
+                </button>
+                <button
+                  onClick={() => downloadScript(connectCmd, 'windows')}
+                  className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.10] border border-white/10 text-slate-300 transition"
+                >
+                  <Download className="w-5 h-5" />
+                  <span className="text-[11px] font-semibold">Windows</span>
+                  <span className="text-[9px] opacity-50">.bat</span>
+                </button>
+                <button
+                  onClick={() => downloadScript(connectCmd, 'linux')}
+                  className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.10] border border-white/10 text-slate-300 transition"
+                >
+                  <Download className="w-5 h-5" />
+                  <span className="text-[11px] font-semibold">Linux</span>
+                  <span className="text-[9px] opacity-50">.sh</span>
+                </button>
+              </div>
+
+              {/* macOS tip */}
+              <p className="text-[11px] text-zinc-500 text-center">
+                <span className="text-orange-400 font-medium">macOS:</span> download → double-click → Terminal opens automatically
+                <br />
+                <span className="text-zinc-600">Windows: download → double-click the .bat file</span>
               </p>
-              {loadingPairing ? (
-                <div className="flex items-center gap-2 text-xs text-zinc-500">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Generating your connection key…
-                </div>
-              ) : pairing ? (
-                <div className="space-y-2">
+
+              {/* Waiting indicator */}
+              <div className="flex items-center gap-2 text-[11px] text-zinc-500 justify-center">
+                <Loader2 className="w-3 h-3 animate-spin text-orange-400" />
+                Waiting for connection…
+                <span className="tabular-nums text-zinc-600">
+                  Key expires in {Math.max(0, Math.floor((pairing.expiresAt - Date.now()) / 60_000))}m
+                </span>
+              </div>
+
+              {/* Collapsed terminal option */}
+              <details className="group">
+                <summary className="text-[11px] text-zinc-600 hover:text-zinc-400 cursor-pointer transition list-none flex items-center justify-center gap-1">
+                  <Terminal className="w-3 h-3" />
+                  Prefer the terminal? Show command
+                </summary>
+                <div className="mt-2">
                   <CommandBlock
                     command={connectCmd}
                     copied={copied === 'connect'}
                     onCopy={() => copyText(connectCmd, 'connect')}
                     onDownload={() => downloadScript(connectCmd)}
                   />
-                  <div className="flex items-center gap-2 text-[11px] text-zinc-500">
-                    <Loader2 className="w-3 h-3 animate-spin text-orange-400" />
-                    Waiting for chef to clock in…
-                    <span className="ml-auto tabular-nums">
-                      Key expires in {Math.max(0, Math.floor((pairing.expiresAt - Date.now()) / 60_000))}m
-                    </span>
-                  </div>
-                  <button onClick={initPairing} disabled={loadingPairing}
-                    className="text-[11px] text-zinc-500 hover:text-white underline underline-offset-2 transition">
-                    Refresh key
-                  </button>
                 </div>
-              ) : (
-                <button onClick={initPairing} disabled={loadingPairing}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 text-orange-300 text-xs font-medium transition">
-                  <Terminal className="w-3.5 h-3.5" />
-                  Generate connection key
-                </button>
-              )}
-            </div>
-          </div>
+              </details>
 
-          {/* Step 3 */}
-          <div className="flex gap-3 opacity-50">
-            <StepDot n={3} done={false} />
-            <div className="flex-1">
-              <p className="text-xs font-semibold text-white">Come back here</p>
-              <p className="text-[11px] text-zinc-500">This panel will turn green automatically once connected.</p>
+              <button onClick={initPairing} disabled={loadingPairing}
+                className="block w-full text-center text-[11px] text-zinc-600 hover:text-zinc-400 underline underline-offset-2 transition">
+                Refresh key
+              </button>
             </div>
-          </div>
+          ) : (
+            <button onClick={initPairing} disabled={loadingPairing}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 hover:brightness-110 text-white font-semibold transition shadow-lg shadow-orange-500/25">
+              <Download className="w-4 h-4" />
+              Get connection key &amp; download installer
+            </button>
+          )}
         </div>
       )}
     </div>
