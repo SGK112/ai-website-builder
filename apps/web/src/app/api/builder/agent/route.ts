@@ -240,12 +240,30 @@ export async function POST(req: NextRequest) {
 
   // SSE stream setup
   const encoder = new TextEncoder()
+  // Track client-disconnect so the agent loop can bail early instead of
+  // continuing to enqueue into a closed controller. cancel() fires when
+  // the browser drops the connection; req.signal.aborted covers Render's
+  // edge dropping us. Either way, set `aborted` and stop the loop on the
+  // next iteration boundary.
+  let aborted = false
+  if (req.signal) {
+    req.signal.addEventListener('abort', () => { aborted = true })
+  }
   const stream = new ReadableStream({
     async start(controller) {
+      // Safe close — controller throws "Invalid state" if already closed
+      // (the client disconnect path). Swallow so it doesn't bubble into
+      // the catch and produce a misleading "Loop failed" log.
+      const safeClose = () => {
+        try { controller.close() } catch {}
+      }
       const send = (event: string, data: any) => {
+        if (aborted) return
         try {
           controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
-        } catch {}
+        } catch {
+          aborted = true
+        }
       }
 
       // Token accumulator across all iterations of this turn — we trackUsage
@@ -258,7 +276,7 @@ export async function POST(req: NextRequest) {
         let iterations = 0
         let doneSummary: string | null = null
 
-        while (iterations < maxIterations && doneSummary == null) {
+        while (iterations < maxIterations && doneSummary == null && !aborted) {
           iterations++
 
           const response: Anthropic.Messages.Message = await client.messages.create({
@@ -353,7 +371,7 @@ export async function POST(req: NextRequest) {
         }
 
         send('done', { summary: doneSummary, iterations })
-        controller.close()
+        safeClose()
 
         // Fire-and-forget usage tracking. We only meter calls that used OUR
         // Anthropic key — BYOK users pay Anthropic directly. 1 credit per
@@ -378,10 +396,22 @@ export async function POST(req: NextRequest) {
         }
       } catch (e: any) {
         const msg = e?.message || String(e)
-        console.error('[agent] Loop failed:', msg)
-        send('error', { message: msg })
-        try { controller.close() } catch {}
+        // Distinguish client-disconnect from real errors. The first is
+        // common (user navigated away mid-stream) and shouldn't pollute
+        // logs as "Loop failed".
+        if (aborted || /already closed|Invalid state/i.test(msg)) {
+          console.log('[agent] stream cancelled by client')
+        } else {
+          console.error('[agent] Loop failed:', msg)
+          send('error', { message: msg })
+        }
+        safeClose()
       }
+    },
+    cancel() {
+      // Browser closed the EventSource — flip the flag so the loop above
+      // stops enqueuing on the next iteration.
+      aborted = true
     },
   })
 
