@@ -5,9 +5,9 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "webstew-agent-tools": "./dist/index.js"
+    "agent-tools": "./bin/agent-tools"
   },
-  "files": ["dist/", "README.md"],
+  "files": ["dist/", "bin/", "README.md"],
   "scripts": {
     "build": "tsc && node -e \"const fs=require('fs'),f='dist/index.js';let c=fs.readFileSync(f,'utf8');c=c.replace(/^#!.*\\n/,'');fs.writeFileSync(f,'#!/usr/bin/env node\\n'+c);fs.chmodSync(f,0o755)\"",
     "prepack": "npm run build",
