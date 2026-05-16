@@ -82,6 +82,17 @@ declare global {
     | undefined
 }
 
+// Multi-instance guard — the in-memory queues are process-local. If you
+// scale Render to 2+ instances without Redis, poll and respond will land
+// on different workers and every request will 410. When REDIS_URL is set,
+// swap these Maps for Redis pub/sub (same external API, different backing).
+// For v1 on a single instance this is fine; the guard makes the failure
+// obvious before you wonder why requests silently disappear.
+if (process.env.NODE_ENV === 'production' && !process.env.REDIS_URL) {
+  // This fires once per process start — not per request. Non-fatal.
+  console.warn('[bridge-store] REDIS_URL not set. Bridge in-memory queues are single-instance only. Scale to 2+ Render workers will break polling. Set REDIS_URL to a Redis instance when you need horizontal scale.')
+}
+
 const state = (globalThis.__webstewBridgeState ??= {
   pairingCodes: new Map<string, PendingCode>(),
   bridgeQueues: new Map<string, UserQueue>(),

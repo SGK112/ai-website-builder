@@ -15,7 +15,7 @@
 // and kill any in-flight processes so we don't leak workers.
 
 import { useEffect, useRef, useState } from 'react'
-import { Loader2, Terminal, AlertCircle, RefreshCw, Play, ExternalLink, Monitor, Tablet, Smartphone } from 'lucide-react'
+import { Loader2, Terminal, AlertCircle, RefreshCw, Play, ExternalLink, Monitor, Tablet, Smartphone, QrCode, X } from 'lucide-react'
 import { getWebContainer, buildFileTree, isWebContainerSupported } from '@/lib/webcontainer'
 
 type Phase = 'idle' | 'booting' | 'mounting' | 'installing' | 'starting' | 'running' | 'error'
@@ -58,7 +58,9 @@ export function WebContainerPreview({
   const [logsOpen, setLogsOpen] = useState(false)
   const [previewSize, setPreviewSize] = useState<PreviewSize>('desktop')
   const [bumpKey, setBumpKey] = useState(0)
+  const [showQr, setShowQr] = useState(false)
   const logsEndRef = useRef<HTMLDivElement>(null)
+  const isExpoWeb = devCommand.join(' ') === 'run web'
 
   // Auto-scroll logs to bottom on new content
   useEffect(() => {
@@ -187,77 +189,97 @@ export function WebContainerPreview({
       {/* Toolbar */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 bg-zinc-900/60">
         <div className="flex items-center gap-2 text-xs">
-          <span
-            className={`relative flex h-2 w-2 rounded-full ${
-              phase === 'running' ? 'bg-emerald-400' : phase === 'error' ? 'bg-red-400' : 'bg-amber-400'
-            }`}
-          >
+          <span className={`relative flex h-2 w-2 rounded-full ${
+            phase === 'running' ? 'bg-emerald-400' : phase === 'error' ? 'bg-red-400' : 'bg-amber-400'
+          }`}>
             {phase !== 'running' && phase !== 'error' && (
               <span className="absolute inline-flex h-full w-full rounded-full bg-amber-400 animate-ping opacity-75" />
             )}
           </span>
           <span className="font-mono text-slate-300">{phaseLabel[phase]}</span>
           {serverUrl && (
-            <a
-              href={serverUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="ml-2 text-violet-300 hover:text-violet-200 flex items-center gap-1"
-            >
+            <a href={serverUrl} target="_blank" rel="noopener noreferrer"
+              className="ml-2 text-violet-300 hover:text-violet-200 flex items-center gap-1">
               <span className="font-mono text-[10px] opacity-70">{new URL(serverUrl).host}</span>
               <ExternalLink className="w-3 h-3" />
             </a>
           )}
         </div>
-
-        {/* Expo web-only disclaimer */}
-        {phase === 'running' && devCommand.join(' ') === 'run web' && (
-          <div className="px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 flex items-center gap-2">
-            <svg className="w-3 h-3 text-amber-400 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
-            <span className="text-[11px] text-amber-300/80">Web preview only — camera, push notifications, and other native APIs won&apos;t work here. Use Expo Go on your device to test the full app.</span>
-          </div>
-        )}
-
-        <div className="flex items-center gap-2">
-          {/* Device-size switcher — only meaningful once running */}
+        <div className="flex items-center gap-1">
+          {/* Device-size switcher */}
           {phase === 'running' && (
-            <div className="flex items-center gap-1 mr-1 bg-zinc-800 rounded-lg p-0.5">
+            <div className="flex items-center gap-0.5 mr-1 bg-zinc-800 rounded-lg p-0.5">
               {(Object.keys(PREVIEW_SIZES) as PreviewSize[]).map((s) => {
-                const c = PREVIEW_SIZES[s]
-                const Icon = c.icon
-                const active = previewSize === s
+                const c = PREVIEW_SIZES[s]; const Icon = c.icon; const active = previewSize === s
                 return (
-                  <button
-                    key={s}
-                    onClick={() => setPreviewSize(s)}
-                    title={c.label}
-                    aria-label={c.label}
-                    className={`w-7 h-7 rounded-md flex items-center justify-center transition ${
-                      active ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
+                  <button key={s} onClick={() => setPreviewSize(s)} title={c.label}
+                    className={`w-7 h-7 rounded-md flex items-center justify-center transition ${active ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'}`}>
                     <Icon className="w-3.5 h-3.5" />
                   </button>
                 )
               })}
             </div>
           )}
-          <button
-            onClick={() => setLogsOpen((v) => !v)}
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-white px-2 py-1 rounded transition"
-          >
+          {/* QR code — lets user open the running preview on their phone */}
+          {phase === 'running' && serverUrl && (
+            <button onClick={() => setShowQr(v => !v)} title="Open on device"
+              className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition ${showQr ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'}`}>
+              <QrCode className="w-3 h-3" />
+            </button>
+          )}
+          <button onClick={() => setLogsOpen((v) => !v)}
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-white px-2 py-1 rounded transition">
             <Terminal className="w-3 h-3" />
-            Logs ({logs.length})
+            <span className="hidden sm:inline">Logs</span> ({logs.length})
           </button>
-          <button
-            onClick={() => setBumpKey((k) => k + 1)}
-            title="Restart"
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-white px-2 py-1 rounded transition"
-          >
+          <button onClick={() => setBumpKey((k) => k + 1)} title="Restart"
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-white px-2 py-1 rounded transition">
             <RefreshCw className="w-3 h-3" />
           </button>
         </div>
       </div>
+
+      {/* Expo web-only disclaimer — own row so it doesn't break toolbar layout */}
+      {phase === 'running' && isExpoWeb && (
+        <div className="px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 flex items-center gap-2">
+          <svg className="w-3 h-3 text-amber-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+          </svg>
+          <span className="text-[11px] text-amber-300/80 flex-1">
+            Web preview — camera, push notifications &amp; other native APIs won&apos;t work here.
+          </span>
+          <button onClick={() => setShowQr(v => !v)}
+            className="text-[11px] text-amber-300 underline underline-offset-2 whitespace-nowrap">
+            Open on device ↗
+          </button>
+        </div>
+      )}
+
+      {/* QR code popover */}
+      {showQr && serverUrl && (
+        <div className="absolute top-10 right-2 z-20 bg-zinc-900 border border-white/15 rounded-xl p-4 shadow-2xl w-56">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-medium text-white">Open on device</span>
+            <button onClick={() => setShowQr(false)} className="text-zinc-500 hover:text-white">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <img
+            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=4&data=${encodeURIComponent(serverUrl)}`}
+            alt="QR code"
+            className="w-full rounded-lg bg-white p-1"
+            width={180} height={180}
+          />
+          <p className="text-[10px] text-zinc-500 mt-2 text-center leading-relaxed">
+            Scan with your phone camera<br/>to open in browser
+          </p>
+          {isExpoWeb && (
+            <p className="text-[10px] text-amber-400/70 mt-1.5 text-center leading-relaxed">
+              Web preview only — use <span className="font-semibold">Expo Go</span> + Metro for native
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Body */}
       <div className="relative flex-1 overflow-hidden">
