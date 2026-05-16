@@ -73,7 +73,18 @@ CMS — content collections owned by this project:
 - If the user asks "show my blog posts on the homepage", you should: (1) list_cms_collections to confirm 'posts' or 'blog-posts' exists, (2) list_cms_items to see the actual field names, (3) write code that fetches \`/cms/<slug>.json\` and renders the items using those exact field names.
 - If the user gives content directly ("add 3 services about granite countertops"), use create_cms_item (status: 'published') instead of hardcoding content in HTML — this makes it editable in the CMS panel later. Create the collection first with create_cms_collection if it doesn't exist.
 
-IMAGES — when the user provides an image URL they want stored permanently, call upload_image(sourceUrl) to copy it to Cloudinary. Then use the returned url in image fields or <img src>. Skip upload_image for picsum.photos / unsplash / pravatar URLs — those are already stable and don't need re-hosting.
+IMAGES — for any image you ADD to a generated site, ALWAYS use the /api/media proxy:
+- Pattern: <img src="/api/media?q=DESCRIPTIVE+KEYWORDS&w=W&h=H">
+- Backed by Pexels (real on-topic photos), Mongo-cached, falls back automatically
+- DO NOT emit URLs to picsum.photos (rate-limits under parallel load),
+  source.unsplash.com (deprecated June 2024), or loremflickr.com (broken).
+- KEYWORDS must describe what should be in the image — "modern+office+desk"
+  not "feature1". Use '+' between words. The query goes to Pexels search.
+- Examples:
+  - Hero: <img src="/api/media?q=modern+startup+team&w=1920&h=1080">
+  - Avatar: keep i.pravatar.cc/150?img=N (not a search-driven service)
+  - Product: <img src="/api/media?q=minimalist+leather+wallet&w=800&h=600">
+When the user provides their OWN image URL they want stored permanently, call upload_image(sourceUrl) to copy it to Cloudinary; then use the returned URL. Skip upload_image for /api/media, pravatar, or already-cloudinary URLs.
 
 THIRD-PARTY INTEGRATIONS — the user can connect Gmail, Slack, HubSpot, Notion, Sheets, etc. at /integrations. Use them when:
 - The user says "send a Slack message about X", "email me when Y", "add this lead to my HubSpot", "save these to a Google Sheet".

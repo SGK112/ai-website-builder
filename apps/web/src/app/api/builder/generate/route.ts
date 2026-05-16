@@ -43,20 +43,29 @@ CRITICAL OUTPUT RULES:
 7. Add SEO meta tags: description, Open Graph, Twitter cards
 
 ⚠️ MANDATORY IMAGE REQUIREMENTS - USE THESE EXACT FORMATS:
-- Hero background: style="background-image: url('https://picsum.photos/seed/KEYWORD/1920/1080')"
-- Logo: <img src="https://picsum.photos/seed/logo/120/40" alt="Logo" class="h-10">
-- Feature images: <img src="https://picsum.photos/seed/feature1/600/400" class="rounded-xl">
-- Team photos: <img src="https://i.pravatar.cc/150?img=NUMBER" class="rounded-full">
-- Product/showcase: <img src="https://picsum.photos/seed/product/800/600" class="rounded-2xl shadow-2xl">
-- Gallery: <img src="https://picsum.photos/seed/gallery1/400/300" class="rounded-lg">
+Every image MUST use the /api/media proxy. It hits Pexels (real on-topic
+photos) on first request and caches forever. Picsum and source.unsplash.com
+are dead/unreliable for production use — do not emit URLs to them.
 
-KEYWORD EXAMPLES BY BUSINESS TYPE:
-- Tech/SaaS: technology, software, coding, laptop, dashboard, analytics
-- Restaurant: food, restaurant, chef, dining, cuisine, kitchen
-- Fitness: gym, workout, fitness, exercise, health, yoga
-- Real Estate: house, home, interior, architecture, building
-- Fashion: fashion, clothing, style, boutique, model
-- Business: office, meeting, team, corporate, professional
+- Hero background: style="background-image: url('/api/media?q=KEYWORD&w=1920&h=1080')"
+- Logo placeholder: <img src="/api/media?q=BUSINESS+TYPE+logo&w=120&h=40" alt="Logo" class="h-10">
+- Feature images: <img src="/api/media?q=KEYWORD&w=600&h=400" class="rounded-xl">
+- Team photos: <img src="https://i.pravatar.cc/150?img=NUMBER" class="rounded-full">
+- Product/showcase: <img src="/api/media?q=KEYWORD&w=800&h=600" class="rounded-2xl shadow-2xl">
+- Gallery: <img src="/api/media?q=KEYWORD&w=400&h=300" class="rounded-lg">
+
+CRITICAL — KEYWORD must be a real topic-descriptive search query, not a
+placeholder like "feature1" or "hero". The query is forwarded to Pexels
+search; "feature1" returns nothing on-topic. Replace KEYWORD with what the
+image should actually show. Use multiple words separated by '+'.
+
+KEYWORD EXAMPLES BY BUSINESS TYPE (use these literally — they're real Pexels search terms):
+- Tech/SaaS: "modern+office+desk", "team+coding", "laptop+screen+code", "data+analytics+dashboard"
+- Restaurant: "plated+gourmet+dish", "chef+cooking+kitchen", "candlelit+restaurant+table", "fresh+ingredients"
+- Fitness: "person+running+gym", "yoga+studio+morning", "weight+training+gym"
+- Real Estate: "modern+living+room", "luxury+kitchen+interior", "house+exterior+sunset"
+- Fashion: "fashion+model+studio", "minimalist+clothing+rack", "designer+boutique"
+- Business: "team+meeting+modern+office", "professional+handshake", "office+collaboration"
 
 REQUIRED STRUCTURE WITH IMAGES:
 <!DOCTYPE html>
@@ -65,7 +74,7 @@ REQUIRED STRUCTURE WITH IMAGES:
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Brief compelling description of the business">
-  <meta property="og:image" content="https://picsum.photos/seed/brand/1200/630">
+  <meta property="og:image" content="/api/media?q=brand&w=1200&h=630">
   <title>BUSINESS NAME - Tagline</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -77,7 +86,7 @@ REQUIRED STRUCTURE WITH IMAGES:
 <nav class="fixed top-0 w-full bg-slate-950/80 backdrop-blur-lg border-b border-white/10 z-50">
   <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
     <a href="#" class="flex items-center gap-2">
-      <img src="https://picsum.photos/seed/brandlogo/40/40" alt="Logo" class="h-10 w-10 rounded-lg">
+      <img src="/api/media?q=brandlogo&w=40&h=40" alt="Logo" class="h-10 w-10 rounded-lg">
       <span class="text-xl font-bold">BrandName</span>
     </a>
     <div class="hidden md:flex gap-8">
@@ -92,7 +101,7 @@ REQUIRED STRUCTURE WITH IMAGES:
 <!-- HERO: Full viewport with BACKGROUND IMAGE -->
 <section class="min-h-screen flex items-center pt-20 relative overflow-hidden">
   <!-- HERO BACKGROUND IMAGE - Use relevant keyword -->
-  <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('https://picsum.photos/seed/hero/1920/1080')"></div>
+  <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('/api/media?q=hero&w=1920&h=1080')"></div>
   <div class="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/70 to-slate-950/50"></div>
   <div class="max-w-7xl mx-auto px-6 py-24 relative z-10 grid md:grid-cols-2 gap-12 items-center">
     <div>
@@ -106,7 +115,7 @@ REQUIRED STRUCTURE WITH IMAGES:
     </div>
     <!-- HERO PRODUCT/APP IMAGE -->
     <div class="hidden md:block">
-      <img src="https://picsum.photos/seed/dashboard/800/600" alt="Product Preview" class="rounded-2xl shadow-2xl shadow-indigo-500/20 border border-white/10">
+      <img src="/api/media?q=dashboard&w=800&h=600" alt="Product Preview" class="rounded-2xl shadow-2xl shadow-indigo-500/20 border border-white/10">
     </div>
   </div>
 </section>
@@ -121,21 +130,21 @@ REQUIRED STRUCTURE WITH IMAGES:
     <div class="grid md:grid-cols-3 gap-8">
       <!-- Feature card WITH IMAGE -->
       <div class="bg-white/5 rounded-2xl border border-white/10 hover:border-indigo-500/50 transition overflow-hidden group">
-        <img src="https://picsum.photos/seed/feature1/600/400" alt="Feature 1" class="w-full h-48 object-cover group-hover:scale-105 transition duration-500">
+        <img src="/api/media?q=feature1&w=600&h=400" alt="Feature 1" class="w-full h-48 object-cover group-hover:scale-105 transition duration-500">
         <div class="p-6">
           <h3 class="text-xl font-semibold mb-3">Feature One</h3>
           <p class="text-slate-400">Describe this feature and its benefits to the customer.</p>
         </div>
       </div>
       <div class="bg-white/5 rounded-2xl border border-white/10 hover:border-indigo-500/50 transition overflow-hidden group">
-        <img src="https://picsum.photos/seed/feature2/600/400" alt="Feature 2" class="w-full h-48 object-cover group-hover:scale-105 transition duration-500">
+        <img src="/api/media?q=feature2&w=600&h=400" alt="Feature 2" class="w-full h-48 object-cover group-hover:scale-105 transition duration-500">
         <div class="p-6">
           <h3 class="text-xl font-semibold mb-3">Feature Two</h3>
           <p class="text-slate-400">Describe this feature and its benefits to the customer.</p>
         </div>
       </div>
       <div class="bg-white/5 rounded-2xl border border-white/10 hover:border-indigo-500/50 transition overflow-hidden group">
-        <img src="https://picsum.photos/seed/feature3/600/400" alt="Feature 3" class="w-full h-48 object-cover group-hover:scale-105 transition duration-500">
+        <img src="/api/media?q=feature3&w=600&h=400" alt="Feature 3" class="w-full h-48 object-cover group-hover:scale-105 transition duration-500">
         <div class="p-6">
           <h3 class="text-xl font-semibold mb-3">Feature Three</h3>
           <p class="text-slate-400">Describe this feature and its benefits to the customer.</p>
@@ -149,7 +158,7 @@ REQUIRED STRUCTURE WITH IMAGES:
 <section class="py-24 px-6 bg-slate-900/50">
   <div class="max-w-7xl mx-auto">
     <div class="relative">
-      <img src="https://picsum.photos/seed/showcase/1400/600" alt="Showcase" class="w-full h-96 object-cover rounded-3xl">
+      <img src="/api/media?q=showcase&w=1400&h=600" alt="Showcase" class="w-full h-96 object-cover rounded-3xl">
       <div class="absolute inset-0 bg-gradient-to-r from-slate-950/80 to-transparent rounded-3xl"></div>
       <div class="absolute inset-0 flex items-center px-12">
         <div class="max-w-lg">
@@ -179,7 +188,7 @@ REQUIRED STRUCTURE WITH IMAGES:
       </ul>
     </div>
     <div>
-      <img src="https://picsum.photos/seed/business/600/400" alt="About" class="rounded-2xl shadow-2xl">
+      <img src="/api/media?q=business&w=600&h=400" alt="About" class="rounded-2xl shadow-2xl">
     </div>
   </div>
 </section>
@@ -471,26 +480,26 @@ AVATARS (for testimonials, team members):
 - Example: https://i.pravatar.cc/100?img=1
 
 GENERAL IMAGES (for hero, features, backgrounds):
-- https://picsum.photos/seed/KEYWORD/WIDTH/HEIGHT
-- Example: https://picsum.photos/seed/business/800/600
-- Example: https://picsum.photos/seed/tech/600/400
-- Example: https://picsum.photos/seed/office/1200/800
+- /api/media?q=KEYWORD&w=WIDTH&h=HEIGHT
+- Example: /api/media?q=business&w=800&h=600
+- Example: /api/media?q=tech&w=600&h=400
+- Example: /api/media?q=office&w=1200&h=800
 
 REQUIRED IMAGE PLACEMENTS (DO NOT SKIP ANY):
 
 A. HERO SECTION (MANDATORY background image):
-<section class="relative min-h-screen" style="background-image: url('https://picsum.photos/seed/KEYWORD/1920/1080'); background-size: cover; background-position: center;">
+<section class="relative min-h-screen" style="background-image: url('/api/media?q=KEYWORD&w=1920&h=1080'); background-size: cover; background-position: center;">
   <div class="absolute inset-0 bg-slate-950/70"></div>
   <!-- content with relative z-10 -->
 </section>
 
 B. NAVIGATION LOGO (MANDATORY):
-<img src="https://picsum.photos/seed/logo/120/40" alt="Logo" class="h-10">
+<img src="/api/media?q=logo&w=120&h=40" alt="Logo" class="h-10">
 
 C. FEATURE/SERVICE IMAGES (at least 3):
-<img src="https://picsum.photos/seed/feature1/600/400" alt="Feature" class="rounded-xl">
-<img src="https://picsum.photos/seed/feature2/600/400" alt="Feature" class="rounded-xl">
-<img src="https://picsum.photos/seed/feature3/600/400" alt="Feature" class="rounded-xl">
+<img src="/api/media?q=feature1&w=600&h=400" alt="Feature" class="rounded-xl">
+<img src="/api/media?q=feature2&w=600&h=400" alt="Feature" class="rounded-xl">
+<img src="/api/media?q=feature3&w=600&h=400" alt="Feature" class="rounded-xl">
 
 D. TESTIMONIAL AVATARS (at least 3):
 <img src="https://i.pravatar.cc/150?img=1" alt="Customer" class="w-16 h-16 rounded-full">
@@ -510,7 +519,7 @@ KEYWORD EXAMPLES BY INDUSTRY (use relevant keywords):
 - Agency: team, office, meeting, creative, design
 
 CRITICAL: Do NOT use images.unsplash.com - these require real photo IDs.
-ALWAYS use picsum.photos/seed/KEYWORD format for reliable images.
+ALWAYS use /api/media?q=KEYWORD&w=W&h=H format for reliable images.
 NEVER generate a website without at least 5-7 images!
 
 6. SVG ICONS - Use Heroicons style:
@@ -927,7 +936,7 @@ RESPONSIVE DESIGN (MANDATORY — site is previewed on mobile, tablet, and deskto
 [ ] At least one <form> with realistic inputs (email, tel, textarea, etc.) and a submit button
 [ ] Footer is multi-column with brand + link columns + social icons
 [ ] Layout uses Tailwind responsive prefixes (sm:, md:, lg:) — no fixed pixel widths that break on mobile
-[ ] All required images use picsum.photos/seed/KEYWORD/W/H or i.pravatar.cc/SIZE?img=N
+[ ] All required images use /api/media?q=KEYWORD&w=W&h=H or i.pravatar.cc/SIZE?img=N
 [ ] HTML closes cleanly: </body></html>
 
 If your output is missing ANY checklist item, add it before stopping. A truncated page is a failed page.
@@ -1196,30 +1205,30 @@ PRODUCT CARD PATTERN (Use this exact structure):
 
 ⚠️ MANDATORY IMAGE REQUIREMENTS - E-COMMERCE SITES NEED MANY IMAGES:
 
-Use https://picsum.photos/seed/[keyword]/[width]/[height] for ALL images (they ALWAYS work)
+Use /api/media?q=[keyword]&w=[width]&h=[height] for ALL images (they ALWAYS work)
 
 REQUIRED PLACEMENTS:
 A. HERO BACKGROUND (MANDATORY - full width):
-style="background-image: url('https://picsum.photos/seed/luxury/1920/1080'); background-size: cover;"
+style="background-image: url('/api/media?q=luxury&w=1920&h=1080'); background-size: cover;"
 
 B. LOGO (MANDATORY):
-<img src="https://picsum.photos/seed/logo/120/40" alt="Brand Logo" class="h-10">
+<img src="/api/media?q=logo&w=120&h=40" alt="Brand Logo" class="h-10">
 
 C. PRODUCT IMAGES (at least 8 products):
-- https://picsum.photos/seed/product1/400/500
-- https://picsum.photos/seed/product2/400/500
-- https://picsum.photos/seed/bag1/400/500
-- https://picsum.photos/seed/shoe1/400/500
+- /api/media?q=product1&w=400&h=500
+- /api/media?q=product2&w=400&h=500
+- /api/media?q=bag1&w=400&h=500
+- /api/media?q=shoe1&w=400&h=500
 ... use descriptive keywords for the product type
 
 D. CATEGORY IMAGES (at least 3):
-- https://picsum.photos/seed/fashion/600/800
-- https://picsum.photos/seed/accessories/600/800
-- https://picsum.photos/seed/newcollection/600/800
+- /api/media?q=fashion&w=600&h=800
+- /api/media?q=accessories&w=600&h=800
+- /api/media?q=newcollection&w=600&h=800
 
 E. PROMOTIONAL BANNERS:
-- https://picsum.photos/seed/sale/1200/600
-- https://picsum.photos/seed/collection/1400/700
+- /api/media?q=sale&w=1200&h=600
+- /api/media?q=collection&w=1400&h=700
 
 KEYWORD EXAMPLES BY PRODUCT TYPE:
 - Fashion: dress, shirt, jacket, outfit, style
@@ -1337,7 +1346,7 @@ function fixImageUrls(html: string): string {
       const height = heightMatch ? heightMatch[1] : '600'
       // Generate a random seed based on the original URL
       const seed = match.replace(/[^a-zA-Z]/g, '').slice(0, 10) || 'image'
-      return `https://picsum.photos/seed/${seed}/${width}/${height}`
+      return `/api/media?q=${seed}&w=${width}&h=${height}`
     }
   )
 
@@ -1350,7 +1359,7 @@ function fixImageUrls(html: string): string {
       const width = sizeMatch ? sizeMatch[1] : '800'
       const height = sizeMatch ? sizeMatch[2] : '600'
       const seed = match.replace(/[^a-zA-Z]/g, '').slice(0, 10) || 'photo'
-      return `https://picsum.photos/seed/${seed}/${width}/${height}`
+      return `/api/media?q=${seed}&w=${width}&h=${height}`
     }
   )
 
@@ -2024,7 +2033,7 @@ Generate the complete HTML now.`
   • <meta property="og:image"> for social cards
   • CSS background-image rules in <style> blocks
   • JSON-LD "image" property in <script type="application/ld+json">
-Generate a NEW placeholder URL — use https://picsum.photos/seed/<descriptive-keyword>/<w>/<h> with a NEW seed value reflecting the requested subject. DO NOT say "couldn't find" — find every image URL in the existing HTML that matches the targeted region (hero, gallery, card, etc.) and update them. Output the FULL HTML with the swap applied.`
+Generate a NEW placeholder URL — use /api/media?q=<descriptive-keyword>&w=<w>&h=<h> with a NEW seed value reflecting the requested subject. DO NOT say "couldn't find" — find every image URL in the existing HTML that matches the targeted region (hero, gallery, card, etc.) and update them. Output the FULL HTML with the swap applied.`
     } else if (isColorChange) {
       editGuidance = `COLOR/THEME EDIT: Change color classes globally. Replace bg-slate-xxx, text-xxx, border-xxx consistently throughout.`
     } else if (isTextChange) {
