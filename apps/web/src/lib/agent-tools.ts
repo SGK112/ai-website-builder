@@ -79,8 +79,8 @@ export const TOOLS: Anthropic.Messages.Tool[] = [
     name: 'write_file',
     description:
       'Create a new file or completely overwrite an existing one. Provide the FULL final contents — ' +
-      'this is not a patch operation. Use this for both new files and edits. ' +
-      'For edits, read_file first, then write_file with the full updated content.',
+      'this is not a patch operation. PREFER edit_file for narrow changes to existing files; ' +
+      'use write_file only when creating a new file or rewriting >50% of an existing one.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -88,6 +88,30 @@ export const TOOLS: Anthropic.Messages.Tool[] = [
         contents: { type: 'string', description: 'Full file contents' },
       },
       required: ['path', 'contents'],
+    },
+  },
+  {
+    name: 'edit_file',
+    description:
+      'Surgical edit of an existing file: replace one exact substring with another. ' +
+      'STRONGLY PREFERRED over write_file for narrow changes (rename a heading, swap a class, ' +
+      'change one attribute). 5x faster than full rewrites and cannot accidentally touch other ' +
+      'parts of the file.\n\n' +
+      'RULES:\n' +
+      '- old_string must appear EXACTLY ONCE in the file. If it appears multiple times, expand it ' +
+      'with surrounding context until it is unique.\n' +
+      '- Match is literal (no regex). Whitespace, indentation, casing all matter.\n' +
+      '- new_string can be empty (= delete).\n' +
+      '- For multiple changes in the same file, make multiple edit_file calls — do not bundle ' +
+      'into a write_file.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        path: { type: 'string', description: "Existing file path, e.g. 'index.html'" },
+        old_string: { type: 'string', description: 'Exact substring to find (must appear exactly once)' },
+        new_string: { type: 'string', description: 'Replacement text (may be empty)' },
+      },
+      required: ['path', 'old_string', 'new_string'],
     },
   },
   {
@@ -345,6 +369,37 @@ export async function executeTool(
         vfs.files[path] = contents
         if (vfs.onWrite) await vfs.onWrite(path, contents)
         return { ok: true, content: `Wrote ${path} (${contents.length} chars)` }
+      }
+      case 'edit_file': {
+        const path = String(input?.path || '').trim()
+        const oldStr = String(input?.old_string ?? '')
+        const newStr = String(input?.new_string ?? '')
+        if (!path) return { ok: false, content: 'Missing required field: path' }
+        if (!oldStr) return { ok: false, content: 'old_string is required and must be non-empty' }
+        if (path.startsWith('/') || path.includes('..')) {
+          return { ok: false, content: `Invalid path: ${path}` }
+        }
+        const current = vfs.files[path]
+        if (current == null) {
+          return { ok: false, content: `File not found: ${path}. Use write_file to create it.` }
+        }
+        // Uniqueness check — refuses to edit if old_string appears 0 or 2+
+        // times. Forces the agent to widen the snippet with more context
+        // until it's unambiguous; prevents accidental mass replacements.
+        const idx = current.indexOf(oldStr)
+        if (idx === -1) {
+          return { ok: false, content: `old_string not found in ${path}. Read the file again and copy the exact substring (whitespace + casing matter).` }
+        }
+        if (current.indexOf(oldStr, idx + 1) !== -1) {
+          return { ok: false, content: `old_string matches multiple locations in ${path}. Expand it with surrounding lines until it's unique, then retry.` }
+        }
+        const updated = current.slice(0, idx) + newStr + current.slice(idx + oldStr.length)
+        if (updated.length > MAX_FILE_BYTES) {
+          return { ok: false, content: `Resulting file too large (${updated.length} > ${MAX_FILE_BYTES} chars)` }
+        }
+        vfs.files[path] = updated
+        if (vfs.onWrite) await vfs.onWrite(path, updated)
+        return { ok: true, content: `Edited ${path} (${oldStr.length} → ${newStr.length} chars at offset ${idx})` }
       }
       case 'delete_file': {
         const path = String(input?.path || '').trim()

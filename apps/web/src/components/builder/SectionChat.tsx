@@ -12,7 +12,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, Sparkles, X, Loader2, Mic, ChevronDown, MousePointer2 } from 'lucide-react'
+import { Send, Sparkles, X, Loader2, Mic, ChevronDown, MousePointer2, ChefHat, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface SectionContext {

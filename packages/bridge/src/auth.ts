@@ -65,12 +65,30 @@ export function clearAuth(): boolean {
 // auto-memory namespace cleanly to that project — same as cd-ing into
 // different repos in regular Claude Code usage.
 export function workspaceDirFor(projectId: string): string {
-  // Sanitize defensively — server sends Mongo ObjectIds so this should
-  // always be safe, but better paranoid than rm -rf.
   const safe = projectId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64) || 'unscoped'
   const dir = path.join(configDir(), 'workspaces', safe)
   fs.mkdirSync(dir, { recursive: true })
+  // Opportunistically sweep workspaces older than 30 days. Cheap O(n)
+  // scan on entry; the workspace dir is tiny so this never blocks.
+  sweepStaleWorkspaces()
   return dir
+}
+
+function sweepStaleWorkspaces(): void {
+  const root = path.join(configDir(), 'workspaces')
+  if (!fs.existsSync(root)) return
+  const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000
+  const cutoff = Date.now() - THIRTY_DAYS
+  try {
+    for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue
+      const full = path.join(root, entry.name)
+      try {
+        const { mtimeMs } = fs.statSync(full)
+        if (mtimeMs < cutoff) fs.rmSync(full, { recursive: true, force: true })
+      } catch { /* non-fatal — skip this dir */ }
+    }
+  } catch { /* non-fatal */ }
 }
 
 /**

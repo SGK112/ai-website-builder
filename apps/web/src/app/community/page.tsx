@@ -36,6 +36,7 @@ import { useTheme } from '@/context/ThemeContext'
 import { StarryNight, SunriseBackground } from '@/components/landing/BackgroundEffects'
 import { WebstewLogo } from '@/components/brand/WebstewLogo'
 import { FeedbackBoard } from '@/components/community/FeedbackBoard'
+import { DEMO_SITES } from '@/lib/demo-sites'
 
 interface Project {
   id: string
@@ -75,90 +76,54 @@ const categories: Category[] = [
   { id: 'photography', name: 'Photography', icon: Camera, count: 67 },
 ]
 
-const mockProjects: Project[] = [
-  {
-    id: '1',
-    title: 'Modern SaaS Landing Page',
-    description: 'A clean, conversion-focused landing page with animated hero section and pricing tables.',
-    author: { name: 'Sarah Chen', avatar: 'S', badge: 'pro' },
-    thumbnail: 'https://picsum.photos/seed/saas1/600/400',
-    category: 'landing',
-    likes: 234,
-    views: 1892,
-    comments: 18,
-    createdAt: '2024-12-28',
-    featured: true,
+// Demo projects derive from the same DEMO_SITES the landing iframe cycles
+// through. Every entry is a REAL working template — clicking the card lands
+// on /showcase/<slug> which iframes the actual HTML, and the author chip
+// links to /u/webstew (the synthesized Webstew Team profile). No fake
+// people, no dead loops. Drops out entirely once realProjects ≥ 6.
+const DEMO_THUMBS: Record<string, string> = {
+  saas: '/api/media?q=analytics%20dashboard%20saas&w=600&h=400',
+  portfolio: '/api/media?q=creative%20portfolio%20designer&w=600&h=400',
+  mobile: '/api/media?q=mobile%20app%20phone%20product&w=600&h=400',
+  ecommerce: '/api/media?q=fashion%20ecommerce%20shop&w=600&h=400',
+  blog: '/api/media?q=editorial%20magazine%20writing&w=600&h=400',
+  restaurant: '/api/media?q=restaurant%20interior%20food&w=600&h=400',
+}
+const DEMO_CATEGORY: Record<string, string> = {
+  saas: 'landing',
+  portfolio: 'portfolio',
+  mobile: 'landing',
+  ecommerce: 'ecommerce',
+  blog: 'blog',
+  restaurant: 'landing',
+}
+const mockProjects: Project[] = DEMO_SITES.map((d, i) => ({
+  id: d.id,
+  title: d.label,
+  description: d.prompt,
+  author: {
+    name: 'Webstew Team',
+    username: 'webstew',
+    avatar: 'W',
+    badge: 'pro',
   },
-  {
-    id: '2',
-    title: 'E-commerce Store Template',
-    description: 'Full-featured online store with cart, checkout, and product galleries.',
-    author: { name: 'Mike Johnson', avatar: 'M', badge: 'top' },
-    thumbnail: 'https://picsum.photos/seed/ecom1/600/400',
-    category: 'ecommerce',
-    likes: 189,
-    views: 1456,
-    comments: 12,
-    createdAt: '2024-12-27',
-  },
-  {
-    id: '3',
-    title: 'Creative Portfolio',
-    description: 'Stunning portfolio showcasing creative work with smooth animations.',
-    author: { name: 'Alex Rivera', avatar: 'A' },
-    thumbnail: 'https://picsum.photos/seed/port1/600/400',
-    category: 'portfolio',
-    likes: 156,
-    views: 987,
-    comments: 8,
-    createdAt: '2024-12-26',
-  },
-  {
-    id: '4',
-    title: 'Tech Startup Website',
-    description: 'Modern startup website with team section, features, and testimonials.',
-    author: { name: 'Emma Wilson', avatar: 'E', badge: 'new' },
-    thumbnail: 'https://picsum.photos/seed/tech1/600/400',
-    category: 'landing',
-    likes: 98,
-    views: 654,
-    comments: 5,
-    createdAt: '2024-12-25',
-    featured: true,
-  },
-  {
-    id: '5',
-    title: 'Music Artist Page',
-    description: 'Dynamic music artist landing with embedded player and tour dates.',
-    author: { name: 'DJ Nova', avatar: 'D' },
-    thumbnail: 'https://picsum.photos/seed/music1/600/400',
-    category: 'music',
-    likes: 312,
-    views: 2341,
-    comments: 24,
-    createdAt: '2024-12-24',
-  },
-  {
-    id: '6',
-    title: 'Photography Portfolio',
-    description: 'Minimal gallery layout perfect for showcasing photography work.',
-    author: { name: 'Lisa Park', avatar: 'L', badge: 'pro' },
-    thumbnail: 'https://picsum.photos/seed/photo1/600/400',
-    category: 'photography',
-    likes: 267,
-    views: 1876,
-    comments: 15,
-    createdAt: '2024-12-23',
-  },
-]
+  thumbnail: DEMO_THUMBS[d.id] || `https://picsum.photos/seed/${d.id}/600/400`,
+  category: DEMO_CATEGORY[d.id] || 'landing',
+  likes: 80 + i * 37,
+  views: 720 + i * 213,
+  comments: 4 + i * 3,
+  createdAt: new Date(Date.now() - (i + 1) * 86400000 * 6).toISOString().slice(0, 10),
+  featured: i === 0 || i === 3,
+}))
 
-const topCreators = [
-  { name: 'Sarah Chen', projects: 45, followers: 1234, avatar: 'S', badge: 'pro' },
-  { name: 'Mike Johnson', projects: 38, followers: 987, avatar: 'M', badge: 'top' },
-  { name: 'Emma Wilson', projects: 32, followers: 756, avatar: 'E' },
-  { name: 'Alex Rivera', projects: 28, followers: 654, avatar: 'A' },
-  { name: 'Lisa Park', projects: 25, followers: 543, avatar: 'L', badge: 'pro' },
-]
+// "Featured Templates" — replaces the fake top-creators leaderboard.
+// Real links into /showcase/<slug>, sourced from DEMO_SITES so this stays
+// in sync with whatever the landing iframe is showing today.
+const featuredTemplates = DEMO_SITES.map((d) => ({
+  slug: d.id,
+  label: d.label,
+  category: DEMO_CATEGORY[d.id] || 'landing',
+}))
 
 function AuthorAvatar({
   avatarUrl,
@@ -552,73 +517,56 @@ export default function CommunityPage() {
               </div>
             </div>
 
-            {/* Top Creators */}
+            {/* Featured Templates — sourced from DEMO_SITES, each card is
+                a real link into /showcase/<slug>. Replaces the fake-name
+                "Top Creators" leaderboard until we have enough real
+                community traffic to populate a genuine one. */}
             <div className={cn(
               'p-4 rounded-2xl border',
               isDark ? 'bg-white/5 border-white/10' : 'bg-white border-zinc-200 shadow-sm'
             )}>
               <div className="flex items-center gap-2 mb-4">
                 <Trophy className={isDark ? 'w-4 h-4 text-amber-400' : 'w-4 h-4 text-amber-500'} />
-                <h3 className="font-semibold">Top Creators</h3>
+                <h3 className="font-semibold">Featured Templates</h3>
               </div>
-              <div className="space-y-3">
-                {topCreators.map((creator, index) => (
-                  <div
-                    key={creator.name}
-                    className={cn(
-                      'flex items-center gap-3 p-2 rounded-lg transition-all cursor-pointer',
-                      isDark ? 'hover:bg-white/5' : 'hover:bg-zinc-50'
-                    )}
-                  >
-                    <div className="relative">
-                      <div className={cn(
-                        'w-10 h-10 rounded-full flex items-center justify-center font-medium',
-                        index === 0
-                          ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white'
-                          : index === 1
-                            ? 'bg-gradient-to-br from-zinc-300 to-zinc-400 text-white'
-                            : index === 2
-                              ? 'bg-gradient-to-br from-amber-600 to-amber-700 text-white'
-                              : isDark
-                                ? 'bg-white/10 text-white'
-                                : 'bg-zinc-100 text-zinc-700'
-                      )}>
-                        {creator.avatar}
-                      </div>
-                      {creator.badge && (
-                        <div className={cn(
-                          'absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center',
-                          creator.badge === 'pro'
-                            ? 'bg-violet-500'
-                            : creator.badge === 'top'
-                              ? 'bg-amber-500'
-                              : 'bg-emerald-500'
-                        )}>
-                          {creator.badge === 'pro' ? (
-                            <Crown className="w-2.5 h-2.5 text-white" />
-                          ) : creator.badge === 'top' ? (
-                            <Star className="w-2.5 h-2.5 text-white" />
-                          ) : (
-                            <Zap className="w-2.5 h-2.5 text-white" />
-                          )}
-                        </div>
+              <div className="space-y-1">
+                {featuredTemplates.map((tpl) => {
+                  const Icon = categories.find((c) => c.id === tpl.category)?.icon || Globe
+                  return (
+                    <Link
+                      key={tpl.slug}
+                      href={`/showcase/${tpl.slug}`}
+                      className={cn(
+                        'flex items-center gap-3 p-2 rounded-lg transition-all',
+                        isDark ? 'hover:bg-white/5' : 'hover:bg-zinc-50'
                       )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{creator.name}</p>
-                      <p className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-600')}>
-                        {creator.projects} projects
-                      </p>
-                    </div>
-                    <span className={cn(
-                      'text-xs font-medium',
-                      index < 3 ? 'text-amber-500' : isDark ? 'text-zinc-500' : 'text-zinc-600'
-                    )}>
-                      #{index + 1}
-                    </span>
-                  </div>
-                ))}
+                    >
+                      <div className={cn(
+                        'w-9 h-9 rounded-lg flex items-center justify-center shrink-0',
+                        isDark ? 'bg-violet-500/15 text-violet-300' : 'bg-orange-100 text-orange-600'
+                      )}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{tpl.label}</p>
+                        <p className={cn('text-xs', isDark ? 'text-zinc-500' : 'text-zinc-600')}>
+                          by Webstew Team
+                        </p>
+                      </div>
+                      <ChevronRight className={cn('w-4 h-4', isDark ? 'text-zinc-600' : 'text-zinc-400')} />
+                    </Link>
+                  )
+                })}
               </div>
+              <Link
+                href="/u/webstew"
+                className={cn(
+                  'mt-3 flex items-center justify-center gap-1 py-2 rounded-lg text-xs font-medium transition-colors',
+                  isDark ? 'text-violet-300 hover:bg-white/5' : 'text-orange-600 hover:bg-orange-50'
+                )}
+              >
+                View all team templates →
+              </Link>
             </div>
           </aside>
 
@@ -679,7 +627,14 @@ export default function CommunityPage() {
                           : 'bg-gradient-to-b from-amber-50 to-orange-50 border-amber-200'
                       )}
                     >
-                      <div className="aspect-video relative overflow-hidden">
+                      <Link
+                        href={
+                          /^[a-f0-9]{24}$/i.test(project.id)
+                            ? `/listings/${project.id}`
+                            : `/showcase/${project.id}`
+                        }
+                        className="block aspect-video relative overflow-hidden"
+                      >
                         <img
                           src={project.thumbnail}
                           alt={project.title}
@@ -695,7 +650,7 @@ export default function CommunityPage() {
                           <h4 className="font-semibold text-white">{project.title}</h4>
                           <p className="text-sm text-white/80 line-clamp-1">{project.description}</p>
                         </div>
-                      </div>
+                      </Link>
                       <div className="p-4 flex items-center justify-between">
                         {project.author.username ? (
                           <Link
@@ -790,11 +745,16 @@ export default function CommunityPage() {
                   </div>
 
                   {/* Content. Title is the click target → listing detail
-                      page. Demo data with no MongoId-shaped id just
-                      links to /community to avoid 404. */}
+                      page. MongoId-shaped ids hit /listings/<id> (real
+                      community posts). Demo entries (DEMO_SITES slugs)
+                      hit /showcase/<slug> which iframes the real HTML. */}
                   <div className="p-4">
                     <Link
-                      href={/^[a-f0-9]{24}$/i.test(project.id) ? `/listings/${project.id}` : '/community'}
+                      href={
+                        /^[a-f0-9]{24}$/i.test(project.id)
+                          ? `/listings/${project.id}`
+                          : `/showcase/${project.id}`
+                      }
                       className="block"
                     >
                       <h4 className="font-semibold mb-1 line-clamp-1 hover:underline">{project.title}</h4>

@@ -1901,7 +1901,7 @@ function WorkspaceContent() {
 
   // Conversational chat state
   const [showWelcome, setShowWelcome] = useState(true)
-  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string; suggestions?: string[]; permission?: { permissionId: string; action: string; approveLabel: string; denyLabel: string; resolved?: 'approved' | 'denied' } }[]>([
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string; suggestions?: string[]; source?: 'bridge' | 'api'; permission?: { permissionId: string; action: string; approveLabel: string; denyLabel: string; resolved?: 'approved' | 'denied' } }[]>([
     { role: 'assistant', content: "Welcome! I'm your AI creative assistant. What would you like to create today?", suggestions: ['Build a website', 'Generate an image', 'Create a video'] }
   ])
   const [chatSuggestions, setChatSuggestions] = useState<string[]>(['Build a website', 'Generate an image', 'Create a video'])
@@ -4574,7 +4574,8 @@ ${html}
       let wroteAnyFile = false
 
       // Insert a placeholder assistant message we'll mutate as events arrive.
-      setChatMessages(prev => [...prev, { role: 'assistant', content: '…' }])
+      // Tag with source so the chat bubble can show a bridge/api chip.
+      setChatMessages(prev => [...prev, { role: 'assistant', content: '…', source: bridgeActive ? 'bridge' as const : 'api' as const }])
       const flushAssistant = (text: string) => {
         setChatMessages(prev => {
           const next = [...prev]
@@ -5940,6 +5941,18 @@ ${html}
                                 {suggestion}
                               </button>
                             ))}
+                          </div>
+                        )}
+                        {msg.source && (
+                          <div className="mt-2 flex items-center gap-1">
+                            {msg.source === 'bridge' ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-orange-400/70 font-medium">
+                                <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                chef
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-zinc-600 font-medium">api</span>
+                            )}
                           </div>
                         )}
                         {msg.permission && (

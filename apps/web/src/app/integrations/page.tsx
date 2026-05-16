@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Plug, Check, Loader2, AlertCircle, ExternalLink } from 'lucide-react'
+import { BridgePanel } from '@/components/integrations/BridgePanel'
 
 interface Item {
   slug: string
@@ -142,6 +143,11 @@ export default function IntegrationsPage() {
           <span>{err || flash}</span>
         </div>
       )}
+
+      {/* Local Claude Bridge — pair, status, disconnect. Above the
+          Composio connector grid because it's the highest-leverage
+          integration for Pro/Max users. */}
+      <BridgePanel />
 
       {loading ? (
         <div className="flex items-center justify-center py-20 text-slate-500">

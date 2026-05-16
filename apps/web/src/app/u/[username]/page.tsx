@@ -14,6 +14,7 @@ import { ArrowLeft, Sparkles, BadgeCheck, ExternalLink, Calendar, Eye, Heart } f
 import type { Metadata } from 'next'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
+import { DEMO_SITES } from '@/lib/demo-sites'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -42,6 +43,9 @@ interface Listing {
   likes?: number
   views?: number
   createdAt: string
+  // Override destination for the listing card. /u/webstew uses this to
+  // point at /showcase/<slug> instead of the default /community#listing-…
+  linkOverride?: string
 }
 
 interface ProfileData {
@@ -53,10 +57,65 @@ interface ProfileData {
   firstSeenAt: string | null
 }
 
+// Synthetic "Webstew Team" profile — backs the @webstew handle that
+// gets stamped onto demo cards on /community when there aren't enough
+// real listings yet. Lists the static DEMO_SITES as the team's catalog
+// so clicking a demo author lands on a real profile, not a 404.
+function loadWebstewProfile(): ProfileData {
+  const PEXELS = (q: string) =>
+    `/api/media?q=${encodeURIComponent(q)}&w=800&h=500`
+  const thumbnails: Record<string, string> = {
+    saas: PEXELS('analytics dashboard saas'),
+    portfolio: PEXELS('creative portfolio designer'),
+    mobile: PEXELS('mobile app phone product'),
+    ecommerce: PEXELS('fashion ecommerce shop'),
+    blog: PEXELS('editorial magazine writing'),
+    restaurant: PEXELS('restaurant interior food'),
+  }
+  const categories: Record<string, string> = {
+    saas: 'landing',
+    portfolio: 'portfolio',
+    mobile: 'landing',
+    ecommerce: 'ecommerce',
+    blog: 'blog',
+    restaurant: 'landing',
+  }
+  const listings: Listing[] = DEMO_SITES.map((d, i) => ({
+    _id: d.id,
+    type: 'template',
+    title: d.label,
+    description: d.prompt,
+    thumbnail: thumbnails[d.id],
+    category: categories[d.id] || 'landing',
+    tags: [d.id],
+    // Stable, believable numbers so the profile feels lived-in but not
+    // fake. Deterministic per-slug so they don't reshuffle on refresh.
+    likes: 80 + i * 37,
+    views: 720 + i * 213,
+    createdAt: new Date(Date.now() - (i + 1) * 86400000 * 6).toISOString(),
+    linkOverride: `/showcase/${d.id}`,
+  }))
+  return {
+    username: 'webstew',
+    author: {
+      id: 'webstew-team',
+      name: 'Webstew Team',
+      username: 'webstew',
+      bio: 'Official templates from the Webstew team. Each one is a real generated site you can preview, remix into your brand, and ship.',
+      tagline: 'Templates straight from the kitchen.',
+    },
+    listings,
+    totalViews: listings.reduce((s, l) => s + (l.views || 0), 0),
+    totalLikes: listings.reduce((s, l) => s + (l.likes || 0), 0),
+    firstSeenAt: listings[listings.length - 1]?.createdAt || null,
+  }
+}
+
 async function loadProfile(username: string): Promise<ProfileData | null> {
   // Username field is restricted to email-prefix-safe chars by upstream
   // (split('@')[0]). Still scrub for the regex to be safe — only a-zA-Z0-9._-.
   if (!/^[a-zA-Z0-9._-]{1,80}$/.test(username)) return null
+  if (username.toLowerCase() === 'webstew') return loadWebstewProfile()
   const client = await clientPromise
   const db = client.db('ai-website-builder')
 
@@ -238,7 +297,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
             {data.listings.map((l) => (
               <Link
                 key={l._id}
-                href={`/community#listing-${l._id}`}
+                href={l.linkOverride || `/community#listing-${l._id}`}
                 className="group rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden hover:border-violet-500/40 transition"
               >
                 <div className="aspect-[16/10] bg-gradient-to-br from-slate-800 to-slate-900 overflow-hidden">
@@ -248,13 +307,6 @@ export default async function PublicProfilePage({ params }: PageProps) {
                       alt={l.title}
                       loading="lazy"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      onError={(e) => {
-                        const img = e.currentTarget
-                        const seed = encodeURIComponent(l._id)
-                        const fallback = `https://picsum.photos/seed/${seed}/800/500`
-                        if (img.src !== fallback) img.src = fallback
-                        else img.style.display = 'none'
-                      }}
                     />
                   ) : null}
                 </div>
