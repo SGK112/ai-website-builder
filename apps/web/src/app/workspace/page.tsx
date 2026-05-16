@@ -284,6 +284,8 @@ const stockImageCategories = [
   'architecture', 'fashion', 'health', 'sports', 'abstract', 'animals'
 ]
 
+type BuildTarget = 'website' | 'astro' | 'nextjs' | 'react' | 'expo'
+
 interface Project {
   id: string
   name: string
@@ -292,6 +294,9 @@ interface Project {
   skillLevel: SkillLevel
   createdAt: Date
   updatedAt: Date
+  // Multi-target (expo/nextjs/react/astro) projects store their VFS here.
+  vfsFiles?: Record<string, string>
+  buildTarget?: BuildTarget
 }
 
 interface HistoryEntry {
@@ -1142,7 +1147,6 @@ function WorkspaceContent() {
   // WebContainer instead of the srcDoc iframe. Adding new targets here without
   // wiring `vfsFiles` + the preview branch + the agent chat will break things —
   // grep for `buildTarget` first.
-  type BuildTarget = 'website' | 'astro' | 'nextjs' | 'react' | 'expo'
   const [buildTarget, setBuildTarget] = useState<BuildTarget>('website')
   const [vfsFiles, setVfsFiles] = useState<Record<string, string>>({})
   const [vfsProjectMeta, setVfsProjectMeta] = useState<{ name: string; slug: string } | null>(null)
@@ -2133,15 +2137,31 @@ function WorkspaceContent() {
         const dbProjectIds = new Set(projectHook.projects.map(p => p.id))
         // Keep local projects that aren't in DB, and add all DB projects
         const localOnly = prev.filter(p => !dbProjectIds.has(p.id))
-        const dbProjects = projectHook.projects.map(p => ({
-          id: p.id,
-          name: p.name,
-          html: p.html || '',
-          envVars: p.envVars || [],
-          skillLevel: (p.skillLevel || 'no-code') as SkillLevel,
-          createdAt: p.createdAt,
-          updatedAt: p.updatedAt,
-        }))
+        const dbProjects = projectHook.projects.map(p => {
+          // Reconstruct VFS from the files array. _webstew_meta.json carries
+          // the buildTarget; everything else is a real project file.
+          const vfsFromFiles: Record<string, string> = {}
+          let restoredTarget: BuildTarget | undefined
+          if (p.files && p.files.length > 0) {
+            for (const f of p.files) {
+              if (f.path === '_webstew_meta.json') {
+                try { restoredTarget = JSON.parse(f.content).buildTarget } catch {}
+              } else if (f.path !== 'index.html') {
+                vfsFromFiles[f.path] = f.content
+              }
+            }
+          }
+          return {
+            id: p.id,
+            name: p.name,
+            html: p.html || '',
+            envVars: p.envVars || [],
+            skillLevel: (p.skillLevel || 'no-code') as SkillLevel,
+            createdAt: p.createdAt,
+            updatedAt: p.updatedAt,
+            ...(Object.keys(vfsFromFiles).length > 0 && { vfsFiles: vfsFromFiles, buildTarget: restoredTarget }),
+          }
+        })
         return [...dbProjects, ...localOnly]
       })
     }
@@ -2324,39 +2344,44 @@ function WorkspaceContent() {
 
   // Auto-save current work to localStorage (browser refresh protection)
   useEffect(() => {
-    if (html && html.length > 100) {
-      // Limit HTML size to prevent quota errors (max ~500KB)
-      const maxSize = 500000
-      const htmlToSave = html.length > maxSize ? html.slice(0, maxSize) : html
-      // Snapshot the current html into the active page before serializing pages
-      const pagesSnapshot = pages.map(p =>
-        p.id === activePageId ? { ...p, html: htmlToSave } : p
-      )
-      const autoSaveData = {
-        html: htmlToSave,
-        projectName,
-        timestamp: new Date().toISOString(),
-        selectedPreset,
-        truncated: html.length > maxSize,
-        pages: pagesSnapshot,
-        activePageId,
-      }
-      try {
-        localStorage.setItem('webstew-autosave', JSON.stringify(autoSaveData))
-      } catch (e) {
-        // If quota exceeded, clear old data and try again
-        console.warn('LocalStorage quota exceeded, clearing old data...')
-        try {
-          localStorage.removeItem('webstew-autosave')
-          localStorage.removeItem('webstew-last-generation')
-          localStorage.removeItem('vibe-projects')
-          localStorage.setItem('webstew-autosave', JSON.stringify(autoSaveData))
-        } catch (e2) {
-          console.error('Failed to save even after clearing:', e2)
-        }
-      }
+    const isMulti = buildTarget !== 'website' && Object.keys(vfsFiles).length > 0
+    if (!html && !isMulti) return
+
+    const maxSize = 500000
+    const htmlToSave = html.length > maxSize ? html.slice(0, maxSize) : html
+    const pagesSnapshot = pages.map(p =>
+      p.id === activePageId ? { ...p, html: htmlToSave } : p
+    )
+    const autoSaveData: Record<string, unknown> = {
+      html: htmlToSave,
+      projectName,
+      timestamp: new Date().toISOString(),
+      selectedPreset,
+      truncated: html.length > maxSize,
+      pages: pagesSnapshot,
+      activePageId,
+      buildTarget,
     }
-  }, [html, projectName, selectedPreset, pages, activePageId])
+    // Serialize VFS for non-website projects. Cap per-file at 50KB to
+    // avoid blowing the 5MB localStorage quota on large generated projects.
+    if (isMulti) {
+      const vfsCapped: Record<string, string> = {}
+      for (const [k, v] of Object.entries(vfsFiles)) {
+        vfsCapped[k] = v.length > 50000 ? v.slice(0, 50000) : v
+      }
+      autoSaveData.vfsFiles = vfsCapped
+    }
+    try {
+      localStorage.setItem('webstew-autosave', JSON.stringify(autoSaveData))
+    } catch {
+      try {
+        localStorage.removeItem('webstew-autosave')
+        localStorage.removeItem('webstew-last-generation')
+        localStorage.removeItem('vibe-projects')
+        localStorage.setItem('webstew-autosave', JSON.stringify(autoSaveData))
+      } catch { /* quota still exceeded — skip */ }
+    }
+  }, [html, projectName, selectedPreset, pages, activePageId, buildTarget, vfsFiles])
 
   // Load auto-saved work on mount (if no URL params AND no fresh template/
   // prompt/project load already happened this mount — otherwise this effect
@@ -2620,6 +2645,7 @@ function WorkspaceContent() {
       setSignupNudge({ show: true, reason: 'save' })
     }
     const now = new Date()
+    const isMultiTarget = buildTarget !== 'website' && Object.keys(vfsFiles).length > 0
     const project: Project = {
       id: currentProject?.id || generateId(),
       name: projectName,
@@ -2628,6 +2654,7 @@ function WorkspaceContent() {
       skillLevel,
       createdAt: currentProject?.createdAt || now,
       updatedAt: now,
+      ...(isMultiTarget && { vfsFiles, buildTarget }),
     }
 
     // Save to local state
@@ -2645,10 +2672,24 @@ function WorkspaceContent() {
     // Also save to database if authenticated
     if (session?.user) {
       try {
+        // For multi-target projects, persist each VFS file as a ProjectFile.
+        // A _webstew_meta.json entry carries the buildTarget so it survives
+        // round-trips through the API without needing a schema change.
+        const filesPayload = isMultiTarget
+          ? [
+              ...Object.entries(vfsFiles).map(([path, content]) => ({
+                path,
+                content,
+                type: (path.endsWith('.html') ? 'html' : path.endsWith('.css') ? 'css' : path.endsWith('.js') || path.endsWith('.ts') || path.endsWith('.tsx') || path.endsWith('.jsx') ? 'javascript' : 'other') as any,
+              })),
+              { path: '_webstew_meta.json', content: JSON.stringify({ buildTarget }), type: 'json' as any },
+            ]
+          : undefined
         const savedProject = await projectHook.saveProject({
           id: currentProject?.id,
           name: projectName,
-          html,
+          html: isMultiTarget ? '' : html,
+          ...(filesPayload && { files: filesPayload }),
         })
         if (savedProject) {
           // Update local project with database id
@@ -2675,6 +2716,18 @@ function WorkspaceContent() {
     setHtml(project.html)
     setEnvVars(project.envVars)
     setSkillLevel(project.skillLevel)
+
+    // Restore multi-target VFS if present. The buildTarget is stored either
+    // directly on the project (local save) or in _webstew_meta.json (cloud).
+    if (project.vfsFiles && Object.keys(project.vfsFiles).length > 0) {
+      setVfsFiles(project.vfsFiles)
+      if (project.buildTarget) setBuildTarget(project.buildTarget)
+    } else {
+      setVfsFiles({})
+      setBuildTarget('website')
+    }
+    setPreviewBumpKey(k => k + 1)
+
     setHasInitialized(true)
     addTerminalLine('info', `Loaded project: ${project.name}`)
     addConsoleLog('info', `Project loaded: ${project.name}`)
@@ -3462,6 +3515,10 @@ ${html}
           prompt: promptText,
           model: selectedModel.id,
           apiKey: selectedModel.provider !== 'auto' ? apiKeys[selectedModel.provider] || undefined : undefined,
+          // Route through the local bridge when connected — same credit-free
+          // path as the agent route uses. Each scaffolder endpoint checks this
+          // flag and dispatches to the bridge instead of calling Anthropic directly.
+          useBridge: bridgeActive || undefined,
         }),
       })
       if (res.status === 402 || res.status === 429) {
@@ -6278,6 +6335,43 @@ npx eas build --platform all
                     <p className="text-[10px] text-zinc-600 mt-1">Check your Supabase connection</p>
                   </div>
                 )}
+
+                {/* Mobile App Starters */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <svg className="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                    <h3 className="text-sm font-medium text-white">Mobile App Starters</h3>
+                    <span className="text-[10px] text-zinc-500">Expo / React Native</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      { id: 'expo-social', label: 'Social Feed', emoji: '👥', prompt: 'Build a social media feed app with a home screen showing posts with likes/comments, a profile screen, and a create-post screen. Clean minimal design, soft colors.' },
+                      { id: 'expo-ecommerce', label: 'Shop App', emoji: '🛍️', prompt: 'Build a mobile e-commerce app with a product grid home screen, product detail screen with add-to-cart, and a cart screen with checkout button. Modern dark theme.' },
+                      { id: 'expo-dashboard', label: 'Dashboard', emoji: '📊', prompt: 'Build a mobile analytics dashboard app with KPI cards, a line chart for trends, a list of recent activity, and a settings screen. Professional blue theme.' },
+                      { id: 'expo-fitness', label: 'Fitness Tracker', emoji: '💪', prompt: 'Build a fitness tracking app with a today screen showing workout progress, an exercise list screen, a timer screen with start/stop, and a stats screen. Energetic orange theme.' },
+                      { id: 'expo-notes', label: 'Notes App', emoji: '📝', prompt: 'Build a notes app with a home screen listing notes with search, a note editor screen with title and body, and a settings screen. Clean minimal white design.' },
+                      { id: 'expo-booking', label: 'Booking App', emoji: '📅', prompt: 'Build a service booking app with a services list, a calendar/date picker screen, a booking confirmation screen, and a my-bookings screen. Professional teal theme.' },
+                    ] as const).map(tpl => (
+                      <button
+                        key={tpl.id}
+                        onClick={async () => {
+                          if (isGenerating || isThinking) return
+                          setHtml(''); setVfsFiles({}); setVfsProjectMeta(null)
+                          setPages([{ id: 'home', name: 'Home', slug: 'index', html: '', isHome: true }])
+                          setActivePageId('home'); setPreviewBumpKey(k => k + 1)
+                          setBuildTarget('expo')
+                          setChatMessages(prev => [...prev, { role: 'user', content: tpl.prompt }])
+                          await handleGenerateMultiTarget('expo', tpl.prompt)
+                        }}
+                        disabled={isGenerating || isThinking}
+                        className="group flex items-center gap-2 p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:border-violet-500/30 hover:bg-white/[0.06] transition-all text-left disabled:opacity-40"
+                      >
+                        <span className="text-xl">{tpl.emoji}</span>
+                        <span className="text-white text-[11px] font-medium">{tpl.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 {/* Pro tip */}
                 <div className="p-3 rounded-lg bg-violet-500/5 border border-violet-500/10">
