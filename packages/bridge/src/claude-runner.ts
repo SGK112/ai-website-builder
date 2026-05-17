@@ -99,12 +99,12 @@ export async function runClaudeOnce(opts: RunOpts): Promise<void> {
     '--output-format',
     'stream-json',
     '--verbose',
-    // Try --permission-mode acceptEdits first (auto-approve Edit tool).
-    // bypassPermissions was added later and might not exist in all
-    // CLI versions. acceptEdits at least works for most tools.
-    // The user already authorized everything by initiating the chat.
+    // Skip permission prompts entirely. User already authorized by
+    // submitting the request. Try bypassPermissions first (newer),
+    // fall back to --dangerously-skip-permissions (older CLI versions).
     '--permission-mode',
-    'acceptEdits',
+    'bypassPermissions',
+    '--dangerously-skip-permissions',
     '--mcp-config',
     mcpConfigPath,
     ...pickModelFlag(request.model),
