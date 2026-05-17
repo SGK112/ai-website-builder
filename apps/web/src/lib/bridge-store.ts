@@ -300,6 +300,7 @@ export function dispatchToBridge(
   const requestId = 'req_' + crypto.randomBytes(12).toString('hex')
   const req: BridgeRequest = { kind: 'agent.run', requestId, payload: agentReq }
   const q = getOrCreateQueue(userId)
+  console.log(`[bridge-dispatch] ${requestId} for userId=${userId}, ${q.pollResolvers.length} active pollers, ${q.pending.length} queued`)
 
   // Chunk buffer + signaling. Producer (bridge → /respond) calls push;
   // consumer (agent route) iterates via the async generator below. We
@@ -344,14 +345,17 @@ export function dispatchToBridge(
     try {
       if (next(req) === true) {
         delivered = true
+        console.log(`[bridge-dispatch] ${requestId} delivered to active poller`)
         break
       }
     } catch {
       // stale resolver — keep popping
+      console.log(`[bridge-dispatch] ${requestId} skipped stale resolver`)
     }
   }
   if (!delivered) {
     q.pending.push(req)
+    console.log(`[bridge-dispatch] ${requestId} queued (no active pollers)`)
   }
 
   // Timeout safety — if bridge never picks up + responds within window,

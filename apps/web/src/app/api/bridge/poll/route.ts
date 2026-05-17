@@ -22,10 +22,16 @@ export async function GET(req: NextRequest) {
       { status: 401 }
     )
   }
+  console.log(`[bridge-poll] bridgeId=${auth.bridgeId} userId=${auth.userId} waiting for work...`)
   const controller = new AbortController()
   // If the bridge disconnects mid-poll, abort the waiter so we don't
   // hold the request open uselessly.
   req.signal?.addEventListener('abort', () => controller.abort())
   const work = await waitForWork(auth.userId, controller.signal)
+  if ('empty' in work && work.empty) {
+    console.log(`[bridge-poll] bridgeId=${auth.bridgeId} timeout (empty)`)
+  } else {
+    console.log(`[bridge-poll] bridgeId=${auth.bridgeId} got work: ${(work as any).requestId}`)
+  }
   return NextResponse.json(work)
 }

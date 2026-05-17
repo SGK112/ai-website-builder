@@ -31,11 +31,13 @@ export async function POST(req: NextRequest) {
   if (!chunk?.requestId || !chunk?.kind) {
     return NextResponse.json({ error: 'requestId + kind required' }, { status: 400 })
   }
+  console.log(`[bridge-respond] bridgeId=${auth.bridgeId} requestId=${chunk.requestId} kind=${chunk.kind}`)
   const matched = pushBridgeResponse(chunk)
   if (!matched) {
     // No matching open request — either the agent route already gave up
     // (timeout) or the user navigated away. Tell the bridge so it can
     // stop streaming further chunks for this requestId.
+    console.log(`[bridge-respond] bridgeId=${auth.bridgeId} requestId=${chunk.requestId} NO MATCHING STREAM`)
     return NextResponse.json({ accepted: false, reason: 'no-open-request' }, { status: 410 })
   }
   return NextResponse.json({ accepted: true })
