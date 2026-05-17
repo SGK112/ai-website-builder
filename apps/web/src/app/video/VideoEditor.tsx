@@ -203,6 +203,10 @@ export default function VideoEditor() {
         body: JSON.stringify({ videoUrl: editingVideo.url }),
       })
       const data = await res.json()
+      if (data.comingSoon) {
+        setCaptionText('⏳ AI captions coming soon — add OPENAI_API_KEY to enable Whisper transcription.')
+        return
+      }
       setCaptionText(data.transcript || '')
     } catch {
       setCaptionText('Could not auto-generate captions. Enter them manually.')
@@ -723,26 +727,41 @@ export default function VideoEditor() {
                 <p className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold">Export</p>
 
                 <div className="space-y-2">
-                  {[
-                    { label: 'YouTube (1080p)', icon: Youtube, format: 'mp4', ratio: '16:9' },
-                    { label: 'Instagram Reels', icon: Instagram, format: 'mp4', ratio: '9:16' },
-                    { label: 'TikTok', icon: Video, format: 'mp4', ratio: '9:16' },
-                    { label: 'Twitter/X', icon: Share2, format: 'mp4', ratio: '16:9' },
-                    { label: 'Original Quality', icon: Download, format: 'mp4', ratio: editingVideo.aspectRatio },
-                  ].map(({ label, icon: Icon, format, ratio }) => (
-                    <button
-                      key={label}
-                      onClick={() => downloadVideo(editingVideo)}
-                      className="w-full flex items-center gap-2.5 p-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.06] transition-all text-left"
-                    >
-                      <Icon className="w-4 h-4 text-zinc-400 shrink-0" />
-                      <div>
-                        <p className="text-xs text-zinc-200 font-medium">{label}</p>
-                        <p className="text-[10px] text-zinc-600">{ratio} · {format.toUpperCase()}</p>
+                  {/* Download original — works now */}
+                  <button
+                    onClick={() => downloadVideo(editingVideo)}
+                    className="w-full flex items-center gap-2.5 p-2.5 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 transition-all text-left"
+                  >
+                    <Download className="w-4 h-4 text-violet-400 shrink-0" />
+                    <div>
+                      <p className="text-xs text-violet-200 font-medium">Download Video</p>
+                      <p className="text-[10px] text-violet-400/60">{editingVideo.aspectRatio} · MP4</p>
+                    </div>
+                    <Download className="w-3 h-3 text-violet-400 ml-auto" />
+                  </button>
+
+                  {/* Coming soon — need platform API keys */}
+                  <div className="pt-1">
+                    <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-semibold mb-1.5 px-0.5">Coming Soon</p>
+                    {[
+                      { label: 'Publish to YouTube', icon: Youtube, key: 'YOUTUBE_API_KEY', ratio: '16:9' },
+                      { label: 'Post to Instagram', icon: Instagram, key: 'INSTAGRAM_ACCESS_TOKEN', ratio: '9:16' },
+                      { label: 'Upload to TikTok', icon: Video, key: 'TIKTOK_API_KEY', ratio: '9:16' },
+                      { label: 'Post to Twitter/X', icon: Share2, key: 'TWITTER_API_KEY', ratio: '16:9' },
+                    ].map(({ label, icon: Icon, key, ratio }) => (
+                      <div
+                        key={label}
+                        className="w-full flex items-center gap-2.5 p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04] text-left opacity-50 cursor-not-allowed mb-1.5"
+                        title={`Requires ${key}`}
+                      >
+                        <Icon className="w-4 h-4 text-zinc-600 shrink-0" />
+                        <div>
+                          <p className="text-xs text-zinc-500 font-medium">{label}</p>
+                          <p className="text-[10px] text-zinc-700">{ratio} · needs {key}</p>
+                        </div>
+                        <span className="ml-auto text-[9px] font-bold text-zinc-700 uppercase tracking-wider bg-white/5 px-1.5 py-0.5 rounded">Soon</span>
                       </div>
-                      <Download className="w-3 h-3 text-zinc-600 ml-auto" />
-                    </button>
-                  ))}
+                    ))}</div>
                 </div>
 
                 <div className="pt-3 border-t border-white/[0.06]">
