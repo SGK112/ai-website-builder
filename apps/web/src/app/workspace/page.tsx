@@ -2894,12 +2894,32 @@ function WorkspaceContent() {
       const pagesSnapshot = pages.map(p =>
         p.id === activePageId ? { ...p, html } : p
       ).filter(p => p.html && p.html.trim().length > 0)
+
+      const wrapPage = (body: string, title: string) => {
+        const isFullDoc = /<!doctype|<html\b/i.test(body.trimStart())
+        if (isFullDoc) return body
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>body{font-family:'Inter',sans-serif;margin:0}</style>
+</head>
+<body>
+${body}
+</body>
+</html>`
+      }
+
       const files = pagesSnapshot.length > 0
         ? pagesSnapshot.map(p => ({
             path: p.isHome ? 'index.html' : `${p.slug}.html`,
-            content: p.html,
+            content: wrapPage(p.html, p.isHome ? projectName : `${p.name} — ${projectName}`),
           }))
-        : [{ path: 'index.html', content: html }]
+        : [{ path: 'index.html', content: wrapPage(html, projectName) }]
       addTerminalLine('info', `📄 Deploying ${files.length} page${files.length === 1 ? '' : 's'}: ${files.map(f => f.path).join(', ')}`)
 
       const response = await fetch('/api/deploy', {
@@ -2927,6 +2947,7 @@ function WorkspaceContent() {
       await new Promise(r => setTimeout(r, 2000))
 
       addTerminalLine('success', `✅ Site deployed: ${data.url}`)
+      addTerminalLine('info', '⏳ Render is building your site — it will be live in ~2-3 minutes.')
       addConsoleLog('success', `Live at: ${data.url}`)
       setDeployUrl(data.url)
       setDeployStatus('success')
@@ -7665,18 +7686,23 @@ npx eas build --platform all
               >
                 {/* Project Name */}
                 <div>
-                  <label className="block text-xs text-zinc-500 mb-1.5">Project Name</label>
+                  <label className={cn("block text-xs mb-1.5", isDark ? "text-zinc-500" : "text-slate-500")}>Project Name</label>
                   <input
                     type="text"
                     value={projectName}
                     onChange={(e) => setProjectName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] text-sm text-white focus:outline-none focus:border-violet-500/50"
+                    className={cn(
+                      "w-full px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-violet-500/50",
+                      isDark
+                        ? "bg-white/[0.03] border border-white/[0.08] text-white"
+                        : "bg-slate-100 border border-slate-200 text-slate-900"
+                    )}
                   />
                 </div>
 
                 {/* API Keys */}
                 <div className="space-y-2">
-                  <label className="block text-xs text-zinc-500 flex items-center gap-1.5">
+                  <label className={cn("block text-xs flex items-center gap-1.5", isDark ? "text-zinc-500" : "text-slate-500")}>
                     <Key className="w-3 h-3" />
                     API Keys
                   </label>
@@ -7686,13 +7712,18 @@ npx eas build --platform all
                     { key: 'renderKey', label: 'Render', placeholder: 'rnd_...' },
                   ].map(({ key, label, placeholder }) => (
                     <div key={key}>
-                      <label className="block text-[10px] text-zinc-600 mb-0.5">{label}</label>
+                      <label className={cn("block text-[10px] mb-0.5", isDark ? "text-zinc-500" : "text-slate-500")}>{label}</label>
                       <input
                         type="password"
                         value={settings[key as keyof WorkspaceSettings]}
                         onChange={(e) => setSettings(s => ({ ...s, [key]: e.target.value }))}
                         placeholder={placeholder}
-                        className="w-full px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-white focus:outline-none focus:border-violet-500/50"
+                        className={cn(
+                          "w-full px-3 py-1.5 rounded-lg text-xs focus:outline-none focus:border-violet-500/50",
+                          isDark
+                            ? "bg-white/[0.03] border border-white/[0.08] text-white placeholder-zinc-600"
+                            : "bg-slate-100 border border-slate-200 text-slate-900 placeholder-slate-400"
+                        )}
                       />
                     </div>
                   ))}
@@ -7700,29 +7731,38 @@ npx eas build --platform all
 
                 {/* Deploy Status */}
                 {deployUrl && (
-                  <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                    <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium mb-1">
+                  <div className={cn(
+                    "p-3 rounded-lg border",
+                    isDark ? "bg-emerald-500/10 border-emerald-500/20" : "bg-emerald-50 border-emerald-200"
+                  )}>
+                    <div className={cn("flex items-center gap-2 text-sm font-medium mb-1", isDark ? "text-emerald-400" : "text-emerald-700")}>
                       <CheckCircle2 className="w-4 h-4" />
-                      Deployed Successfully!
+                      Deployed! Building now (~2-3 min)
                     </div>
                     <a
                       href={deployUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-emerald-300/80 hover:text-emerald-300 underline break-all"
+                      className={cn("text-xs underline break-all", isDark ? "text-emerald-300/80 hover:text-emerald-300" : "text-emerald-700 hover:text-emerald-800")}
                     >
                       {deployUrl}
                     </a>
+                    <p className={cn("text-[10px] mt-1", isDark ? "text-emerald-400/60" : "text-emerald-600/70")}>
+                      The URL will show 404 until Render finishes the first build.
+                    </p>
                   </div>
                 )}
 
                 {deployError && (
-                  <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-                    <div className="flex items-center gap-2 text-red-400 text-sm font-medium mb-1">
+                  <div className={cn(
+                    "p-3 rounded-lg border",
+                    isDark ? "bg-red-500/10 border-red-500/20" : "bg-red-50 border-red-200"
+                  )}>
+                    <div className={cn("flex items-center gap-2 text-sm font-medium mb-1", isDark ? "text-red-400" : "text-red-700")}>
                       <AlertCircle className="w-4 h-4" />
                       Deploy Failed
                     </div>
-                    <p className="text-xs text-red-300/80">{deployError}</p>
+                    <p className={cn("text-xs", isDark ? "text-red-300/80" : "text-red-600")}>{deployError}</p>
                   </div>
                 )}
 
@@ -7737,18 +7777,18 @@ npx eas build --platform all
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left group",
                       isSharingPreview || !html.trim()
-                        ? "bg-white/[0.02] border-white/[0.05] opacity-50 cursor-not-allowed"
-                        : "bg-violet-500/10 border-violet-400/30 hover:bg-violet-500/15 hover:border-violet-400/50"
+                        ? isDark ? "bg-white/[0.02] border-white/[0.05] opacity-50 cursor-not-allowed" : "bg-slate-100 border-slate-200 opacity-50 cursor-not-allowed"
+                        : isDark ? "bg-violet-500/10 border-violet-400/30 hover:bg-violet-500/15 hover:border-violet-400/50" : "bg-violet-50 border-violet-200 hover:bg-violet-100 hover:border-violet-300"
                     )}
                   >
                     {isSharingPreview ? (
                       <Loader2 className="w-5 h-5 text-violet-400 animate-spin" />
                     ) : (
-                      <Share2 className="w-5 h-5 text-violet-400 group-hover:text-violet-300" />
+                      <Share2 className={cn("w-5 h-5", isDark ? "text-violet-400 group-hover:text-violet-300" : "text-violet-500 group-hover:text-violet-600")} />
                     )}
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-white">Share preview link</div>
-                      <div className="text-[10px] text-zinc-500 truncate">
+                      <div className={cn("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>Share preview link</div>
+                      <div className={cn("text-[10px] truncate", isDark ? "text-zinc-500" : "text-slate-500")}>
                         {previewLink ? previewLink.replace(/^https?:\/\//, '') : 'Instant link · expires in 7 days · no signup'}
                       </div>
                     </div>
@@ -7759,18 +7799,18 @@ npx eas build --platform all
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left group",
                       isDeploying || !html.trim()
-                        ? "bg-white/[0.02] border-white/[0.05] opacity-50 cursor-not-allowed"
-                        : "bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.05]"
+                        ? isDark ? "bg-white/[0.02] border-white/[0.05] opacity-50 cursor-not-allowed" : "bg-slate-100 border-slate-200 opacity-50 cursor-not-allowed"
+                        : isDark ? "bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.05]" : "bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300"
                     )}
                   >
                     {isDeploying && deployStatus === 'github' ? (
                       <Loader2 className="w-5 h-5 text-violet-400 animate-spin" />
                     ) : (
-                      <Github className="w-5 h-5 text-zinc-400 group-hover:text-white" />
+                      <Github className={cn("w-5 h-5", isDark ? "text-zinc-400 group-hover:text-white" : "text-slate-500 group-hover:text-slate-900")} />
                     )}
                     <div className="flex-1">
-                      <div className="text-sm font-medium text-white">Push to GitHub</div>
-                      <div className="text-[10px] text-zinc-600">
+                      <div className={cn("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>Push to GitHub</div>
+                      <div className={cn("text-[10px]", isDark ? "text-zinc-600" : "text-slate-500")}>
                         {isDeploying && deployStatus === 'github' ? 'Creating repository...' : 'Create repository'}
                       </div>
                     </div>
@@ -7781,7 +7821,7 @@ npx eas build --platform all
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left shadow-md",
                       isDeploying || (!html.trim() && Object.keys(vfsFiles).length === 0)
-                        ? "bg-slate-200 dark:bg-white/[0.04] text-slate-500 dark:text-zinc-500 opacity-70 cursor-not-allowed"
+                        ? isDark ? "bg-white/[0.04] text-zinc-500 opacity-70 cursor-not-allowed" : "bg-slate-200 text-slate-400 opacity-70 cursor-not-allowed"
                         : "bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white"
                     )}
                   >
@@ -7803,14 +7843,14 @@ npx eas build --platform all
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left group",
                       !html.trim()
-                        ? "bg-white/[0.02] border-white/[0.05] opacity-50 cursor-not-allowed"
-                        : "bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.05]"
+                        ? isDark ? "bg-white/[0.02] border-white/[0.05] opacity-50 cursor-not-allowed" : "bg-slate-100 border-slate-200 opacity-50 cursor-not-allowed"
+                        : isDark ? "bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.05]" : "bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300"
                     )}
                   >
-                    <Download className="w-5 h-5 text-zinc-400 group-hover:text-white" />
+                    <Download className={cn("w-5 h-5", isDark ? "text-zinc-400 group-hover:text-white" : "text-slate-500 group-hover:text-slate-900")} />
                     <div className="flex-1">
-                      <div className="text-sm font-medium text-white">Export Project</div>
-                      <div className="text-[10px] text-zinc-600">HTML, ZIP, Next.js, or Static</div>
+                      <div className={cn("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>Export Project</div>
+                      <div className={cn("text-[10px]", isDark ? "text-zinc-600" : "text-slate-500")}>HTML, ZIP, Next.js, or Static</div>
                     </div>
                   </button>
 
@@ -7820,14 +7860,14 @@ npx eas build --platform all
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left group",
                       !html.trim()
-                        ? "bg-white/[0.02] border-white/[0.05] opacity-50 cursor-not-allowed"
-                        : "bg-violet-500/10 border-violet-500/30 hover:bg-violet-500/15"
+                        ? isDark ? "bg-white/[0.02] border-white/[0.05] opacity-50 cursor-not-allowed" : "bg-slate-100 border-slate-200 opacity-50 cursor-not-allowed"
+                        : isDark ? "bg-violet-500/10 border-violet-500/30 hover:bg-violet-500/15" : "bg-violet-50 border-violet-200 hover:bg-violet-100"
                     )}
                   >
-                    <Send className="w-5 h-5 text-violet-300 group-hover:text-white" />
+                    <Send className={cn("w-5 h-5", isDark ? "text-violet-300 group-hover:text-white" : "text-violet-500 group-hover:text-violet-700")} />
                     <div className="flex-1">
-                      <div className="text-sm font-medium text-white">Publish to Community</div>
-                      <div className="text-[10px] text-zinc-500">Share your build — others can view + remix</div>
+                      <div className={cn("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>Publish to Community</div>
+                      <div className={cn("text-[10px]", isDark ? "text-zinc-500" : "text-slate-500")}>Share your build — others can view + remix</div>
                     </div>
                   </button>
 
