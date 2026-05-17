@@ -7202,9 +7202,27 @@ npx eas build --platform all
                 exit={{ opacity: 0 }}
                 className="flex-1 overflow-y-auto p-3 space-y-4"
               >
+                <a
+                  href="/video"
+                  target="_blank"
+                  rel="noreferrer"
+                  className={cn(
+                    'flex items-center justify-between p-3 rounded-xl border text-xs font-medium transition-colors',
+                    isDark
+                      ? 'border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20'
+                      : 'border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100'
+                  )}
+                >
+                  <span className="flex items-center gap-2">
+                    <Film className="w-3.5 h-3.5" />
+                    Open Video Studio — Create, Edit, Export ↗
+                  </span>
+                  <ExternalLink className="w-3 h-3 opacity-60" />
+                </a>
+
                 <div className="flex items-center gap-2 text-xs text-purple-400">
                   <Film className="w-4 h-4" />
-                  <span className="font-medium">AI Video Generator</span>
+                  <span className="font-medium">Quick Generate</span>
                 </div>
 
                 {/* Image-to-Video: upload an image and animate it (Stable Video Diffusion) */}
