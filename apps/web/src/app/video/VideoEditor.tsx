@@ -39,10 +39,11 @@ const ASPECT_RATIOS: { id: AspectRatio; label: string; icon: React.ElementType; 
 ]
 
 const VIDEO_MODELS = [
-  { id: 'minimax', label: 'MiniMax', speed: 'Fast', quality: 'Great', badge: 'Popular' },
-  { id: 'kling', label: 'Kling 1.6', speed: 'Medium', quality: 'Best', badge: 'HD' },
-  { id: 'luma', label: 'Luma Dream', speed: 'Medium', quality: 'Best', badge: '' },
-  { id: 'animatediff', label: 'AnimateDiff', speed: 'Fast', quality: 'Good', badge: 'Free-ish' },
+  { id: 'seedance', label: 'Seedance', speed: 'Fast', quality: 'Best', badge: '🔥 Hot' },
+  { id: 'wan', label: 'Wan 2.1', speed: 'Medium', quality: 'Great', badge: 'Open' },
+  { id: 'animatediff', label: 'AnimateDiff', speed: 'Fast', quality: 'Good', badge: '' },
+  { id: 'zeroscope', label: 'Zeroscope XL', speed: 'Fast', quality: 'Good', badge: '' },
+  { id: 'svd', label: 'Stable Video', speed: 'Medium', quality: 'Great', badge: 'Img→Vid' },
 ]
 
 const STYLE_PRESETS = [
@@ -87,14 +88,15 @@ export default function VideoEditor() {
   const isDark = true // video editor is always dark
 
   const generate = async () => {
-    if (!prompt.trim() && generateMode === 'text') return
-    if (!uploadedImage && generateMode === 'image') return
+    if (generateMode === 'text' && !prompt.trim()) return
+    if (generateMode === 'image' && !uploadedImage) return
     setGenerating(true)
     setProgress(5)
-    setProgressLabel('Sending to AI…')
+    setProgressLabel('Sending to Seedance…')
     setError(null)
 
     try {
+      // 1. Start prediction
       const body: Record<string, unknown> = {
         action: generateMode === 'text' ? 'text-to-video' : 'image-to-video',
         prompt: prompt.trim() || 'Animate this image with smooth natural motion',
@@ -103,9 +105,7 @@ export default function VideoEditor() {
         duration,
         style: style || undefined,
       }
-      if (generateMode === 'image' && uploadedImage) {
-        body.imageUrl = uploadedImage
-      }
+      if (generateMode === 'image' && uploadedImage) body.imageUrl = uploadedImage
 
       const res = await fetch('/api/ai/video', {
         method: 'POST',
@@ -113,53 +113,57 @@ export default function VideoEditor() {
         body: JSON.stringify(body),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Generation failed')
+      if (!res.ok) throw new Error(data.error || 'Failed to start generation')
 
-      // Poll for completion
+      const predictionId = data.id
+      if (!predictionId) throw new Error('No prediction ID returned')
+
+      // 2. Poll GET endpoint every 3s — avoids hammering rate limits
       setProgressLabel('AI is rendering your video…')
-      let url = data.videoUrl || data.output?.[0] || data.url
-      if (!url && data.id) {
-        // Poll status
-        let attempts = 0
-        while (attempts < 60) {
-          await new Promise(r => setTimeout(r, 3000))
-          setProgress(Math.min(90, 10 + attempts * 1.5))
-          const poll = await fetch('/api/ai/video', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'status', predictionId: data.id }),
-          })
-          const pollData = await poll.json()
-          if (pollData.status === 'succeeded') {
-            url = pollData.videoUrl || pollData.output?.[0]
-            break
-          }
-          if (pollData.status === 'failed') throw new Error(pollData.error || 'Generation failed')
-          attempts++
+      let videoUrl: string | null = null
+      let attempts = 0
+      const maxAttempts = 80 // 4 minutes max
+
+      while (attempts < maxAttempts) {
+        await new Promise(r => setTimeout(r, 3000))
+        attempts++
+        setProgress(Math.min(88, 8 + attempts * 1.1))
+
+        const poll = await fetch(`/api/ai/video?id=${predictionId}`)
+        const pollData = await poll.json()
+
+        if (pollData.status === 'succeeded') {
+          videoUrl = pollData.videoUrl
+          break
         }
+        if (pollData.status === 'failed') {
+          throw new Error(pollData.error || 'Generation failed on Replicate')
+        }
+        // starting | processing — keep polling
       }
 
-      if (!url) throw new Error('No video URL returned')
+      if (!videoUrl) throw new Error('Generation timed out or returned no video')
+
       setProgress(100)
-      setProgressLabel('Done!')
+      setProgressLabel('Done! 🎬')
 
       const vid: GeneratedVideo = {
-        id: Date.now().toString(),
-        url,
-        prompt: body.prompt as string,
+        id: predictionId,
+        url: videoUrl,
+        prompt: (body.prompt as string),
         mode: generateMode,
         createdAt: new Date(),
         aspectRatio,
       }
       setLibrary(prev => [vid, ...prev])
       setSelectedVideo(vid)
-      setTab('edit')
       setEditingVideo(vid)
+      setTab('edit')
     } catch (e: any) {
       setError(e?.message || 'Generation failed')
     } finally {
       setGenerating(false)
-      setTimeout(() => { setProgress(0); setProgressLabel('') }, 1500)
+      setTimeout(() => { setProgress(0); setProgressLabel('') }, 2000)
     }
   }
 

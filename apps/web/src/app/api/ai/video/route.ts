@@ -3,326 +3,246 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 300 // 5 minutes for video generation
+export const maxDuration = 300
 
-const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN
+const TOKEN = process.env.REPLICATE_API_TOKEN
 
-// Video generation models on Replicate
-const VIDEO_MODELS = {
-  // Image to Video
-  'svd': 'stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172438',
-  'img2vid': 'chenxwh/damo-text-to-video:1e205ea73084bd17a0a3b43396e49ba0d6bc2e754e9283b2df49fad2dcf95755',
+// ── Model registry ──────────────────────────────────────────────────────────
+// isOfficial=true  → POST to /v1/models/{owner}/{name}/predictions
+// isOfficial=false → POST to /v1/predictions with { version: "sha256..." }
+//
+// Seedance is the default — fastest quality-per-second model right now.
+// Supports both text-to-video AND image-to-video with the same endpoint.
 
-  // Text to Video - using verified models
-  'animate-diff': 'lucataco/animate-diff:beecf59c4aee8d81bf04f0381033dfa10dc16e845b4ae00d281e2fa377e48a9f',
-  'zeroscope': 'anotherjesse/zeroscope-v2-xl:9f747673945c62801b13b84701c783929c0ee784e4748ec062204894dda1a351',
-  'wan': 'wan-video/wan-2.1-t2v-480p',
+const MODELS = {
+  seedance: {
+    id: 'bytedance/seedance-1-lite:78c9c4b0a7056c911b0483f58349b9931aff30d6465e7ab665e6c852949ce6d5',
+    label: 'Seedance 1 Lite',
+    isOfficial: false,
+    supportsImage: true,
+    maxDuration: 12,
+    resolutions: ['480p', '720p', '1080p'],
+  },
+  animatediff: {
+    id: 'lucataco/animate-diff:beecf59c4aee8d81bf04f0381033dfa10dc16e845b4ae00d281e2fa377e48a9f',
+    label: 'AnimateDiff',
+    isOfficial: false,
+    supportsImage: false,
+    maxDuration: 4,
+    resolutions: [],
+  },
+  zeroscope: {
+    id: 'anotherjesse/zeroscope-v2-xl:9f747673945c62801b13b84701c783929c0ee784e4748ec062204894dda1a351',
+    label: 'Zeroscope XL',
+    isOfficial: false,
+    supportsImage: false,
+    maxDuration: 3,
+    resolutions: [],
+  },
+  wan: {
+    id: 'wan-video/wan2.1-t2v-480p',
+    label: 'Wan 2.1',
+    isOfficial: true,
+    supportsImage: false,
+    maxDuration: 5,
+    resolutions: [],
+  },
+  svd: {
+    id: 'stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172438',
+    label: 'Stable Video Diffusion',
+    isOfficial: false,
+    supportsImage: true,
+    maxDuration: 4,
+    resolutions: [],
+  },
+} as const
 
-  // Advanced models (may require special access)
-  'kling': 'kuaishou/kling-v1',
-  'luma': 'luma/dream-machine',
-  'minimax': 'minimax/video-01',
-}
+type ModelKey = keyof typeof MODELS
 
 interface VideoRequest {
   action: 'text-to-video' | 'image-to-video' | 'status'
   prompt?: string
   imageUrl?: string
-  model?: keyof typeof VIDEO_MODELS
-  duration?: number // seconds
+  model?: string
+  duration?: number
   fps?: number
-  aspectRatio?: '16:9' | '9:16' | '1:1'
+  aspectRatio?: string
+  resolution?: string
   predictionId?: string
+  style?: string
 }
 
+// ── Route ───────────────────────────────────────────────────────────────────
+
 export async function POST(request: NextRequest) {
-  // Video generation hits Replicate and costs real money per call — gate it
-  // behind auth so anonymous traffic can't burn the budget. (Was wide open.)
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   }
-
-  if (!REPLICATE_API_TOKEN) {
-    return NextResponse.json(
-      { error: 'Replicate API not configured. Add REPLICATE_API_TOKEN to environment.' },
-      { status: 500 }
-    )
+  if (!TOKEN) {
+    return NextResponse.json({ error: 'REPLICATE_API_TOKEN not configured' }, { status: 500 })
   }
 
   try {
     const body: VideoRequest = await request.json()
-    const {
-      action,
-      prompt,
-      imageUrl,
-      model = 'animate-diff',
-      duration = 4,
-      fps = 8,
-      aspectRatio = '16:9'
-    } = body
+    const { action } = body
 
-    switch (action) {
-      case 'text-to-video':
-        if (!prompt) {
-          return NextResponse.json({ error: 'Prompt required for text-to-video' }, { status: 400 })
-        }
-        return await generateTextToVideo(prompt, model, duration, fps, aspectRatio)
-
-      case 'image-to-video':
-        if (!imageUrl) {
-          return NextResponse.json({ error: 'Image URL required for image-to-video' }, { status: 400 })
-        }
-        return await generateImageToVideo(imageUrl, prompt, duration, fps)
-
-      case 'status':
-        if (!body.predictionId) {
-          return NextResponse.json({ error: 'Prediction ID required' }, { status: 400 })
-        }
-        return await checkStatus(body.predictionId)
-
-      default:
-        return NextResponse.json({ error: 'Invalid action. Use: text-to-video, image-to-video, or status' }, { status: 400 })
+    if (action === 'status') {
+      if (!body.predictionId) return NextResponse.json({ error: 'predictionId required' }, { status: 400 })
+      return pollOnce(body.predictionId)
     }
-  } catch (error: unknown) {
-    console.error('Video generation error:', error)
-    const message = error instanceof Error ? error.message : 'Video generation failed'
-    return NextResponse.json({ error: message }, { status: 500 })
+
+    const modelKey = (body.model as ModelKey) || 'seedance'
+    const model = MODELS[modelKey] ?? MODELS.seedance
+
+    if (action === 'image-to-video') {
+      if (!body.imageUrl) return NextResponse.json({ error: 'imageUrl required' }, { status: 400 })
+      return startPrediction(buildImageToVideoInput(body, model, modelKey), model)
+    }
+
+    // text-to-video
+    if (!body.prompt) return NextResponse.json({ error: 'prompt required' }, { status: 400 })
+    return startPrediction(buildTextToVideoInput(body, model, modelKey), model)
+
+  } catch (e: any) {
+    console.error('[video] error:', e?.message)
+    return NextResponse.json({ error: e?.message || 'Video generation failed' }, { status: 500 })
   }
 }
 
-async function generateTextToVideo(
-  prompt: string,
-  model: keyof typeof VIDEO_MODELS,
-  duration: number,
-  fps: number,
-  aspectRatio: string
-) {
-  const modelId = VIDEO_MODELS[model] || VIDEO_MODELS['animate-diff']
-  const isOfficialModel = !modelId.includes(':')
+export async function GET(request: NextRequest) {
+  const id = new URL(request.url).searchParams.get('id')
+  if (!TOKEN) return NextResponse.json({ error: 'REPLICATE_API_TOKEN not configured' }, { status: 500 })
+  if (!id) {
+    return NextResponse.json({
+      models: Object.entries(MODELS).map(([k, v]) => ({
+        id: k, label: v.label, supportsImage: v.supportsImage, maxDuration: v.maxDuration,
+      })),
+      configured: !!TOKEN,
+    })
+  }
+  return pollOnce(id)
+}
 
-  // Build input based on model
-  let input: Record<string, unknown> = {}
+// ── Input builders ───────────────────────────────────────────────────────────
 
-  if (model === 'animate-diff') {
-    input = {
-      prompt: enhancePrompt(prompt),
-      negative_prompt: 'bad quality, worse quality, low resolution, blurry, distorted',
-      num_frames: Math.min(duration * fps, 32),
+function buildTextToVideoInput(body: VideoRequest, model: typeof MODELS[ModelKey], key: ModelKey) {
+  const prompt = enhancePrompt(body.prompt!, body.style)
+  const duration = Math.min(body.duration ?? 5, model.maxDuration)
+  const aspectRatio = body.aspectRatio ?? '16:9'
+
+  if (key === 'seedance') {
+    return {
+      prompt,
+      duration,
+      aspect_ratio: aspectRatio,
+      resolution: body.resolution ?? '480p',
+      fps: body.fps ?? 24,
+      camera_fixed: false,
+    }
+  }
+  if (key === 'animatediff') {
+    return {
+      prompt,
+      negative_prompt: 'bad quality, blurry, distorted, low resolution',
+      num_frames: Math.min(duration * (body.fps ?? 8), 32),
       num_inference_steps: 25,
       guidance_scale: 7.5,
     }
-  } else if (model === 'zeroscope') {
-    input = {
-      prompt: enhancePrompt(prompt),
+  }
+  if (key === 'zeroscope') {
+    return {
+      prompt,
       negative_prompt: 'bad quality, low resolution',
       num_frames: Math.min(duration * 8, 24),
-      fps: fps,
-    }
-  } else if (model === 'kling' || model === 'luma' || model === 'minimax') {
-    input = {
-      prompt: enhancePrompt(prompt),
-      duration: duration,
-      aspect_ratio: aspectRatio,
-    }
-  } else {
-    input = {
-      prompt: enhancePrompt(prompt),
-      num_frames: duration * fps,
+      fps: body.fps ?? 8,
     }
   }
+  if (key === 'wan') {
+    return { prompt, duration }
+  }
+  return { prompt, num_frames: duration * (body.fps ?? 8) }
+}
 
-  const apiUrl = isOfficialModel
+function buildImageToVideoInput(body: VideoRequest, model: typeof MODELS[ModelKey], key: ModelKey) {
+  const duration = Math.min(body.duration ?? 5, model.maxDuration)
+
+  if (key === 'seedance') {
+    return {
+      image: body.imageUrl,
+      prompt: body.prompt ? enhancePrompt(body.prompt) : 'Smooth natural motion',
+      duration,
+      aspect_ratio: body.aspectRatio ?? '16:9',
+      resolution: body.resolution ?? '480p',
+      fps: body.fps ?? 24,
+      camera_fixed: false,
+    }
+  }
+  if (key === 'svd') {
+    return {
+      input_image: body.imageUrl,
+      motion_bucket_id: 127,
+      cond_aug: 0.02,
+      fps: body.fps ?? 8,
+      seed: Math.floor(Math.random() * 1_000_000),
+    }
+  }
+  // fallback: try seedance anyway
+  return {
+    image: body.imageUrl,
+    prompt: body.prompt ? enhancePrompt(body.prompt) : 'Smooth natural motion',
+    duration,
+  }
+}
+
+// ── Replicate helpers ────────────────────────────────────────────────────────
+
+async function startPrediction(input: Record<string, unknown>, model: typeof MODELS[ModelKey]) {
+  const isOfficial = model.isOfficial
+  const modelId = model.id
+
+  const url = isOfficial
     ? `https://api.replicate.com/v1/models/${modelId}/predictions`
     : 'https://api.replicate.com/v1/predictions'
 
-  const requestBody = isOfficialModel
+  const body = isOfficial
     ? { input }
     : { version: modelId.split(':')[1], input }
 
-  const response = await fetch(apiUrl, {
+  const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Authorization': `Token ${REPLICATE_API_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestBody),
+    headers: { Authorization: `Token ${TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
   })
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.detail || 'Failed to start video generation')
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `Replicate error ${res.status}`)
   }
+  const prediction = await res.json()
+  return NextResponse.json({ id: prediction.id, status: prediction.status })
+}
 
-  const prediction = await response.json()
-
-  // For quick models, poll for result
-  if (model === 'animate-diff' || model === 'zeroscope') {
-    const result = await pollForResult(prediction.id, 120) // 2 min timeout
-    return NextResponse.json({
-      success: true,
-      id: result.id,
-      status: result.status,
-      output: result.output,
-      metrics: result.metrics,
-    })
-  }
-
-  // For slower models, return immediately with ID for polling
+async function pollOnce(predictionId: string) {
+  const res = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
+    headers: { Authorization: `Token ${TOKEN}` },
+  })
+  if (!res.ok) throw new Error('Failed to check prediction status')
+  const p = await res.json()
+  // Normalize output — Replicate returns an array for most video models
+  const output = Array.isArray(p.output) ? p.output[0] : p.output
   return NextResponse.json({
-    success: true,
-    id: prediction.id,
-    status: prediction.status,
-    message: 'Video generation started. Use status endpoint to check progress.',
-    urls: prediction.urls,
+    id: p.id,
+    status: p.status,          // starting | processing | succeeded | failed
+    videoUrl: output || null,
+    error: p.error || null,
+    logs: p.logs || null,
   })
 }
 
-async function generateImageToVideo(
-  imageUrl: string,
-  prompt?: string,
-  duration: number = 4,
-  fps: number = 8
-) {
-  // Use Stable Video Diffusion for image-to-video
-  const modelId = VIDEO_MODELS['svd']
-
-  const input: Record<string, unknown> = {
-    input_image: imageUrl,
-    motion_bucket_id: 127,
-    cond_aug: 0.02,
-    decoding_t: 7,
-    fps: fps,
-    seed: Math.floor(Math.random() * 1000000),
+function enhancePrompt(prompt: string, style?: string): string {
+  const suffix = 'high quality, smooth motion, cinematic'
+  if (style && style.toLowerCase() !== 'none') {
+    return `${prompt}, ${style} style, ${suffix}`
   }
-
-  if (prompt) {
-    // Some models support text guidance
-    input.prompt = prompt
-  }
-
-  const response = await fetch(`https://api.replicate.com/v1/models/${modelId}/predictions`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Token ${REPLICATE_API_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ input }),
-  })
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.detail || 'Failed to start image-to-video generation')
-  }
-
-  const prediction = await response.json()
-
-  // Poll for result (SVD is relatively quick)
-  const result = await pollForResult(prediction.id, 180) // 3 min timeout
-
-  return NextResponse.json({
-    success: true,
-    id: result.id,
-    status: result.status,
-    output: result.output,
-    metrics: result.metrics,
-  })
-}
-
-async function checkStatus(predictionId: string) {
-  const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
-    headers: {
-      'Authorization': `Token ${REPLICATE_API_TOKEN}`,
-    },
-  })
-
-  if (!response.ok) {
-    throw new Error('Failed to check prediction status')
-  }
-
-  const prediction = await response.json()
-
-  return NextResponse.json({
-    id: prediction.id,
-    status: prediction.status,
-    output: prediction.output,
-    error: prediction.error,
-    metrics: prediction.metrics,
-    logs: prediction.logs,
-  })
-}
-
-async function pollForResult(predictionId: string, timeoutSeconds: number) {
-  const maxAttempts = timeoutSeconds
-  let attempts = 0
-
-  while (attempts < maxAttempts) {
-    const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
-      headers: {
-        'Authorization': `Token ${REPLICATE_API_TOKEN}`,
-      },
-    })
-
-    const prediction = await response.json()
-
-    if (prediction.status === 'succeeded') {
-      return prediction
-    }
-
-    if (prediction.status === 'failed' || prediction.status === 'canceled') {
-      throw new Error(prediction.error || 'Video generation failed')
-    }
-
-    // Wait 1 second before polling again
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    attempts++
-  }
-
-  throw new Error('Video generation timed out')
-}
-
-function enhancePrompt(prompt: string): string {
-  return `${prompt}, high quality, smooth motion, cinematic, professional video`
-}
-
-// GET endpoint for checking status
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const predictionId = searchParams.get('id')
-
-  if (!predictionId) {
-    // Return available models and capabilities
-    return NextResponse.json({
-      models: Object.keys(VIDEO_MODELS),
-      capabilities: {
-        'text-to-video': ['animate-diff', 'zeroscope', 'kling', 'luma', 'minimax'],
-        'image-to-video': ['svd', 'svd-xt'],
-      },
-      configured: !!REPLICATE_API_TOKEN,
-    })
-  }
-
-  if (!REPLICATE_API_TOKEN) {
-    return NextResponse.json({ error: 'Replicate API not configured' }, { status: 500 })
-  }
-
-  try {
-    const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
-      headers: {
-        'Authorization': `Token ${REPLICATE_API_TOKEN}`,
-      },
-    })
-
-    const prediction = await response.json()
-
-    return NextResponse.json({
-      id: prediction.id,
-      status: prediction.status,
-      output: prediction.output,
-      error: prediction.error,
-      progress: prediction.logs?.match(/(\d+)%/)?.[1] || null,
-    })
-  } catch {
-    return NextResponse.json({ error: 'Failed to check status' }, { status: 500 })
-  }
+  return `${prompt}, ${suffix}`
 }
