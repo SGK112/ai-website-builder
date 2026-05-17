@@ -460,24 +460,34 @@ export default function TemplatesPage() {
             </div>
 
             {/* Preview Area */}
-            <div className="flex-1 overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-4">
+            <div className="flex-1 overflow-auto bg-gradient-to-br from-slate-800 to-slate-900 flex items-start justify-center p-4">
               <div
                 className={cn(
                   'bg-white rounded-lg shadow-2xl overflow-hidden transition-all duration-300',
-                  previewDevice === 'desktop' && 'w-full h-full',
-                  previewDevice === 'tablet' && 'w-[768px] h-[600px] max-w-full',
-                  previewDevice === 'mobile' && 'w-[375px] h-[667px]'
+                  previewDevice === 'desktop' && 'w-full',
+                  previewDevice === 'tablet' && 'w-[768px] max-w-full',
+                  previewDevice === 'mobile' && 'w-[375px]'
                 )}
               >
                 {previewHtml ? (
                   <iframe
                     srcDoc={previewHtml}
-                    className="w-full h-full border-0"
+                    className={cn(
+                      'w-full border-0 block',
+                      previewDevice === 'desktop' && 'h-[800px]',
+                      previewDevice === 'tablet' && 'h-[600px]',
+                      previewDevice === 'mobile' && 'h-[667px]'
+                    )}
                     title={`Preview: ${previewTemplate.name}`}
                     sandbox="allow-scripts"
                   />
                 ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-slate-800 to-slate-900 text-slate-400 px-6">
+                  <div className={cn(
+                    'w-full flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-slate-800 to-slate-900 text-slate-400 px-6',
+                    previewDevice === 'desktop' && 'h-[800px]',
+                    previewDevice === 'tablet' && 'h-[600px]',
+                    previewDevice === 'mobile' && 'h-[667px]'
+                  )}>
                     <img
                       src={previewTemplate.thumbnail_url}
                       alt={previewTemplate.name}
