@@ -152,7 +152,7 @@ import { useSession } from 'next-auth/react'
 import { useProject as useProjectHook } from '@/hooks/useProject'
 import { StarryNight, SunriseBackground } from '@/components/landing/BackgroundEffects'
 import { WebStewPanel, StewIngredient } from '@/components/WebStew'
-import { OnboardingTour } from '@/components/onboarding'
+import { OnboardingTour, SkillPicker } from '@/components/onboarding'
 import { MonacoCodeEditor } from '@/components/editor'
 import { StylePresetPicker, ComponentPicker, ThemeBuilder } from '@/components/builder'
 import { ContentPanel } from '@/components/builder/ContentPanel'
@@ -1872,6 +1872,7 @@ function WorkspaceContent() {
   // Onboarding state
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false)
+  const [showSkillPicker, setShowSkillPicker] = useState(false)
 
   // Deploy state
   const [isDeploying, setIsDeploying] = useState(false)
@@ -2426,12 +2427,18 @@ function WorkspaceContent() {
   // in-progress generation kicked off from the landing-page submit.
   useEffect(() => {
     const hasSeenOnboarding = localStorage.getItem('webstew-onboarding-complete')
+    const hasPickedSkill = localStorage.getItem('workspace-skill-level')
     const isMidGeneration = isGenerating || html.length > 0
     if (!hasSeenOnboarding && hasInitialized && !searchParams.get('prompt') && !isMidGeneration) {
       const timer = setTimeout(() => {
-        // Re-check at timer fire so a generation that started during the delay
-        // still suppresses the tour.
-        if (!isGenerating && html.length === 0) setShowOnboarding(true)
+        if (!isGenerating && html.length === 0) {
+          // Show skill picker first if they haven't chosen a level yet
+          if (!hasPickedSkill) {
+            setShowSkillPicker(true)
+          } else {
+            setShowOnboarding(true)
+          }
+        }
       }, 1500)
       return () => clearTimeout(timer)
     }
@@ -5808,7 +5815,10 @@ npx eas build --platform all
                 return (
                   <button
                     key={level}
-                    onClick={() => setSkillLevel(level)}
+                    onClick={() => {
+                      setSkillLevel(level)
+                      try { localStorage.setItem('workspace-skill-level', level) } catch {}
+                    }}
                     className={cn(
                       'flex flex-col items-center gap-0.5 py-2 px-1 rounded-lg text-[10px] font-medium transition-all',
                       skillLevel === level
@@ -5844,20 +5854,22 @@ npx eas build --platform all
 
             {/* Scrollable tabs container */}
             <div className="flex gap-1 px-2 py-1.5 overflow-x-auto scrollbar-hide scroll-smooth">
-              {[
-                { id: 'build' as Panel, icon: Wand2, label: 'Build', color: 'violet' },
-                { id: 'templates' as Panel, icon: Layout, label: 'Templates', tour: 'templates', color: 'blue' },
-                { id: 'webstew' as Panel, icon: ChefHat, label: 'Stew', tour: 'webstew', color: 'orange' },
-                { id: 'projects' as Panel, icon: FolderOpen, label: 'Files', color: 'emerald' },
-                { id: 'integrations' as Panel, icon: Link2, label: 'Plugins', color: 'cyan' },
-                { id: 'bridge' as Panel, icon: ChefHat, label: 'Bridge', color: 'orange' },
-                { id: 'content' as Panel, icon: FileText, label: 'CMS', color: 'pink' },
-                { id: 'images' as Panel, icon: ImageIcon, label: 'Media', color: 'pink' },
-                { id: 'video' as Panel, icon: Film, label: 'Video', color: 'purple' },
-                { id: 'env' as Panel, icon: Variable, label: 'Env', color: 'yellow' },
-                { id: 'console' as Panel, icon: Terminal, label: 'Log', color: 'green' },
-                { id: 'deploy' as Panel, icon: Rocket, label: 'Ship', tour: 'deploy', color: 'red' },
-              ].map(({ id, icon: Icon, label, tour, color }) => (
+              {([
+                { id: 'build' as Panel, icon: Wand2, label: 'Build', color: 'violet', levels: ['no-code','low-code','full-stack'] },
+                { id: 'templates' as Panel, icon: Layout, label: 'Templates', tour: 'templates', color: 'blue', levels: ['no-code','low-code','full-stack'] },
+                { id: 'webstew' as Panel, icon: ChefHat, label: 'Stew', tour: 'webstew', color: 'orange', levels: ['no-code','low-code','full-stack'] },
+                { id: 'projects' as Panel, icon: FolderOpen, label: 'Files', color: 'emerald', levels: ['no-code','low-code','full-stack'] },
+                { id: 'images' as Panel, icon: ImageIcon, label: 'Media', color: 'pink', levels: ['no-code','low-code','full-stack'] },
+                { id: 'video' as Panel, icon: Film, label: 'Video', color: 'purple', levels: ['no-code','low-code','full-stack'] },
+                { id: 'content' as Panel, icon: FileText, label: 'CMS', color: 'pink', levels: ['low-code','full-stack'] },
+                { id: 'integrations' as Panel, icon: Link2, label: 'Plugins', color: 'cyan', levels: ['low-code','full-stack'] },
+                { id: 'env' as Panel, icon: Variable, label: 'Env', color: 'yellow', levels: ['low-code','full-stack'] },
+                { id: 'console' as Panel, icon: Terminal, label: 'Log', color: 'green', levels: ['full-stack'] },
+                { id: 'bridge' as Panel, icon: ChefHat, label: 'Bridge', color: 'orange', levels: ['full-stack'] },
+                { id: 'deploy' as Panel, icon: Rocket, label: 'Ship', tour: 'deploy', color: 'red', levels: ['no-code','low-code','full-stack'] },
+              ] as { id: Panel; icon: React.ElementType; label: string; tour?: string; color: string; levels: string[] }[])
+                .filter(p => (p.levels as string[]).includes(skillLevel))
+                .map(({ id, icon: Icon, label, tour, color }) => (
                 <button
                   key={id}
                   onClick={() => setActivePanel(id)}
@@ -10963,11 +10975,24 @@ npx eas build --platform all
         )}
       </AnimatePresence>
 
+      {/* Skill level picker — shown before tour for new users who haven't chosen a level */}
+      <SkillPicker
+        isOpen={showSkillPicker}
+        onComplete={(level) => {
+          setSkillLevel(level)
+          try { localStorage.setItem('workspace-skill-level', level) } catch {}
+          setShowSkillPicker(false)
+          // After picking, show the tour appropriate for their level
+          setShowOnboarding(true)
+        }}
+      />
+
       {/* Onboarding Tour */}
       <OnboardingTour
         isOpen={showOnboarding}
         onClose={() => setShowOnboarding(false)}
         onComplete={handleOnboardingComplete}
+        skillLevel={skillLevel}
       />
 
       {/* Inline edit modal — replaces window.prompt() for right-click text/link edits */}

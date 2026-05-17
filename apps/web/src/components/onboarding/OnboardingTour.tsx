@@ -92,19 +92,30 @@ const tourSteps: TourStep[] = [
   },
 ]
 
+// Steps filtered by skill level — Creators get the full guided tour,
+// Builders skip the code step, Developers just get a 3-step orientation.
+const tourStepsByLevel: Record<string, string[]> = {
+  'no-code':    ['welcome', 'chat', 'templates', 'webstew', 'preview', 'styles', 'deploy'],
+  'low-code':   ['welcome', 'chat', 'templates', 'preview', 'styles', 'deploy'],
+  'full-stack': ['welcome', 'chat', 'deploy'],
+}
+
 interface OnboardingTourProps {
   isOpen: boolean
   onClose: () => void
   onComplete: () => void
+  skillLevel?: string
 }
 
-export function OnboardingTour({ isOpen, onClose, onComplete }: OnboardingTourProps) {
+export function OnboardingTour({ isOpen, onClose, onComplete, skillLevel = 'no-code' }: OnboardingTourProps) {
+  const activeIds = tourStepsByLevel[skillLevel] ?? tourStepsByLevel['no-code']
+  const steps = tourSteps.filter(s => activeIds.includes(s.id))
   const [step, setStep] = useState(0)
   const [rect, setRect] = useState<DOMRect | null>(null)
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 })
   const tooltipRef = useRef<HTMLDivElement>(null)
 
-  const current = tourSteps[step]
+  const current = steps[step]
   const Icon = current.icon || Zap
 
   // Position tooltip relative to target
@@ -124,7 +135,7 @@ export function OnboardingTour({ isOpen, onClose, onComplete }: OnboardingTourPr
       const el = document.querySelector(current.target)
       if (!el) {
         // If element not found, try next step or close
-        if (step < tourSteps.length - 1) {
+        if (step < steps.length - 1) {
           setStep(s => s + 1)
         }
         return
@@ -181,7 +192,7 @@ export function OnboardingTour({ isOpen, onClose, onComplete }: OnboardingTourPr
   }, [isOpen, step, current])
 
   const next = useCallback(() => {
-    if (step < tourSteps.length - 1) {
+    if (step < steps.length - 1) {
       setStep(s => s + 1)
     } else {
       onComplete()
@@ -247,7 +258,7 @@ export function OnboardingTour({ isOpen, onClose, onComplete }: OnboardingTourPr
   }
 
   const isWelcome = step === 0
-  const isLastStep = step === tourSteps.length - 1
+  const isLastStep = step === steps.length - 1
 
   return (
     <AnimatePresence>
@@ -358,7 +369,7 @@ export function OnboardingTour({ isOpen, onClose, onComplete }: OnboardingTourPr
                 <div className="flex items-center gap-3">
                   {/* Progress dots */}
                   <div className="flex gap-1.5">
-                    {tourSteps.map((_, i) => (
+                    {steps.map((_, i) => (
                       <button
                         key={i}
                         onClick={() => setStep(i)}
@@ -374,7 +385,7 @@ export function OnboardingTour({ isOpen, onClose, onComplete }: OnboardingTourPr
                     ))}
                   </div>
                   <span className="text-xs text-zinc-500 font-mono">
-                    {step + 1} of {tourSteps.length}
+                    {step + 1} of {steps.length}
                   </span>
                 </div>
 
