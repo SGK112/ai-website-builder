@@ -1032,10 +1032,10 @@ REQUIRED SECTIONS (in this order):
 1. Hero — full-bleed appetizing food photo or warm interior shot, restaurant name in serif/display type, location/neighborhood, hours-today indicator, "Reserve a table" primary CTA and "View menu" secondary CTA.
 2. About / Story — chef's bio or restaurant origin story, philosophy, ~2-3 paragraphs with one supporting image.
 3. Menu — REAL menu sections by category (Starters, Mains, Desserts, Drinks) with item names, 1-line descriptions, and prices. Use a 2-column layout on desktop. Include "Vegetarian", "GF", "Spicy" icon badges where appropriate. AT LEAST 8 menu items.
-4. Gallery — 6-9 image masonry grid of food/interior/staff (use picsum.photos seeds: food, interior, plates).
+4. Gallery — 6-9 image masonry grid of food/interior/staff (use /api/media?q=food&w=600&h=400, /api/media?q=restaurant+interior&w=600&h=400, /api/media?q=plating&w=600&h=400).
 5. Reviews / Testimonials — 3-4 quote cards with diner name + star rating.
 6. Reservations — form with name, party size, date, time, special requests. Use proper input types (date, time, number).
-7. Visit Us — hours table (Mon-Sun), full address, phone, map placeholder (use picsum.photos with seed=map for visual), parking notes.
+7. Visit Us — hours table (Mon-Sun), full address, phone, map placeholder (use /api/media?q=street+map&w=800&h=400 for visual), parking notes.
 8. Footer — brand, social, hours condensed, contact.
 
 The Menu section is the soul of a restaurant site — give it real content, real prices, real descriptions. Do not abbreviate it. Vary the categories based on cuisine type (Italian: Antipasti/Primi/Secondi/Dolci; Asian: Small Plates/Mains/Sushi/Sweets; etc.).`,
@@ -1045,7 +1045,7 @@ This is a software/B2B product site. The sections must build trust with a techni
 
 REQUIRED SECTIONS (in this order):
 1. Hero — bold value-prop headline (problem you solve, not features), subheadline (one sentence on outcome), dual CTAs ("Start free trial" + "Book demo"), hero visual (product UI screenshot mockup using a placeholder image, or animated illustration block).
-2. Logo Cloud — "Trusted by teams at" + 6-8 logo placeholders in a horizontal row (use picsum.photos seeds for grayscale logo-style images).
+2. Logo Cloud — "Trusted by teams at" + 6-8 logo placeholders in a horizontal row (use /api/media?q=company+logo&w=120&h=40 with grayscale CSS filter).
 3. Features — alternating left/right layout with 3-4 features: each has a short headline, 2-line explanation, a small UI mockup image, and a "Learn more →" link. NOT a grid of icons — alternating sections give more visual weight.
 4. How It Works — 3-step numbered process (sign up → integrate → ship). Each step has icon, title, 1-line description.
 5. Pricing — 3 tiers (Starter, Pro, Enterprise) in a comparison table. Each tier: name, monthly price, "best for" tagline, feature checkmark list (5-8 items), CTA button. Highlight the middle tier.
@@ -1060,7 +1060,7 @@ Critical: pricing must be a real comparison table (not 3 cards stacked). Headlin
 This is a personal portfolio for a designer/photographer/writer/creative. The sections must showcase work, not sell software. Skip "features grid", "pricing", "logo cloud". Instead:
 
 REQUIRED SECTIONS (in this order):
-1. Hero — large name in display type, role/discipline subtitle, brief 1-2 sentence intro, primary CTA "View work" + secondary "Get in touch". Hero visual is a striking self-portrait or signature work piece (use picsum.photos with creative seed).
+1. Hero — large name in display type, role/discipline subtitle, brief 1-2 sentence intro, primary CTA "View work" + secondary "Get in touch". Hero visual is a striking self-portrait or signature work piece (use /api/media?q=creative+portrait&w=800&h=900).
 2. About — 2-3 paragraph bio, professional photo, list of "Areas of focus" or "Skills" as tags.
 3. Selected Work / Portfolio Grid — 6-9 project tiles in a masonry or 3-column grid. Each tile: large image, project name overlay, category tag (e.g., "Branding", "Web Design", "Photography"). Hover effect: scale + reveal description.
 4. Featured Case Study — one in-depth project: large hero image, client name, year, role, 2-3 paragraph problem/approach/result writeup, 2-4 supporting images.
@@ -1077,7 +1077,7 @@ This is a real estate agent or brokerage site. Buyers and sellers come here look
 
 REQUIRED SECTIONS (in this order):
 1. Hero — full-width property photo or neighborhood shot, agent name + brokerage, search bar with City / Price Range / Beds / Baths inputs, primary CTA "Browse listings" + secondary "Schedule a tour". Make the search bar prominent.
-2. Featured Listings — grid of 6-9 property cards. Each card: photo, price (formatted with $ + commas), address (street + city), bed/bath/sqft icons with counts, status badge (For Sale / Pending / Sold). Use picsum.photos with house-y seeds.
+2. Featured Listings — grid of 6-9 property cards. Each card: photo, price (formatted with $ + commas), address (street + city), bed/bath/sqft icons with counts, status badge (For Sale / Pending / Sold). Use /api/media?q=house+exterior&w=600&h=400 (vary the q keyword per card: house, home+interior, modern+home, luxury+home, etc.).
 3. Why Work With Me / Agent Bio — professional headshot, 2-3 paragraph bio, license number + brokerage, years in business + total transactions / sales volume stat callouts (e.g., "$50M+ sold").
 4. Market Stats / Neighborhood Insight — 3-4 stat cards (median home price, days on market, # active listings, price per sqft) for the agent's primary market. Sourced from MLS-style data presentation.
 5. Recent Sales — horizontal scroll or grid of 4-6 SOLD properties with sold price, days on market, photo.
@@ -1780,7 +1780,7 @@ Usage rules:
 - Use {{STOCK_SHOWCASE}} for any large feature showcase, about, or story section.
 - Use {{STOCK_FEATURE_1}}, {{STOCK_FEATURE_2}}, etc. for feature cards, gallery items, or service tiles.
 - Place markers EXACTLY as shown inside src="..." — do not modify them.
-- Prefer these markers over picsum.photos URLs. Picsum returns random images; these are matched to the topic.
+- Prefer these markers over /api/media?q=... URLs — markers are topic-matched to the actual prompt.
 - For testimonial avatars, KEEP using https://i.pravatar.cc/SIZE?img=N (markers above are content photos, not portraits).`
 
     return { markers, addendum }
@@ -2192,7 +2192,7 @@ CONTENT REQUIREMENTS:
 - Use relevant industry-specific terminology
 - Include clear calls-to-action
 - Add testimonials with realistic names and quotes
-- Use appropriate picsum.photos images
+- Use /api/media?q=KEYWORD&w=WIDTH&h=HEIGHT for all images (real Pexels photos, always reliable)
 
 FUNCTIONAL REQUIREMENTS:
 - All forms must actually work (proper action, method, inputs)

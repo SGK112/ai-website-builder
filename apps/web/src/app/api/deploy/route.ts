@@ -76,6 +76,18 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
+    // Absolutize /api/media URLs so they still resolve after the site is
+    // deployed as a static bundle on Render (which has no Next.js API layer).
+    const appOrigin =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.RENDER_EXTERNAL_URL ||
+      'https://ai-website-builder-ntzg.onrender.com'
+    finalFiles = finalFiles.map(f =>
+      /\.(html?)$/i.test(f.path)
+        ? { ...f, content: f.content.replace(/(['"\(])\/api\/media\?/g, `$1${appOrigin}/api/media?`) }
+        : f
+    )
+
     // Step 1: Create GitHub repo
     console.log('Creating GitHub repo:', repoName, 'CMS files baked:', cmsCounts)
     const repoUrl = await createGitHubRepo(repoName, finalFiles, githubToken)

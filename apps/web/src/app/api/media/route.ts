@@ -18,10 +18,13 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 // Fallback used when Pexels is unavailable (no API key, network error, rate
-// limited, no results). Returns a deterministic Picsum URL so demos still
-// show *something* — random photo, but consistent across reloads.
-const picsumFallback = (q: string, w: number, h: number) =>
-  `https://picsum.photos/seed/${encodeURIComponent(q.replace(/\W+/g, '-'))}/${w}/${h}`
+// limited, no results). Returns a data-URI SVG placeholder — always loads,
+// never rate-limits, shows the query keyword so it's clear what the image is for.
+const picsumFallback = (q: string, w: number, h: number) => {
+  const label = encodeURIComponent(q.slice(0, 40))
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" fill="#e2e8f0"/><text x="50%" y="50%" font-family="system-ui,sans-serif" font-size="${Math.max(12, Math.min(24, Math.floor(w / 15)))}" fill="#94a3b8" text-anchor="middle" dominant-baseline="middle">${decodeURIComponent(label)}</text></svg>`
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`
+}
 
 // Wraps a promise with a hard timeout. Used so a hung Mongo connection
 // (e.g. local dev pointing at a Mongo that isn't running) doesn't block
