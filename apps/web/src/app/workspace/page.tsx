@@ -181,7 +181,7 @@ import { ExportPanel } from '@/components/builder/ExportPanel'
 
 type DeviceMode = 'desktop' | 'tablet' | 'mobile'
 type ViewMode = 'preview' | 'code' | 'split'
-type Panel = 'build' | 'projects' | 'integrations' | 'images' | 'video' | 'env' | 'console' | 'deploy' | 'webstew' | 'templates' | 'content'
+type Panel = 'build' | 'projects' | 'integrations' | 'bridge' | 'images' | 'video' | 'env' | 'console' | 'deploy' | 'webstew' | 'templates' | 'content'
 type SkillLevel = 'no-code' | 'low-code' | 'full-stack'
 type BuildPhase = 'idle' | 'structure' | 'styling' | 'interactivity' | 'complete'
 type ConsoleLogType = 'log' | 'info' | 'warn' | 'error' | 'success'
@@ -3988,7 +3988,8 @@ ${html}
     { id: 'nav-files', label: 'Go to Files', category: 'navigation', icon: FolderOpen, action: () => setActivePanel('projects') },
     { id: 'nav-images', label: 'Go to Images', category: 'navigation', icon: ImageIcon, action: () => setActivePanel('images') },
     { id: 'nav-video', label: 'Go to Video', category: 'navigation', icon: Film, action: () => setActivePanel('video') },
-    { id: 'nav-integrations', label: 'Go to APIs', category: 'navigation', icon: Link2, action: () => setActivePanel('integrations') },
+    { id: 'nav-integrations', label: 'Go to Plugins', category: 'navigation', icon: Link2, action: () => setActivePanel('integrations') },
+    { id: 'nav-bridge', label: 'Go to Bridge', category: 'navigation', icon: ChefHat, action: () => setActivePanel('bridge') },
     { id: 'nav-env', label: 'Go to Env Variables', category: 'navigation', icon: Variable, action: () => setActivePanel('env') },
     { id: 'nav-console', label: 'Go to Console', category: 'navigation', icon: Terminal, action: () => setActivePanel('console') },
     { id: 'nav-deploy', label: 'Go to Deploy', category: 'navigation', icon: Rocket, action: () => setActivePanel('deploy') },
@@ -5848,7 +5849,8 @@ npx eas build --platform all
                 { id: 'templates' as Panel, icon: Layout, label: 'Templates', tour: 'templates', color: 'blue' },
                 { id: 'webstew' as Panel, icon: ChefHat, label: 'Stew', tour: 'webstew', color: 'orange' },
                 { id: 'projects' as Panel, icon: FolderOpen, label: 'Files', color: 'emerald' },
-                { id: 'integrations' as Panel, icon: Link2, label: 'APIs', color: 'cyan' },
+                { id: 'integrations' as Panel, icon: Link2, label: 'Plugins', color: 'cyan' },
+                { id: 'bridge' as Panel, icon: ChefHat, label: 'Bridge', color: 'orange' },
                 { id: 'content' as Panel, icon: FileText, label: 'CMS', color: 'pink' },
                 { id: 'images' as Panel, icon: ImageIcon, label: 'Media', color: 'pink' },
                 { id: 'video' as Panel, icon: Film, label: 'Video', color: 'purple' },
@@ -6526,12 +6528,24 @@ npx eas build --platform all
                 exit={{ opacity: 0 }}
                 className="flex-1 overflow-y-auto"
               >
-                {/* Local Claude bridge — pair + status. Lives here so the
-                    user can swap chat infra (Webstew Claude → their
-                    Pro/Max subscription) without leaving the workspace. */}
-                <div className="p-3 border-b border-white/[0.05]">
-                  <BridgePanel />
-                </div>
+                {/* Composio AI tools link */}
+                <a
+                  href="/integrations"
+                  target="_blank"
+                  rel="noreferrer"
+                  className={cn(
+                    'flex items-center justify-between px-3 py-2.5 border-b text-xs font-medium transition-colors',
+                    isDark
+                      ? 'border-white/[0.05] text-violet-300 hover:bg-white/[0.04]'
+                      : 'border-slate-200 text-violet-700 hover:bg-violet-50'
+                  )}
+                >
+                  <span className="flex items-center gap-2">
+                    <Plug className="w-3.5 h-3.5" />
+                    Connect AI tools — Gmail, Slack, HubSpot…
+                  </span>
+                  <ExternalLink className="w-3 h-3 opacity-60" />
+                </a>
 
                 {/* Category Filter */}
                 <div className="p-2 border-b border-white/[0.05]">
@@ -7456,6 +7470,14 @@ npx eas build --platform all
                     </p>
                   </div>
                 </div>
+              </motion.div>
+            )}
+
+            {/* Bridge Panel */}
+            {!sidebarCollapsed && activePanel === 'bridge' && (
+              <motion.div key="bridge" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="flex-1 overflow-y-auto p-3">
+                <BridgePanel />
               </motion.div>
             )}
 

@@ -1,2 +1,2 @@
-#!/usr/bin/env sh
-exec node "$(dirname "$0")/../dist/cli.js" "$@"
+#!/usr/bin/env node
+require('../dist/cli.js')
