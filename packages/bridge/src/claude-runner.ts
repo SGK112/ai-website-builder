@@ -99,13 +99,12 @@ export async function runClaudeOnce(opts: RunOpts): Promise<void> {
     '--output-format',
     'stream-json',
     '--verbose',
-    // bypassPermissions: skips permission prompts entirely (no TTY in
-    // --print mode anyway). acceptEdits only auto-approves the Edit
-    // tool — MCP tools were getting silently denied, which is why
-    // chef text-pretended to call them instead of actually calling.
+    // Try --permission-mode acceptEdits first (auto-approve Edit tool).
+    // bypassPermissions was added later and might not exist in all
+    // CLI versions. acceptEdits at least works for most tools.
     // The user already authorized everything by initiating the chat.
     '--permission-mode',
-    'bypassPermissions',
+    'acceptEdits',
     '--mcp-config',
     mcpConfigPath,
     ...pickModelFlag(request.model),
@@ -139,6 +138,16 @@ export async function runClaudeOnce(opts: RunOpts): Promise<void> {
     else opts.signal.addEventListener('abort', onAbort, { once: true })
   }
 
+  // Timeout safety: if the claude process hangs for >90s (likely waiting
+  // on stdin for a permission prompt due to unsupported --permission-mode
+  // flag), kill it and emit an error.
+  const processTimeout = setTimeout(() => {
+    if (!child.killed) {
+      stderr += '\n[bridge] Process hung for 90s, killing.'
+      try { child.kill('SIGKILL') } catch {}
+    }
+  }, 90_000)
+
   let stderr = ''
   let stdoutTail = ''
   child.stderr.on('data', (b) => { stderr += b.toString() })
@@ -167,7 +176,10 @@ export async function runClaudeOnce(opts: RunOpts): Promise<void> {
 
   // 5. Process exit.
   const exitCode: number = await new Promise((res) => {
-    child.on('close', (c) => res(c ?? 1))
+    child.on('close', (c) => {
+      clearTimeout(processTimeout)
+      res(c ?? 1)
+    })
   })
 
   // 6. Diff filesystem and emit file_update / file_delete.
