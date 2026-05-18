@@ -1908,6 +1908,7 @@ function WorkspaceContent() {
   }
   const bridgeActive = bridgeConnected && bridgePathEnabled
   const [userCredits, setUserCredits] = useState<number | null>(null)
+  const [userPlan, setUserPlan] = useState<string>('free')
   const [apiKeys, setApiKeys] = useState<{
     anthropic: string
     openai: string
@@ -2148,10 +2149,10 @@ function WorkspaceContent() {
       if (res.ok) {
         const data = await res.json()
         setUserCredits(data.credits)
+        if (data.plan) setUserPlan(data.plan)
       }
     } catch (e) {
       console.error('Failed to fetch credits:', e)
-      // Default to demo credits on error
       setUserCredits(100)
     }
   }, [])
@@ -8284,18 +8285,26 @@ npx eas build --platform all
                   </button>
                 )}
                 {session?.user && userCredits !== null && (
-                  <div className={cn(
-                    'flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium',
-                    bridgeActive ? 'bg-white/[0.03] text-zinc-500 line-through opacity-60' :
-                    userCredits < 10 ? 'bg-red-500/10 text-red-400' :
-                    userCredits < 50 ? 'bg-amber-500/10 text-amber-400' :
-                    'bg-emerald-500/10 text-emerald-400'
-                  )}
-                  title={bridgeActive ? 'Your chef is cooking — credits stay on the shelf' : `${userCredits} credits in the pantry`}
+                  <button
+                    onClick={() => !bridgeActive && setUpgradeModal({ open: true, trigger: userCredits < 20 ? 'low_credits' : 'manual' })}
+                    className={cn(
+                      'flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all',
+                      bridgeActive ? 'bg-white/[0.03] text-zinc-500 opacity-60 cursor-default' :
+                      userCredits < 10 ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' :
+                      userCredits < 50 ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' :
+                      'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+                    )}
+                    title={bridgeActive ? 'Bridge active — credits paused' : `${userCredits} credits · click to top up`}
                   >
                     <Coins className="w-3 h-3" />
-                    <span>{userCredits}</span>
-                  </div>
+                    <span>{userCredits.toLocaleString()}</span>
+                    {userPlan && userPlan !== 'free' && userPlan !== 'demo' && (
+                      <span className="opacity-50 hidden sm:inline">· {userPlan}</span>
+                    )}
+                    {userCredits < 20 && !bridgeActive && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                    )}
+                  </button>
                 )}
               </div>
             </div>
