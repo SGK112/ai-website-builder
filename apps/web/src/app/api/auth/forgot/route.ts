@@ -13,15 +13,13 @@ export const dynamic = 'force-dynamic'
 
 const TTL_MS = 60 * 60 * 1000 // 1 hour
 
-function sign(payload: string): string {
+// Inline — Next.js route files only allow GET/POST/etc. exports plus the
+// `dynamic` / `runtime` config consts. Non-handler exports break the build.
+function makeResetToken(email: string): string {
   const secret = process.env.NEXTAUTH_SECRET || ''
-  return createHmac('sha256', secret).update(payload).digest('hex')
-}
-
-export function makeResetToken(email: string): string {
   const exp = Date.now() + TTL_MS
   const body = `${email.toLowerCase()}:${exp}`
-  const sig = sign(body)
+  const sig = createHmac('sha256', secret).update(body).digest('hex')
   return Buffer.from(`${body}:${sig}`).toString('base64url')
 }
 
