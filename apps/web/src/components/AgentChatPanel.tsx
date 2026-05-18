@@ -370,9 +370,12 @@ function EventView({ event }: { event: AgentEvent }) {
   const [expanded, setExpanded] = useState(false)
 
   if (event.type === 'text') {
+    // Defensive: the agent route should no longer stream raw model narration,
+    // but if any leaks through (legacy server, error path), render it dim and
+    // small so it doesn't compete with the tool chips / done summary.
     const text = event.data.text || ''
     if (!text.trim()) return null
-    return <div className="text-slate-200 leading-relaxed whitespace-pre-wrap">{text}</div>
+    return <div className="text-[11px] text-slate-500 italic px-2 py-1 leading-snug">{text}</div>
   }
 
   if (event.type === 'tool_use') {

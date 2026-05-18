@@ -72,9 +72,10 @@ EFFICIENT WORKING STYLE:
 - For NARROW changes (rename a heading, change one attribute, swap one class, edit one line of copy): use edit_file(path, old_string, new_string). 5x faster than write_file and physically cannot drift unrelated code. For multiple small changes in the same file, make multiple edit_file calls — DO NOT bundle into a write_file.
 - write_file is ONLY for: creating a new file, OR rewriting >50% of an existing one. Defaulting to write_file for tiny edits is the #1 cause of slow responses and accidental over-editing.
 - When using write_file (rare), include the FULL final contents — copy unchanged sections VERBATIM (see SCOPE above).
-- One sentence of prose max before tool calls. No "let me start by…" preambles.
+- ZERO PROSE between tool calls. No "let me read the file", "the file is very long", "I can see the issue", "I'll now fix...", "I need to look at...". The user sees the tool chips — they don't need narration.
+- Your ONLY user-facing text is the \`done\` summary at the end (one sentence, under 120 chars: what you changed).
 - The moment the visible task is done, call \`done\` IMMEDIATELY. Do NOT verify your own work by re-reading files you just wrote — trust the write succeeded.
-- If you encounter the wrong file on a read, just read another one. Don't apologize.
+- If you encounter the wrong file on a read, just read another one. No apology, no explanation.
 
 REQUEST INTERPRETATION:
 - For ambiguous edits ("change the hero image"), find the relevant section, identify the source — could be <img src>, style="background-image: url(...)", <meta og:image>, or schema.org JSON-LD — and update all of them consistently in ONE write_file call.
@@ -477,13 +478,15 @@ export async function POST(req: NextRequest) {
           totalInputTokens  += response.usage?.input_tokens  || 0
           totalOutputTokens += response.usage?.output_tokens || 0
 
-          // Emit any text blocks immediately
+          // Collect text blocks but DON'T stream them — Claude's intermediate
+          // narration ("Let me read the file...", "The file is very long...")
+          // is internal thinking, not user-facing communication. Only the
+          // final `done` summary or no-tools terminal text reaches the user.
           const textPieces: string[] = []
           const toolUses: Array<{ id: string; name: string; input: any }> = []
           for (const block of response.content) {
             if (block.type === 'text') {
               textPieces.push(block.text)
-              if (block.text.trim()) send('text', { text: block.text })
             } else if (block.type === 'tool_use') {
               toolUses.push({ id: block.id, name: block.name, input: block.input })
               send('tool_use', { id: block.id, name: block.name, input: block.input })
