@@ -1,12 +1,10 @@
 'use client'
 
-// SiteGraderModal — runs the grader against the current draft HTML and
-// renders the score + issues. Pure presentation; the workspace toolbar
-// button toggles `open`. Re-uses the same /api/tools/grade endpoint the
-// agent uses, just with a richer UI presentation.
-
-import { useEffect, useState } from 'react'
-import { Loader2, X, CheckCircle, AlertTriangle, Lightbulb, RefreshCw, Award, Wand2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import {
+  AlertTriangle, Award, CheckCircle2, ChevronRight, Loader2,
+  Lightbulb, RefreshCw, RotateCcw, TrendingUp, Wand2, X,
+} from 'lucide-react'
 
 interface GraderResult {
   success?: boolean
@@ -32,10 +30,11 @@ interface Props {
   html: string
   deployedUrl?: string | null
   isDark?: boolean
-  // Hand the current grade report off to the agent and let it apply the
-  // top actionable fixes. The workspace wires this to handleChatMessage.
-  onAutoFix?: (issues: string[], recommendations: string[]) => void
+  // Returns a Promise that resolves when the agent finishes the fix pass.
+  onAutoFix?: (issues: string[], recommendations: string[]) => Promise<void> | void
 }
+
+const MAX_ROUNDS = 3
 
 export function SiteGraderModal({ open, onClose, html, deployedUrl, isDark = true, onAutoFix }: Props) {
   const [mode, setMode] = useState<'draft' | 'deployed'>('draft')
@@ -43,7 +42,13 @@ export function SiteGraderModal({ open, onClose, html, deployedUrl, isDark = tru
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function run() {
+  // Fix loop display state
+  const [loopPhase, setLoopPhase] = useState<'idle' | 'agent' | 'grading' | 'done'>('idle')
+  const [loopRound, setLoopRound] = useState(0)
+  const [loopStartScore, setLoopStartScore] = useState(0)
+  const loopActiveRef = useRef(false)
+
+  async function run(): Promise<GraderResult | null> {
     setLoading(true); setError(null); setResult(null)
     try {
       const body: any = mode === 'deployed' && deployedUrl
@@ -57,20 +62,69 @@ export function SiteGraderModal({ open, onClose, html, deployedUrl, isDark = tru
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       setResult(data)
+      return data as GraderResult
     } catch (e: any) {
       setError(e?.message || 'Grade failed')
+      return null
     } finally {
       setLoading(false)
     }
   }
 
-  // Auto-run on open
+  async function startFixLoop(initialResult: GraderResult) {
+    if (!onAutoFix || mode !== 'draft') return
+    loopActiveRef.current = true
+    const startScore = initialResult.scores.overall
+
+    setLoopStartScore(startScore)
+    setLoopPhase('agent')
+    setLoopRound(1)
+
+    let current = initialResult
+    for (let round = 1; round <= MAX_ROUNDS; round++) {
+      if (!loopActiveRef.current || !current.issues?.length) break
+
+      setLoopRound(round)
+      setLoopPhase('agent')
+
+      await onAutoFix(current.issues, current.recommendations ?? [])
+
+      if (!loopActiveRef.current) break
+
+      setLoopPhase('grading')
+      const next = await run()
+      if (!next || !loopActiveRef.current) break
+
+      const improved = next.scores.overall > current.scores.overall
+      current = next
+
+      if (!improved || !current.issues?.length || round === MAX_ROUNDS) break
+
+      // Brief pause so the user can see the new score before the next round
+      await new Promise(r => setTimeout(r, 1200))
+    }
+
+    loopActiveRef.current = false
+    setLoopPhase('done')
+  }
+
+  // Auto-run on open; reset loop when mode changes
   useEffect(() => {
     if (open && !result && !loading) void run()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, mode])
 
+  // Cancel loop if modal closes mid-run
+  useEffect(() => {
+    if (!open) loopActiveRef.current = false
+  }, [open])
+
   if (!open) return null
+
+  const loopInProgress = loopPhase === 'agent' || loopPhase === 'grading'
+  const scoreGain = (loopPhase === 'done' || loopInProgress) && result
+    ? result.scores.overall - loopStartScore
+    : null
 
   return (
     <div
@@ -88,14 +142,30 @@ export function SiteGraderModal({ open, onClose, html, deployedUrl, isDark = tru
           <div className="flex items-center gap-2">
             <Award className={`w-5 h-5 ${isDark ? 'text-violet-300' : 'text-violet-700'}`} />
             <div className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>Site grader</div>
+            {loopInProgress && (
+              <div className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-violet-500/15 text-violet-300' : 'bg-violet-100 text-violet-700'}`}>
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Round {loopRound}/{MAX_ROUNDS} — {loopPhase === 'agent' ? 'agent fixing…' : 're-grading…'}
+              </div>
+            )}
+            {loopPhase === 'done' && scoreGain !== null && (
+              <div className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
+                scoreGain > 0
+                  ? (isDark ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-100 text-emerald-700')
+                  : (isDark ? 'bg-zinc-700 text-zinc-400' : 'bg-slate-100 text-slate-500')
+              }`}>
+                <TrendingUp className="w-3 h-3" />
+                {scoreGain > 0 ? `+${scoreGain} pts` : 'No gain'}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
-            {deployedUrl && (
+            {deployedUrl && !loopInProgress && (
               <div className={`flex rounded-lg p-0.5 border text-[11px] ${isDark ? 'bg-white/[0.04] border-white/[0.08]' : 'bg-slate-100 border-slate-200'}`}>
                 {(['draft', 'deployed'] as const).map(m => (
                   <button
                     key={m}
-                    onClick={() => { setMode(m); setResult(null) }}
+                    onClick={() => { setMode(m); setResult(null); setLoopPhase('idle') }}
                     className={`px-2 py-1 rounded-md transition ${
                       mode === m
                         ? (isDark ? 'bg-violet-500/20 text-violet-200' : 'bg-violet-100 text-violet-700')
@@ -107,14 +177,25 @@ export function SiteGraderModal({ open, onClose, html, deployedUrl, isDark = tru
                 ))}
               </div>
             )}
-            <button
-              onClick={run}
-              disabled={loading}
-              className={`p-1.5 rounded-md ${isDark ? 'hover:bg-white/5 text-zinc-400' : 'hover:bg-slate-100 text-slate-500'}`}
-              title="Re-grade"
-            >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            </button>
+            {!loopInProgress && (
+              <button
+                onClick={() => { setLoopPhase('idle'); void run() }}
+                disabled={loading}
+                className={`p-1.5 rounded-md ${isDark ? 'hover:bg-white/5 text-zinc-400' : 'hover:bg-slate-100 text-slate-500'}`}
+                title="Re-grade"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              </button>
+            )}
+            {loopInProgress && (
+              <button
+                onClick={() => { loopActiveRef.current = false; setLoopPhase('idle') }}
+                className={`p-1.5 rounded-md ${isDark ? 'hover:bg-white/5 text-zinc-400' : 'hover:bg-slate-100 text-slate-500'}`}
+                title="Stop loop"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            )}
             <button
               onClick={onClose}
               className={`p-1.5 rounded-md ${isDark ? 'hover:bg-white/5 text-zinc-400' : 'hover:bg-slate-100 text-slate-500'}`}
@@ -130,7 +211,34 @@ export function SiteGraderModal({ open, onClose, html, deployedUrl, isDark = tru
             <div className="py-16 flex flex-col items-center justify-center gap-3">
               <Loader2 className={`w-6 h-6 animate-spin ${isDark ? 'text-violet-400' : 'text-violet-600'}`} />
               <div className={`text-sm ${isDark ? 'text-zinc-400' : 'text-slate-500'}`}>
-                Analysing {mode === 'deployed' ? 'live site' : 'draft HTML'}…
+                {loopPhase === 'grading'
+                  ? `Re-grading after round ${loopRound} fixes…`
+                  : `Analysing ${mode === 'deployed' ? 'live site' : 'draft HTML'}…`}
+              </div>
+            </div>
+          )}
+
+          {/* Agent-running placeholder */}
+          {!loading && loopPhase === 'agent' && (
+            <div className="py-10 flex flex-col items-center justify-center gap-3">
+              <Wand2 className={`w-6 h-6 ${isDark ? 'text-violet-400' : 'text-violet-600'}`} />
+              <div className={`text-sm font-medium ${isDark ? 'text-zinc-200' : 'text-slate-800'}`}>
+                Agent is applying fixes — round {loopRound} of {MAX_ROUNDS}
+              </div>
+              <div className={`text-xs ${isDark ? 'text-zinc-500' : 'text-slate-500'}`}>
+                Will re-grade automatically when done
+              </div>
+              <div className="flex gap-1 mt-2">
+                {Array.from({ length: MAX_ROUNDS }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={`h-1.5 w-8 rounded-full transition-colors ${
+                      i < loopRound
+                        ? (isDark ? 'bg-violet-500' : 'bg-violet-600')
+                        : (isDark ? 'bg-white/10' : 'bg-slate-200')
+                    }`}
+                  />
+                ))}
               </div>
             </div>
           )}
@@ -145,10 +253,10 @@ export function SiteGraderModal({ open, onClose, html, deployedUrl, isDark = tru
             </div>
           )}
 
-          {result && !loading && !error && (
+          {result && !loading && loopPhase !== 'agent' && (
             <>
-              <OverallScore result={result} isDark={isDark} />
-              <BucketRow label="SEO"        items={[
+              <OverallScore result={result} isDark={isDark} scoreGain={loopPhase === 'done' ? scoreGain : null} />
+              <BucketRow label="SEO" items={[
                 ['Meta tags', result.scores.seo.meta_tags],
                 ['Headings', result.scores.seo.headings],
                 ['Schema.org', result.scores.seo.structured_data],
@@ -171,29 +279,44 @@ export function SiteGraderModal({ open, onClose, html, deployedUrl, isDark = tru
               {result.recommendations?.length > 0 && (
                 <Section title="Recommendations" icon={Lightbulb} color="violet" items={result.recommendations} isDark={isDark} />
               )}
+
+              {loopPhase === 'done' && scoreGain !== null && scoreGain > 0 && !result.issues?.length && (
+                <div className={`p-3 rounded-xl flex items-center gap-2 ${isDark ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-300' : 'bg-emerald-50 border border-emerald-200 text-emerald-700'}`}>
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span className="text-sm">All actionable issues resolved. Score improved by {scoreGain} pts.</span>
+                </div>
+              )}
             </>
           )}
         </div>
 
-        {/* Footer — "Fix issues" hands the report to the agent. Only useful
-            when grading the draft (agent edits files, can't reach a live
-            URL directly). Hidden when mode === 'deployed' to avoid implying
-            it can re-deploy automatically. */}
-        {result && !loading && onAutoFix && mode === 'draft' && (result.issues?.length > 0 || result.recommendations?.length > 0) && (
+        {/* Footer */}
+        {result && !loading && onAutoFix && mode === 'draft' && loopPhase === 'idle' && (result.issues?.length > 0 || result.recommendations?.length > 0) && (
           <div className={`px-5 py-3 border-t flex items-center justify-between gap-3 ${isDark ? 'border-white/[0.06] bg-white/[0.02]' : 'border-slate-200 bg-slate-50'}`}>
             <div className={`text-xs ${isDark ? 'text-zinc-400' : 'text-slate-600'}`}>
-              Hand this report to the agent and it will rewrite{' '}
-              <span className="font-mono text-[10px]">index.html</span> to fix the actionable items.
+              Agent fixes issues then re-grades, up to {MAX_ROUNDS}× — stops when score plateaus.
             </div>
             <button
-              onClick={() => {
-                onAutoFix(result.issues || [], result.recommendations || [])
-                onClose()
-              }}
+              onClick={() => result && void startFixLoop(result)}
               className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white text-xs font-medium flex items-center gap-1.5 shadow-sm whitespace-nowrap"
             >
               <Wand2 className="w-3.5 h-3.5" />
-              Fix issues
+              Fix &amp; iterate
+              <ChevronRight className="w-3 h-3 opacity-70" />
+            </button>
+          </div>
+        )}
+
+        {result && !loading && loopPhase === 'done' && (result.issues?.length > 0) && (
+          <div className={`px-5 py-3 border-t flex items-center justify-between gap-3 ${isDark ? 'border-white/[0.06] bg-white/[0.02]' : 'border-slate-200 bg-slate-50'}`}>
+            <div className={`text-xs ${isDark ? 'text-zinc-400' : 'text-slate-600'}`}>
+              {MAX_ROUNDS} rounds complete — remaining issues may need new content from you.
+            </div>
+            <button
+              onClick={onClose}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium ${isDark ? 'bg-white/5 hover:bg-white/10 text-zinc-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
+            >
+              Done
             </button>
           </div>
         )}
@@ -209,11 +332,22 @@ function scoreColor(n: number, isDark: boolean) {
   return isDark ? 'text-red-300' : 'text-red-700'
 }
 
-function OverallScore({ result, isDark }: { result: GraderResult; isDark: boolean }) {
+function OverallScore({ result, isDark, scoreGain }: { result: GraderResult; isDark: boolean; scoreGain: number | null }) {
   const overall = result.scores.overall
   return (
     <div className={`p-4 rounded-xl border flex items-center gap-4 ${isDark ? 'bg-white/[0.02] border-white/[0.06]' : 'bg-slate-50 border-slate-200'}`}>
-      <div className={`text-5xl font-bold tabular-nums ${scoreColor(overall, isDark)}`}>{overall}</div>
+      <div className="flex items-end gap-1.5">
+        <div className={`text-5xl font-bold tabular-nums ${scoreColor(overall, isDark)}`}>{overall}</div>
+        {scoreGain !== null && scoreGain !== 0 && (
+          <div className={`text-base font-semibold mb-1 tabular-nums ${
+            scoreGain > 0
+              ? (isDark ? 'text-emerald-400' : 'text-emerald-600')
+              : (isDark ? 'text-red-400' : 'text-red-600')
+          }`}>
+            {scoreGain > 0 ? `+${scoreGain}` : scoreGain}
+          </div>
+        )}
+      </div>
       <div className="flex-1">
         <div className={`text-2xl font-bold ${scoreColor(overall, isDark)}`}>Grade {result.scores.overall_grade}</div>
         <div className={`text-xs ${isDark ? 'text-zinc-500' : 'text-slate-500'}`}>

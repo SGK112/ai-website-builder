@@ -145,6 +145,7 @@ import {
   FileDown,
   Edit3,
   Link as LinkIcon,
+  Paperclip,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/context/ThemeContext'
@@ -1916,6 +1917,10 @@ function WorkspaceContent() {
   // when a request starts, aborted by the Stop button below the chat
   // input, and cleared when isThinking flips off.
   const agentAbortRef = useRef<AbortController | null>(null)
+  // Resolve callback for the auto-fix loop Promise. The grader's onAutoFix
+  // returns a Promise; this ref holds the resolve so that when isThinking
+  // transitions to false, the Promise resolves and the loop can re-grade.
+  const autoFixResolveRef = useRef<(() => void) | null>(null)
   const stopAgent = () => {
     const c = agentAbortRef.current
     if (!c) return
@@ -1939,9 +1944,20 @@ function WorkspaceContent() {
     }
   }, [chatMessages, isThinking])
 
+  // Resolve the auto-fix loop Promise when the agent finishes
+  useEffect(() => {
+    if (!isThinking && autoFixResolveRef.current) {
+      const resolve = autoFixResolveRef.current
+      autoFixResolveRef.current = null
+      resolve()
+    }
+  }, [isThinking])
+
   // Drag and drop state for images
   const [draggedImageUrl, setDraggedImageUrl] = useState<string | null>(null)
   const [isDraggingImage, setIsDraggingImage] = useState(false)
+  const [docIngesting, setDocIngesting] = useState(false)
+  const docFileRef = useRef<HTMLInputElement>(null)
 
   // Agent Mode state - Manus-like autonomous AI agent
   // Agent mode removed for simplicity
@@ -2723,6 +2739,9 @@ function WorkspaceContent() {
     setHtml(project.html)
     setEnvVars(project.envVars)
     setSkillLevel(project.skillLevel)
+    if (project.skillLevel === 'full-stack') setViewMode('code')
+    else if (project.skillLevel === 'low-code') setViewMode('split')
+    else setViewMode('preview')
 
     // Restore multi-target VFS if present. The buildTarget is stored either
     // directly on the project (local save) or in _webstew_meta.json (cloud).
@@ -4517,6 +4536,28 @@ ${html}
     return { x, y }
   }, [contextMenu.x, contextMenu.y])
 
+  // Ingest a PDF and turn it into a site-generation prompt
+  const handleDocUpload = async (file: File) => {
+    if (!file) return
+    setDocIngesting(true)
+    addToast('info', `Reading ${file.name}…`)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/builder/ingest-doc', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      const prompt = data.generationPrompt || `Build a website from this document: ${data.summary || file.name}`
+      setCommandInput(prompt)
+      addToast('success', `${data.suggestedSiteType || 'Document'} detected — review the prompt and send`)
+    } catch (e: any) {
+      addToast('error', `Document read failed: ${e?.message || 'Unknown error'}`)
+    } finally {
+      setDocIngesting(false)
+      if (docFileRef.current) docFileRef.current.value = ''
+    }
+  }
+
   // Handle conversational chat with AI assistant
   const handleChatMessage = async (message: string) => {
     if (!message.trim() || isGenerating || isThinking) return
@@ -5839,6 +5880,10 @@ npx eas build --platform all
                     onClick={() => {
                       setSkillLevel(level)
                       try { localStorage.setItem('workspace-skill-level', level) } catch {}
+                      // Each mode has a natural view: Visual=preview, Hybrid=split, Dev=code
+                      if (level === 'no-code') setViewMode('preview')
+                      else if (level === 'low-code') setViewMode('split')
+                      else setViewMode('code') // full-stack Developer Mode — full Monaco
                     }}
                     className={cn(
                       'flex flex-col items-center gap-0.5 py-2 px-1 rounded-lg text-[10px] font-medium transition-all',
@@ -7903,13 +7948,44 @@ npx eas build --platform all
                   <MessageSquare className={cn("w-4 h-4", isDark ? "text-zinc-400" : "text-slate-500")} />
                 )}
               </div>
+              {/* Hidden PDF file input */}
+              <input
+                ref={docFileRef}
+                type="file"
+                accept=".pdf,application/pdf"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) void handleDocUpload(f)
+                }}
+              />
+              {/* Paperclip — upload PDF to generate a site from it */}
+              <button
+                type="button"
+                onClick={() => docFileRef.current?.click()}
+                disabled={docIngesting || isGenerating || isThinking}
+                title="Upload a PDF (bid, plans, proposal) to build a site from it"
+                className={cn(
+                  'w-7 h-7 rounded-md flex items-center justify-center shrink-0 transition-all',
+                  docIngesting
+                    ? 'bg-violet-500/20 text-violet-400 animate-pulse'
+                    : isDark
+                      ? 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
+                      : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200'
+                )}
+              >
+                {docIngesting
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <Paperclip className="w-3.5 h-3.5" />
+                }
+              </button>
               <input
                 ref={inputRef}
                 type="text"
                 value={commandInput}
                 onChange={(e) => setCommandInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCommandSubmit()}
-                placeholder={isGenerating ? 'Creating...' : 'Chat with AI...'}
+                placeholder={isGenerating ? 'Creating...' : 'Chat with AI or upload a PDF…'}
                 disabled={isGenerating}
                 className={cn(
                   "flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/50 disabled:opacity-50",
@@ -9282,14 +9358,16 @@ npx eas build --platform all
         isDark={isDark}
         onAutoFix={(issues, recommendations) => {
           const combined = [...issues, ...recommendations]
-          if (combined.length === 0) return
+          if (combined.length === 0) return Promise.resolve()
           const bullets = combined.slice(0, 12).map(s => `- ${s}`).join('\n')
-          handleChatMessage(
-            `Fix the SEO / technical issues below in index.html. Apply ONLY actionable changes that don't require new content from me (meta description, viewport, schema.org JSON-LD, alt text on existing images, canonical link, heading structure, etc.). Leave a brief summary of what you changed.\n\n${bullets}`,
-          )
-          // Briefly nudge focus to chat — the panel update is on the right
-          // sidebar so the user sees the agent working.
-          setActivePanel('build')
+          return new Promise<void>(resolve => {
+            autoFixResolveRef.current = resolve
+            handleChatMessage(
+              `Fix the SEO / technical issues below in index.html. Apply ONLY actionable changes that don't require new content from me (meta description, viewport, schema.org JSON-LD, alt text on existing images, canonical link, heading structure, etc.). Leave a brief summary of what you changed.\n\n${bullets}`,
+            )
+            // Show the chat panel so the user can see the agent working
+            setActivePanel('build')
+          })
         }}
       />
 
