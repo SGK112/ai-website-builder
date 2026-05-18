@@ -153,13 +153,14 @@ import { useSession } from 'next-auth/react'
 import { useProject as useProjectHook } from '@/hooks/useProject'
 import { StarryNight, SunriseBackground } from '@/components/landing/BackgroundEffects'
 import { WebStewPanel, StewIngredient } from '@/components/WebStew'
-import { OnboardingTour, SkillPicker } from '@/components/onboarding'
+import { OnboardingTour, SkillPicker, IndustryWizard } from '@/components/onboarding'
 import { MonacoCodeEditor } from '@/components/editor'
 import { StylePresetPicker, ComponentPicker, ThemeBuilder } from '@/components/builder'
 import { ContentPanel } from '@/components/builder/ContentPanel'
 import { CustomDomainCard } from '@/components/builder/CustomDomainCard'
 import { PublishToCommunityModal } from '@/components/builder/PublishToCommunityModal'
 import { SiteGraderModal } from '@/components/builder/SiteGraderModal'
+import { ShareProposalModal } from '@/components/builder/ShareProposalModal'
 import { SectionChat, type ChatSubmitPayload } from '@/components/builder/SectionChat'
 import { ChefDock } from '@/components/builder/ChefSpotlight'
 import { BridgePanel } from '@/components/integrations/BridgePanel'
@@ -1124,6 +1125,96 @@ if (!clerk.user) clerk.mountSignIn(document.getElementById("sign-in"));
 </script>
 <div id="sign-in"></div>`,
   },
+  // Scheduling
+  {
+    id: 'calendly',
+    name: 'Calendly',
+    description: 'Embed a booking widget — let clients schedule instantly',
+    icon: Clock,
+    category: 'scheduling' as const,
+    enabled: false,
+    envKeys: [
+      { key: 'CALENDLY_URL', label: 'Calendly URL', placeholder: 'https://calendly.com/yourname/30min', isSecret: false },
+    ],
+    codeSnippet: `<!-- Calendly inline widget -->
+<div class="calendly-inline-widget" data-url="https://calendly.com/YOUR_LINK" style="min-width:320px;height:700px;"></div>
+<script type="text/javascript" src="https://assets.calendly.com/assets/external/widget.js" async></script>`,
+  },
+  // Communication
+  {
+    id: 'whatsapp',
+    name: 'WhatsApp Chat',
+    description: 'Floating WhatsApp button — 1-tap for mobile visitors',
+    icon: MessageSquare,
+    category: 'communication' as const,
+    enabled: false,
+    envKeys: [
+      { key: 'WHATSAPP_NUMBER', label: 'Phone Number (E.164)', placeholder: '+16025551234', isSecret: false },
+      { key: 'WHATSAPP_MESSAGE', label: 'Pre-filled message', placeholder: 'Hi! I found you on your website.', isSecret: false },
+    ],
+    codeSnippet: `<!-- WhatsApp floating button -->
+<a href="https://wa.me/YOUR_NUMBER?text=Hi%2C+I+found+you+on+your+website." target="_blank" rel="noopener"
+   style="position:fixed;bottom:80px;right:20px;z-index:9999;background:#25D366;color:#fff;width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(37,211,102,.4);text-decoration:none;"
+   aria-label="Chat on WhatsApp">
+  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.117 1.528 5.847L0 24l6.335-1.652A11.96 11.96 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.793 9.793 0 01-5.001-1.368l-.36-.213-3.724.977.992-3.631-.236-.374A9.768 9.768 0 012.182 12C2.182 6.582 6.582 2.182 12 2.182S21.818 6.582 21.818 12 17.418 21.818 12 21.818z"/></svg>
+</a>`,
+  },
+  // Contact forms
+  {
+    id: 'contact-form',
+    name: 'Contact Form',
+    description: 'HTML contact form — wires to your email via Formspree',
+    icon: FileText,
+    category: 'communication' as const,
+    enabled: false,
+    envKeys: [
+      { key: 'FORMSPREE_ID', label: 'Formspree form ID', placeholder: 'xpzgkrvw', isSecret: false },
+    ],
+    codeSnippet: `<!-- Contact form via Formspree (free tier: 50 submissions/mo) -->
+<section id="contact" style="max-width:600px;margin:4rem auto;padding:2rem;font-family:sans-serif;">
+  <h2 style="margin-bottom:1.5rem;font-size:1.5rem;font-weight:700;">Get in Touch</h2>
+  <form action="https://formspree.io/f/YOUR_FORMSPREE_ID" method="POST" style="display:flex;flex-direction:column;gap:1rem;">
+    <input name="name" type="text" placeholder="Your name" required style="padding:.75rem 1rem;border:1px solid #e2e8f0;border-radius:.5rem;font-size:1rem;"/>
+    <input name="email" type="email" placeholder="Email address" required style="padding:.75rem 1rem;border:1px solid #e2e8f0;border-radius:.5rem;font-size:1rem;"/>
+    <input name="phone" type="tel" placeholder="Phone (optional)" style="padding:.75rem 1rem;border:1px solid #e2e8f0;border-radius:.5rem;font-size:1rem;"/>
+    <textarea name="message" rows="4" placeholder="How can we help?" required style="padding:.75rem 1rem;border:1px solid #e2e8f0;border-radius:.5rem;font-size:1rem;resize:vertical;"></textarea>
+    <button type="submit" style="padding:.875rem;background:linear-gradient(135deg,#7c3aed,#a21caf);color:#fff;border:none;border-radius:.5rem;font-size:1rem;font-weight:600;cursor:pointer;">Send Message</button>
+  </form>
+</section>`,
+  },
+  // Analytics
+  {
+    id: 'google-analytics',
+    name: 'Google Analytics 4',
+    description: 'Track visitors, page views, and conversions',
+    icon: BarChart3,
+    category: 'analytics' as const,
+    enabled: false,
+    envKeys: [
+      { key: 'GA_MEASUREMENT_ID', label: 'Measurement ID', placeholder: 'G-XXXXXXXXXX', isSecret: false },
+    ],
+    codeSnippet: `<!-- Google Analytics 4 -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=YOUR_GA_ID"></script>
+<script>
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'YOUR_GA_ID');
+</script>`,
+  },
+  {
+    id: 'plausible',
+    name: 'Plausible Analytics',
+    description: 'Privacy-first analytics — no cookie banner needed',
+    icon: BarChart3,
+    category: 'analytics' as const,
+    enabled: false,
+    envKeys: [
+      { key: 'PLAUSIBLE_DOMAIN', label: 'Your domain', placeholder: 'yoursite.com', isSecret: false },
+    ],
+    codeSnippet: `<!-- Plausible Analytics (GDPR-friendly, no cookies) -->
+<script defer data-domain="YOUR_DOMAIN" src="https://plausible.io/js/script.js"></script>`,
+  },
 ]
 
 function WorkspaceContent() {
@@ -1874,6 +1965,7 @@ function WorkspaceContent() {
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false)
   const [showSkillPicker, setShowSkillPicker] = useState(false)
+  const [showIndustryWizard, setShowIndustryWizard] = useState(false)
 
   // Deploy state
   const [isDeploying, setIsDeploying] = useState(false)
@@ -1881,6 +1973,7 @@ function WorkspaceContent() {
   const [deployUrl, setDeployUrl] = useState<string | null>(null)
   const [deployError, setDeployError] = useState<string | null>(null)
 
+  const [shareModalOpen, setShareModalOpen] = useState(false)
   // Share preview state — anon-friendly /preview/<token> link (7-day TTL).
   // Skips the GitHub+Render bake; serves the snapshot from Mongo with a
   // Webstew-branded footer so every share is also a referral surface.
@@ -6704,33 +6797,57 @@ npx eas build --platform all
                               )}>{integration.description}</p>
                             </div>
                           </div>
-                          <button
-                            onClick={() => {
-                              setIntegrations(prev => prev.map(int =>
-                                int.id === integration.id ? { ...int, enabled: !int.enabled } : int
-                              ))
-                              if (!integration.enabled) {
-                                // Add env keys when enabling
-                                integration.envKeys.forEach(envKey => {
-                                  if (!envVars.find(e => e.key === envKey.key)) {
-                                    setEnvVars(prev => [...prev, {
-                                      key: envKey.key,
-                                      value: '',
-                                      isSecret: envKey.isSecret
-                                    }])
-                                  }
-                                })
-                                addConsoleLog('info', `Enabled: ${integration.name}`)
-                              }
-                            }}
-                            className="p-1"
-                          >
-                            {integration.enabled ? (
-                              <ToggleRight className="w-6 h-6 text-violet-400" />
-                            ) : (
-                              <ToggleLeft className="w-6 h-6 text-zinc-600" />
+                          <div className="flex items-center gap-1">
+                            {/* Insert snippet directly into the page HTML */}
+                            {integration.codeSnippet && html && (
+                              <button
+                                onClick={() => {
+                                  const snippet = integration.codeSnippet!
+                                  const injected = html.includes('</body>')
+                                    ? html.replace('</body>', `\n${snippet}\n</body>`)
+                                    : html + '\n' + snippet
+                                  setHtml(injected)
+                                  addToast('success', `${integration.name} inserted into page`)
+                                  addConsoleLog('info', `Plugin inserted: ${integration.name}`)
+                                }}
+                                title="Insert into page"
+                                className={cn(
+                                  'flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-all border',
+                                  isDark
+                                    ? 'border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20'
+                                    : 'border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100'
+                                )}
+                              >
+                                <Plus className="w-3 h-3" /> Insert
+                              </button>
                             )}
-                          </button>
+                            <button
+                              onClick={() => {
+                                setIntegrations(prev => prev.map(int =>
+                                  int.id === integration.id ? { ...int, enabled: !int.enabled } : int
+                                ))
+                                if (!integration.enabled) {
+                                  integration.envKeys.forEach(envKey => {
+                                    if (!envVars.find(e => e.key === envKey.key)) {
+                                      setEnvVars(prev => [...prev, {
+                                        key: envKey.key,
+                                        value: '',
+                                        isSecret: envKey.isSecret
+                                      }])
+                                    }
+                                  })
+                                  addConsoleLog('info', `Enabled: ${integration.name}`)
+                                }
+                              }}
+                              className="p-1"
+                            >
+                              {integration.enabled ? (
+                                <ToggleRight className="w-6 h-6 text-violet-400" />
+                              ) : (
+                                <ToggleLeft className="w-6 h-6 text-zinc-600" />
+                              )}
+                            </button>
+                          </div>
                         </div>
 
                         {/* Expanded Config when enabled */}
@@ -7813,28 +7930,22 @@ npx eas build --platform all
 
                 {/* Actions */}
                 <div className="space-y-2 pt-2">
-                  {/* Share preview link — anon-friendly, no signup required.
-                     Lives above Deploy/GitHub because it's the lowest-friction
-                     way to show someone what you just built. */}
+                  {/* Share / Proposal — opens modal with QR code + proposal mode */}
                   <button
-                    onClick={sharePreview}
-                    disabled={isSharingPreview || !html.trim()}
+                    onClick={() => setShareModalOpen(true)}
+                    disabled={!html.trim()}
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left group",
-                      isSharingPreview || !html.trim()
+                      !html.trim()
                         ? isDark ? "bg-white/[0.02] border-white/[0.05] opacity-50 cursor-not-allowed" : "bg-slate-100 border-slate-200 opacity-50 cursor-not-allowed"
                         : isDark ? "bg-violet-500/10 border-violet-400/30 hover:bg-violet-500/15 hover:border-violet-400/50" : "bg-violet-50 border-violet-200 hover:bg-violet-100 hover:border-violet-300"
                     )}
                   >
-                    {isSharingPreview ? (
-                      <Loader2 className="w-5 h-5 text-violet-400 animate-spin" />
-                    ) : (
-                      <Share2 className={cn("w-5 h-5", isDark ? "text-violet-400 group-hover:text-violet-300" : "text-violet-500 group-hover:text-violet-600")} />
-                    )}
+                    <Share2 className={cn("w-5 h-5", isDark ? "text-violet-400 group-hover:text-violet-300" : "text-violet-500 group-hover:text-violet-600")} />
                     <div className="flex-1 min-w-0">
-                      <div className={cn("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>Share preview link</div>
-                      <div className={cn("text-[10px] truncate", isDark ? "text-zinc-500" : "text-slate-500")}>
-                        {previewLink ? previewLink.replace(/^https?:\/\//, '') : 'Instant link · expires in 7 days · no signup'}
+                      <div className={cn("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>Share / Proposal</div>
+                      <div className={cn("text-[10px]", isDark ? "text-zinc-500" : "text-slate-500")}>
+                        QR code · proposal link · accept button
                       </div>
                     </div>
                   </button>
@@ -9369,6 +9480,15 @@ npx eas build --platform all
             setActivePanel('build')
           })
         }}
+      />
+
+      <ShareProposalModal
+        open={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        html={html || vfsFiles['index.html'] || ''}
+        projectName={projectName}
+        isDark={isDark}
+        userEmail={session?.user?.email ?? undefined}
       />
 
       {/* Theme Builder Panel */}
@@ -11118,7 +11238,21 @@ npx eas build --platform all
           setSkillLevel(level)
           try { localStorage.setItem('workspace-skill-level', level) } catch {}
           setShowSkillPicker(false)
-          // After picking, show the tour appropriate for their level
+          // Show industry wizard to generate first prompt, then tour
+          setShowIndustryWizard(true)
+        }}
+      />
+
+      {/* Industry wizard — shown after SkillPicker to kick off first generation */}
+      <IndustryWizard
+        isOpen={showIndustryWizard}
+        onComplete={(prompt) => {
+          setShowIndustryWizard(false)
+          handleChatMessage(prompt)
+          setShowOnboarding(true)
+        }}
+        onSkip={() => {
+          setShowIndustryWizard(false)
           setShowOnboarding(true)
         }}
       />

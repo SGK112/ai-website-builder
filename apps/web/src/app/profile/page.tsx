@@ -252,7 +252,7 @@ export default function ProfilePage() {
   const deletePreview = async (id: string) => {
     setDeletingPreviewId(id)
     try {
-      const r = await fetch(`/api/preview/${id}`, { method: 'DELETE' })
+      const r = await fetch(`/api/preview/delete/${id}`, { method: 'DELETE' })
       if (!r.ok) {
         const d = await r.json().catch(() => ({}))
         throw new Error(d.error || 'Failed to delete')

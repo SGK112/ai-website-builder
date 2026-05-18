@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getSnapshotByToken } from '@/lib/preview-store'
 import type { Metadata } from 'next'
+import { ProposalClient } from './ProposalClient'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -14,9 +15,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const snap = await getSnapshotByToken(params.token).catch(() => null)
   const name = snap?.name || 'Preview'
   return {
-    title: `${name} — Preview · Webstew`,
-    description: 'A site preview built with Webstew. Build yours free at webstew.net.',
-    robots: { index: false, follow: false }, // share-only links, not search-indexed
+    title: `${name} — ${snap?.type === 'proposal' ? 'Proposal' : 'Preview'} · Webstew`,
+    description: 'Built with Webstew AI Website Builder.',
+    robots: { index: false, follow: false },
   }
 }
 
@@ -25,18 +26,20 @@ export default async function PreviewPage({ params }: PageProps) {
   if (!snap) notFound()
 
   return (
-    // Theme-aware frame: uses Tailwind dark: variant which the layout's
-    // pre-hydration script drives via [data-theme="dark"] on <html>. Server
-    // component, no React hook needed.
     <div className="fixed inset-0 bg-white dark:bg-black">
       <iframe
         srcDoc={snap.html}
         className="w-full h-full border-0"
-        // Match the workspace sandbox: scripts + forms allowed, NO
-        // allow-same-origin (the HTML is LLM-authored and could try to read
-        // the parent origin's storage).
         sandbox="allow-scripts allow-forms allow-modals allow-popups allow-presentation"
         title={snap.name || 'Webstew preview'}
+      />
+      {/* Client component handles view tracking + proposal accept overlay */}
+      <ProposalClient
+        token={params.token}
+        type={snap.type ?? 'preview'}
+        proposalName={snap.name ?? 'Proposal'}
+        alreadyAccepted={!!snap.acceptedAt}
+        viewCount={snap.viewCount ?? 0}
       />
       <WebstewBadge />
     </div>
@@ -49,7 +52,7 @@ function WebstewBadge() {
       href="/?utm_source=preview&utm_medium=badge"
       target="_top"
       className="
-        group fixed bottom-4 right-4 z-50
+        group fixed bottom-4 right-4 z-40
         flex items-center gap-2.5 px-3.5 py-2 rounded-full
         backdrop-blur-md
         bg-white/90 border border-slate-200 hover:border-violet-400

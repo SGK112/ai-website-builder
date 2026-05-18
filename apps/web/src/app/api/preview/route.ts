@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     }
 
     const session = await getApiSession(req)
-    const { html, name } = await req.json().catch(() => ({} as any))
+    const { html, name, type, ttlDays, ownerEmail, ownerPhone } = await req.json().catch(() => ({} as any))
     if (!html || typeof html !== 'string') {
       return NextResponse.json({ error: 'html (string) is required' }, { status: 400 })
     }
@@ -26,6 +26,10 @@ export async function POST(req: NextRequest) {
       html,
       name,
       userId: session?.user?.id || null,
+      type: type === 'proposal' ? 'proposal' : 'preview',
+      ttlDays: typeof ttlDays === 'number' ? Math.min(Math.max(ttlDays, 1), 365) : undefined,
+      ownerEmail: ownerEmail || session?.user?.email || undefined,
+      ownerPhone: ownerPhone || undefined,
     })
 
     const origin =
