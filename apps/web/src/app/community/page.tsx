@@ -414,7 +414,7 @@ export default function CommunityPage() {
                     Publish a site
                   </Link>
                   <Link
-                    href="/library"
+                    href="/seller"
                     className={cn(
                       'inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all',
                       isDark
@@ -422,7 +422,7 @@ export default function CommunityPage() {
                         : 'bg-white border border-zinc-200 hover:border-orange-300 text-zinc-900'
                     )}
                   >
-                    My library
+                    My earnings
                   </Link>
                 </div>
               </div>

@@ -119,6 +119,7 @@ import {
   Pencil,
   Award,
   HelpCircle,
+  DollarSign,
   MousePointer2,
   Hand,
   Square,
@@ -3074,6 +3075,22 @@ ${body}
       const data = await response.json()
 
       if (!response.ok) {
+        // Surface a concrete fix when the route says credentials are missing
+        // — instead of a generic toast, push the user straight to the place
+        // they need to fix (Profile → Deploy credentials).
+        if (data.needsCredential) {
+          const service = data.needsCredential === 'github' ? 'GitHub' : 'Render'
+          addTerminalLine('error', `❌ Deploy blocked — ${service} not connected.`)
+          addConsoleLog('error', `${service} credentials missing. Connect in Profile → Deploy credentials.`)
+          setChatMessages(prev => [...prev, {
+            role: 'assistant',
+            content: `I can't deploy yet — your ${service} account isn't connected.\n\nFix it in **Profile → Deploy credentials**, then hit Deploy again. ([Open Profile](/profile#deploy))`,
+          }])
+          addToast('error', `Connect ${service} in Profile to deploy`)
+          setDeployStatus('idle')
+          setIsDeploying(false)
+          return
+        }
         throw new Error(data.error || 'Deployment failed')
       }
 
@@ -8879,6 +8896,19 @@ npx eas build --platform all
             >
               <HelpCircle className="w-4 h-4" />
             </button>
+
+            {/* Seller dashboard — earnings + payouts. Visible to signed-in
+                users so creators can find their money without spelunking
+                through /profile. */}
+            {session?.user && (
+              <Link
+                href="/seller"
+                className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-zinc-600 hover:text-emerald-400 hover:shadow-lg hover:shadow-emerald-500/20 transition-all duration-200"
+                title="Earnings & payouts"
+              >
+                <DollarSign className="w-4 h-4" />
+              </Link>
+            )}
 
             {/* Theme Toggle */}
             <button
