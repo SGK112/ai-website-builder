@@ -59,10 +59,23 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   if (!loaded.ok) return NextResponse.json({ error: loaded.error }, { status: loaded.status })
   const { project, db } = loaded
 
-  const serviceId = project.deployment?.renderServiceId
+  // Primary path: workspace deploy stores it directly on project.deployment.
+  // Fallback: alt deploy route (/api/projects/[id]/deploy) only writes a
+  // Deployment record and stores its id on project.deploymentId, so look the
+  // service id up there if the canonical field is missing.
+  let serviceId: string | undefined = project.deployment?.renderServiceId
+  if (!serviceId && project.deploymentId) {
+    try {
+      const depDoc = await db.collection('deployments').findOne(
+        { _id: typeof project.deploymentId === 'string' ? new ObjectId(project.deploymentId) : project.deploymentId },
+      )
+      serviceId = depDoc?.renderServiceId || depDoc?.serviceId
+    } catch { /* leave undefined — will hit the 400 below */ }
+  }
   if (!serviceId) {
     return NextResponse.json({
-      error: 'Project has not been deployed yet. Deploy first, then attach a domain.',
+      error: 'Project has no Render service to attach a domain to. Deploy via the workspace Ship button first — that path provisions the Render service custom domains hook into.',
+      needsDeploy: true,
     }, { status: 400 })
   }
 

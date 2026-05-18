@@ -54,9 +54,12 @@ interface DeploymentPanelProps {
   onClose: () => void
 }
 
-type DeployTarget = 'github' | 'platform' | 'vercel' | 'netlify' | 'download'
+type DeployTarget = 'github' | 'platform' | 'download'
 type TabType = 'deploy' | 'domains' | 'settings' | 'history'
 
+// Only platforms that are actually wired end-to-end. Vercel and Netlify were
+// here as decorative tiles — clicking them still hit the GitHub+Render path.
+// Removed rather than left as silent-substitution traps.
 const DEPLOY_PLATFORMS = [
   {
     id: 'platform' as const,
@@ -64,20 +67,6 @@ const DEPLOY_PLATFORMS = [
     description: 'Deploy to Render (managed hosting)',
     icon: Cloud,
     color: 'from-purple-500 to-blue-500',
-  },
-  {
-    id: 'vercel' as const,
-    name: 'Vercel',
-    description: 'Deploy to Vercel for edge hosting',
-    icon: Zap,
-    color: 'from-black to-gray-800',
-  },
-  {
-    id: 'netlify' as const,
-    name: 'Netlify',
-    description: 'Deploy to Netlify with CDN',
-    icon: Globe,
-    color: 'from-teal-500 to-cyan-500',
   },
   {
     id: 'github' as const,
@@ -135,18 +124,38 @@ export function DeploymentPanel({
   const loadDeploymentHistory = async () => {
     setLoadingHistory(true)
     try {
-      // Simulated - in production, fetch from API
-      setDeployments([
-        {
-          id: '1',
-          url: `https://${projectName.toLowerCase().replace(/\s+/g, '-')}.onrender.com`,
-          status: 'ready',
-          createdAt: new Date(Date.now() - 86400000),
-          platform: 'render',
-        },
-      ])
+      // Real fetch from the project's deployment metadata. Only the latest
+      // deploy is currently persisted (project.deployment); a true multi-row
+      // history requires a separate `deployments` collection scan. Showing
+      // a single accurate row is strictly better than the synthetic placeholder
+      // every user used to see.
+      if (!projectId) {
+        setDeployments([])
+        return
+      }
+      const res = await fetch(`/api/projects/${projectId}/deploy`, { cache: 'no-store' })
+      if (!res.ok) {
+        setDeployments([])
+        return
+      }
+      const data = await res.json().catch(() => ({} as any))
+      const dep = data?.deployment
+      if (!dep) {
+        setDeployments([])
+        return
+      }
+      setDeployments([{
+        id: String(dep._id || dep.id || 'latest'),
+        url: dep.liveUrl || dep.url || '',
+        status: dep.status === 'success' || dep.status === 'deployed' ? 'ready'
+              : dep.status === 'failed' || dep.status === 'error' ? 'error'
+              : 'building',
+        createdAt: dep.deployedAt ? new Date(dep.deployedAt) : (dep.createdAt ? new Date(dep.createdAt) : new Date()),
+        platform: dep.framework === 'nextjs' || dep.framework === 'astro' ? 'render' : 'render',
+      }])
     } catch (error) {
       console.error('Failed to load deployment history:', error)
+      setDeployments([])
     } finally {
       setLoadingHistory(false)
     }
@@ -195,7 +204,7 @@ export function DeploymentPanel({
     }
   }
 
-  const handleDeployToPlatform = async (platform: 'platform' | 'vercel' | 'netlify') => {
+  const handleDeployToPlatform = async (_platform: 'platform') => {
     setDeploying(true)
     setDeployResult(null)
 
@@ -207,7 +216,6 @@ export function DeploymentPanel({
           projectId,
           files,
           name: projectName,
-          platform,
           envVars: envVars.reduce((acc, { key, value }) => ({ ...acc, [key]: value }), {})
         })
       })
@@ -215,6 +223,12 @@ export function DeploymentPanel({
       const data = await response.json()
 
       if (!response.ok) {
+        // Surface BYO-credential errors with the same Profile-link hint the
+        // workspace deploy path uses, so users in the panel get the same fix.
+        if (data.needsCredential) {
+          const svc = data.needsCredential === 'github' ? 'GitHub' : 'Render'
+          throw new Error(`${svc} not connected. Go to Profile → Deploy credentials to add a ${svc} ${data.needsCredential === 'github' ? 'access token' : 'API key'}, then try again.`)
+        }
         throw new Error(data.error || 'Deployment failed')
       }
 
@@ -508,7 +522,7 @@ export function DeploymentPanel({
       )
     }
 
-    if (deployTarget && ['platform', 'vercel', 'netlify'].includes(deployTarget)) {
+    if (deployTarget === 'platform') {
       const platform = DEPLOY_PLATFORMS.find(p => p.id === deployTarget)
       return (
         <div className="space-y-4">
@@ -556,7 +570,7 @@ export function DeploymentPanel({
               Back
             </Button>
             <Button
-              onClick={() => handleDeployToPlatform(deployTarget as 'platform' | 'vercel' | 'netlify')}
+              onClick={() => handleDeployToPlatform('platform')}
               disabled={deploying}
               className="flex-1 bg-green-600 hover:bg-green-700"
             >
