@@ -97,23 +97,26 @@ export function PayoutsCard({ isDark }: Props) {
     <span className={cn('px-3 py-1 rounded-full text-xs font-medium', color)}>{label}</span>
   )
 
-  let statusBadge = badge('Not set up', 'bg-zinc-500/20 text-zinc-400')
+  // Light-mode text colors are darkened (amber-800, red-800, etc.) so the
+  // status pills stay readable on the white profile/seller backgrounds. The
+  // dark-mode 400 variants are preserved via dark: prefixes.
+  let statusBadge = badge('Not set up', 'bg-zinc-500/20 text-zinc-700 dark:text-zinc-400')
   let cta = 'Set up payouts'
   let helper = 'Connect a bank account to receive payouts when buyers purchase your listings.'
   if (state?.status === 'pending') {
-    statusBadge = badge('Onboarding', 'bg-amber-500/20 text-amber-400')
+    statusBadge = badge('Onboarding', 'bg-amber-500/15 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300')
     cta = 'Continue onboarding'
     helper = state?.pendingRequirement
       ? `Stripe still needs: ${state.pendingRequirement.replace(/_/g, ' ')}`
       : 'Finish the steps Stripe requires to enable payouts.'
   }
   if (state?.status === 'restricted') {
-    statusBadge = badge('Restricted', 'bg-red-500/20 text-red-400')
+    statusBadge = badge('Restricted', 'bg-red-500/15 text-red-800 dark:bg-red-500/20 dark:text-red-300')
     cta = 'Fix account'
     helper = 'Stripe has restricted this account. Open Stripe to resolve.'
   }
   if (state?.status === 'enabled') {
-    statusBadge = badge('Payouts enabled', 'bg-emerald-500/20 text-emerald-400')
+    statusBadge = badge('Payouts enabled', 'bg-emerald-500/15 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300')
     cta = 'Manage in Stripe'
     helper = 'You\'re fully set up. Earnings from sales transfer to your bank automatically.'
   }

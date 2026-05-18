@@ -6209,16 +6209,30 @@ npx eas build --platform all
                         : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'
                   )}
                   style={activePanel === id ? {
-                    color: color === 'violet' ? '#a78bfa' :
-                           color === 'blue' ? '#60a5fa' :
-                           color === 'orange' ? '#fb923c' :
-                           color === 'emerald' ? '#34d399' :
-                           color === 'cyan' ? '#22d3ee' :
-                           color === 'pink' ? '#f472b6' :
-                           color === 'purple' ? '#c084fc' :
-                           color === 'yellow' ? '#facc15' :
-                           color === 'green' ? '#4ade80' :
-                           color === 'red' ? '#f87171' : '#a78bfa',
+                    // Light mode uses the -700 variants (≥4.5:1 contrast on
+                    // white bg, WCAG AA). Dark mode keeps the -400 variants
+                    // which read fine against the dark panel.
+                    color: isDark
+                      ? (color === 'violet' ? '#a78bfa' :
+                         color === 'blue' ? '#60a5fa' :
+                         color === 'orange' ? '#fb923c' :
+                         color === 'emerald' ? '#34d399' :
+                         color === 'cyan' ? '#22d3ee' :
+                         color === 'pink' ? '#f472b6' :
+                         color === 'purple' ? '#c084fc' :
+                         color === 'yellow' ? '#facc15' :
+                         color === 'green' ? '#4ade80' :
+                         color === 'red' ? '#f87171' : '#a78bfa')
+                      : (color === 'violet' ? '#6d28d9' :
+                         color === 'blue' ? '#1d4ed8' :
+                         color === 'orange' ? '#c2410c' :
+                         color === 'emerald' ? '#047857' :
+                         color === 'cyan' ? '#0e7490' :
+                         color === 'pink' ? '#be185d' :
+                         color === 'purple' ? '#7e22ce' :
+                         color === 'yellow' ? '#a16207' :
+                         color === 'green' ? '#15803d' :
+                         color === 'red' ? '#b91c1c' : '#6d28d9'),
                     backgroundColor: color === 'violet' ? 'rgba(139, 92, 246, 0.15)' :
                                      color === 'blue' ? 'rgba(59, 130, 246, 0.15)' :
                                      color === 'orange' ? 'rgba(249, 115, 22, 0.15)' :
@@ -8452,9 +8466,9 @@ npx eas build --platform all
                     className={cn(
                       'flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all',
                       bridgeActive ? 'bg-white/[0.03] text-zinc-500 opacity-60 cursor-default' :
-                      userCredits < 10 ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' :
-                      userCredits < 50 ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' :
-                      'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+                      userCredits < 10 ? 'bg-red-500/10 text-red-700 dark:text-red-400 hover:bg-red-500/20' :
+                      userCredits < 50 ? 'bg-amber-500/15 text-amber-800 dark:bg-amber-500/10 dark:text-amber-400 hover:bg-amber-500/25 dark:hover:bg-amber-500/20' :
+                      'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20'
                     )}
                     title={bridgeActive ? 'Bridge active — credits paused' : `${userCredits} credits · click to top up`}
                   >
