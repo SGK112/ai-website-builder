@@ -2257,13 +2257,24 @@ function WorkspaceContent() {
         const localOnly = prev.filter(p => !dbProjectIds.has(p.id))
         const dbProjects = projectHook.projects.map(p => {
           // Reconstruct VFS from the files array. _webstew_meta.json carries
-          // the buildTarget; everything else is a real project file.
+          // the buildTarget; _webstew_pages.json carries the multi-page tree
+          // for single-target HTML projects (multi-target uses vfsFiles).
           const vfsFromFiles: Record<string, string> = {}
           let restoredTarget: BuildTarget | undefined
+          let restoredPages: ProjectPage[] | undefined
+          let restoredActivePageId: string | undefined
           if (p.files && p.files.length > 0) {
             for (const f of p.files) {
               if (f.path === '_webstew_meta.json') {
                 try { restoredTarget = JSON.parse(f.content).buildTarget } catch {}
+              } else if (f.path === '_webstew_pages.json') {
+                try {
+                  const parsed = JSON.parse(f.content)
+                  if (Array.isArray(parsed?.pages)) {
+                    restoredPages = parsed.pages
+                    restoredActivePageId = parsed.activePageId
+                  }
+                } catch {}
               } else if (f.path !== 'index.html') {
                 vfsFromFiles[f.path] = f.content
               }
@@ -2278,7 +2289,8 @@ function WorkspaceContent() {
             createdAt: p.createdAt,
             updatedAt: p.updatedAt,
             ...(Object.keys(vfsFromFiles).length > 0 && { vfsFiles: vfsFromFiles, buildTarget: restoredTarget }),
-          }
+            ...(restoredPages && restoredPages.length > 0 && { pages: restoredPages, activePageId: restoredActivePageId }),
+          } as Project & { pages?: ProjectPage[]; activePageId?: string }
         })
         return [...dbProjects, ...localOnly]
       })
@@ -2470,6 +2482,14 @@ function WorkspaceContent() {
     const pagesSnapshot = pages.map(p =>
       p.id === activePageId ? { ...p, html: htmlToSave } : p
     )
+    // Persist last 10 undo entries so version history survives page reloads
+    // (was in-memory only and died on refresh). HTML capped at 50KB per entry
+    // so the full history fits well under the 5MB localStorage budget.
+    const historySnap = history.slice(-10).map(h => ({
+      html: h.html.length > 50000 ? h.html.slice(0, 50000) : h.html,
+      prompt: (h.prompt || '').slice(0, 200),
+      timestamp: h.timestamp instanceof Date ? h.timestamp.toISOString() : h.timestamp,
+    }))
     const autoSaveData: Record<string, unknown> = {
       html: htmlToSave,
       projectName,
@@ -2479,6 +2499,8 @@ function WorkspaceContent() {
       pages: pagesSnapshot,
       activePageId,
       buildTarget,
+      history: historySnap,
+      historyIndex: Math.min(historyIndex, historySnap.length - 1),
     }
     // Serialize VFS for non-website projects. Cap per-file at 50KB to
     // avoid blowing the 5MB localStorage quota on large generated projects.
@@ -2499,7 +2521,7 @@ function WorkspaceContent() {
         localStorage.setItem('webstew-autosave', JSON.stringify(autoSaveData))
       } catch { /* quota still exceeded — skip */ }
     }
-  }, [html, projectName, selectedPreset, pages, activePageId, buildTarget, vfsFiles])
+  }, [html, projectName, selectedPreset, pages, activePageId, buildTarget, vfsFiles, history, historyIndex])
 
   // Load auto-saved work on mount (if no URL params AND no fresh template/
   // prompt/project load already happened this mount — otherwise this effect
@@ -2522,6 +2544,18 @@ function WorkspaceContent() {
             setHtml(saved.html)
             if (saved.projectName) setProjectName(saved.projectName)
             if (saved.selectedPreset) setSelectedPreset(saved.selectedPreset)
+            // Restore version history so undo/redo survive page reload.
+            // Entries were serialized with Date → string; coerce back.
+            if (Array.isArray(saved.history) && saved.history.length > 0) {
+              setHistory(saved.history.map((h: any) => ({
+                html: h.html || '',
+                prompt: h.prompt || '',
+                timestamp: h.timestamp ? new Date(h.timestamp) : new Date(),
+              })))
+              if (typeof saved.historyIndex === 'number') {
+                setHistoryIndex(Math.max(-1, Math.min(saved.historyIndex, saved.history.length - 1)))
+              }
+            }
             // Restore multi-page state if it was saved
             if (Array.isArray(saved.pages) && saved.pages.length > 0) {
               setPages(saved.pages)
@@ -2817,6 +2851,21 @@ function WorkspaceContent() {
         // For multi-target projects, persist each VFS file as a ProjectFile.
         // A _webstew_meta.json entry carries the buildTarget so it survives
         // round-trips through the API without needing a schema change.
+        // Sidecar for multi-page HTML projects — without this, only the
+        // active page's HTML survived round-trips (single `html` column).
+        // Encoded as JSON so it can be restored verbatim in loadProject.
+        const multiPageSidecar = (!isMultiTarget && pages.length > 1)
+          ? [{
+              path: '_webstew_pages.json',
+              content: JSON.stringify({
+                activePageId,
+                pages: pages.map(p => ({
+                  id: p.id, name: p.name, slug: p.slug, html: p.html, isHome: p.isHome,
+                })),
+              }),
+              type: 'json' as any,
+            }]
+          : []
         const filesPayload = isMultiTarget
           ? [
               ...Object.entries(vfsFiles).map(([path, content]) => ({
@@ -2826,7 +2875,7 @@ function WorkspaceContent() {
               })),
               { path: '_webstew_meta.json', content: JSON.stringify({ buildTarget }), type: 'json' as any },
             ]
-          : undefined
+          : multiPageSidecar.length > 0 ? multiPageSidecar : undefined
         const savedProject = await projectHook.saveProject({
           id: currentProject?.id,
           name: projectName,
@@ -2852,7 +2901,7 @@ function WorkspaceContent() {
     }
   }
 
-  const loadProject = (project: Project) => {
+  const loadProject = (project: Project & { pages?: ProjectPage[]; activePageId?: string }) => {
     setCurrentProject(project)
     setProjectName(project.name)
     setHtml(project.html)
@@ -2870,6 +2919,17 @@ function WorkspaceContent() {
     } else {
       setVfsFiles({})
       setBuildTarget('website')
+    }
+    // Restore multi-page tree for HTML projects with sibling pages.
+    // _webstew_pages.json sidecar is decoded above and surfaces on project.pages.
+    if (project.pages && project.pages.length > 0) {
+      setPages(project.pages)
+      if (project.activePageId && project.pages.some(p => p.id === project.activePageId)) {
+        setActivePageId(project.activePageId)
+      }
+    } else {
+      setPages([{ id: 'home', name: 'Home', slug: 'index', html: project.html || '', isHome: true }])
+      setActivePageId('home')
     }
     setPreviewBumpKey(k => k + 1)
 
@@ -3060,6 +3120,19 @@ ${body}
         : [{ path: 'index.html', content: wrapPage(html, projectName) }]
       addTerminalLine('info', `📄 Deploying ${files.length} page${files.length === 1 ? '' : 's'}: ${files.map(f => f.path).join(', ')}`)
 
+      // Auto-inject analytics on deploy if the user filled in either env var.
+      // Reading from the same envVars state the Integrations panel writes to —
+      // no separate UI toggle needed, presence-of-value is the signal.
+      const gaId = envVars.find(e => e.key === 'GA_MEASUREMENT_ID')?.value?.trim() || ''
+      const plausibleDomain = envVars.find(e => e.key === 'PLAUSIBLE_DOMAIN')?.value?.trim() || ''
+      const analytics = (gaId || plausibleDomain)
+        ? { googleAnalyticsId: gaId || undefined, plausibleDomain: plausibleDomain || undefined }
+        : undefined
+      if (analytics) {
+        const which = [gaId && 'GA', plausibleDomain && 'Plausible'].filter(Boolean).join(' + ')
+        addTerminalLine('info', `📊 Injecting analytics: ${which}`)
+      }
+
       const response = await fetch('/api/deploy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3069,6 +3142,7 @@ ${body}
           // Optional — when present, /api/deploy bakes any published CMS
           // collections into `cms/<slug>.json` (and Astro markdown if relevant).
           projectId: currentProject?.id,
+          analytics,
         }),
       })
 

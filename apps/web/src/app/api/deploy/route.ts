@@ -31,7 +31,18 @@ export async function POST(req: NextRequest) {
       throw error
     }
 
-    const { projectId, files, name } = await req.json()
+    const { projectId, files, name, analytics } = await req.json() as {
+      projectId?: string
+      files: ProjectFile[]
+      name: string
+      // Optional analytics injection — workspace deploy panel sets this from
+      // the user's Integrations selection so they don't have to copy-paste
+      // tracking snippets into every site they deploy.
+      analytics?: {
+        googleAnalyticsId?: string  // 'G-XXXXXX' or 'UA-XXXXXX'
+        plausibleDomain?: string    // 'mysite.com' — emits the script.js tag
+      }
+    }
 
     if (!files || !name) {
       return NextResponse.json({ error: 'Files and name are required' }, { status: 400 })
@@ -87,6 +98,38 @@ export async function POST(req: NextRequest) {
         ? { ...f, content: f.content.replace(/(['"\(])\/api\/media\?/g, `$1${appOrigin}/api/media?`) }
         : f
     )
+
+    // Inject analytics tags right before </head> in every HTML file so the
+    // user doesn't have to paste GA/Plausible snippets manually after deploy.
+    // Idempotent — skips files that already contain the gtag/plausible script
+    // (e.g., re-deploys, or sites the agent already instrumented).
+    if (analytics?.googleAnalyticsId || analytics?.plausibleDomain) {
+      const gaId = String(analytics.googleAnalyticsId || '').trim()
+      const plausibleDomain = String(analytics.plausibleDomain || '').trim()
+      const tags: string[] = []
+      if (gaId && /^(G|UA|GTM)-[A-Z0-9-]+$/i.test(gaId)) {
+        tags.push(
+          `<!-- Google Analytics (injected by Webstew) -->`,
+          `<script async src="https://www.googletagmanager.com/gtag/js?id=${gaId}"></script>`,
+          `<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${gaId}');</script>`,
+        )
+      }
+      if (plausibleDomain && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(plausibleDomain)) {
+        tags.push(
+          `<!-- Plausible (injected by Webstew) -->`,
+          `<script defer data-domain="${plausibleDomain}" src="https://plausible.io/js/script.js"></script>`,
+        )
+      }
+      if (tags.length > 0) {
+        const block = tags.join('\n')
+        finalFiles = finalFiles.map(f => {
+          if (!/\.(html?)$/i.test(f.path)) return f
+          if (/googletagmanager\.com\/gtag|plausible\.io\/js/.test(f.content)) return f
+          if (!/<\/head>/i.test(f.content)) return f
+          return { ...f, content: f.content.replace(/<\/head>/i, `${block}\n</head>`) }
+        })
+      }
+    }
 
     // Step 1: Create GitHub repo
     console.log('Creating GitHub repo:', repoName, 'CMS files baked:', cmsCounts)
