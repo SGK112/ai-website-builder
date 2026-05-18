@@ -1876,17 +1876,33 @@ function WorkspaceContent() {
   const [bridgeConnected, setBridgeConnected] = useState(false)
   useEffect(() => {
     let alive = true
+    let id: ReturnType<typeof setInterval> | null = null
+
     const check = async () => {
       try {
         const r = await fetch('/api/bridge/status', { cache: 'no-store' })
         if (!r.ok) return
         const d = await r.json() as { connected: boolean }
-        if (alive) setBridgeConnected(!!d.connected)
+        if (!alive) return
+        setBridgeConnected(!!d.connected)
+        // PERF: once we've ever seen a bridge, remember it and keep polling
+        // every 10s so reconnects feel instant. If we've NEVER seen one,
+        // slow down to 60s — 95% of users don't run the bridge and don't
+        // need 6 hits/minute on Mongo for nothing.
+        if (d.connected) {
+          try { localStorage.setItem('webstew-bridge-ever-seen', '1') } catch {}
+          if (id) { clearInterval(id); id = null }
+          id = setInterval(check, 10_000)
+        }
       } catch {}
     }
+
     check()
-    const id = setInterval(check, 10_000)
-    return () => { alive = false; clearInterval(id) }
+    const everSeen = (() => {
+      try { return localStorage.getItem('webstew-bridge-ever-seen') === '1' } catch { return false }
+    })()
+    id = setInterval(check, everSeen ? 10_000 : 60_000)
+    return () => { alive = false; if (id) clearInterval(id) }
   }, [])
   // Per-session toggle: when ON + bridge connected, requests skip
   // Webstew credits entirely and bill against the user's Claude
@@ -2472,55 +2488,64 @@ function WorkspaceContent() {
     }
   }, [skillLevel])
 
-  // Auto-save current work to localStorage (browser refresh protection)
+  // Auto-save current work to localStorage (browser refresh protection).
+  //
+  // PERF: debounced to 800ms. Previously fired on every `html` change, which
+  // during a streaming generation meant 50-100 writes/sec — each serializing
+  // ~500KB of HTML + pages + history + (optionally) vfsFiles to JSON on the
+  // main thread, freezing the UI. The trailing-edge guarantee means whatever
+  // state you stopped on always lands in localStorage within 800ms.
   useEffect(() => {
     const isMulti = buildTarget !== 'website' && Object.keys(vfsFiles).length > 0
     if (!html && !isMulti) return
 
-    const maxSize = 500000
-    const htmlToSave = html.length > maxSize ? html.slice(0, maxSize) : html
-    const pagesSnapshot = pages.map(p =>
-      p.id === activePageId ? { ...p, html: htmlToSave } : p
-    )
-    // Persist last 10 undo entries so version history survives page reloads
-    // (was in-memory only and died on refresh). HTML capped at 50KB per entry
-    // so the full history fits well under the 5MB localStorage budget.
-    const historySnap = history.slice(-10).map(h => ({
-      html: h.html.length > 50000 ? h.html.slice(0, 50000) : h.html,
-      prompt: (h.prompt || '').slice(0, 200),
-      timestamp: h.timestamp instanceof Date ? h.timestamp.toISOString() : h.timestamp,
-    }))
-    const autoSaveData: Record<string, unknown> = {
-      html: htmlToSave,
-      projectName,
-      timestamp: new Date().toISOString(),
-      selectedPreset,
-      truncated: html.length > maxSize,
-      pages: pagesSnapshot,
-      activePageId,
-      buildTarget,
-      history: historySnap,
-      historyIndex: Math.min(historyIndex, historySnap.length - 1),
-    }
-    // Serialize VFS for non-website projects. Cap per-file at 50KB to
-    // avoid blowing the 5MB localStorage quota on large generated projects.
-    if (isMulti) {
-      const vfsCapped: Record<string, string> = {}
-      for (const [k, v] of Object.entries(vfsFiles)) {
-        vfsCapped[k] = v.length > 50000 ? v.slice(0, 50000) : v
+    const handle = setTimeout(() => {
+      const maxSize = 500000
+      const htmlToSave = html.length > maxSize ? html.slice(0, maxSize) : html
+      const pagesSnapshot = pages.map(p =>
+        p.id === activePageId ? { ...p, html: htmlToSave } : p
+      )
+      // Persist last 10 undo entries so version history survives page reloads
+      // (was in-memory only and died on refresh). HTML capped at 50KB per entry
+      // so the full history fits well under the 5MB localStorage budget.
+      const historySnap = history.slice(-10).map(h => ({
+        html: h.html.length > 50000 ? h.html.slice(0, 50000) : h.html,
+        prompt: (h.prompt || '').slice(0, 200),
+        timestamp: h.timestamp instanceof Date ? h.timestamp.toISOString() : h.timestamp,
+      }))
+      const autoSaveData: Record<string, unknown> = {
+        html: htmlToSave,
+        projectName,
+        timestamp: new Date().toISOString(),
+        selectedPreset,
+        truncated: html.length > maxSize,
+        pages: pagesSnapshot,
+        activePageId,
+        buildTarget,
+        history: historySnap,
+        historyIndex: Math.min(historyIndex, historySnap.length - 1),
       }
-      autoSaveData.vfsFiles = vfsCapped
-    }
-    try {
-      localStorage.setItem('webstew-autosave', JSON.stringify(autoSaveData))
-    } catch {
+      // Serialize VFS for non-website projects. Cap per-file at 50KB to
+      // avoid blowing the 5MB localStorage quota on large generated projects.
+      if (isMulti) {
+        const vfsCapped: Record<string, string> = {}
+        for (const [k, v] of Object.entries(vfsFiles)) {
+          vfsCapped[k] = v.length > 50000 ? v.slice(0, 50000) : v
+        }
+        autoSaveData.vfsFiles = vfsCapped
+      }
       try {
-        localStorage.removeItem('webstew-autosave')
-        localStorage.removeItem('webstew-last-generation')
-        localStorage.removeItem('vibe-projects')
         localStorage.setItem('webstew-autosave', JSON.stringify(autoSaveData))
-      } catch { /* quota still exceeded — skip */ }
-    }
+      } catch {
+        try {
+          localStorage.removeItem('webstew-autosave')
+          localStorage.removeItem('webstew-last-generation')
+          localStorage.removeItem('vibe-projects')
+          localStorage.setItem('webstew-autosave', JSON.stringify(autoSaveData))
+        } catch { /* quota still exceeded — skip */ }
+      }
+    }, 800)
+    return () => clearTimeout(handle)
   }, [html, projectName, selectedPreset, pages, activePageId, buildTarget, vfsFiles, history, historyIndex])
 
   // Load auto-saved work on mount (if no URL params AND no fresh template/
