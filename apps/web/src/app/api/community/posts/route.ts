@@ -141,11 +141,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { type, title, description, html, thumbnail, tags, category, isPublic = true } = body
+    const { type, title, description, html, thumbnail, tags, category, isPublic = true, priceCredits } = body
 
     if (!type || !title) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
+
+    // Optional paid listing — clamp to int, cap at $500 (50000 credits) so a
+    // typo can't accidentally publish a 5-figure price. 0 / unset = free.
+    const priceNum = Math.max(0, Math.min(50000, Math.floor(Number(priceCredits) || 0)))
+    const isPremium = priceNum > 0
 
     const client = await clientPromise
     const db = client.db('ai-website-builder')
@@ -179,6 +184,10 @@ export async function POST(request: NextRequest) {
       comments: 0,
       isPublic,
       status,
+      // Paid-listing fields read by /api/marketplace/buy + /api/listings/[id].
+      // Always written (even at 0) so the schema is consistent across rows.
+      isPremium,
+      price_credits: priceNum,
       createdAt: new Date(),
       updatedAt: new Date(),
     }

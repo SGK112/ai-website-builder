@@ -44,6 +44,10 @@ export function PublishToCommunityModal({
   const [category, setCategory] = useState('general')
   const [tags, setTags] = useState('')
   const [isPublic, setIsPublic] = useState(true)
+  // Pricing — empty / 0 = free listing; >0 = paid (priced in credits, where
+  // 100 credits = $1). Buyers pay credits via /api/marketplace/buy. Cashout
+  // converts credits → USD via the existing payouts route. Sellers keep 70%.
+  const [priceCredits, setPriceCredits] = useState<string>('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -83,6 +87,7 @@ export function PublishToCommunityModal({
       setCategory('general')
       setTags('')
       setIsPublic(true)
+      setPriceCredits('')
       setThumbnailUrl('')
       setError(null)
       setSuccess(null)
@@ -109,6 +114,7 @@ export function PublishToCommunityModal({
       const seed = encodeURIComponent((projectId || title || 'webstew').slice(0, 40))
       const thumbnail = thumbnailUrl || `https://picsum.photos/seed/${seed}/800/600`
 
+      const priceNum = Math.max(0, Math.floor(Number(priceCredits) || 0))
       const res = await fetch('/api/community/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -125,6 +131,9 @@ export function PublishToCommunityModal({
             .filter(Boolean)
             .slice(0, 8),
           isPublic,
+          // Optional paid listing — server validates and sets isPremium flag
+          // alongside price_credits so the buy/checkout routes pick it up.
+          ...(priceNum > 0 && { priceCredits: priceNum }),
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -268,9 +277,36 @@ export function PublishToCommunityModal({
             <span>Publish publicly — visible in the community feed</span>
           </label>
 
-          <div className="text-xs text-zinc-500 leading-relaxed bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
-            <strong className="text-amber-300">Heads-up:</strong> v1 of the marketplace is community-visibility only. Paid listings + Stripe payouts are coming. Anything you publish now is free for others to view and use.
-          </div>
+          {/* Pricing — leave blank for free; anything > 0 makes the listing
+              paid. Buyers spend credits; you cash out USD from /seller. */}
+          <label className="block">
+            <span className="text-xs font-medium text-zinc-400 mb-1.5 block flex items-center justify-between">
+              <span>Price <span className="text-zinc-600">(credits — leave blank for free)</span></span>
+              {Number(priceCredits) > 0 && (
+                <span className="text-emerald-400 text-[11px]">
+                  ≈ ${(Number(priceCredits) / 100).toFixed(2)} · you keep ${(Number(priceCredits) * 0.7 / 100).toFixed(2)}
+                </span>
+              )}
+            </span>
+            <input
+              type="number"
+              min={0}
+              step={50}
+              value={priceCredits}
+              onChange={(e) => setPriceCredits(e.target.value)}
+              placeholder="0 = free"
+              className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500"
+            />
+            <span className="text-[10px] text-zinc-600 mt-1 block">
+              100 credits = $1. Webstew takes 30% to cover Stripe + hosting. Payouts at /seller.
+            </span>
+          </label>
+
+          {!Number(priceCredits) && (
+            <div className="text-xs text-zinc-500 leading-relaxed bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+              <strong className="text-blue-300">Free listing.</strong> Anyone can view, remix, and use it. Set a price above to make it a paid template.
+            </div>
+          )}
 
           {error && (
             <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-300">
