@@ -118,6 +118,7 @@ import {
   Paintbrush,
   Pencil,
   Award,
+  HelpCircle,
   MousePointer2,
   Hand,
   Square,
@@ -8134,6 +8135,7 @@ npx eas build --platform all
               </button>
               <input
                 ref={inputRef}
+                data-tour="chat"
                 type="text"
                 value={commandInput}
                 onChange={(e) => setCommandInput(e.target.value)}
@@ -8859,6 +8861,15 @@ npx eas build --platform all
             >
               <Command className="w-4 h-4" />
               <kbd className="hidden sm:inline px-1 py-0.5 rounded bg-white/5 text-[9px] text-zinc-500">K</kbd>
+            </button>
+
+            {/* Help / Tour — re-trigger the walkthrough on demand */}
+            <button
+              onClick={() => setShowOnboarding(true)}
+              className="p-1.5 rounded-lg hover:bg-blue-500/10 text-zinc-600 hover:text-blue-400 hover:shadow-lg hover:shadow-blue-500/20 transition-all duration-200"
+              title="Show workspace tour"
+            >
+              <HelpCircle className="w-4 h-4" />
             </button>
 
             {/* Theme Toggle */}
