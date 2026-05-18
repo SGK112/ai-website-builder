@@ -2412,11 +2412,6 @@ function WorkspaceContent() {
       router.replace('/workspace', { scroll: false })
       // Show the prompt in the chat so the user sees what's being built
       setChatMessages(prev => [...prev, { role: 'user', content: promptFromUrl }])
-      // User just submitted a real prompt — they don't need the onboarding tour.
-      // Without this, the tour pops up ~1.5s after we clear the URL and
-      // interrupts the generation flow.
-      try { localStorage.setItem('webstew-onboarding-complete', 'true') } catch {}
-      setHasCompletedOnboarding(true)
       setHasInitialized(true)
       // A prompt arriving via URL = user came from the landing page = a
       // brand new build. Clear any leftover HTML so handleGenerate fires
@@ -2544,7 +2539,10 @@ function WorkspaceContent() {
     const hasSeenOnboarding = localStorage.getItem('webstew-onboarding-complete')
     const hasPickedSkill = localStorage.getItem('workspace-skill-level')
     const isMidGeneration = isGenerating || html.length > 0
-    if (!hasSeenOnboarding && hasInitialized && !searchParams.get('prompt') && !isMidGeneration) {
+    // loadedFromUrlRef means a prompt was injected from the landing page — generation
+    // will fire immediately, so skip the idle-timer path. The post-generation code
+    // in handleGenerate shows the tour after the first build completes instead.
+    if (!hasSeenOnboarding && hasInitialized && !loadedFromUrlRef.current && !isMidGeneration) {
       const timer = setTimeout(() => {
         if (!isGenerating && html.length === 0) {
           // Show skill picker first if they haven't chosen a level yet
@@ -3868,6 +3866,10 @@ ${html}
               if (data === '[DONE]') continue
               try {
                 const parsed = JSON.parse(data)
+                // Server-side error event — surface it instead of leaving a blank page
+                if (parsed.error) {
+                  throw new Error(parsed.error)
+                }
                 // Delta-only streaming (new protocol): append the tail.
                 // Replace/full streaming (image-marker resync OR legacy server): replace.
                 if (typeof parsed.delta === 'string') {
@@ -3891,10 +3893,17 @@ ${html}
                 if (parsed.complete && parsed.truncated) {
                   wasTruncated = true
                 }
-              } catch {}
+              } catch (e) {
+                if (e instanceof Error) throw e // surface real errors; swallow JSON parse noise
+              }
             }
           }
         }
+      }
+
+      // Guard against silent generation failure (empty stream = blank page)
+      if (generatedHtml.length === 0) {
+        throw new Error('Generation returned no output — the AI may be overloaded. Please try again.')
       }
 
       setBuildPhase('complete')
@@ -3940,6 +3949,15 @@ ${html}
       } else {
         addToast('success', 'Website generated!')
       }
+
+      // First-time users: show the workspace tour after their first site builds.
+      // This fires even for users who came in from the landing page with a URL
+      // prompt, so they still get oriented after seeing their first result.
+      try {
+        if (!localStorage.getItem('webstew-onboarding-complete')) {
+          setTimeout(() => setShowOnboarding(true), 1800)
+        }
+      } catch { /* localStorage unavailable in some private browsing modes */ }
 
       // Refresh credits after generation
       fetchCredits()
