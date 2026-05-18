@@ -29,7 +29,7 @@ export default function SellerDashboardPage() {
 
   // Anonymous users can't have sales — redirect to sign-in with a return path.
   useEffect(() => {
-    if (status === 'unauthenticated') router.replace('/auth/signin?callbackUrl=/seller')
+    if (status === 'unauthenticated') router.replace('/login?callbackUrl=/seller')
   }, [status, router])
 
   // Pull authored count from /api/library — same endpoint /library uses.

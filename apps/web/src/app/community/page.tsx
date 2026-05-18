@@ -192,6 +192,11 @@ export default function CommunityPage() {
   // post-launch while we're below ~6 approved listings.
   const [realProjects, setRealProjects] = useState<Project[]>([])
   const [loadingProjects, setLoadingProjects] = useState(true)
+  // Pagination — start with 12, "Load more" reveals another 12 at a time.
+  // Was previously a button with no onClick. Resets to 12 whenever the
+  // category/search/sort changes so we're not stuck on page N of the wrong feed.
+  const [visibleCount, setVisibleCount] = useState(12)
+  useEffect(() => { setVisibleCount(12) }, [activeCategory, searchQuery, sortBy])
 
   // Map a CommunityPost from /api/community/posts → the local Project shape
   // this UI was built around. Adapter so we didn't have to rewrite the card.
@@ -261,6 +266,15 @@ export default function CommunityPage() {
     if (searchQuery && !project.title.toLowerCase().includes(searchQuery.toLowerCase())) return false
     return true
   })
+
+  // Real category counts derived from the actual feed. Previously hardcoded
+  // ("Portfolio: 342") which lied to users when only 1-2 items existed.
+  const categoryCounts: Record<string, number> = { all: combined.length }
+  for (const p of combined) {
+    categoryCounts[p.category] = (categoryCounts[p.category] || 0) + 1
+  }
+  const visibleProjects = filteredProjects.slice(0, visibleCount)
+  const hasMoreToShow = filteredProjects.length > visibleCount
 
   // Optimistic toggle — flips local state immediately, then calls the
   // server. If the server rejects (e.g. anon, 401), we route the user to
@@ -573,7 +587,7 @@ export default function CommunityPage() {
                       'text-xs px-2 py-0.5 rounded-full',
                       isDark ? 'bg-white/10' : 'bg-zinc-100'
                     )}>
-                      {cat.count}
+                      {categoryCounts[cat.id] || 0}
                     </span>
                   </button>
                 ))}
@@ -756,7 +770,7 @@ export default function CommunityPage() {
 
             {/* All Projects */}
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredProjects.map((project, index) => (
+              {visibleProjects.map((project, index) => (
                 <motion.div
                   key={project.id}
                   initial={{ opacity: 0, y: 20 }}
@@ -903,17 +917,23 @@ export default function CommunityPage() {
               ))}
             </div>
 
-            {/* Load More */}
-            <div className="flex justify-center mt-8">
-              <button className={cn(
-                'px-6 py-3 rounded-xl text-sm font-medium transition-all',
-                isDark
-                  ? 'bg-white/5 hover:bg-white/10 text-white border border-white/10'
-                  : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-900'
-              )}>
-                Load More Projects
-              </button>
-            </div>
+            {/* Load More — only renders when there's actually more to show.
+                Previously was a button with no onClick. */}
+            {hasMoreToShow && (
+              <div className="flex justify-center mt-8">
+                <button
+                  onClick={() => setVisibleCount((n) => n + 12)}
+                  className={cn(
+                    'px-6 py-3 rounded-xl text-sm font-medium transition-all',
+                    isDark
+                      ? 'bg-white/5 hover:bg-white/10 text-white border border-white/10'
+                      : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-900 border border-zinc-200'
+                  )}
+                >
+                  Load more ({filteredProjects.length - visibleCount} remaining)
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </main>
