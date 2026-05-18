@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import Anthropic from '@anthropic-ai/sdk'
-import { generateJson, requireFiles, GenerateJsonError } from '@/lib/llm-json'
+import { generateJson, requireFiles, GenerateJsonError, streamJsonWithHeartbeats } from '@/lib/llm-json'
 import { augmentPromptWithReference } from '@/lib/site-reference'
 
 export const dynamic = 'force-dynamic'
@@ -176,58 +176,60 @@ export async function POST(req: NextRequest) {
   const { prompt: userMsg, warning: refWarning } = await augmentPromptWithReference(baseMsg, body.referenceUrl)
   if (refWarning) console.warn('[App Builder]', refWarning)
 
-  let parsed: any
-  let rawText: string
-  let attempts: number
-  try {
-    const result = await generateJson({
-      client,
-      model,
-      systemPrompt: APP_SYSTEM_PROMPT,
-      userMessage: userMsg,
-      validate: (p) => requireFiles(p, ['App.tsx', 'package.json', 'app.json']),
-    })
-    parsed = result.parsed
-    rawText = result.rawText
-    attempts = result.attempts
-  } catch (err: any) {
-    if (err instanceof GenerateJsonError) {
-      console.error('[App Builder] Generation failed after retry:', err.detail)
-      return NextResponse.json({ error: err.message }, { status: err.status })
+  // Wrap the long-running Anthropic call in an SSE stream so Cloudflare's
+  // 100s edge timeout doesn't 524 the user. Heartbeats every 15s keep the
+  // connection alive; the final result lands as a single `result` event.
+  return streamJsonWithHeartbeats(async () => {
+    let parsed: any
+    let rawText: string
+    let attempts: number
+    try {
+      const r = await generateJson({
+        client,
+        model,
+        systemPrompt: APP_SYSTEM_PROMPT,
+        userMessage: userMsg,
+        validate: (p) => requireFiles(p, ['App.tsx', 'package.json', 'app.json']),
+      })
+      parsed = r.parsed
+      rawText = r.rawText
+      attempts = r.attempts
+    } catch (err: any) {
+      if (err instanceof GenerateJsonError) {
+        console.error('[App Builder] Generation failed after retry:', err.detail)
+        throw err // streamJsonWithHeartbeats forwards GenerateJsonError shape
+      }
+      console.error('[App Builder] Anthropic call failed:', err?.message || err)
+      throw new GenerateJsonError(err?.message || 'Generation failed', 502)
     }
-    console.error('[App Builder] Anthropic call failed:', err?.message || err)
-    return NextResponse.json(
-      { error: err?.message || 'Generation failed' },
-      { status: 502 }
-    )
-  }
 
-  const name: string = typeof parsed.name === 'string' ? parsed.name : 'My App'
-  const slug = typeof parsed.slug === 'string' && parsed.slug ? makeSlug(parsed.slug) : makeSlug(name)
-  const description: string = typeof parsed.description === 'string' ? parsed.description : ''
+    const name: string = typeof parsed.name === 'string' ? parsed.name : 'My App'
+    const slug = typeof parsed.slug === 'string' && parsed.slug ? makeSlug(parsed.slug) : makeSlug(name)
+    const description: string = typeof parsed.description === 'string' ? parsed.description : ''
 
-  // Trim any non-string file values defensively
-  const files: Record<string, string> = {}
-  for (const [path, content] of Object.entries(parsed.files)) {
-    if (typeof content === 'string' && content.length > 0 && content.length < 100_000) {
-      files[path] = content
+    // Trim any non-string file values defensively
+    const files: Record<string, string> = {}
+    for (const [path, content] of Object.entries(parsed.files)) {
+      if (typeof content === 'string' && content.length > 0 && content.length < 100_000) {
+        files[path] = content
+      }
     }
-  }
 
-  const result: AppGenerateResponse = {
-    files,
-    name,
-    slug,
-    description,
-    instructions: [
-      `Download / save these files into a folder named "${slug}".`,
-      `Run "npx create-expo-app@latest <slug> --template blank-typescript" first if you want a clean starting point with prebuilt assets.`,
-      `Then "cd ${slug} && npm install && npx expo start".`,
-      `Press i (iOS), a (Android), or w (web) in the Expo CLI to launch.`,
-      `To ship to TestFlight: configure EAS (eas.json), then "eas build -p ios --profile production".`,
-    ].join('\n'),
-  }
+    const result: AppGenerateResponse = {
+      files,
+      name,
+      slug,
+      description,
+      instructions: [
+        `Download / save these files into a folder named "${slug}".`,
+        `Run "npx create-expo-app@latest <slug> --template blank-typescript" first if you want a clean starting point with prebuilt assets.`,
+        `Then "cd ${slug} && npm install && npx expo start".`,
+        `Press i (iOS), a (Android), or w (web) in the Expo CLI to launch.`,
+        `To ship to TestFlight: configure EAS (eas.json), then "eas build -p ios --profile production".`,
+      ].join('\n'),
+    }
 
-  console.log(`[App Builder] Generated "${name}" — ${Object.keys(files).length} files, ${Math.round(rawText.length / 1024)}KB raw, ${attempts} attempt(s)`)
-  return NextResponse.json(result)
+    console.log(`[App Builder] Generated "${name}" — ${Object.keys(files).length} files, ${Math.round(rawText.length / 1024)}KB raw, ${attempts} attempt(s)`)
+    return result
+  })
 }

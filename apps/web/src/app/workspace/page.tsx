@@ -3772,9 +3772,49 @@ ${html}
     return result
   }, [selectMode, editMode])
 
-  // Multi-target generation for Astro / Next.js / React / Expo. These routes
-  // return JSON `{ files, name, slug, instructions? }` — no streaming. We
-  // stuff the result into vfsFiles and let the WebContainer preview boot.
+  // Consume an SSE stream emitted by streamJsonWithHeartbeats on the server.
+  // The server interleaves `: ping` heartbeat comments with the eventual
+  // `event: result` (or `event: error`) carrying the JSON payload. We ignore
+  // comments, parse the result data, and throw on error events.
+  const readSseJsonResult = async (res: Response): Promise<any> => {
+    if (!res.body) throw new Error('Empty response stream')
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      let split
+      while ((split = buffer.indexOf('\n\n')) >= 0) {
+        const message = buffer.slice(0, split)
+        buffer = buffer.slice(split + 2)
+        let evt = 'message'
+        let dataLine = ''
+        for (const line of message.split('\n')) {
+          if (line.startsWith(':')) continue // SSE comment / heartbeat
+          if (line.startsWith('event: ')) evt = line.slice(7).trim()
+          else if (line.startsWith('data: ')) dataLine += line.slice(6)
+        }
+        if (evt === 'result' && dataLine) {
+          try { return JSON.parse(dataLine) }
+          catch { throw new Error('Could not parse generator result payload') }
+        }
+        if (evt === 'error' && dataLine) {
+          let err: any = {}
+          try { err = JSON.parse(dataLine) } catch {}
+          throw new Error(err.error || 'Generation failed')
+        }
+      }
+    }
+    throw new Error('Stream ended before result arrived')
+  }
+
+  // Multi-target generation for Astro / Next.js / React / Expo. Routes now
+  // wrap the Anthropic call in SSE with heartbeats (see streamJsonWithHeartbeats
+  // in lib/llm-json.ts) so Cloudflare can't 524 us on long projects. Older
+  // deploys still send plain JSON — readSseJsonResult is only invoked when
+  // Content-Type is text/event-stream; otherwise we fall back to res.json().
   const handleGenerateMultiTarget = async (target: Exclude<BuildTarget, 'website'>, promptText: string) => {
     const endpoint = {
       astro:  '/api/builder/astro',
@@ -3822,7 +3862,17 @@ ${html}
         const errText = await res.text().catch(() => '')
         throw new Error(`HTTP ${res.status}${errText ? ': ' + errText.slice(0, 200) : ''}`)
       }
-      const data = await res.json()
+      // Multi-target routes now wrap the long Anthropic call in an SSE stream
+      // so Cloudflare's 100s edge timeout can't 524 us. Heartbeats arrive as
+      // `: ping` comment lines; final payload as `event: result\ndata: {...}`.
+      // Older deploys still send plain JSON — fall back gracefully.
+      const ctype = (res.headers.get('content-type') || '').toLowerCase()
+      let data: any
+      if (ctype.includes('text/event-stream')) {
+        data = await readSseJsonResult(res)
+      } else {
+        data = await res.json()
+      }
       if (!data?.files || typeof data.files !== 'object') {
         throw new Error('Generator returned no files')
       }

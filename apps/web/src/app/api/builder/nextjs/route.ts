@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import Anthropic from '@anthropic-ai/sdk'
-import { generateJson, requireFiles, GenerateJsonError } from '@/lib/llm-json'
+import { generateJson, requireFiles, GenerateJsonError, streamJsonWithHeartbeats } from '@/lib/llm-json'
 import { augmentPromptWithReference } from '@/lib/site-reference'
 
 export const dynamic = 'force-dynamic'
@@ -181,54 +181,54 @@ export async function POST(req: NextRequest) {
   const { prompt: userMsg, warning: refWarning } = await augmentPromptWithReference(baseMsg, body.referenceUrl)
   if (refWarning) console.warn('[Next.js Builder]', refWarning)
 
-  let parsed: any
-  let rawText: string
-  let attempts: number
-  try {
-    const result = await generateJson({
-      client,
-      model,
-      systemPrompt: NEXTJS_SYSTEM_PROMPT,
-      userMessage: userMsg,
-      validate: (p) => requireFiles(p, ['app/page.tsx', 'app/layout.tsx', 'package.json']),
-    })
-    parsed = result.parsed
-    rawText = result.rawText
-    attempts = result.attempts
-  } catch (err: any) {
-    if (err instanceof GenerateJsonError) {
-      console.error('[Next.js Builder] Generation failed after retry:', err.detail)
-      return NextResponse.json({ error: err.message }, { status: err.status })
+  // SSE wrap — heartbeats every 15s defeat Cloudflare's 100s edge timeout
+  // on long generations. Result lands as a single `result` event.
+  return streamJsonWithHeartbeats(async () => {
+    let parsed: any, rawText: string, attempts: number
+    try {
+      const r = await generateJson({
+        client,
+        model,
+        systemPrompt: NEXTJS_SYSTEM_PROMPT,
+        userMessage: userMsg,
+        validate: (p) => requireFiles(p, ['app/page.tsx', 'app/layout.tsx', 'package.json']),
+      })
+      parsed = r.parsed; rawText = r.rawText; attempts = r.attempts
+    } catch (err: any) {
+      if (err instanceof GenerateJsonError) {
+        console.error('[Next.js Builder] Generation failed after retry:', err.detail)
+        throw err
+      }
+      console.error('[Next.js Builder] Anthropic call failed:', err?.message || err)
+      throw new GenerateJsonError(err?.message || 'Generation failed', 502)
     }
-    console.error('[Next.js Builder] Anthropic call failed:', err?.message || err)
-    return NextResponse.json({ error: err?.message || 'Generation failed' }, { status: 502 })
-  }
 
-  const name: string = typeof parsed.name === 'string' ? parsed.name : 'My App'
-  const slug = typeof parsed.slug === 'string' && parsed.slug ? makeSlug(parsed.slug) : makeSlug(name)
-  const description: string = typeof parsed.description === 'string' ? parsed.description : ''
+    const name: string = typeof parsed.name === 'string' ? parsed.name : 'My App'
+    const slug = typeof parsed.slug === 'string' && parsed.slug ? makeSlug(parsed.slug) : makeSlug(name)
+    const description: string = typeof parsed.description === 'string' ? parsed.description : ''
 
-  const files: Record<string, string> = {}
-  for (const [path, content] of Object.entries(parsed.files)) {
-    if (typeof content === 'string' && content.length > 0 && content.length < 100_000) {
-      files[path] = content
+    const files: Record<string, string> = {}
+    for (const [path, content] of Object.entries(parsed.files)) {
+      if (typeof content === 'string' && content.length > 0 && content.length < 100_000) {
+        files[path] = content
+      }
     }
-  }
 
-  const result: NextjsGenerateResponse = {
-    files,
-    name,
-    slug,
-    description,
-    target: 'nextjs',
-    instructions: [
-      `Download / save these files into a folder named "${slug}".`,
-      `Run "cd ${slug} && npm install && npm run dev".`,
-      `Open http://localhost:3000 to see your app.`,
-      `To deploy: push to GitHub, then import the repo in Vercel (or Render). Deploy is one-click.`,
-    ].join('\n'),
-  }
+    const result: NextjsGenerateResponse = {
+      files,
+      name,
+      slug,
+      description,
+      target: 'nextjs',
+      instructions: [
+        `Download / save these files into a folder named "${slug}".`,
+        `Run "cd ${slug} && npm install && npm run dev".`,
+        `Open http://localhost:3000 to see your app.`,
+        `To deploy: push to GitHub, then import the repo in Vercel (or Render). Deploy is one-click.`,
+      ].join('\n'),
+    }
 
-  console.log(`[Next.js Builder] Generated "${name}" — ${Object.keys(files).length} files, ${Math.round(rawText.length / 1024)}KB raw, ${attempts} attempt(s)`)
-  return NextResponse.json(result)
+    console.log(`[Next.js Builder] Generated "${name}" — ${Object.keys(files).length} files, ${Math.round(rawText.length / 1024)}KB raw, ${attempts} attempt(s)`)
+    return result
+  })
 }

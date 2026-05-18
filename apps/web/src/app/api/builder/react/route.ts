@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import Anthropic from '@anthropic-ai/sdk'
-import { generateJson, requireFiles, GenerateJsonError } from '@/lib/llm-json'
+import { generateJson, requireFiles, GenerateJsonError, streamJsonWithHeartbeats } from '@/lib/llm-json'
 import { augmentPromptWithReference } from '@/lib/site-reference'
 
 export const dynamic = 'force-dynamic'
@@ -160,50 +160,49 @@ export async function POST(req: NextRequest) {
   const { prompt: userMsg, warning: refWarning } = await augmentPromptWithReference(baseMsg, body.referenceUrl)
   if (refWarning) console.warn('[React Builder]', refWarning)
 
-  let parsed: any
-  let rawText: string
-  let attempts: number
-  try {
-    const result = await generateJson({
-      client,
-      model: pickAnthropicModel(body.model),
-      systemPrompt: REACT_SYSTEM_PROMPT,
-      userMessage: userMsg,
-      validate: (p) => requireFiles(p, ['src/App.tsx', 'src/main.tsx', 'index.html', 'package.json']),
-    })
-    parsed = result.parsed
-    rawText = result.rawText
-    attempts = result.attempts
-  } catch (err: any) {
-    if (err instanceof GenerateJsonError) {
-      console.error('[React Builder] Generation failed after retry:', err.detail)
-      return NextResponse.json({ error: err.message }, { status: err.status })
+  // SSE wrap — heartbeats every 15s defeat Cloudflare's 100s edge timeout.
+  return streamJsonWithHeartbeats(async () => {
+    let parsed: any, rawText: string, attempts: number
+    try {
+      const r = await generateJson({
+        client,
+        model: pickAnthropicModel(body.model),
+        systemPrompt: REACT_SYSTEM_PROMPT,
+        userMessage: userMsg,
+        validate: (p) => requireFiles(p, ['src/App.tsx', 'src/main.tsx', 'index.html', 'package.json']),
+      })
+      parsed = r.parsed; rawText = r.rawText; attempts = r.attempts
+    } catch (err: any) {
+      if (err instanceof GenerateJsonError) {
+        console.error('[React Builder] Generation failed after retry:', err.detail)
+        throw err
+      }
+      console.error('[React Builder] Anthropic call failed:', err?.message || err)
+      throw new GenerateJsonError(err?.message || 'Generation failed', 502)
     }
-    console.error('[React Builder] Anthropic call failed:', err?.message || err)
-    return NextResponse.json({ error: err?.message || 'Generation failed' }, { status: 502 })
-  }
 
-  const name: string = typeof parsed.name === 'string' ? parsed.name : 'My App'
-  const slug = typeof parsed.slug === 'string' && parsed.slug ? makeSlug(parsed.slug) : makeSlug(name)
-  const description: string = typeof parsed.description === 'string' ? parsed.description : ''
+    const name: string = typeof parsed.name === 'string' ? parsed.name : 'My App'
+    const slug = typeof parsed.slug === 'string' && parsed.slug ? makeSlug(parsed.slug) : makeSlug(name)
+    const description: string = typeof parsed.description === 'string' ? parsed.description : ''
 
-  const files: Record<string, string> = {}
-  for (const [path, content] of Object.entries(parsed.files)) {
-    if (typeof content === 'string' && content.length > 0 && content.length < 100_000) {
-      files[path] = content
+    const files: Record<string, string> = {}
+    for (const [path, content] of Object.entries(parsed.files)) {
+      if (typeof content === 'string' && content.length > 0 && content.length < 100_000) {
+        files[path] = content
+      }
     }
-  }
 
-  const result: ReactGenerateResponse = {
-    files, name, slug, description, target: 'react',
-    instructions: [
-      `Save these files into "${slug}".`,
-      `cd ${slug} && npm install && npm run dev`,
-      `Open http://localhost:5173`,
-      `Deploy: push to GitHub, import in Vercel / Netlify / Cloudflare Pages — works on all of them.`,
-    ].join('\n'),
-  }
+    const result: ReactGenerateResponse = {
+      files, name, slug, description, target: 'react',
+      instructions: [
+        `Save these files into "${slug}".`,
+        `cd ${slug} && npm install && npm run dev`,
+        `Open http://localhost:5173`,
+        `Deploy: push to GitHub, import in Vercel / Netlify / Cloudflare Pages — works on all of them.`,
+      ].join('\n'),
+    }
 
-  console.log(`[React Builder] Generated "${name}" — ${Object.keys(files).length} files, ${Math.round(rawText.length / 1024)}KB raw, ${attempts} attempt(s)`)
-  return NextResponse.json(result)
+    console.log(`[React Builder] Generated "${name}" — ${Object.keys(files).length} files, ${Math.round(rawText.length / 1024)}KB raw, ${attempts} attempt(s)`)
+    return result
+  })
 }

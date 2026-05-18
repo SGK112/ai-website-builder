@@ -156,3 +156,69 @@ export function requireFiles(parsed: any, paths: string[]): string | null {
   if (missing.length > 0) return `Missing required file(s): ${missing.join(', ')}`
   return null
 }
+
+// Wrap a long-running JSON producer in an SSE stream that emits a heartbeat
+// comment every 15s + a final `result` (or `error`) event when done.
+//
+// Why: a single NextResponse.json() blocks the response body until the work
+// finishes. Cloudflare's free-tier edge timeout is 100s — any Anthropic call
+// that runs past that turns into HTTP 524 at the edge, even though Render
+// is happily still computing. Heartbeats (any byte) reset Cloudflare's idle
+// timer, so the connection stays alive for the full Render maxDuration.
+//
+// Consumers (workspace/page.tsx#handleGenerateMultiTarget) read this with
+// `readSseJsonResult` below, which unwraps the result event and ignores
+// heartbeats.
+export function streamJsonWithHeartbeats<T>(
+  work: () => Promise<T>,
+  opts: { heartbeatMs?: number } = {},
+): Response {
+  const heartbeatMs = opts.heartbeatMs ?? 15000
+  const encoder = new TextEncoder()
+  const stream = new ReadableStream({
+    async start(controller) {
+      let closed = false
+      const safeEnqueue = (chunk: Uint8Array) => {
+        if (closed) return
+        try { controller.enqueue(chunk) } catch { closed = true }
+      }
+      const safeClose = () => {
+        if (closed) return
+        closed = true
+        try { controller.close() } catch { /* already closed */ }
+      }
+      // Immediate first byte so the edge starts flushing the response right
+      // away — Cloudflare considers the connection "active" from this point.
+      safeEnqueue(encoder.encode(': connected\n\n'))
+      const heartbeat = setInterval(() => {
+        safeEnqueue(encoder.encode(': ping\n\n'))
+      }, heartbeatMs)
+      try {
+        const result = await work()
+        safeEnqueue(encoder.encode(`event: result\ndata: ${JSON.stringify(result)}\n\n`))
+      } catch (e: any) {
+        const status = typeof e?.status === 'number' ? e.status : 502
+        const message = e?.message || 'Generation failed'
+        const detail = e?.detail || ''
+        safeEnqueue(encoder.encode(
+          `event: error\ndata: ${JSON.stringify({ error: message, status, detail })}\n\n`
+        ))
+      } finally {
+        clearInterval(heartbeat)
+        safeClose()
+      }
+    },
+    cancel() {
+      // Client disconnected — start() finally{} handles cleanup via closed flag.
+    },
+  })
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      // Tell upstream proxies (Render's edge, Cloudflare) not to buffer.
+      'X-Accel-Buffering': 'no',
+    },
+  })
+}
