@@ -362,8 +362,71 @@ export default function CommunityPage() {
               </span>
             </h1>
             <p className={cn('text-lg max-w-2xl mx-auto', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
-              Discover amazing websites built by our community. Get inspired, remix, and share your own creations.
+              Discover amazing websites built by our community — and publish your own to earn from every sale.
             </p>
+          </motion.div>
+
+          {/* Publish & earn path — three-step explainer.
+              Visible above the fold so creators see the monetization path
+              before they scroll into the showcase. Webstew takes 30%; the
+              rest goes straight to the creator's Stripe Connect account. */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className="max-w-3xl mx-auto mt-8"
+          >
+            <div className={cn(
+              'rounded-2xl border p-5',
+              isDark
+                ? 'bg-gradient-to-br from-violet-500/10 to-fuchsia-500/5 border-violet-500/30'
+                : 'bg-gradient-to-br from-orange-50 to-pink-50 border-orange-200'
+            )}>
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-start gap-3 flex-1 min-w-[280px]">
+                  <div className={cn(
+                    'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
+                    isDark ? 'bg-violet-500/20' : 'bg-orange-100'
+                  )}>
+                    <Crown className={cn('w-5 h-5', isDark ? 'text-violet-300' : 'text-orange-600')} />
+                  </div>
+                  <div className="text-left">
+                    <div className={cn('text-sm font-semibold mb-1', isDark ? 'text-white' : 'text-zinc-900')}>
+                      Sell your sites & templates
+                    </div>
+                    <div className={cn('text-xs leading-relaxed', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+                      Build → Publish from <span className="font-mono">/library</span> → Set a price.
+                      You keep 70%, paid out to your Stripe account. Free listings also welcome.
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href="/library"
+                    className={cn(
+                      'inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all',
+                      isDark
+                        ? 'bg-violet-500 hover:bg-violet-400 text-white'
+                        : 'bg-orange-500 hover:bg-orange-400 text-white'
+                    )}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Publish a site
+                  </Link>
+                  <Link
+                    href="/library"
+                    className={cn(
+                      'inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all',
+                      isDark
+                        ? 'bg-white/10 hover:bg-white/15 text-white'
+                        : 'bg-white border border-zinc-200 hover:border-orange-300 text-zinc-900'
+                    )}
+                  >
+                    My library
+                  </Link>
+                </div>
+              </div>
+            </div>
           </motion.div>
 
           {/* Search */}
