@@ -124,6 +124,10 @@ interface AgentRequest {
   projectId?: string
   maxIterations?: number
   target?: 'website' | 'nextjs' | 'react' | 'astro' | 'expo'
+  // 'no-code' | 'low-code' | 'full-stack' — controls prose verbosity.
+  // Developer Mode (full-stack) gets Claude's full reasoning; Creator/Builder
+  // get terse tool-only output so the chat panel doesn't fill with monologue.
+  skillLevel?: 'no-code' | 'low-code' | 'full-stack'
   // If true, route this turn through the user's local @webstew/bridge
   // (their installed Claude Code → Pro/Max subscription) instead of
   // calling Anthropic with the server's API key. Errors with 503 if
@@ -392,8 +396,16 @@ export async function POST(req: NextRequest) {
   }
   messages.push({ role: 'user', content: prompt })
 
+  // Developer Mode wants to see Claude's reasoning; default modes want terse.
+  // The base prompt already says ZERO PROSE — override that for full-stack.
+  const isDeveloperMode = body.skillLevel === 'full-stack'
+  const verbosityOverride = isDeveloperMode
+    ? `\n\nVERBOSITY OVERRIDE (Developer Mode):\nThe user is a developer and wants to see your reasoning. Disregard the ZERO PROSE rule above. Narrate your plan briefly before tool calls (1-2 sentences: what you're about to do and why), explain non-obvious choices, and call out anything risky. Keep tool chips clean — the prose is for context, not duplicating what the chip already shows.`
+    : ''
+
   const systemPrompt =
     SYSTEM_PROMPT_BASE +
+    verbosityOverride +
     (body.target ? `\n\nPROJECT TYPE: ${body.target}` : '') +
     (Object.keys(vfsFiles).length > 0
       ? `\n\nCURRENT FILE COUNT: ${Object.keys(vfsFiles).length} files. Call list_files() to see them.`
@@ -478,15 +490,19 @@ export async function POST(req: NextRequest) {
           totalInputTokens  += response.usage?.input_tokens  || 0
           totalOutputTokens += response.usage?.output_tokens || 0
 
-          // Collect text blocks but DON'T stream them — Claude's intermediate
-          // narration ("Let me read the file...", "The file is very long...")
-          // is internal thinking, not user-facing communication. Only the
-          // final `done` summary or no-tools terminal text reaches the user.
+          // Developer Mode: stream the prose so the user can follow reasoning.
+          // Default modes: collect text but don't stream — Claude's intermediate
+          // narration is internal thinking, not user-facing communication.
+          // Final `done` summary / no-tools terminal text reaches the user via
+          // the doneSummary path below regardless.
           const textPieces: string[] = []
           const toolUses: Array<{ id: string; name: string; input: any }> = []
           for (const block of response.content) {
             if (block.type === 'text') {
               textPieces.push(block.text)
+              if (isDeveloperMode && block.text.trim()) {
+                send('text', { text: block.text })
+              }
             } else if (block.type === 'tool_use') {
               toolUses.push({ id: block.id, name: block.name, input: block.input })
               send('tool_use', { id: block.id, name: block.name, input: block.input })

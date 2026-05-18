@@ -4787,6 +4787,9 @@ ${html}
           model: selectedModel.id,
           apiKey: selectedModel.provider !== 'auto' ? apiKeys[selectedModel.provider] || undefined : undefined,
           target: buildTarget,
+          // Tell the agent how chatty to be — Developer Mode users want to
+          // see Claude's reasoning, Creators want terse tool-only output.
+          skillLevel,
           // Pass projectId so the agent can use cms_* tools to read/write
           // content collections on this project. Persists file changes to
           // Mongo via the onWrite/onDelete hooks too. Skip if no saved project.
