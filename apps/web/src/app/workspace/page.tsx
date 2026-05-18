@@ -161,6 +161,7 @@ import { CustomDomainCard } from '@/components/builder/CustomDomainCard'
 import { PublishToCommunityModal } from '@/components/builder/PublishToCommunityModal'
 import { SiteGraderModal } from '@/components/builder/SiteGraderModal'
 import { ShareProposalModal } from '@/components/builder/ShareProposalModal'
+import { InlineUpgradeModal } from '@/components/builder/InlineUpgradeModal'
 import { SectionChat, type ChatSubmitPayload } from '@/components/builder/SectionChat'
 import { ChefDock } from '@/components/builder/ChefSpotlight'
 import { BridgePanel } from '@/components/integrations/BridgePanel'
@@ -1449,6 +1450,10 @@ function WorkspaceContent() {
     remaining?: number
     plan?: string
   }>({ show: false })
+  const [upgradeModal, setUpgradeModal] = useState<{
+    open: boolean
+    trigger?: 'low_credits' | 'out_of_credits' | 'manual'
+  }>({ open: false })
 
   useEffect(() => {
     if (!session?.user?.id) return
@@ -5697,17 +5702,17 @@ npx eas build --platform all
               <div className="space-y-2">
                 {creditWall.isPlanLimit ? (
                   <>
-                    {/* Signed-in user out of monthly credits — push to /upgrade */}
+                    {/* Signed-in user out of monthly credits — open inline upgrade modal */}
                     <button
-                      onClick={() => { setCreditWall({ show: false }); router.push('/upgrade') }}
+                      onClick={() => { setCreditWall({ show: false }); setUpgradeModal({ open: true, trigger: 'out_of_credits' }) }}
                       className="w-full flex items-center gap-3 p-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition"
                     >
                       <Zap className="w-4 h-4" />
-                      <span className="flex-1 text-left">Buy credits — from $9.99</span>
+                      <span className="flex-1 text-left">Buy credits — from $4.99</span>
                       <span className="text-xs opacity-75">No subscription</span>
                     </button>
                     <button
-                      onClick={() => { setCreditWall({ show: false }); router.push('/upgrade') }}
+                      onClick={() => { setCreditWall({ show: false }); setUpgradeModal({ open: true, trigger: 'out_of_credits' }) }}
                       className="w-full flex items-center gap-3 p-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-medium transition"
                     >
                       <Sparkles className="w-4 h-4" />
@@ -9491,6 +9496,14 @@ npx eas build --platform all
         userEmail={session?.user?.email ?? undefined}
       />
 
+      <InlineUpgradeModal
+        open={upgradeModal.open}
+        onClose={() => setUpgradeModal({ open: false })}
+        isDark={isDark}
+        currentPlan={(session?.user as any)?.plan ?? undefined}
+        trigger={upgradeModal.trigger}
+      />
+
       {/* Theme Builder Panel */}
       <AnimatePresence>
         {showThemeBuilder && (
@@ -11610,13 +11623,22 @@ npx eas build --platform all
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => router.push('/upgrade')}
+                      onClick={() => {
+                        setCreditNudge({ show: false })
+                        setUpgradeModal({
+                          open: true,
+                          trigger: creditNudge.remaining === 0 ? 'out_of_credits' : 'low_credits',
+                        })
+                      }}
                       className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white text-[11px] font-semibold transition"
                     >
-                      Buy 50 credits — $4.99
+                      {creditNudge.remaining === 0 ? 'Top up now' : 'Upgrade'}
                     </button>
                     <button
-                      onClick={() => router.push('/upgrade')}
+                      onClick={() => {
+                        setCreditNudge({ show: false })
+                        setUpgradeModal({ open: true, trigger: 'manual' })
+                      }}
                       className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-[11px] font-medium transition"
                     >
                       See plans
