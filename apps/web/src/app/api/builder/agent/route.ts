@@ -135,11 +135,20 @@ interface AgentRequest {
   useBridge?: boolean
 }
 
-function pickModel(name?: string): string {
-  const lc = (name || '').toLowerCase()
-  if (lc.includes('opus')) return 'claude-opus-4-7'
-  if (lc.includes('haiku')) return 'claude-haiku-4-5-20251001'
-  return 'claude-sonnet-4-6'
+// The agent loop uses Anthropic's tool-use protocol — non-Anthropic IDs
+// (gpt-*, gemini-*, grok-*, llama-*, qwen-*, deepseek-*) can't be honored here.
+// Returns the chosen model AND a note if we had to substitute, so the route
+// can surface that to the client instead of silently routing to Sonnet.
+function pickModel(name?: string): { model: string; substituted?: string } {
+  const lc = (name || '').toLowerCase().trim()
+  if (!lc || lc === 'auto' || lc === 'best') return { model: 'claude-sonnet-4-6' }
+  if (lc.startsWith('claude') || lc.includes('opus') || lc.includes('sonnet') || lc.includes('haiku')) {
+    if (lc.includes('opus')) return { model: 'claude-opus-4-7' }
+    if (lc.includes('haiku')) return { model: 'claude-haiku-4-5-20251001' }
+    return { model: 'claude-sonnet-4-6' }
+  }
+  // Non-Anthropic model — agent tool-use loop can't run against it.
+  return { model: 'claude-sonnet-4-6', substituted: name }
 }
 
 export async function POST(req: NextRequest) {
@@ -338,7 +347,8 @@ export async function POST(req: NextRequest) {
   }
 
   const client = new Anthropic({ apiKey: anthropicKey })
-  const model = pickModel(body.model)
+  const picked = pickModel(body.model)
+  const model = picked.model
   // Bumped from 8 → 14 default. Multi-file refinements ("replace the
   // Google iframe with a static map", "make the menu responsive") need to
   // list_files + read 3-4 files + write 2-3 files + done — easily 6-8
@@ -455,6 +465,18 @@ export async function POST(req: NextRequest) {
       // response right away (not after Claude's first reply). EventSource
       // ignores `:` comment lines.
       try { controller.enqueue(encoder.encode(`: connected\n\n`)) } catch {}
+
+      // If the user picked a non-Anthropic model, tell them up-front that
+      // we substituted Sonnet — the agent tool-use loop is Anthropic-only.
+      if (picked.substituted) {
+        send('notice', {
+          kind: 'model_substituted',
+          requested: picked.substituted,
+          using: model,
+          message: `Agent edits use Claude (${model}). "${picked.substituted}" was your generation model — it's not supported for the tool-use loop yet.`,
+        })
+      }
+
       heartbeat = setInterval(() => {
         if (aborted) { stopHeartbeat(); return }
         try { controller.enqueue(encoder.encode(`: ping\n\n`)) } catch { aborted = true; stopHeartbeat() }

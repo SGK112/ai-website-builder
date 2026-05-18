@@ -2419,8 +2419,13 @@ function WorkspaceContent() {
       // in fresh-build mode (no currentHtml = no "surgical editor" mode).
       setHtml('')
       setChatMessages(prev => prev.filter((_, i) => i === prev.length - 1)) // keep only the just-added user prompt
-      // Fire generation immediately — this is the user's request from the landing page
-      handleGenerate(promptFromUrl)
+      // Fire generation immediately — this is the user's request from the landing page.
+      // useEffect callbacks can't be async; catch the promise so an Anthropic failure
+      // surfaces in the terminal/toast (via handleGenerate's own try/catch) without
+      // becoming an unhandled rejection. The inner handler already shows the error.
+      void handleGenerate(promptFromUrl).catch((e) => {
+        console.error('[workspace] URL-prompt generation failed:', e)
+      })
     } else {
       setHasInitialized(true)
     }
@@ -5066,7 +5071,10 @@ ${html}
         })
       })
 
-      if (!response.ok) throw new Error('Video generation failed')
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({} as any))
+        throw new Error(body.error || `Video generation failed (HTTP ${response.status})`)
+      }
 
       const data = await response.json()
       if (data.output) {
@@ -9845,11 +9853,13 @@ npx eas build --platform all
                       </div>
                     )}
 
-                    {/* Unsplash Stock Photos Tab */}
+                    {/* Stock Photos Tab — Pexels-backed via /api/media proxy.
+                        Tab key stays 'unsplash' for back-compat with persisted
+                        UI state; only the visible copy changes. */}
                     {(imageTabMode || 'url') === 'unsplash' && (
                       <div className="p-4 rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20">
                         <label className="block text-sm text-amber-300 mb-3 font-medium">
-                          Search Unsplash Stock Photos
+                          Search Pexels Stock Photos
                         </label>
                         <div className="flex gap-2 mb-4">
                           <input
@@ -9863,7 +9873,8 @@ npx eas build --platform all
                                 if (query) {
                                   setUnsplashResults?.([])
                                   setUnsplashLoading?.(true)
-                                  // Generate Unsplash URLs directly (no API key needed for source.unsplash.com)
+                                  // /api/media is the Pexels-backed proxy; v=N forces variety.
+                                  // The legacy source.unsplash.com endpoint is dead since 2024-06.
                                   const results = [
                                     `/api/media?q=${encodeURIComponent(query)}&w=800&h=600&v=1`,
                                     `/api/media?q=${encodeURIComponent(query)}&w=800&h=600&v=2`,

@@ -80,7 +80,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   }
   if (!TOKEN) {
-    return NextResponse.json({ error: 'REPLICATE_API_TOKEN not configured' }, { status: 500 })
+    return NextResponse.json({
+      error: 'AI video is not available on this instance — REPLICATE_API_TOKEN is not configured. Ask an admin to set it, or use the image tools instead.',
+      feature: 'video',
+      reason: 'replicate_unconfigured',
+    }, { status: 503 })
   }
 
   try {
@@ -112,7 +116,11 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   const id = new URL(request.url).searchParams.get('id')
-  if (!TOKEN) return NextResponse.json({ error: 'REPLICATE_API_TOKEN not configured' }, { status: 500 })
+  if (!TOKEN) return NextResponse.json({
+    error: 'AI video is not available on this instance — REPLICATE_API_TOKEN is not configured.',
+    feature: 'video',
+    reason: 'replicate_unconfigured',
+  }, { status: 503 })
   if (!id) {
     return NextResponse.json({
       models: Object.entries(MODELS).map(([k, v]) => ({

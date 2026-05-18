@@ -39,10 +39,11 @@ export async function POST(request: NextRequest) {
   }
 
   if (!REPLICATE_API_TOKEN) {
-    return NextResponse.json(
-      { error: 'Replicate API not configured. Add REPLICATE_API_TOKEN to environment.' },
-      { status: 500 }
-    )
+    return NextResponse.json({
+      error: 'AI image tools (remove-background, enhance, generate) are not available on this instance — REPLICATE_API_TOKEN is not configured. Use the stock-photo picker instead.',
+      feature: 'image',
+      reason: 'replicate_unconfigured',
+    }, { status: 503 })
   }
 
   try {
@@ -213,7 +214,11 @@ export async function GET(request: NextRequest) {
   }
 
   if (!REPLICATE_API_TOKEN) {
-    return NextResponse.json({ error: 'Replicate API not configured' }, { status: 500 })
+    return NextResponse.json({
+      error: 'AI image tools not available — REPLICATE_API_TOKEN unconfigured.',
+      feature: 'image',
+      reason: 'replicate_unconfigured',
+    }, { status: 503 })
   }
 
   try {
