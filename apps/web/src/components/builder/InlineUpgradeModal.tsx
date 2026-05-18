@@ -121,16 +121,19 @@ export function InlineUpgradeModal({ open, onClose, isDark = true, currentPlan, 
               <span className={cn('text-xs', isDark ? 'text-zinc-400' : 'text-slate-500')}>Monthly</span>
               <button
                 onClick={() => setPeriod(p => p === 'monthly' ? 'annual' : 'monthly')}
+                aria-label={`Switch to ${period === 'annual' ? 'monthly' : 'annual'} billing`}
                 className={cn(
-                  'relative w-10 h-5 rounded-full transition-colors',
+                  // Wider container + matching knob travel so the knob can't
+                  // visually escape the pill in any browser zoom/font setting.
+                  'relative w-11 h-6 rounded-full transition-colors shrink-0',
                   period === 'annual'
                     ? 'bg-violet-600'
-                    : isDark ? 'bg-zinc-700' : 'bg-slate-200'
+                    : isDark ? 'bg-zinc-700' : 'bg-slate-300'
                 )}
               >
                 <span className={cn(
-                  'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform',
-                  period === 'annual' ? 'translate-x-5' : 'translate-x-0.5'
+                  'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform',
+                  period === 'annual' ? 'translate-x-5' : 'translate-x-0'
                 )} />
               </button>
               <span className={cn('text-xs', isDark ? 'text-zinc-400' : 'text-slate-500')}>

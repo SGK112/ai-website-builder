@@ -96,9 +96,24 @@ export async function GET(req: NextRequest) {
 
     const templates = await response.json()
 
+    // Filter out junk rows on the LIST view (vitest fixtures + stubs that
+    // got persisted from local dev runs). Keeps single-by-id reads honest
+    // for admins debugging a specific test row.
+    const cleanedList: Template[] = id
+      ? templates
+      : (Array.isArray(templates) ? templates : []).filter((t: Template) => {
+          const name = (t?.name || '').trim()
+          if (!name) return false
+          if (/^(no thumbnail )?test\b/i.test(name)) return false
+          if (/^untitled\b/i.test(name)) return false
+          // Stubs the user kept hitting — short auto-gen names with epoch suffixes.
+          if (/test \d{10,}/i.test(name)) return false
+          return true
+        })
+
     return NextResponse.json({
-      templates: id ? templates : templates,
-      count: Array.isArray(templates) ? templates.length : 1
+      templates: id ? templates : cleanedList,
+      count: Array.isArray(id ? templates : cleanedList) ? (id ? templates : cleanedList).length : 1
     })
   } catch (error) {
     console.error('[Templates API] Error:', error)
