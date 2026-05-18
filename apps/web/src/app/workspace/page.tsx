@@ -2567,6 +2567,21 @@ function WorkspaceContent() {
     setShowOnboarding(false)
   }
 
+  // Warn the user if they try to leave / refresh during an in-flight generation.
+  // Closing the tab or navigating away aborts the SSE stream — the server keeps
+  // running (and credits are still spent) but the client never sees the HTML,
+  // which is exactly the "I came back to a blank site" failure mode.
+  useEffect(() => {
+    if (!isGenerating) return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = 'Your site is still generating. Leaving now will lose it — are you sure?'
+      return e.returnValue
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isGenerating])
+
   // Auto-scroll terminal
   useEffect(() => {
     if (terminalRef.current) {

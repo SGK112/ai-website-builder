@@ -984,10 +984,14 @@ function pickBestModel(prompt: string, currentHtml?: string): AutoModelChoice {
     return { model: 'claude-opus-4-7', reason: 'reasoning: complex task' }
   }
 
-  // Fresh-build detection — "build me a coffee shop site"
+  // Fresh-build detection — "build me a coffee shop site".
+  // Use Haiku 4.5 for first-touch: ~3-5x faster than Sonnet (20-30s vs 2-3min)
+  // and fits a full landing page in one pass (no max_tokens continuations).
+  // Speed beats marginal quality here — users will refine via chat, and
+  // a slow first build causes navigation-away → lost stream → blank site.
   const isFreshBuildIntent = /\b(build|create|make|generate|design|launch|spin\s+up|put\s+together|whip\s+up)\b.+\b(site|website|page|landing|app|store|blog|portfolio|dashboard)\b/.test(p)
   if (isFreshBuildIntent && !hasCurrentHtml) {
-    return { model: 'claude-sonnet-4-6', reason: 'fresh build' }
+    return { model: 'claude-haiku-4-5-20251001', reason: 'fresh build (fast)' }
   }
 
   // Quick edit — short prompt against an existing site
