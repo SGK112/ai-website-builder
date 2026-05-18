@@ -289,6 +289,13 @@ export default function ProfilePage() {
         window.location.href = d.url
         return
       }
+      // Free-plan users (no stripeCustomerId yet) get a 400 with this exact
+      // shape — push them straight to /upgrade instead of leaving an error
+      // string on the page that goes nowhere.
+      if (r.status === 400 && /no active subscription/i.test(d.error || '')) {
+        window.location.href = '/upgrade'
+        return
+      }
       setPortalError(d.error || `Portal failed (HTTP ${r.status})`)
     } catch (e) {
       setPortalError(e instanceof Error ? e.message : 'Network error')

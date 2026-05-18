@@ -6166,7 +6166,7 @@ npx eas build --platform all
                 { id: 'integrations' as Panel, icon: Link2, label: 'Plugins', color: 'cyan', levels: ['low-code','full-stack'] },
                 { id: 'env' as Panel, icon: Variable, label: 'Env', color: 'yellow', levels: ['low-code','full-stack'] },
                 { id: 'console' as Panel, icon: Terminal, label: 'Log', color: 'green', levels: ['full-stack'] },
-                { id: 'bridge' as Panel, icon: ChefHat, label: 'Bridge', color: 'orange', levels: ['full-stack'] },
+                { id: 'bridge' as Panel, icon: ChefHat, label: 'Bridge', color: 'orange', levels: ['low-code','full-stack'] },
                 { id: 'deploy' as Panel, icon: Rocket, label: 'Ship', tour: 'deploy', color: 'red', levels: ['no-code','low-code','full-stack'] },
               ] as { id: Panel; icon: React.ElementType; label: string; tour?: string; color: string; levels: string[] }[])
                 .filter(p => (p.levels as string[]).includes(skillLevel))

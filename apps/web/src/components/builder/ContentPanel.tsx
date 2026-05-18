@@ -135,6 +135,7 @@ export function ContentPanel({ projectId, isDark = true }: Props) {
             collections={collections}
             loading={loading}
             onOpen={(slug) => setView({ type: 'items', collection: slug })}
+            onCreate={() => setView({ type: 'new-schema' })}
             isDark={isDark}
           />
         )}
@@ -178,10 +179,11 @@ function Empty({ icon: Icon, title, body, isDark }: { icon: any; title: string; 
   )
 }
 
-function CollectionsList({ collections, loading, onOpen, isDark }: {
+function CollectionsList({ collections, loading, onOpen, onCreate, isDark }: {
   collections: CollectionSummary[]
   loading: boolean
   onOpen: (slug: string) => void
+  onCreate: () => void
   isDark: boolean
 }) {
   if (loading && collections.length === 0) {
@@ -193,12 +195,23 @@ function CollectionsList({ collections, loading, onOpen, isDark }: {
   }
   if (collections.length === 0) {
     return (
-      <Empty
-        icon={FileText}
-        title="No collections yet"
-        body='Ask the agent to "add a blog with 3 posts" — it can scaffold a Posts collection. Or define one via the API.'
-        isDark={isDark}
-      />
+      <div className="flex flex-col items-center justify-center text-center px-6 py-12 gap-3">
+        <FileText className={`w-8 h-8 ${isDark ? 'text-zinc-700' : 'text-slate-300'}`} />
+        <div className={`text-sm font-medium ${isDark ? 'text-zinc-300' : 'text-slate-700'}`}>No collections yet</div>
+        <div className={`text-xs max-w-xs ${isDark ? 'text-zinc-500' : 'text-slate-500'}`}>
+          Collections are structured content (blog posts, services, team members) that the deployed site reads as JSON. Create one to get started.
+        </div>
+        <button
+          onClick={onCreate}
+          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Create your first collection
+        </button>
+        <div className={`text-[10px] mt-1 ${isDark ? 'text-zinc-600' : 'text-slate-400'}`}>
+          Or ask the agent: <span className="font-mono">"add a blog with 3 posts"</span>
+        </div>
+      </div>
     )
   }
   return (
