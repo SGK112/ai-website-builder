@@ -6,7 +6,10 @@ import { generateJson, requireFiles, GenerateJsonError } from '@/lib/llm-json'
 import { augmentPromptWithReference } from '@/lib/site-reference'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+// 300s matches /api/builder/generate. The previous 60s ceiling forced
+// Cloudflare-edge 524s on big Expo projects long before Render itself
+// would have timed out.
+export const maxDuration = 300
 
 // ---------- Types ----------
 
@@ -130,8 +133,11 @@ function makeSlug(name: string): string {
 function pickAnthropicModel(modelName: string | undefined): string {
   const lc = (modelName || '').toLowerCase()
   if (lc.includes('opus')) return 'claude-opus-4-7'
-  if (lc.includes('haiku')) return 'claude-haiku-4-5-20251001'
-  return 'claude-sonnet-4-6'
+  if (lc.includes('sonnet')) return 'claude-sonnet-4-6'
+  // Default to Haiku 4.5 — 3-5x faster than Sonnet on a full Expo project,
+  // typically lands in 25-45s vs Sonnet's 90-180s (which was tripping the
+  // Cloudflare 100s timeout = HTTP 524). Sonnet still selectable explicitly.
+  return 'claude-haiku-4-5-20251001'
 }
 
 // ---------- Route ----------

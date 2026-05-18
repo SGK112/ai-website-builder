@@ -6,7 +6,9 @@ import { generateJson, requireFiles, GenerateJsonError } from '@/lib/llm-json'
 import { augmentPromptWithReference } from '@/lib/site-reference'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+// 300s matches /api/builder/generate. The previous 60s ceiling forced
+// Cloudflare-edge 524s on big project generations.
+export const maxDuration = 300
 
 interface AstroGenerateRequest {
   prompt: string
@@ -115,8 +117,10 @@ function makeSlug(name: string): string {
 function pickAnthropicModel(modelName: string | undefined): string {
   const lc = (modelName || '').toLowerCase()
   if (lc.includes('opus')) return 'claude-opus-4-7'
-  if (lc.includes('haiku')) return 'claude-haiku-4-5-20251001'
-  return 'claude-sonnet-4-6'
+  if (lc.includes('sonnet')) return 'claude-sonnet-4-6'
+  // Haiku default — faster, fits Cloudflare's 100s edge timeout. Sonnet still
+  // available via explicit selection in the workspace model picker.
+  return 'claude-haiku-4-5-20251001'
 }
 
 export async function POST(req: NextRequest) {
