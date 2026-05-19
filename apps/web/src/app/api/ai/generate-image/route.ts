@@ -4,6 +4,12 @@ import { authOptions } from '@/lib/auth'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 import OpenAI from 'openai'
 
+export const dynamic = 'force-dynamic'
+// 300s — OpenAI image generation (DALL-E etc.) can run 30-90s under
+// load. Render's default kills before completion; Cloudflare 524s at
+// 100s on non-streaming responses (uncommon here but documented).
+export const maxDuration = 300
+
 // Lazy initialization of OpenAI client to avoid build-time errors
 let openaiClient: OpenAI | null = null
 function getOpenAIClient(): OpenAI | null {

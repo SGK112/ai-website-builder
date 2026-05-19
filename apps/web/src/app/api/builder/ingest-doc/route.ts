@@ -11,6 +11,10 @@ import { authOptions } from '@/lib/auth'
 import Anthropic from '@anthropic-ai/sdk'
 
 export const dynamic = 'force-dynamic'
+// 300s — long-running Anthropic/Replicate/OpenAI/Runpod call. Without this
+// Render's default kills the request before the upstream finishes. Cloudflare
+// still 524s at 100s on non-streaming responses; SSE-wrap if you hit that ceiling.
+export const maxDuration = 300
 export const runtime = 'nodejs'
 
 const MAX_BYTES = 15 * 1024 * 1024

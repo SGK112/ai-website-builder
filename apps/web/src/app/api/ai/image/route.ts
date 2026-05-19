@@ -3,6 +3,10 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
+// 300s — long-running Anthropic/Replicate/OpenAI/Runpod call. Without this
+// Render's default kills the request before the upstream finishes. Cloudflare
+// still 524s at 100s on non-streaming responses; SSE-wrap if you hit that ceiling.
+export const maxDuration = 300
 
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN
 

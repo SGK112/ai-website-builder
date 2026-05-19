@@ -3,6 +3,11 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 
+export const dynamic = 'force-dynamic'
+// 300s — Replicate media generation (image/video/audio). Cloudflare
+// still 524s at 100s on non-streaming responses; SSE-wrap if needed.
+export const maxDuration = 300
+
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN
 
 // Comprehensive Replicate model catalog

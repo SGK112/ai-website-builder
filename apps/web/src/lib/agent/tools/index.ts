@@ -577,26 +577,36 @@ const modifyHtmlTool = createTool(
         }
       }
 
-      // Handle streaming response
+      // Handle streaming response with proper SSE buffering. Chunks from
+      // the network can split mid-JSON; we accumulate until we see a `\n\n`
+      // frame delimiter and only parse complete frames. The previous loop
+      // split each read on `\n` and silently dropped the half-frames as
+      // "parse noise" — agent's modify_html would lose any HTML that fell
+      // on a chunk boundary. Same class of bug as the workspace
+      // handleGenerate fix in a4f872e.
       const reader = response.body?.getReader()
       const decoder = new TextDecoder()
       let html = ''
+      let sseBuffer = ''
 
       if (reader) {
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
-          const chunk = decoder.decode(value)
-          const lines = chunk.split('\n')
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6)
-              if (data === '[DONE]') continue
-              try {
-                const parsed = JSON.parse(data)
-                if (parsed.html) html = parsed.html
-              } catch {}
+          sseBuffer += decoder.decode(value, { stream: true })
+          const frames = sseBuffer.split('\n\n')
+          sseBuffer = frames.pop() || ''
+          for (const frame of frames) {
+            let dataStr = ''
+            for (const line of frame.split('\n')) {
+              if (line.startsWith('data: ')) dataStr += line.slice(6)
             }
+            if (!dataStr || dataStr === '[DONE]') continue
+            try {
+              const parsed = JSON.parse(dataStr)
+              if (typeof parsed.html === 'string') html = parsed.html
+              else if (typeof parsed.delta === 'string') html += parsed.delta
+            } catch { /* incomplete frame, will fill in next read */ }
           }
         }
       }

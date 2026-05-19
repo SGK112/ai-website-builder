@@ -4,6 +4,13 @@ import { authOptions } from '@/lib/auth'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 import { isRunpodConfigured, runRunpodJob, RUNPOD_ENDPOINTS } from '@/lib/runpod'
 
+export const dynamic = 'force-dynamic'
+// 300s — Runpod / Replicate background generation can run minutes.
+// Without this Render kills the request before the worker returns.
+// Cloudflare still 524s at 100s on non-streaming responses; SSE-wrap
+// if you actually hit that ceiling here.
+export const maxDuration = 300
+
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN
 
 // Background presets for website themes
