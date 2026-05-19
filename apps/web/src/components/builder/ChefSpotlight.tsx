@@ -152,22 +152,26 @@ export function ChefDock({
 
   return (
     // Outer wrapper covers the viewport; the motion child sits at its
-    // flex-end (bottom-center) by default. dragConstraints={wrapperRef}
-    // keeps the dock inside the viewport however far the user drags.
+    // flex-end (bottom-center) by default. Inset padding (left/right/top/
+    // bottom) gives the dock room to grow when expanded without escaping
+    // the wrapper. dragElastic 0.08 adds a tiny rubber-band feel at the
+    // edges so dragging into a corner feels smooth instead of hard-stopping.
     <div
       ref={wrapperRef}
-      className="fixed inset-0 z-[100] pointer-events-none flex items-end justify-center"
+      className="fixed inset-x-2 inset-y-2 z-[100] pointer-events-none flex items-end justify-center"
     >
       <motion.div
         drag
         dragListener={false}
         dragControls={dragControls}
         dragMomentum={false}
-        dragElastic={0}
+        dragElastic={0.08}
         dragConstraints={wrapperRef}
+        dragTransition={{ bounceStiffness: 600, bounceDamping: 30 }}
+        whileDrag={{ scale: 1.02, cursor: 'grabbing' }}
         onDragEnd={persistPosition}
         style={{ x, y }}
-        className="flex flex-col items-center gap-2 mb-10 pointer-events-none"
+        className="flex flex-col items-center gap-2 mb-10 pointer-events-none touch-none"
       >
       {/* Floating message stack — sits above the bar. Each bubble is its
           own glass pill, max-width capped so long replies wrap. Animates
