@@ -95,19 +95,15 @@ const BUILTIN_TEMPLATES: Template[] = [
   {
     id: 'restaurant-modern',
     name: 'Modern Restaurant',
-    description: 'Elegant restaurant template with menu sections',
+    description: 'Elegant restaurant template with menu sections — coming soon',
     category: 'restaurant',
     thumbnail_url: 'https://www.webstew.net/api/media?q=restaurant&w=800&h=600',
-    is_premium: true,
-    price_credits: 10,
-    priceUsdCents: 1900,
-    includes: [
-      'Hero with reservation CTA',
-      'Full menu section (starters / mains / desserts)',
-      'Chef story + photo gallery',
-      'Hours + contact + map',
-      'Mobile-responsive, dark/light auto',
-    ],
+    // No real HTML in lib/templates yet — kept off the paid list. Buyer
+    // would land on "Template not found" otherwise. When the HTML ships,
+    // flip is_premium back to true + re-add to TEMPLATE_USD_CENTS in the
+    // checkout route.
+    is_premium: false,
+    price_credits: 0,
   },
   {
     id: 'photography-portfolio',
@@ -121,19 +117,11 @@ const BUILTIN_TEMPLATES: Template[] = [
   {
     id: 'tech-blog',
     name: 'Tech Blog',
-    description: 'Clean tech blog template with article layouts',
+    description: 'Clean tech blog template with article layouts — coming soon',
     category: 'blog',
     thumbnail_url: 'https://www.webstew.net/api/media?q=techblog&w=800&h=600',
-    is_premium: true,
-    price_credits: 5,
-    priceUsdCents: 1900,
-    includes: [
-      'Hero + featured article',
-      'Article grid with categories',
-      'Single-post layout with TOC',
-      'Author bio + newsletter signup',
-      'Code-block syntax styling',
-    ],
+    is_premium: false,
+    price_credits: 0,
   },
   {
     id: 'startup-landing',
@@ -147,19 +135,11 @@ const BUILTIN_TEMPLATES: Template[] = [
   {
     id: 'fitness-gym',
     name: 'Fitness Gym',
-    description: 'Energy-filled gym and fitness template',
+    description: 'Energy-filled gym and fitness template — coming soon',
     category: 'landing',
     thumbnail_url: 'https://www.webstew.net/api/media?q=fitness&w=800&h=600',
-    is_premium: true,
-    price_credits: 10,
-    priceUsdCents: 1900,
-    includes: [
-      'High-energy hero with class CTA',
-      'Class schedule grid',
-      'Trainer profile cards',
-      'Membership pricing tiers',
-      'Trial-pass signup form',
-    ],
+    is_premium: false,
+    price_credits: 0,
   },
   {
     id: 'fashion-store',

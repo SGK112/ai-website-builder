@@ -21,20 +21,19 @@ export const dynamic = 'force-dynamic'
 // Per-template USD pricing. Keep here (not in lib/templates/index.ts)
 // so the user-facing price never depends on metadata that an AI-edited
 // template file might overwrite. To add a new paid template: add an
-// entry here + flip is_premium: true on its /templates/page.tsx row.
+// entry here + flip is_premium: true on its /templates/page.tsx row +
+// ENSURE the template id exists in lib/templates/index.ts (real HTML
+// behind it). Charging for an ID with no HTML = paying users land on
+// "Template not found" — a previously-shipped bug. Don't repeat.
 const TEMPLATE_USD_CENTS: Record<string, number> = {
-  // Builtin local templates from /templates/page.tsx that have is_premium:true
-  'restaurant-modern':       1900,  // $19
-  'tech-blog':               1900,
-  'fitness-gym':             1900,
-  'saas-multipage':          2900,  // bigger template = $29
-  // Future paid templates land here keyed by template.id.
+  // ONLY templates with real HTML in lib/templates/index.ts. Each id
+  // here is verified to load successfully via getTemplateById().
+  'saas-multipage':          2900,  // SAAS_MULTIPAGE_TEMPLATE — $29
+  // Future paid templates: add HTML to lib/templates/<id>.ts first,
+  // wire it into lib/templates/index.ts, THEN add a price here.
 }
 
 const TEMPLATE_NAMES: Record<string, string> = {
-  'restaurant-modern':       'Modern Restaurant',
-  'tech-blog':               'Tech Blog',
-  'fitness-gym':             'Fitness Gym',
   'saas-multipage':          'SaaS Complete',
 }
 
@@ -74,7 +73,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (existing) {
     return NextResponse.json({
       alreadyOwned: true,
-      redirect: `/workspace?template=${encodeURIComponent(templateId)}`,
+      redirect: `/workspace?templateId=${encodeURIComponent(templateId)}`,
     })
   }
 
@@ -109,7 +108,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         template_id: templateId,
         buyer_user_id: session.user.id,
       },
-      success_url: `${SITE_URL}/workspace?template=${encodeURIComponent(templateId)}&purchased=true&session_id={CHECKOUT_SESSION_ID}`,
+      // Note: workspace/page.tsx reads `templateId` (camelCase) from the
+      // query, not `template`. Bug here was a silent no-op landing — the
+      // user paid but didn't get the template loaded.
+      success_url: `${SITE_URL}/workspace?templateId=${encodeURIComponent(templateId)}&purchased=true&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url:  `${SITE_URL}/templates?cancelled=${encodeURIComponent(templateId)}`,
     })
 
