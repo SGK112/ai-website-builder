@@ -7,8 +7,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getStripe } from '@/lib/stripe'
-import clientPromise from '@/lib/mongodb'
-import { ObjectId } from 'mongodb'
+import { connectDB } from '@/lib/db'
+import { User } from '@ai-website-builder/database'
+import mongoose from 'mongoose'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,26 +18,29 @@ export async function GET(_req: NextRequest) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   }
-  if (!ObjectId.isValid(session.user.id)) {
+  if (!mongoose.Types.ObjectId.isValid(session.user.id)) {
     return NextResponse.json({ error: 'Invalid user' }, { status: 400 })
   }
 
-  const client = await clientPromise
-  const db = client.db('ai-website-builder')
-  const user = await db.collection('users').findOne(
-    { _id: new ObjectId(session.user.id) },
-    { projection: { stripe_account_id: 1 } }
-  )
-  if (!user?.stripe_account_id) {
+  // Use Mongoose so we hit the correct database — the previous raw-driver
+  // client.db('ai-website-builder') looked in a different DB than where
+  // users actually live, returning "not_started" for everyone.
+  await connectDB()
+  let user: any = await User.findById(session.user.id).select('stripe_account_id stripeAccountId email').lean()
+  if (!user && session.user.email) {
+    user = await User.findOne({ email: session.user.email.toLowerCase() }).select('stripe_account_id stripeAccountId').lean()
+  }
+  const accountId = user?.stripe_account_id || user?.stripeAccountId
+  if (!accountId) {
     return NextResponse.json({ connected: false, status: 'not_started' })
   }
 
   const stripe = await getStripe()
   if (!stripe) {
-    return NextResponse.json({ connected: false, status: 'stripe_unconfigured', accountId: user.stripe_account_id })
+    return NextResponse.json({ connected: false, status: 'stripe_unconfigured', accountId: accountId })
   }
   try {
-    const account = await stripe.accounts.retrieve(user.stripe_account_id)
+    const account = await stripe.accounts.retrieve(accountId)
     // Express accounts report charges_enabled / payouts_enabled once Stripe
     // has verified the seller's identity + bank details. requirements.currently_due
     // lists anything blocking them — surface the first item so the UI can show
@@ -50,7 +54,7 @@ export async function GET(_req: NextRequest) {
     return NextResponse.json({
       connected: true,
       status,
-      accountId: user.stripe_account_id,
+      accountId: accountId,
       chargesEnabled: charges,
       payoutsEnabled: payouts,
       pendingRequirement: needs,

@@ -7,6 +7,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
+import { connectDB } from '@/lib/db'
+import { User } from '@ai-website-builder/database'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,21 +25,22 @@ export async function GET(_req: NextRequest) {
   }
   const userId = new ObjectId(session.user.id)
 
+  // User lookup goes through Mongoose so we hit the correct database
+  // (the Mongoose connection-string default DB). Marketplace collections
+  // (payouts_log, marketplace_purchases) live in 'ai-website-builder' —
+  // that lookup stays on the raw client.
+  await connectDB()
   const client = await clientPromise
   const db = client.db('ai-website-builder')
 
-  const [user, recentPayouts, recentSales, lifetimeSales] = await Promise.all([
-    db.collection('users').findOne(
-      { _id: userId },
-      {
-        projection: {
-          marketplace_earnings_credits: 1,
-          stripe_account_id: 1,
-          stripe_payouts_enabled: 1,
-          stripe_charges_enabled: 1,
-        },
+  const [userDoc, recentPayouts, recentSales, lifetimeSales] = await Promise.all([
+    (async () => {
+      let u: any = await User.findById(session.user.id).select('marketplace_earnings_credits stripe_account_id stripe_payouts_enabled stripe_charges_enabled stripeAccountId email').lean()
+      if (!u && session.user.email) {
+        u = await User.findOne({ email: session.user.email.toLowerCase() }).select('marketplace_earnings_credits stripe_account_id stripe_payouts_enabled stripeAccountId').lean()
       }
-    ),
+      return u
+    })(),
     db
       .collection('payouts_log')
       .find({ userId: String(userId) })
@@ -58,6 +61,7 @@ export async function GET(_req: NextRequest) {
       ])
       .toArray(),
   ])
+  const user = userDoc
 
   return NextResponse.json({
     balance: {
@@ -69,8 +73,10 @@ export async function GET(_req: NextRequest) {
       minPayoutCents: MIN_PAYOUT_CENTS,
       minPayoutCredits: Math.ceil(MIN_PAYOUT_CENTS / CENTS_PER_CREDIT),
     },
-    payoutsReady: !!user?.stripe_account_id && !!user?.stripe_payouts_enabled,
-    needsOnboarding: !user?.stripe_account_id || !user?.stripe_payouts_enabled,
+    // Accept either snake_case (raw driver writes) or camelCase (Mongoose-
+    // managed fields) — different write paths used different conventions.
+    payoutsReady: !!(user?.stripe_account_id || user?.stripeAccountId) && !!user?.stripe_payouts_enabled,
+    needsOnboarding: !(user?.stripe_account_id || user?.stripeAccountId) || !user?.stripe_payouts_enabled,
     lifetime: {
       salesCount: lifetimeSales[0]?.count || 0,
       creditsEarned: lifetimeSales[0]?.credits || 0,

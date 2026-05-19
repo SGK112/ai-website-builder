@@ -18,8 +18,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getStripe } from '@/lib/stripe'
-import clientPromise from '@/lib/mongodb'
-import { ObjectId } from 'mongodb'
+import { connectDB } from '@/lib/db'
+import { User } from '@ai-website-builder/database'
+import mongoose from 'mongoose'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +31,7 @@ export async function POST(_req: NextRequest) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   }
-  if (!ObjectId.isValid(session.user.id)) {
+  if (!mongoose.Types.ObjectId.isValid(session.user.id)) {
     return NextResponse.json({ error: 'Invalid user' }, { status: 400 })
   }
 
@@ -39,14 +40,23 @@ export async function POST(_req: NextRequest) {
     return NextResponse.json({ error: 'Stripe is not configured.' }, { status: 503 })
   }
 
-  const client = await clientPromise
-  const db = client.db('ai-website-builder')
-  const userId = new ObjectId(session.user.id)
-  const user = await db.collection('users').findOne({ _id: userId })
+  // Use Mongoose's User model — same path NextAuth uses to log the user in,
+  // which means we hit the correct database. The previous client.db('ai-website-builder')
+  // looked in a different DB than where the user actually exists (Mongoose
+  // default DB from the connection-string path component), so every
+  // sign-in flow saw "User not found" here.
+  await connectDB()
+  const userId = session.user.id
+  let user: any = await User.findById(userId).lean()
+  // Fallback by email — covers cases where session.user.id and the user
+  // doc _id drifted (provider-linked OAuth migrations).
+  if (!user && session.user.email) {
+    user = await User.findOne({ email: session.user.email.toLowerCase() }).lean()
+  }
   if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
   try {
-    let accountId: string | undefined = user.stripe_account_id
+    let accountId: string | undefined = user.stripe_account_id || user.stripeAccountId
 
     // Step 1 — create the Express account if we don't have one. capabilities
     // requested: transfers (the platform sends funds out to this seller)
@@ -70,10 +80,18 @@ export async function POST(_req: NextRequest) {
         },
       })
       accountId = account.id
-      await db.collection('users').updateOne(
-        { _id: userId },
-        { $set: { stripe_account_id: accountId, stripe_account_created_at: new Date(), updatedAt: new Date() } }
-      )
+      // Update via Mongoose's User model. Use $set on the raw driver
+      // because adding new fields outside the registered schema gets
+      // stripped by doc.save() — same gotcha as the marketplace v1 cms
+      // field bug noted in project memory.
+      const conn = await connectDB()
+      const rawDb = conn.connection.db
+      if (rawDb) {
+        await rawDb.collection('users').updateOne(
+          { _id: new mongoose.Types.ObjectId(userId) },
+          { $set: { stripe_account_id: accountId, stripe_account_created_at: new Date(), updatedAt: new Date() } }
+        )
+      }
     }
 
     // Step 2 — Stripe-hosted onboarding link. One-time use, short TTL.
