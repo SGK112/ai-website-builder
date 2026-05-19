@@ -6844,7 +6844,7 @@ npx eas build --platform all
                                 chef
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-[10px] text-zinc-600 font-medium">api</span>
+                              <span className={cn('inline-flex items-center gap-1 text-[10px] font-medium', isDark ? 'text-zinc-400' : 'text-slate-500')}>api</span>
                             )}
                           </div>
                         )}
@@ -7044,8 +7044,8 @@ npx eas build --platform all
                 {/* Quick Start Templates */}
                 <div>
                   <div className="flex items-center gap-2 mb-3">
-                    <Sparkles className="w-4 h-4 text-violet-400" />
-                    <h3 className="text-sm font-medium text-white">Quick Start</h3>
+                    <Sparkles className={cn('w-4 h-4', isDark ? 'text-violet-400' : 'text-violet-600')} />
+                    <h3 className={cn('text-sm font-medium', isDark ? 'text-white' : 'text-slate-900')}>Quick Start</h3>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     {quickStartTemplates.map((template) => (
