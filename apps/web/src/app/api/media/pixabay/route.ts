@@ -19,7 +19,11 @@ interface PixabayImage {
 export async function GET(request: NextRequest) {
   try {
     if (!PIXABAY_API_KEY) {
-      return NextResponse.json({ error: 'Pixabay API not configured' }, { status: 500 })
+      return NextResponse.json({
+        error: 'Pixabay search is not available on this instance — PIXABAY_API_KEY is not configured. Use /api/media (Pexels-backed) instead.',
+        feature: 'pixabay',
+        reason: 'pixabay_unconfigured',
+      }, { status: 503 })
     }
 
     const { searchParams } = new URL(request.url)

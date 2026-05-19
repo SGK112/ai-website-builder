@@ -15,6 +15,26 @@ export const dynamic = 'force-dynamic'
 const CENTS_PER_CREDIT = Math.max(1, parseInt(process.env.MARKETPLACE_CREDIT_USD_CENTS || '1', 10) || 1)
 const MIN_PAYOUT_CENTS = Math.max(100, parseInt(process.env.MARKETPLACE_PAYOUT_MIN_CENTS || '500', 10) || 500)
 
+// Lazy index init — fires once per process. Mirrors the pattern in
+// lib/pending-builds.ts so earnings queries don't full-scan the
+// marketplace_purchases / payouts_log collections.
+let indicesEnsured = false
+async function ensureMarketplaceIndices(db: import('mongodb').Db) {
+  if (indicesEnsured) return
+  indicesEnsured = true // set first so a concurrent request doesn't re-enter
+  try {
+    await Promise.all([
+      db.collection('marketplace_purchases').createIndex({ sellerId: 1, purchasedAt: -1 }),
+      db.collection('marketplace_purchases').createIndex({ buyerId: 1, purchasedAt: -1 }),
+      db.collection('payouts_log').createIndex({ userId: 1, createdAt: -1 }),
+    ])
+  } catch {
+    // Duplicate index creates are no-ops; this catch is for the cold-path
+    // permission edge case where the DB user can't create indexes.
+    indicesEnsured = true
+  }
+}
+
 export async function GET(_req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
@@ -32,6 +52,8 @@ export async function GET(_req: NextRequest) {
   await connectDB()
   const client = await clientPromise
   const db = client.db('ai-website-builder')
+
+  void ensureMarketplaceIndices(db)
 
   const [userDoc, recentPayouts, recentSales, lifetimeSales] = await Promise.all([
     (async () => {

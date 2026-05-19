@@ -167,7 +167,11 @@ export async function POST(req: NextRequest) {
 
   const anthropicKey = body.apiKey || process.env.ANTHROPIC_API_KEY
   if (!anthropicKey) {
-    return NextResponse.json({ error: 'Anthropic API key not configured' }, { status: 500 })
+    return NextResponse.json({
+      error: 'AI generation is not available on this instance — ANTHROPIC_API_KEY is not configured. Add your own key in Settings or contact support.',
+      feature: 'anthropic',
+      reason: 'anthropic_unconfigured',
+    }, { status: 503 })
   }
 
   const model = pickAnthropicModel(body.model)
@@ -230,7 +234,7 @@ export async function POST(req: NextRequest) {
       ].join('\n'),
     }
 
-    console.log(`[App Builder] Generated "${name}" — ${Object.keys(files).length} files, ${Math.round(rawText.length / 1024)}KB raw, ${attempts} attempt(s)`)
+    console.info(`[App Builder] Generated "${name}" — ${Object.keys(files).length} files, ${Math.round(rawText.length / 1024)}KB raw, ${attempts} attempt(s)`)
 
     // Persist so user can close the tab and resume on return. Fire-and-forget.
     try {

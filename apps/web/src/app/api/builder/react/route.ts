@@ -152,7 +152,11 @@ export async function POST(req: NextRequest) {
   if (prompt.length > 5000) return NextResponse.json({ error: 'Prompt too long (max 5000 chars)' }, { status: 400 })
 
   const anthropicKey = body.apiKey || process.env.ANTHROPIC_API_KEY
-  if (!anthropicKey) return NextResponse.json({ error: 'Anthropic API key not configured' }, { status: 500 })
+  if (!anthropicKey) return NextResponse.json({
+    error: 'AI generation is not available on this instance — ANTHROPIC_API_KEY is not configured.',
+    feature: 'anthropic',
+    reason: 'anthropic_unconfigured',
+  }, { status: 503 })
 
   const client = new Anthropic({ apiKey: anthropicKey })
 
@@ -202,7 +206,7 @@ export async function POST(req: NextRequest) {
       ].join('\n'),
     }
 
-    console.log(`[React Builder] Generated "${name}" — ${Object.keys(files).length} files, ${Math.round(rawText.length / 1024)}KB raw, ${attempts} attempt(s)`)
+    console.info(`[React Builder] Generated "${name}" — ${Object.keys(files).length} files, ${Math.round(rawText.length / 1024)}KB raw, ${attempts} attempt(s)`)
 
     try {
       const { recordCompletedBuild } = await import('@/lib/pending-builds')

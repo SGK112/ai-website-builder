@@ -190,8 +190,12 @@ export async function POST(req: NextRequest) {
 
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'Anthropic API key not configured' }), {
-        status: 500,
+      return new Response(JSON.stringify({
+        error: 'Chat is not available on this instance — ANTHROPIC_API_KEY is not configured.',
+        feature: 'anthropic',
+        reason: 'anthropic_unconfigured',
+      }), {
+        status: 503,
         headers: { 'Content-Type': 'application/json' }
       })
     }

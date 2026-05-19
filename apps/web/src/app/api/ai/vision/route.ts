@@ -31,10 +31,11 @@ export async function POST(request: NextRequest) {
   }
 
   if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json(
-      { error: 'OpenAI API not configured' },
-      { status: 500 }
-    )
+    return NextResponse.json({
+      error: 'AI vision is not available on this instance — OPENAI_API_KEY is not configured.',
+      feature: 'vision',
+      reason: 'openai_unconfigured',
+    }, { status: 503 })
   }
 
   try {

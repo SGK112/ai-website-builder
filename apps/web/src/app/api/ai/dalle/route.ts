@@ -37,7 +37,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json({ error: 'OpenAI API not configured' }, { status: 503 })
+      return NextResponse.json({
+        error: 'DALL-E is not available on this instance — OPENAI_API_KEY is not configured.',
+        feature: 'dalle',
+        reason: 'openai_unconfigured',
+      }, { status: 503 })
     }
 
     // Enhance prompt for better results
@@ -56,7 +60,11 @@ export async function POST(request: NextRequest) {
     const imageUrl = imageData?.url
 
     if (!imageUrl) {
-      return NextResponse.json({ error: 'No image generated' }, { status: 500 })
+      return NextResponse.json({
+        error: 'DALL-E returned no image. Try a different prompt or check the OpenAI status page.',
+        feature: 'dalle',
+        reason: 'empty_response',
+      }, { status: 502 })
     }
 
     return NextResponse.json({
@@ -66,9 +74,13 @@ export async function POST(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('DALL-E error:', error)
-    return NextResponse.json(
-      { error: error.message || 'Image generation failed' },
-      { status: 500 }
-    )
+    // OpenAI SDK throws errors with .status — pass it through so the client
+    // can distinguish rate-limits (429), bad prompts (400), and outages (5xx).
+    const status = typeof error?.status === 'number' ? error.status : 502
+    return NextResponse.json({
+      error: error?.message || 'Image generation failed',
+      feature: 'dalle',
+      reason: 'generation_failed',
+    }, { status })
   }
 }
