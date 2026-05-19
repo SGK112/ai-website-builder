@@ -4328,54 +4328,70 @@ ${html}
       let generatedHtml = ''
       let hasShownInteractivity = false
       let wasTruncated = false
+      let serverError: string | null = null
 
       if (reader) {
+        // Proper SSE buffering — chunks from the network can split mid-frame,
+        // so we accumulate until we see `\n\n` (the SSE frame delimiter) and
+        // only parse complete frames. The previous loop split on `\n` and
+        // parsed each line independently, which threw SyntaxError every time
+        // a JSON payload crossed a chunk boundary. The catch then rethrew it
+        // (Error instanceof Error) and killed the entire generation, leaving
+        // the preview blank with whatever had streamed before the boundary
+        // (typically just the opening nav). Reported by Joshua 2026-05-19.
+        let sseBuffer = ''
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
+          sseBuffer += decoder.decode(value, { stream: true })
+          // Split into complete frames; whatever's after the last \n\n stays
+          // in the buffer for the next iteration.
+          const frames = sseBuffer.split('\n\n')
+          sseBuffer = frames.pop() || ''
 
-          const chunk = decoder.decode(value)
-          const lines = chunk.split('\n')
+          for (const frame of frames) {
+            // Each frame is one SSE event. Collect the data: lines (may be
+            // multiple) and ignore comments + the [DONE] sentinel.
+            let dataStr = ''
+            for (const line of frame.split('\n')) {
+              if (line.startsWith('data: ')) dataStr += line.slice(6)
+            }
+            if (!dataStr || dataStr === '[DONE]') continue
+            let parsed: any
+            try { parsed = JSON.parse(dataStr) } catch { continue }
 
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6)
-              if (data === '[DONE]') continue
-              try {
-                const parsed = JSON.parse(data)
-                // Server-side error event — surface it instead of leaving a blank page
-                if (parsed.error) {
-                  throw new Error(parsed.error)
-                }
-                // Delta-only streaming (new protocol): append the tail.
-                // Replace/full streaming (image-marker resync OR legacy server): replace.
-                if (typeof parsed.delta === 'string') {
-                  generatedHtml += parsed.delta
-                  setHtml(generatedHtml)
-                } else if (parsed.html) {
-                  generatedHtml = parsed.html
-                  setHtml(generatedHtml)
-                }
-
-                if (!hasShownInteractivity && generatedHtml.includes('<script')) {
-                  hasShownInteractivity = true
-                  setBuildPhase('interactivity')
-                  setCurrentSteps(prev => prev.map(s =>
-                    s.phase === 'styling' ? { ...s, status: 'complete' } :
-                    s.phase === 'interactivity' ? { ...s, status: 'active' } : s
-                  ))
-                  addTerminalLine('success', '│ ✓ CSS styles applied')
-                  addTerminalLine('info', '│ ○ Adding JavaScript')
-                }
-                if (parsed.complete && parsed.truncated) {
-                  wasTruncated = true
-                }
-              } catch (e) {
-                if (e instanceof Error) throw e // surface real errors; swallow JSON parse noise
-              }
+            // Server-error event — surface it AFTER the stream ends so the
+            // existing catch block handles cleanup. Don't throw inline (it
+            // skips any subsequent frames in the same chunk).
+            if (parsed.error) {
+              serverError = String(parsed.error)
+              continue
+            }
+            if (typeof parsed.delta === 'string') {
+              generatedHtml += parsed.delta
+              setHtml(generatedHtml)
+            } else if (typeof parsed.html === 'string') {
+              generatedHtml = parsed.html
+              setHtml(generatedHtml)
+            }
+            if (!hasShownInteractivity && generatedHtml.includes('<script')) {
+              hasShownInteractivity = true
+              setBuildPhase('interactivity')
+              setCurrentSteps(prev => prev.map(s =>
+                s.phase === 'styling' ? { ...s, status: 'complete' } :
+                s.phase === 'interactivity' ? { ...s, status: 'active' } : s
+              ))
+              addTerminalLine('success', '│ ✓ CSS styles applied')
+              addTerminalLine('info', '│ ○ Adding JavaScript')
+            }
+            if (parsed.complete && parsed.truncated) {
+              wasTruncated = true
             }
           }
         }
+        // Stream finished — if the server emitted an error event at any
+        // point, throw now so the outer catch shows the toast.
+        if (serverError) throw new Error(serverError)
       }
 
       // Guard against silent generation failure (empty stream = blank page)
