@@ -99,11 +99,8 @@ export async function runClaudeOnce(opts: RunOpts): Promise<void> {
     '--output-format',
     'stream-json',
     '--verbose',
-    // Skip permission prompts entirely. User already authorized by
-    // submitting the request. Try bypassPermissions first (newer),
-    // fall back to --dangerously-skip-permissions (older CLI versions).
-    '--permission-mode',
-    'bypassPermissions',
+    // Skip all permission prompts. User already authorized by
+    // submitting the request via the workspace UI.
     '--dangerously-skip-permissions',
     '--mcp-config',
     mcpConfigPath,
@@ -150,12 +147,14 @@ export async function runClaudeOnce(opts: RunOpts): Promise<void> {
 
   let stderr = ''
   let stdoutTail = ''
+  let lastStdoutAt = Date.now()
   child.stderr.on('data', (b) => { stderr += b.toString() })
   // Mirror stdout to a tail buffer too — when claude exits 1 with no
   // stderr, the error is often a single non-JSON line on stdout that
   // never makes it through our line-by-line parser before the process
   // closes. Capturing the tail lets us surface it on failure.
   child.stdout.on('data', (b) => {
+    lastStdoutAt = Date.now()
     stdoutTail = (stdoutTail + b.toString()).slice(-2000)
   })
 

@@ -115,15 +115,15 @@ export function ensureMcpConfig(): string {
   // packages/bridge/src/ during dev; sibling packages/agent-tools/src/index.ts
   // tells us we're in the monorepo and can run tsx directly.
   const dirname = __dirname
-  const siblingTs = path.resolve(dirname, '..', '..', 'agent-tools', 'src', 'index.ts')
-  const isMonorepo = fs.existsSync(siblingTs)
+  const siblingBin = path.resolve(dirname, '..', '..', 'agent-tools', 'dist', 'index.js')
+  const isMonorepo = fs.existsSync(siblingBin)
 
   const config = isMonorepo
     ? {
         mcpServers: {
           webstew: {
-            command: 'npx',
-            args: ['--yes', 'tsx', siblingTs],
+            command: 'node',
+            args: [siblingBin],
           },
         },
       }
@@ -131,7 +131,7 @@ export function ensureMcpConfig(): string {
         mcpServers: {
           webstew: {
             command: 'npx',
-            args: ['--yes', '@webstew/agent-tools'],
+            args: ['@webstew/agent-tools'],
           },
         },
       }
