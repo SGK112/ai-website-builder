@@ -41,8 +41,11 @@ export const metadata: Metadata = {
     default: 'Webstew AI — The AI Website Builder',
     template: '%s · Webstew AI',
   },
+  // Kept under 160 chars — our own grader flagged the previous 186-char
+  // description for SEO snippet truncation. Reduces to a single tight
+  // sentence that still hits "Webstew AI" + the value prop + "free."
   description:
-    'Webstew AI is an AI website builder that turns one prompt into a production-ready site, app, or store. Multi-target (Next.js, Astro, Expo, React Native), free to start, no code required.',
+    'Webstew AI — turn one prompt into a production-ready site, app, or store. Multi-target (Next.js, Astro, Expo, React Native). Free to start.',
   keywords: [
     'Webstew AI',
     'Webstew',
@@ -99,6 +102,112 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var q=new URLSearchParams(location.search).get('theme');var t=q==='light'||q==='dark'?q:localStorage.getItem('webcraft-theme');if(t!=='light'&&t!=='dark')t='dark';if(q==='light'||q==='dark'){localStorage.setItem('webcraft-theme',t);}document.documentElement.setAttribute('data-theme',t);if(t==='dark')document.documentElement.classList.add('dark');else document.documentElement.classList.remove('dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');document.documentElement.classList.add('dark');}})();`,
+          }}
+        />
+
+        {/* Structured data — flagged by our own /grader (AI visibility 25/F
+            before this). Three JSON-LD blocks: Organization for the
+            publisher, SoftwareApplication for the product itself, and FAQ
+            so AI assistants (ChatGPT, Claude, Perplexity, Grok) can cite
+            the most common questions directly. Each block is independent
+            so updating one doesn't risk the others. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'Organization',
+              '@id': 'https://www.webstew.net/#org',
+              name: 'Webstew AI',
+              url: 'https://www.webstew.net',
+              logo: 'https://www.webstew.net/icon.png',
+              description: 'AI website builder that turns one prompt into a production-ready site, app, or store.',
+              parentOrganization: { '@type': 'Organization', name: 'Remodely LLC' },
+              sameAs: [
+                'https://github.com/SGK112/ai-website-builder',
+              ],
+            }),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'SoftwareApplication',
+              '@id': 'https://www.webstew.net/#app',
+              name: 'Webstew AI',
+              applicationCategory: 'DeveloperApplication',
+              operatingSystem: 'Web',
+              url: 'https://www.webstew.net',
+              description: 'Multi-target AI website builder — generates Next.js, Astro, Expo (React Native), and React projects from a single prompt.',
+              offers: [
+                { '@type': 'Offer', name: 'Free', price: '0', priceCurrency: 'USD' },
+                { '@type': 'Offer', name: 'Starter', price: '19', priceCurrency: 'USD', billingIncrement: 'month' },
+                { '@type': 'Offer', name: 'Pro', price: '49', priceCurrency: 'USD', billingIncrement: 'month' },
+                { '@type': 'Offer', name: 'Scale', price: '149', priceCurrency: 'USD', billingIncrement: 'month' },
+              ],
+              featureList: [
+                'AI website generation from a prompt',
+                'Multi-target output (Next.js, Astro, React, Expo)',
+                'One-click deploy to GitHub + Render',
+                'CMS for blog posts, services, team members',
+                'Template marketplace with Stripe Connect',
+                'Background builds with browser notifications',
+              ],
+              publisher: { '@id': 'https://www.webstew.net/#org' },
+            }),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'FAQPage',
+              mainEntity: [
+                {
+                  '@type': 'Question',
+                  name: 'What is Webstew AI?',
+                  acceptedAnswer: {
+                    '@type': 'Answer',
+                    text: 'Webstew AI is an AI website builder that generates production-ready websites, mobile apps, and e-commerce stores from a single text prompt. It supports Next.js, Astro, React (Vite), and Expo (React Native) targets.',
+                  },
+                },
+                {
+                  '@type': 'Question',
+                  name: 'How much does Webstew AI cost?',
+                  acceptedAnswer: {
+                    '@type': 'Answer',
+                    text: 'Free to start with demo credits, no credit card required. Paid plans start at $19/month for Starter (more credits + premium models). Pro is $49/month, Scale is $149/month.',
+                  },
+                },
+                {
+                  '@type': 'Question',
+                  name: 'Can I sell my Webstew sites?',
+                  acceptedAnswer: {
+                    '@type': 'Answer',
+                    text: 'Yes. Publish any site you build to the Webstew marketplace, set a price, and keep 70% of every sale. Payouts go directly to your connected Stripe account. Webstew takes 30% to cover Stripe fees and platform hosting.',
+                  },
+                },
+                {
+                  '@type': 'Question',
+                  name: 'Does Webstew generate real code?',
+                  acceptedAnswer: {
+                    '@type': 'Answer',
+                    text: 'Yes. Webstew outputs the actual source files (Next.js project, Astro project, React Vite project, or Expo React Native app) that you can edit, deploy, and own. Code can be exported as a zip or pushed to your GitHub.',
+                  },
+                },
+                {
+                  '@type': 'Question',
+                  name: 'Can I convert a website I built into a mobile app?',
+                  acceptedAnswer: {
+                    '@type': 'Answer',
+                    text: 'Yes — the Convert to App button in the workspace takes a website you built and generates an Expo (React Native) version with the same branding, content, and structure, ready to ship to iOS and Android.',
+                  },
+                },
+              ],
+            }),
           }}
         />
       </head>
