@@ -2642,6 +2642,91 @@ function WorkspaceContent() {
     setShowOnboarding(false)
   }
 
+  // Cloud auto-save — for signed-in users with a saved project, persist
+  // every meaningful change to MongoDB so a tab crash / unexpected close
+  // doesn't lose work between manual Save clicks. Debounced to 3s so we
+  // don't hammer the API on every keystroke. Status tracked via a small
+  // pill in the topbar (saveStatus state below).
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  useEffect(() => {
+    if (!session?.user?.id) return
+    if (!currentProject?.id) return // first manual save creates the project; auto-save resumes after
+    if (isGenerating) return // streaming churn — wait until the build settles
+    if (!html || html.length < 100) return
+    setSaveStatus('idle')
+    const timer = setTimeout(async () => {
+      setSaveStatus('saving')
+      try {
+        const isMulti = buildTarget !== 'website' && Object.keys(vfsFiles).length > 0
+        const filesPayload = isMulti
+          ? [
+              ...Object.entries(vfsFiles).map(([path, content]) => ({
+                path,
+                content,
+                type: 'other' as const,
+              })),
+              { path: '_webstew_meta.json', content: JSON.stringify({ buildTarget }), type: 'json' as const },
+            ]
+          : (pages.length > 1
+              ? [
+                  { path: 'index.html', content: html, type: 'html' as const },
+                  {
+                    path: '_webstew_pages.json',
+                    content: JSON.stringify({
+                      activePageId,
+                      pages: pages.map(p => ({ id: p.id, name: p.name, slug: p.slug, html: p.html, isHome: p.isHome })),
+                    }),
+                    type: 'json' as const,
+                  },
+                ]
+              : [{ path: 'index.html', content: html, type: 'html' as const }])
+        const res = await fetch(`/api/projects/${currentProject.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files: filesPayload }),
+        })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        setSaveStatus('saved')
+        setTimeout(() => setSaveStatus((s) => (s === 'saved' ? 'idle' : s)), 2000)
+      } catch (e) {
+        console.warn('[autosave] cloud save failed:', e)
+        setSaveStatus('error')
+      }
+    }, 3000)
+    return () => clearTimeout(timer)
+  }, [html, vfsFiles, pages, activePageId, buildTarget, currentProject?.id, session?.user?.id, isGenerating])
+
+  // Pre-unload flush — on visibilitychange→hidden or pagehide, fire a
+  // keepalive PATCH so the freshest html lands on disk even if the user
+  // closes the tab during the 3s autosave debounce window. fetch keepalive
+  // is the modern sendBeacon replacement that supports PATCH (beacon is
+  // POST-only) — browser holds the request open across nav.
+  useEffect(() => {
+    if (!session?.user?.id || !currentProject?.id) return
+    const flush = () => {
+      if (!html || html.length < 100) return
+      const isMulti = buildTarget !== 'website' && Object.keys(vfsFiles).length > 0
+      const filesPayload = isMulti
+        ? Object.entries(vfsFiles).map(([path, content]) => ({ path, content, type: 'other' as const }))
+        : [{ path: 'index.html', content: html, type: 'html' as const }]
+      try {
+        fetch(`/api/projects/${currentProject.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files: filesPayload }),
+          keepalive: true,
+        })
+      } catch { /* unload — nothing we can do anyway */ }
+    }
+    const onVis = () => { if (document.visibilityState === 'hidden') flush() }
+    window.addEventListener('visibilitychange', onVis)
+    window.addEventListener('pagehide', flush)
+    return () => {
+      window.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('pagehide', flush)
+    }
+  }, [session?.user?.id, currentProject?.id, html, vfsFiles, buildTarget])
+
   // Warn the user if they try to leave / refresh during an in-flight generation
   // ONLY when the server can't recover the result on return — i.e. anonymous
   // trial users (no userId = no pending_builds persistence). Signed-in users
@@ -9266,6 +9351,41 @@ npx eas build --platform all
             >
               <User className="w-4 h-4" />
             </Link>
+
+            {/* Autosave status pill — only visible for signed-in users on a
+                saved project. "Saved · 2s ago" → "Saving…" → "Saved" → fades
+                back to idle. Errors stick until next successful save. */}
+            {session?.user?.id && currentProject?.id && (
+              <span
+                title={
+                  saveStatus === 'error'
+                    ? 'Auto-save failed — your changes are in localStorage but not on the server yet'
+                    : saveStatus === 'saving'
+                      ? 'Syncing changes to the cloud…'
+                      : saveStatus === 'saved'
+                        ? 'All changes saved'
+                        : 'Changes auto-save every few seconds'
+                }
+                className={cn(
+                  'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all',
+                  saveStatus === 'saving' && 'bg-blue-500/15 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300',
+                  saveStatus === 'saved'  && 'bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
+                  saveStatus === 'error'  && 'bg-amber-500/15 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300',
+                  saveStatus === 'idle'   && 'bg-slate-500/10 text-slate-600 dark:bg-white/[0.04] dark:text-zinc-500',
+                )}
+              >
+                {saveStatus === 'saving' && <Loader2 className="w-2.5 h-2.5 animate-spin" />}
+                {saveStatus === 'saved'  && <CheckCircle2 className="w-2.5 h-2.5" />}
+                {saveStatus === 'error'  && <AlertCircle className="w-2.5 h-2.5" />}
+                {saveStatus === 'idle'   && <Cloud className="w-2.5 h-2.5" />}
+                <span>
+                  {saveStatus === 'saving' ? 'Saving…'
+                    : saveStatus === 'saved' ? 'Saved'
+                    : saveStatus === 'error' ? 'Sync failed'
+                    : 'Auto-save'}
+                </span>
+              </span>
+            )}
 
             <button
               onClick={saveProject}
