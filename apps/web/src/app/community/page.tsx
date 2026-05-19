@@ -332,7 +332,7 @@ export default function CommunityPage() {
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <WebstewLogo href="/" size="sm" isDark={isDark} />
-            <ChevronRight className="w-4 h-4 text-zinc-500" />
+            <ChevronRight className="w-4 h-4 text-slate-500 dark:text-zinc-500" />
             <div className="flex items-center gap-2">
               <Users className={isDark ? 'w-4 h-4 text-violet-400' : 'w-4 h-4 text-orange-500'} />
               <span className="font-medium">Community</span>
@@ -456,7 +456,7 @@ export default function CommunityPage() {
                 ? 'bg-white/5 border-white/10 focus-within:border-violet-500/50'
                 : 'bg-white border-zinc-200 focus-within:border-orange-500/50 shadow-sm'
             )}>
-              <Search className="w-5 h-5 text-zinc-500" />
+              <Search className="w-5 h-5 text-slate-500 dark:text-zinc-500" />
               <input
                 type="text"
                 value={searchQuery}
@@ -468,7 +468,7 @@ export default function CommunityPage() {
                 'p-2 rounded-lg transition-colors',
                 isDark ? 'hover:bg-white/10' : 'hover:bg-zinc-100'
               )}>
-                <Filter className="w-4 h-4 text-zinc-500" />
+                <Filter className="w-4 h-4 text-slate-500 dark:text-zinc-500" />
               </button>
             </div>
           </motion.div>
@@ -751,7 +751,7 @@ export default function CommunityPage() {
                             <span className="text-sm font-medium">{project.author.name}</span>
                           </div>
                         )}
-                        <div className="flex items-center gap-3 text-sm text-zinc-500">
+                        <div className={cn('flex items-center gap-3 text-sm', isDark ? 'text-zinc-500' : 'text-slate-600')}>
                           <span className="flex items-center gap-1">
                             <Heart className="w-4 h-4" />
                             {project.likes}

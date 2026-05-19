@@ -1075,7 +1075,7 @@ export default function ProfilePage() {
                         isDark ? 'bg-white/5 hover:bg-white/10' : 'bg-zinc-50 hover:bg-zinc-100'
                       )}>
                         <div className="flex items-center gap-3">
-                          <Key className="w-5 h-5 text-zinc-500" />
+                          <Key className="w-5 h-5 text-slate-500 dark:text-zinc-500" />
                           <div className="text-left">
                             <p className="font-medium">Change Password</p>
                             <p className={cn('text-sm', isDark ? 'text-zinc-500' : 'text-zinc-600')}>
@@ -1083,14 +1083,14 @@ export default function ProfilePage() {
                             </p>
                           </div>
                         </div>
-                        <ChevronRight className="w-5 h-5 text-zinc-500" />
+                        <ChevronRight className="w-5 h-5 text-slate-500 dark:text-zinc-500" />
                       </button>
                       <button className={cn(
                         'w-full flex items-center justify-between p-4 rounded-xl transition-all',
                         isDark ? 'bg-white/5 hover:bg-white/10' : 'bg-zinc-50 hover:bg-zinc-100'
                       )}>
                         <div className="flex items-center gap-3">
-                          <Shield className="w-5 h-5 text-zinc-500" />
+                          <Shield className="w-5 h-5 text-slate-500 dark:text-zinc-500" />
                           <div className="text-left">
                             <p className="font-medium">Two-Factor Authentication</p>
                             <p className={cn('text-sm', isDark ? 'text-zinc-500' : 'text-zinc-600')}>
@@ -1098,7 +1098,7 @@ export default function ProfilePage() {
                             </p>
                           </div>
                         </div>
-                        <ChevronRight className="w-5 h-5 text-zinc-500" />
+                        <ChevronRight className="w-5 h-5 text-slate-500 dark:text-zinc-500" />
                       </button>
                     </div>
                   </div>
