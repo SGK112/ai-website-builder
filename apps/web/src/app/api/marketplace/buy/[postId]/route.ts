@@ -20,6 +20,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
+import { connectDB } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,8 +38,18 @@ export async function POST(_req: NextRequest, { params }: { params: { postId: st
   const buyerId = new ObjectId(session.user.id)
   const postId = new ObjectId(params.postId)
 
+  // Two databases at play within the same Atlas project:
+  //   - marketplace data (community_posts, marketplace_purchases) lives
+  //     in the dedicated 'ai-website-builder' DB
+  //   - users live in the Mongoose-default DB (connection-string default,
+  //     currently voiceflow-crm; same Atlas project). Past versions of
+  //     this route assumed both were in 'ai-website-builder', so the
+  //     atomic credit debit always failed → user saw "doesn't charge me".
   const client = await clientPromise
   const db = client.db('ai-website-builder')
+  const userConn = await connectDB()
+  const userDb = userConn.connection.db
+  if (!userDb) return NextResponse.json({ error: 'DB not connected' }, { status: 500 })
 
   const listing = await db.collection('community_posts').findOne({ _id: postId })
   if (!listing) return NextResponse.json({ error: 'Listing not found' }, { status: 404 })
@@ -79,16 +90,17 @@ export async function POST(_req: NextRequest, { params }: { params: { postId: st
     })
   }
 
-  // Atomic credit debit — only succeeds if buyer has enough.
-  // Using raw driver per the mongoose-bypass rule for fields added late.
-  const debit = await db.collection('users').findOneAndUpdate(
+  // Atomic credit debit — only succeeds if buyer has enough. Goes against
+  // the userDb (Mongoose default), NOT the marketplace 'ai-website-builder'
+  // DB where listings live. The earlier code looked in the wrong DB so
+  // every debit silently failed.
+  const debit = await userDb.collection('users').findOneAndUpdate(
     { _id: buyerId, credits: { $gte: price } },
     { $inc: { credits: -price }, $set: { updatedAt: new Date() } },
     { returnDocument: 'after', projection: { credits: 1, email: 1, name: 1 } }
   )
   if (!debit?.value) {
-    // Either the user has insufficient credits or doesn't exist
-    const user = await db.collection('users').findOne({ _id: buyerId }, { projection: { credits: 1 } })
+    const user = await userDb.collection('users').findOne({ _id: buyerId }, { projection: { credits: 1 } })
     if (!user) return NextResponse.json({ error: 'Buyer not found' }, { status: 404 })
     return NextResponse.json(
       {
@@ -101,12 +113,9 @@ export async function POST(_req: NextRequest, { params }: { params: { postId: st
     )
   }
 
-  // Credit seller's earnings tally (separate from real money — this is the
-  // marketplace ledger; payouts to bank happen via Stripe Connect later).
-  // Seller might be a dummy/seed account; that's fine, ledger accumulates
-  // and they can claim payouts once they onboard Stripe.
+  // Credit seller's earnings tally. Same userDb — sellers are users too.
   if (listing.author?.id && ObjectId.isValid(listing.author.id)) {
-    await db.collection('users').updateOne(
+    await userDb.collection('users').updateOne(
       { _id: new ObjectId(listing.author.id) },
       {
         $inc: { marketplace_earnings_credits: price },

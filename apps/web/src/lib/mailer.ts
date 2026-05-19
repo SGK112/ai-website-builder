@@ -1,8 +1,11 @@
-// Generic SMTP mailer. Env-driven so we can swap providers without touching
-// code (AWS SES SMTP, Gmail, Mailgun, Postmark — they all expose SMTP).
-// If SMTP_HOST is unset, sendMail() logs the payload and returns ok=false
-// instead of throwing. That way local dev without creds doesn't break the
-// form-submit path; we still persist the submission to Mongo.
+// Mailer — Resend-first (already wired for webstew.net with a working
+// RESEND_API_KEY), with SMTP/nodemailer as a fallback when Resend isn't
+// configured. Calls are HTTP fetch against api.resend.com so we don't
+// need an extra SDK dep.
+//
+// If neither is configured, sendMail() logs the payload and returns
+// ok=false instead of throwing. That way local dev without creds doesn't
+// break the form-submit path; the submission is still persisted upstream.
 
 import nodemailer, { type Transporter } from 'nodemailer'
 
@@ -73,13 +76,56 @@ export interface SendMailResult {
   messageId?: string
 }
 
+// Resend — domain verified for webstew.net, working API key already in
+// the Webstew env. Preferred over SMTP because no socket-timeout risk +
+// proper deliverability tracking. Send via the REST API to avoid pulling
+// in the @resend SDK as a new dep.
+async function sendViaResend(args: SendMailArgs): Promise<SendMailResult> {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) return { ok: false, reason: 'not-configured' }
+  const from = args.from || process.env.RESEND_FROM || 'Webstew <noreply@webstew.net>'
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from,
+        to: args.to,
+        subject: args.subject,
+        text: args.text,
+        html: args.html,
+        reply_to: args.replyTo,
+      }),
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      console.error('[mailer] Resend rejected:', res.status, body.slice(0, 300))
+      return { ok: false, reason: 'send-failed', error: `Resend ${res.status}: ${body.slice(0, 200)}` }
+    }
+    const data = await res.json().catch(() => ({} as any))
+    return { ok: true, messageId: data?.id }
+  } catch (e: any) {
+    console.error('[mailer] Resend fetch failed:', e?.message || e)
+    return { ok: false, reason: 'send-failed', error: e?.message || String(e) }
+  }
+}
+
 export async function sendMail(args: SendMailArgs): Promise<SendMailResult> {
+  // Prefer Resend when its key is present. Falls back to SMTP only if
+  // RESEND_API_KEY is unset (e.g. legacy / local dev without an API key).
+  if (process.env.RESEND_API_KEY) {
+    return sendViaResend(args)
+  }
+
   const cfg = loadConfig()
   if (!cfg) {
     // Dev-friendly: log the payload so the developer can see what would have
     // been sent, then return not-configured. Callers should treat this as a
     // soft failure and continue (the submission is already in Mongo).
-    console.warn('[mailer] SMTP_HOST not set — skipping email send')
+    console.warn('[mailer] No RESEND_API_KEY and no SMTP_HOST — skipping email send')
     console.warn('[mailer]', { to: args.to, subject: args.subject, replyTo: args.replyTo })
     return { ok: false, reason: 'not-configured' }
   }
@@ -95,11 +141,11 @@ export async function sendMail(args: SendMailArgs): Promise<SendMailResult> {
     })
     return { ok: true, messageId: info.messageId }
   } catch (e: any) {
-    console.error('[mailer] send failed:', e?.message || e)
+    console.error('[mailer] SMTP send failed:', e?.message || e)
     return { ok: false, reason: 'send-failed', error: e?.message || String(e) }
   }
 }
 
 export function isMailerConfigured(): boolean {
-  return !!process.env.SMTP_HOST
+  return !!process.env.RESEND_API_KEY || !!process.env.SMTP_HOST
 }
