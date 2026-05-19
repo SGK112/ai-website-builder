@@ -2083,6 +2083,9 @@ function WorkspaceContent() {
   const [draggedImageUrl, setDraggedImageUrl] = useState<string | null>(null)
   const [isDraggingImage, setIsDraggingImage] = useState(false)
   const [docIngesting, setDocIngesting] = useState(false)
+  // Workspace-wide file drop overlay. True while a file is being dragged
+  // anywhere over the workspace root; reset on drop / leave.
+  const [workspaceDragOver, setWorkspaceDragOver] = useState(false)
   const docFileRef = useRef<HTMLInputElement>(null)
 
   // Agent Mode state - Manus-like autonomous AI agent
@@ -5098,6 +5101,27 @@ ${html}
   }, [contextMenu.x, contextMenu.y])
 
   // Ingest a PDF and turn it into a site-generation prompt
+  // Drop-anywhere image handler — uploads to Cloudinary via /api/upload and
+  // appends to the stewIngredients list so the next generation gets the
+  // image as a real ingredient (not just a stripped URL).
+  const handleImageFileUpload = async (file: File) => {
+    addToast('info', `Uploading ${file.name}…`)
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await fetch('/api/upload', { method: 'POST', body: fd })
+    const data = await res.json().catch(() => ({} as any))
+    if (!res.ok || !data?.url) throw new Error(data?.error || `HTTP ${res.status}`)
+    setStewIngredients((prev) => [...prev, {
+      id: `drop-${Date.now()}`,
+      type: 'image',
+      name: file.name,
+      content: data.url,
+      preview: data.url,
+      metadata: { width: data.width, height: data.height, mimeType: file.type, size: file.size },
+    }])
+    addToast('success', `Added ${file.name} — will be used in the next build`)
+  }
+
   const handleDocUpload = async (file: File) => {
     if (!file) return
     setDocIngesting(true)
@@ -5896,10 +5920,81 @@ npx eas build --platform all
   const currentSuggestions = promptSuggestions[skillLevel]
 
   return (
-    <div className={cn(
-      "h-screen flex overflow-hidden transition-colors duration-300 max-w-full",
-      isDark ? "bg-[#09090b] text-white" : "bg-white text-slate-900"
-    )}>
+    <div
+      className={cn(
+        "h-screen flex overflow-hidden transition-colors duration-300 max-w-full",
+        isDark ? "bg-[#09090b] text-white" : "bg-white text-slate-900"
+      )}
+      onDragOver={(e) => {
+        // Only react if the drag carries files (not internal element drags).
+        if (Array.from(e.dataTransfer.types || []).includes('Files')) {
+          e.preventDefault()
+          if (!workspaceDragOver) setWorkspaceDragOver(true)
+        }
+      }}
+      onDragLeave={(e) => {
+        // Leave fires when entering child elements too — only clear when the
+        // pointer actually exits the workspace root.
+        if ((e.target as HTMLElement) === e.currentTarget) {
+          setWorkspaceDragOver(false)
+        }
+      }}
+      onDrop={(e) => {
+        if (!Array.from(e.dataTransfer.types || []).includes('Files')) return
+        e.preventDefault()
+        setWorkspaceDragOver(false)
+        const files = Array.from(e.dataTransfer.files || [])
+        if (files.length === 0) return
+        // Route by mimetype — images get added as ingredients, docs go to
+        // the AI ingest pipeline (which extracts content + drafts a prompt),
+        // anything else surfaces a clear unsupported toast.
+        const f = files[0]
+        const isImg = f.type.startsWith('image/')
+        const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name)
+        const isText = f.type.startsWith('text/') || /\.(md|txt|csv|json)$/i.test(f.name)
+        const isDoc = isPdf || isText || /\.(docx?|rtf)$/i.test(f.name)
+        const isVid = f.type.startsWith('video/')
+        if (isImg) {
+          // Pipe through the existing image upload path. The chat input's
+          // attachment slot picks this up and renders it as an ingredient.
+          handleImageFileUpload(f).catch(() => addToast('error', `Image upload failed`))
+        } else if (isDoc) {
+          handleDocUpload(f)
+        } else if (isVid) {
+          addToast('info', `Video uploaded — feed the AI by describing what's in it`)
+        } else {
+          addToast('error', `Unsupported file: ${f.name}. Try an image, PDF, or text document.`)
+        }
+      }}
+    >
+      {/* Workspace-wide drop overlay — visible only while a file is being
+          dragged. Catches images/docs/video anywhere in the builder so users
+          don't have to find the right input. */}
+      <AnimatePresence>
+        {workspaceDragOver && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.12 }}
+            className={cn(
+              'fixed inset-0 z-[500] pointer-events-none flex items-center justify-center backdrop-blur-md',
+              isDark ? 'bg-violet-500/15' : 'bg-violet-500/10',
+            )}
+          >
+            <div className={cn(
+              'flex flex-col items-center gap-3 px-8 py-6 rounded-2xl border-2 border-dashed shadow-2xl',
+              isDark ? 'border-violet-400/60 bg-zinc-950/85 text-white' : 'border-violet-500 bg-white/95 text-slate-900',
+            )}>
+              <Upload className="w-12 h-12 text-violet-500" />
+              <div className="text-lg font-semibold">Drop to feed the AI</div>
+              <div className={cn('text-sm text-center max-w-xs', isDark ? 'text-zinc-400' : 'text-slate-500')}>
+                Images → added as ingredients. PDFs / text → I'll read them and draft a prompt. Video → uploaded for context.
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Signup nudge modal — fires for anon at conversion-relevant moments
           (after first build, or when they try to save/deploy). Copy varies
           by reason so each entry feels native, not like a one-size-fits-all
@@ -6560,9 +6655,10 @@ npx eas build --platform all
           </div>
         )}
 
-        {/* Panel Content */}
+        {/* Panel Content — default sync mode (no `wait`) so the new panel
+            starts entering as the old one exits. Halves perceived nav lag. */}
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-          <AnimatePresence mode="wait">
+          <AnimatePresence initial={false}>
             {/* Build Panel */}
             {!sidebarCollapsed && activePanel === 'build' && (
               <motion.div

@@ -59,7 +59,7 @@ const BUILTIN_TEMPLATES: Template[] = [
     name: 'Luxe E-Commerce',
     description: 'Premium dark theme e-commerce template with product showcases',
     category: 'ecommerce',
-    thumbnail_url: 'https://picsum.photos/seed/ecommerce/800/600',
+    thumbnail_url: 'https://www.webstew.net/api/media?q=ecommerce&w=800&h=600',
     is_premium: false,
     price_credits: 0,
   },
@@ -68,7 +68,7 @@ const BUILTIN_TEMPLATES: Template[] = [
     name: 'Agency Portfolio',
     description: 'Creative agency portfolio with project showcases',
     category: 'agency',
-    thumbnail_url: 'https://picsum.photos/seed/agency/800/600',
+    thumbnail_url: 'https://www.webstew.net/api/media?q=agency&w=800&h=600',
     is_premium: false,
     price_credits: 0,
   },
@@ -77,7 +77,7 @@ const BUILTIN_TEMPLATES: Template[] = [
     name: 'SaaS Landing',
     description: 'Modern SaaS landing page with gradient effects',
     category: 'saas',
-    thumbnail_url: 'https://picsum.photos/seed/saas/800/600',
+    thumbnail_url: 'https://www.webstew.net/api/media?q=saas&w=800&h=600',
     is_premium: false,
     price_credits: 0,
   },
@@ -86,7 +86,7 @@ const BUILTIN_TEMPLATES: Template[] = [
     name: 'Modern Restaurant',
     description: 'Elegant restaurant template with menu sections',
     category: 'restaurant',
-    thumbnail_url: 'https://picsum.photos/seed/restaurant/800/600',
+    thumbnail_url: 'https://www.webstew.net/api/media?q=restaurant&w=800&h=600',
     is_premium: true,
     price_credits: 10,
   },
@@ -95,7 +95,7 @@ const BUILTIN_TEMPLATES: Template[] = [
     name: 'Photography Portfolio',
     description: 'Minimal photography portfolio with gallery grid',
     category: 'portfolio',
-    thumbnail_url: 'https://picsum.photos/seed/photography/800/600',
+    thumbnail_url: 'https://www.webstew.net/api/media?q=photography&w=800&h=600',
     is_premium: false,
     price_credits: 0,
   },
@@ -104,7 +104,7 @@ const BUILTIN_TEMPLATES: Template[] = [
     name: 'Tech Blog',
     description: 'Clean tech blog template with article layouts',
     category: 'blog',
-    thumbnail_url: 'https://picsum.photos/seed/techblog/800/600',
+    thumbnail_url: 'https://www.webstew.net/api/media?q=techblog&w=800&h=600',
     is_premium: true,
     price_credits: 5,
   },
@@ -113,7 +113,7 @@ const BUILTIN_TEMPLATES: Template[] = [
     name: 'Startup Landing',
     description: 'Bold startup landing page with pricing tables',
     category: 'landing',
-    thumbnail_url: 'https://picsum.photos/seed/startup/800/600',
+    thumbnail_url: 'https://www.webstew.net/api/media?q=startup&w=800&h=600',
     is_premium: false,
     price_credits: 0,
   },
@@ -122,7 +122,7 @@ const BUILTIN_TEMPLATES: Template[] = [
     name: 'Fitness Gym',
     description: 'Energy-filled gym and fitness template',
     category: 'landing',
-    thumbnail_url: 'https://picsum.photos/seed/fitness/800/600',
+    thumbnail_url: 'https://www.webstew.net/api/media?q=fitness&w=800&h=600',
     is_premium: true,
     price_credits: 10,
   },
@@ -131,7 +131,7 @@ const BUILTIN_TEMPLATES: Template[] = [
     name: 'Fashion Store',
     description: 'Bold modern fashion store with dynamic layouts and shopping cart',
     category: 'ecommerce',
-    thumbnail_url: 'https://picsum.photos/seed/fashion/800/600',
+    thumbnail_url: 'https://www.webstew.net/api/media?q=fashion&w=800&h=600',
     is_premium: false,
     price_credits: 0,
   },
@@ -140,7 +140,7 @@ const BUILTIN_TEMPLATES: Template[] = [
     name: 'Restaurant Menu',
     description: 'Elegant restaurant with menu sections and reservation system',
     category: 'restaurant',
-    thumbnail_url: 'https://picsum.photos/seed/dining/800/600',
+    thumbnail_url: 'https://www.webstew.net/api/media?q=dining&w=800&h=600',
     is_premium: false,
     price_credits: 0,
   },
@@ -149,7 +149,7 @@ const BUILTIN_TEMPLATES: Template[] = [
     name: 'SaaS Complete',
     description: 'Full-featured SaaS with pricing, features, testimonials, and FAQ',
     category: 'saas',
-    thumbnail_url: 'https://picsum.photos/seed/dashboard/800/600',
+    thumbnail_url: 'https://www.webstew.net/api/media?q=dashboard&w=800&h=600',
     is_premium: true,
     price_credits: 15,
   },
@@ -334,7 +334,7 @@ export default function TemplatesPage() {
                         // both builtin and Supabase-sourced templates.
                         const img = e.currentTarget
                         const seed = encodeURIComponent(template.id || template.name || 'template')
-                        const fallback = `https://picsum.photos/seed/${seed}/800/600`
+                        const fallback = `https://www.webstew.net/api/media?q=${seed}/800/600`
                         if (img.src !== fallback) img.src = fallback
                         else img.style.display = 'none'
                       }}
@@ -495,7 +495,7 @@ export default function TemplatesPage() {
                       onError={(e) => {
                         const img = e.currentTarget
                         const seed = encodeURIComponent(previewTemplate.id || previewTemplate.name || 'template')
-                        const fallback = `https://picsum.photos/seed/${seed}/800/600`
+                        const fallback = `https://www.webstew.net/api/media?q=${seed}/800/600`
                         if (img.src !== fallback) img.src = fallback
                         else img.style.display = 'none'
                       }}
@@ -537,7 +537,7 @@ export default function TemplatesPage() {
                   onError={(e) => {
                     const img = e.currentTarget
                     const seed = encodeURIComponent(paywallTemplate.id || paywallTemplate.name || 'template')
-                    const fallback = `https://picsum.photos/seed/${seed}/800/600`
+                    const fallback = `https://www.webstew.net/api/media?q=${seed}/800/600`
                     if (img.src !== fallback) img.src = fallback
                     else img.style.display = 'none'
                   }}
