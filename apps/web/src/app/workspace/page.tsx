@@ -2535,7 +2535,7 @@ function WorkspaceContent() {
           console.error('[workspace] URL-prompt multi-target generation failed:', e)
         })
       } else {
-        void handleGenerate(promptFromUrl).catch((e) => {
+        void handleGenerate(promptFromUrl, undefined, { fresh: true }).catch((e) => {
           console.error('[workspace] URL-prompt generation failed:', e)
         })
       }
@@ -4278,7 +4278,7 @@ ${html}
   }
 
   // Layered generation with phases
-  const handleGenerate = async (promptText: string | undefined, ingredients?: StewIngredient[]) => {
+  const handleGenerate = async (promptText: string | undefined, ingredients?: StewIngredient[], opts?: { fresh?: boolean }) => {
     if (!promptText?.trim() && (!ingredients || ingredients.length === 0)) {
       addTerminalLine('error', 'No prompt provided — please describe what you want to build')
       return
@@ -4360,7 +4360,7 @@ ${html}
       const freshBuildRegex =
         /\b(build|create|make|generate|design|launch|spin\s+up|put\s+together|whip\s+up)\b.+\b(site|website|page|landing|app|store|blog|portfolio|dashboard)\b/i
       const resetIntentRegex = /\b(start\s+over|new\s+site|different\s+site|another\s+site|from\s+scratch)\b/i
-      const isFreshBuild = !html || freshBuildRegex.test(promptText) || resetIntentRegex.test(promptText)
+      const isFreshBuild = opts?.fresh === true || !html || freshBuildRegex.test(promptText) || resetIntentRegex.test(promptText)
       if (isFreshBuild && html) {
         // Drop the previous HTML from workspace state too so the preview
         // doesn't briefly show the old site while the new one streams in.
@@ -5342,6 +5342,32 @@ ${html}
     if (buildTarget !== 'website' && Object.keys(vfsFiles).length === 0) {
       await handleGenerate(message)
       return
+    }
+
+    // Website builds route to the dedicated generator, not the agent:
+    //   • no site yet            → first build
+    //   • clear "new site" intent → user wants a fresh site, not an edit of
+    //     the current one. Routing this to the agent just reskins the existing
+    //     hero — that's the "same header, only the text changed" bug.
+    // Genuine edits ("make the hero bigger", "change the button colour")
+    // carry an edit signal and fall through to the agent's modify_html below.
+    if (buildTarget === 'website') {
+      const freshSiteRegex = /\b(build|create|make|generate|design|launch|spin\s*up|put\s*together|whip\s*up|need|want|give\s*me|let'?s\s*(?:build|make|do))\b[\s\S]*?\b(site|website|web\s*page|home\s*page|landing\s*page|online\s*store|storefront|web\s*store|e-?commerce|blog|portfolio|web\s*app)\b/i
+      const resetIntentRegex = /\b(start\s*over|from\s*scratch|brand\s*new|new\s+(?:site|website|build|project|one)|different\s+(?:site|website)|scratch\s*that|fresh\s+(?:site|build|start))\b/i
+      const editSignalRegex = /\b(change|update|edit|move|remove|delete|swap|replace|tweak|adjust|resize|recolou?r|rename|bigger|smaller|darker|lighter|the\s+(?:hero|header|footer|nav|button|section|background|font|colou?r|logo|menu|cta|image|text|title))\b/i
+      const wantsFreshSite =
+        (freshSiteRegex.test(message) || resetIntentRegex.test(message)) && !editSignalRegex.test(message)
+      if (!html || wantsFreshSite) {
+        if (html) {
+          // Drop the old site so it doesn't flash behind the new build.
+          setHtml('')
+          setPages([{ id: 'home', name: 'Home', slug: 'index', html: '', isHome: true }])
+          setActivePageId('home')
+          setPreviewBumpKey((k) => k + 1)
+        }
+        await handleGenerate(message, undefined, { fresh: true })
+        return
+      }
     }
 
     setIsThinking(true)
