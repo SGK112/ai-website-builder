@@ -18,11 +18,18 @@ import * as cheerio from 'cheerio/slim'
 const MAX_HTML_BYTES = 3_000_000
 const FETCH_TIMEOUT_MS = 15_000
 
+export type SiteType = 'auto' | 'saas' | 'local-business' | 'general'
+
 export interface GraderResult {
   success: boolean
   url: string
   domain: string
   error?: string
+  // Which scoring profile produced this result. 'auto' resolves to one
+  // of the concrete types via detectSiteType(). Callers can override by
+  // passing a non-auto value to suppress mismatched recommendations
+  // (e.g. SaaS sites shouldn't be told to "claim a Yelp listing").
+  site_type: Exclude<SiteType, 'auto'>
   scores: {
     overall: number
     overall_grade: string
@@ -43,6 +50,45 @@ export interface GraderResult {
   }
   issues: string[]
   recommendations: string[]
+}
+
+// Heuristic site-type detection. Walks signal lists for each type and
+// picks the one with the most hits. Falls back to 'general' (the old
+// "everything is a local business" profile, minus the strongest local
+// penalties) when neither category dominates. Doesn't depend on
+// cheerio so it can run on a plain HTML string.
+export function detectSiteType(html: string, schemaTypes: string[] = []): Exclude<SiteType, 'auto'> {
+  const lower = html.toLowerCase()
+  // SaaS signals — pricing tiers, sign-up flows, dev primitives.
+  const saasSignals = [
+    'free trial', 'start free', 'sign up free', 'no credit card',
+    'monthly plan', 'annual plan', 'per month', '/month', 'cancel anytime',
+    'pricing', 'dashboard', 'integration', '/api/', 'api documentation',
+    'developer', 'sdk', 'webhook', 'oauth', 'open source', 'github.com/',
+    'login', 'sign in', 'log in', 'subscription',
+  ]
+  // Local-business signals — physical service, geography, trust badges.
+  const localSignals = [
+    'serving', 'service area', 'we serve', 'near you', 'in your area',
+    'free estimate', 'free quote', 'call today', 'call now', 'schedule a',
+    'licensed', 'insured', 'bonded', 'satisfaction guaranteed',
+    'years of experience', 'family owned', 'locally owned',
+    'before and after', 'project gallery', 'completed projects',
+    'street', 'avenue', 'suite', 'boulevard',
+  ]
+  let saasHits = saasSignals.reduce((n, s) => n + (lower.includes(s) ? 1 : 0), 0)
+  let localHits = localSignals.reduce((n, s) => n + (lower.includes(s) ? 1 : 0), 0)
+  // Schema.org types are strong tiebreakers — LocalBusiness/Restaurant/
+  // Plumber/HomeAndConstructionBusiness lock the type to local; Software-
+  // Application/WebApplication/SaaSPlatform lock to saas.
+  const localSchemas = ['LocalBusiness', 'Restaurant', 'HomeAndConstructionBusiness', 'AutomotiveBusiness', 'MedicalBusiness', 'Plumber', 'Electrician', 'HVACBusiness']
+  const saasSchemas = ['SoftwareApplication', 'WebApplication', 'MobileApplication', 'SaaSPlatform']
+  if (schemaTypes.some((t) => saasSchemas.includes(t))) saasHits += 5
+  if (schemaTypes.some((t) => localSchemas.includes(t))) localHits += 5
+  // Domain TLD lean (only when html signal is ambiguous).
+  if (saasHits >= 3 && saasHits > localHits + 1) return 'saas'
+  if (localHits >= 3 && localHits > saasHits + 1) return 'local-business'
+  return 'general'
 }
 
 function normalizeUrl(u: string): string {
@@ -76,11 +122,11 @@ function letterGrade(n: number): string {
 // pre-deploy drafts without actually publishing. We pass a synthetic URL
 // (e.g. `https://draft.local`) so the HTTPS check still computes; that
 // produces a meaningful score even though the site isn't hosted yet.
-export async function gradeHtml(html: string, contextUrl: string = 'https://draft.local'): Promise<GraderResult> {
-  return runAnalysis(html, contextUrl, contextUrl, null)
+export async function gradeHtml(html: string, contextUrl: string = 'https://draft.local', siteType: SiteType = 'auto'): Promise<GraderResult> {
+  return runAnalysis(html, contextUrl, contextUrl, null, siteType)
 }
 
-export async function gradeWebsite(input: string): Promise<GraderResult> {
+export async function gradeWebsite(input: string, siteType: SiteType = 'auto'): Promise<GraderResult> {
   const url = normalizeUrl(input)
   const domain = (() => { try { return new URL(url).hostname } catch { return '' } })()
 
@@ -119,6 +165,7 @@ export async function gradeWebsite(input: string): Promise<GraderResult> {
       success: false,
       url,
       domain,
+      site_type: siteType === 'auto' ? 'general' : siteType,
       error: e?.message || 'Could not fetch website',
       scores: emptyScores(),
       details: { load_time: null, word_count: 0, social_platforms: [], schema_types: [], ai_factors: [], business_factors: [] },
@@ -127,12 +174,12 @@ export async function gradeWebsite(input: string): Promise<GraderResult> {
     }
   }
 
-  return runAnalysis(html, url, finalUrl, loadTime)
+  return runAnalysis(html, url, finalUrl, loadTime, siteType)
 }
 
 // Pure analysis pass — given the HTML + context URL, return a graded result.
 // Extracted from gradeWebsite so the workspace can grade pre-deploy drafts.
-async function runAnalysis(html: string, url: string, finalUrl: string, loadTime: number | null): Promise<GraderResult> {
+async function runAnalysis(html: string, url: string, finalUrl: string, loadTime: number | null, siteTypeInput: SiteType = 'auto'): Promise<GraderResult> {
   const domain = (() => { try { return new URL(url).hostname } catch { return '' } })()
   const $ = cheerio.load(html)
   const issues: string[] = []
@@ -232,14 +279,35 @@ async function runAnalysis(html: string, url: string, finalUrl: string, loadTime
       walk(data)
     } catch {}
   })
-  const importantSchemas = new Set(['LocalBusiness', 'Organization', 'Service', 'Product', 'FAQPage', 'HowTo', 'Review', 'AggregateRating', 'Restaurant', 'Event'])
+  // SoftwareApplication + WebApplication count as "important" for SaaS
+  // sites — the original list was local-business biased.
+  const importantSchemas = new Set([
+    'LocalBusiness', 'Organization', 'Service', 'Product', 'FAQPage', 'HowTo',
+    'Review', 'AggregateRating', 'Restaurant', 'Event',
+    'SoftwareApplication', 'WebApplication', 'MobileApplication',
+  ])
   const foundImportant = schemaTypes.filter((s) => importantSchemas.has(s))
   let structuredScore = 0
   if (foundImportant.length >= 3) structuredScore = 100
   else if (foundImportant.length >= 2) structuredScore = 75
   else if (foundImportant.length >= 1) structuredScore = 50
   else if (schemaTypes.length > 0) structuredScore = 25
-  else { issues.push('No structured data (Schema.org) found'); recommendations.push('Add LocalBusiness and Service schema for AI discoverability') }
+
+  // Resolve siteType now that we have schemaTypes — detection uses them
+  // as the strongest tiebreaker. Recommendations + business-essentials
+  // checks below all branch on the resolved value.
+  const siteType = siteTypeInput === 'auto' ? detectSiteType(html, schemaTypes) : siteTypeInput
+
+  if (structuredScore === 0) {
+    issues.push('No structured data (Schema.org) found')
+    recommendations.push(
+      siteType === 'saas'
+        ? 'Add SoftwareApplication + Organization + FAQPage schema (JSON-LD) for AI discoverability'
+        : siteType === 'local-business'
+          ? 'Add LocalBusiness and Service schema for AI discoverability'
+          : 'Add Organization + product/service schema (JSON-LD) for AI discoverability'
+    )
+  }
   if (!schemaTypes.includes('FAQPage')) recommendations.push('Add FAQ schema - AI assistants love citing FAQ content')
 
   // ---- Social presence ----
@@ -262,8 +330,19 @@ async function runAnalysis(html: string, url: string, finalUrl: string, loadTime
   else if (socialList.length >= 3) socialScore = 75
   else if (socialList.length >= 1) socialScore = 50
   else { issues.push('No social media links found'); recommendations.push('Add links to social profiles - increases AI visibility') }
-  if (!socialList.includes('YouTube')) recommendations.push('Create YouTube presence - AI heavily indexes video content')
-  if (!socialList.includes('Yelp')) recommendations.push('Claim Yelp listing - important for local AI search')
+  // YouTube + Yelp are local-business-flavored AI-visibility tips.
+  // SaaS sites benefit far more from GitHub, LinkedIn, Twitter/X, and
+  // Product Hunt — recommend those instead.
+  if (siteType === 'local-business') {
+    if (!socialList.includes('YouTube')) recommendations.push('Create YouTube presence - AI heavily indexes video content')
+    if (!socialList.includes('Yelp')) recommendations.push('Claim Yelp listing - important for local AI search')
+  } else if (siteType === 'saas') {
+    if (!socialList.includes('GitHub')) recommendations.push('Link your GitHub org/repo — AI assistants index it heavily for SaaS products')
+    if (!socialList.includes('LinkedIn')) recommendations.push('Add LinkedIn company page — strong AI-visibility signal for SaaS')
+    if (!socialList.includes('Twitter/X')) recommendations.push('Add Twitter/X profile — primary social signal for product launches')
+  } else {
+    if (!socialList.includes('YouTube')) recommendations.push('Create YouTube presence - AI heavily indexes video content')
+  }
 
   // ---- Contact info ----
   const pageText = $('body').text().toLowerCase()
@@ -278,8 +357,25 @@ async function runAnalysis(html: string, url: string, finalUrl: string, loadTime
   else { issues.push('No phone number visible on page'); recommendations.push('Display phone number prominently') }
   if (hasEmail) contactScore += 30
   else issues.push('No email address visible')
+  // Physical address only matters for local-business sites. For SaaS the
+  // expected "address" is a contact email / support link / docs link.
   if (hasAddress) contactScore += 35
-  else { issues.push('No physical address found'); recommendations.push('Add full business address for local AI visibility') }
+  else if (siteType === 'local-business') {
+    issues.push('No physical address found')
+    recommendations.push('Add full business address for local AI visibility')
+  } else if (siteType === 'saas') {
+    // Compensate the missing-address chunk by checking for the SaaS
+    // analogue: an email + a support/docs link. Both present → full credit.
+    const lowerHtml = html.toLowerCase()
+    const hasSupportLink = /support@|help@|docs\.|\/docs|\/help|\/support|status\./i.test(lowerHtml)
+    if (hasEmail && hasSupportLink) contactScore += 35
+    else if (hasSupportLink) contactScore += 25
+    else recommendations.push('Add a /docs or /support link — discoverable support is a strong SaaS trust signal')
+  } else {
+    // general — give half-credit since address is just one of many
+    // possible contact methods.
+    contactScore += 18
+  }
 
   // ---- Content quality ----
   const $copy = cheerio.load(html)
@@ -300,20 +396,36 @@ async function runAnalysis(html: string, url: string, finalUrl: string, loadTime
   if (serviceWords.some((w) => lowerText.includes(w))) contentScore += 30
   contentScore = Math.min(contentScore, 100)
 
-  // ---- Business essentials (generalized, not contractor-specific) ----
+  // ---- Business essentials (siteType-aware) ----
   let bizScore = 0
   const bizFactors: string[] = []
   const text = $('body').text().toLowerCase()
-  // Service area / locations
-  if (/serving|service area|we serve|locations|surrounding|valley|metro|near you/i.test(text)) {
+  // Service area — only meaningful for local businesses. SaaS "serves
+  // the internet"; the field doesn't apply. Give SaaS sites the same
+  // 15-point credit so they're not penalized for not being local.
+  if (siteType === 'saas') {
+    bizScore += 15
+    bizFactors.push('Global / online service')
+  } else if (/serving|service area|we serve|locations|surrounding|valley|metro|near you/i.test(text)) {
     bizScore += 15; bizFactors.push('Service area defined')
-  } else { issues.push("No service area mentioned - customers don't know if you serve them"); recommendations.push('Add service area - list cities/regions you serve') }
-  // Trust signals (broadened beyond contractors)
-  const trustSigs = ['licensed', 'insured', 'bonded', 'certified', 'accredited', 'warranty', 'guarantee', 'satisfaction', 'background check', 'verified', 'awarded', 'featured in', 'as seen on']
+  } else if (siteType === 'local-business') {
+    issues.push("No service area mentioned - customers don't know if you serve them")
+    recommendations.push('Add service area - list cities/regions you serve')
+  }
+  // Trust signals. SaaS-relevant signals (SOC 2, GDPR, encrypted, uptime
+  // SLA, open source, Y Combinator) are also picked up here.
+  const trustSigs = ['licensed', 'insured', 'bonded', 'certified', 'accredited', 'warranty', 'guarantee', 'satisfaction', 'background check', 'verified', 'awarded', 'featured in', 'as seen on', 'soc 2', 'soc2', 'gdpr', 'hipaa', 'iso 27001', 'encrypted', 'uptime', 'sla', 'open source', 'y combinator', 'techcrunch', 'product hunt']
   const trustHits = trustSigs.filter((s) => text.includes(s))
   if (trustHits.length >= 3) { bizScore += 20; bizFactors.push('Strong trust signals') }
   else if (trustHits.length >= 1) { bizScore += 10; bizFactors.push('Some trust signals') }
-  else { issues.push('No trust signals (license, insurance, accreditations)'); recommendations.push('Display credentials or trust badges prominently') }
+  else {
+    issues.push(siteType === 'saas' ? 'No trust signals (SOC 2, security badges, social proof)' : 'No trust signals (license, insurance, accreditations)')
+    recommendations.push(
+      siteType === 'saas'
+        ? 'Display security badges (SOC 2, GDPR), uptime page, or press logos prominently'
+        : 'Display credentials or trust badges prominently'
+    )
+  }
   // CTAs
   const ctas = ['free quote', 'free estimate', 'get a quote', 'call now', 'call today', 'schedule', 'book', 'contact us', 'request', 'get started', 'sign up', 'start free']
   const ctaHits = ctas.filter((c) => text.includes(c))
@@ -376,6 +488,7 @@ async function runAnalysis(html: string, url: string, finalUrl: string, loadTime
     success: true,
     url: finalUrl,
     domain,
+    site_type: siteType,
     scores: {
       overall,
       overall_grade: letterGrade(overall),

@@ -98,8 +98,17 @@ export async function POST(req: NextRequest) {
     quotaUsed = r.count
   }
 
-  let body: { url?: string; html?: string; contextUrl?: string }
+  let body: { url?: string; html?: string; contextUrl?: string; siteType?: 'auto' | 'saas' | 'local-business' | 'general' }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 }) }
+
+  // siteType controls which scoring profile applies:
+  //  - 'saas'           → skip Yelp/address/service-area penalties, weight GitHub/LinkedIn/security badges
+  //  - 'local-business' → original contractor-style rubric
+  //  - 'general'        → middle ground, no penalty either way
+  //  - 'auto' (default) → detectSiteType() picks one based on HTML signals + schema
+  const validTypes = new Set(['auto', 'saas', 'local-business', 'general'])
+  const siteType: 'auto' | 'saas' | 'local-business' | 'general' =
+    body.siteType && validTypes.has(body.siteType) ? body.siteType : 'auto'
 
   try {
     let result: any
@@ -107,12 +116,12 @@ export async function POST(req: NextRequest) {
       if (body.html.length > MAX_HTML_CHARS) {
         return NextResponse.json({ error: 'html too large' }, { status: 400 })
       }
-      result = await gradeHtml(body.html, body.contextUrl || 'https://draft.local')
+      result = await gradeHtml(body.html, body.contextUrl || 'https://draft.local', siteType)
     } else {
       const url = (body.url || '').trim()
       if (!url) return NextResponse.json({ error: 'url or html required' }, { status: 400 })
       if (url.length > 2048) return NextResponse.json({ error: 'url too long' }, { status: 400 })
-      result = await gradeWebsite(url)
+      result = await gradeWebsite(url, siteType)
     }
 
     // Stamp the response with quota info so the widget can show
