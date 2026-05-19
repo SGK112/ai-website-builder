@@ -6,6 +6,19 @@ import Stripe from 'stripe'
 import { getStripe, getPlanCredits, type PlanId } from '@/lib/stripe'
 import { connectDB } from '@/lib/db'
 import { User } from '@ai-website-builder/database'
+import clientPromise from '@/lib/mongodb'
+
+// Marketplace collections (template_purchases, marketplace_purchases,
+// community_posts, payouts_log) live in the dedicated 'ai-website-builder'
+// database. Mongoose's connection.db points at voiceflow-crm (users DB).
+// Webhook writes MUST use this client.db('ai-website-builder') or
+// earnings/library will never see the purchase. Pre-2026-05-19 the
+// webhook wrote to voiceflow-crm — Stripe-paid template/listing sales
+// were invisible to the seller dashboard.
+async function getMarketplaceDb() {
+  const c = await clientPromise
+  return c.db('ai-website-builder')
+}
 
 // session.user.id from NextAuth can be a provider account id (legacy OAuth)
 // rather than a Mongo _id, so findById fails silently. Resolve by trying _id
@@ -89,8 +102,7 @@ export async function POST(req: NextRequest) {
             const templateId = String(sess.metadata.template_id || '')
             const buyerId = String(sess.metadata.buyer_user_id || '')
             if (templateId && buyerId) {
-              const mongoose = (await import('mongoose')).default
-              const db = mongoose.connection.db
+              const db = await getMarketplaceDb()
               if (db) {
                 // Idempotent — upsert keyed on (buyerId, templateId). A
                 // retried webhook delivery won't create a second row.
@@ -129,23 +141,26 @@ export async function POST(req: NextRequest) {
             const sellerId = sess.metadata.seller_user_id
             const creditsValue = parseInt(sess.metadata.credits || '0', 10) || 0
             if (listingId && buyerId && ObjectId.isValid(listingId)) {
-              const mongoose = (await import('mongoose')).default
-              const db = mongoose.connection.db
-              if (db) {
+              // Two-database write: marketplace_purchases + community_posts
+              // live in ai-website-builder; users (for the seller-earnings
+              // ledger) lives in the Mongoose-default DB (voiceflow-crm).
+              const mkt = await getMarketplaceDb()
+              const usersDb = mongoose.connection.db
+              if (mkt) {
                 // Idempotent: marketplace_purchases keyed on (buyerId, listingId)
                 // so retried webhook deliveries don't double-record. We
                 // explicitly ignore refunded rows here so a buyer who got
                 // refunded and re-purchases gets a fresh active row.
-                const already = await db.collection('marketplace_purchases').findOne({
+                const already = await mkt.collection('marketplace_purchases').findOne({
                   buyerId,
                   listingId,
                   status: { $ne: 'refunded' },
                 })
                 if (!already) {
-                  const listing = await db
+                  const listing = await mkt
                     .collection('community_posts')
                     .findOne({ _id: new ObjectId(listingId) }, { projection: { title: 1, type: 1 } })
-                  await db.collection('marketplace_purchases').insertOne({
+                  await mkt.collection('marketplace_purchases').insertOne({
                     buyerId,
                     sellerId,
                     listingId,
@@ -159,12 +174,13 @@ export async function POST(req: NextRequest) {
                     source: 'stripe-checkout',
                     purchasedAt: new Date(),
                   })
-                  // Bump downloads + seller ledger.
-                  await db
+                  // Bump downloads in the same DB.
+                  await mkt
                     .collection('community_posts')
                     .updateOne({ _id: new ObjectId(listingId) }, { $inc: { downloads: 1 } })
-                  if (sellerId && ObjectId.isValid(sellerId) && creditsValue > 0) {
-                    await db.collection('users').updateOne(
+                  // Seller earnings ledger is on the USER doc — different DB.
+                  if (sellerId && ObjectId.isValid(sellerId) && creditsValue > 0 && usersDb) {
+                    await usersDb.collection('users').updateOne(
                       { _id: new ObjectId(sellerId) },
                       { $inc: { marketplace_earnings_credits: creditsValue } }
                     )
@@ -296,10 +312,13 @@ export async function POST(req: NextRequest) {
             console.log('[marketplace] charge.refunded: no payment_intent on charge, ignoring')
             break
           }
-          const mongoose = (await import('mongoose')).default
-          const db = mongoose.connection.db
-          if (!db) break
-          const purchase = await db
+          // marketplace_purchases + community_posts + audit_log live in
+          // ai-website-builder; user-ledger (marketplace_earnings_credits)
+          // lives in voiceflow-crm via Mongoose's default connection.
+          const mkt = await getMarketplaceDb()
+          const usersDb = mongoose.connection.db
+          if (!mkt) break
+          const purchase = await mkt
             .collection('marketplace_purchases')
             .findOne({ stripePaymentIntentId: paymentIntentId })
           if (!purchase) {
@@ -316,7 +335,7 @@ export async function POST(req: NextRequest) {
           if (!isFullRefund) {
             // Partial refund — log it but leave entitlement intact. The
             // buyer still gets the asset they paid (most of) for.
-            await db.collection('marketplace_purchases').updateOne(
+            await mkt.collection('marketplace_purchases').updateOne(
               { _id: purchase._id },
               {
                 $set: {
@@ -331,7 +350,7 @@ export async function POST(req: NextRequest) {
             break
           }
           // Full refund — revoke entitlement, reverse counters.
-          await db.collection('marketplace_purchases').updateOne(
+          await mkt.collection('marketplace_purchases').updateOne(
             { _id: purchase._id },
             {
               $set: {
@@ -343,7 +362,7 @@ export async function POST(req: NextRequest) {
             }
           )
           if (purchase.listingId && ObjectId.isValid(purchase.listingId)) {
-            await db
+            await mkt
               .collection('community_posts')
               .updateOne({ _id: new ObjectId(purchase.listingId) }, { $inc: { downloads: -1 } })
           }
@@ -351,16 +370,17 @@ export async function POST(req: NextRequest) {
           if (
             purchase.sellerId &&
             ObjectId.isValid(purchase.sellerId) &&
-            priceCredits > 0
+            priceCredits > 0 &&
+            usersDb
           ) {
-            await db
+            await usersDb
               .collection('users')
               .updateOne(
                 { _id: new ObjectId(purchase.sellerId) },
                 { $inc: { marketplace_earnings_credits: -priceCredits } }
               )
           }
-          await db.collection('audit_log').insertOne({
+          await mkt.collection('audit_log').insertOne({
             type: 'marketplace_refund',
             listingId: purchase.listingId,
             buyerId: purchase.buyerId,
@@ -387,13 +407,13 @@ export async function POST(req: NextRequest) {
       case 'account.updated': {
         // A seller's onboarding state changed (e.g., charges_enabled flipped).
         // Cache the latest flags on the user doc so the PayoutsCard reflects
-        // status without hitting Stripe on every page load.
+        // status without hitting Stripe on every page load. users lives in
+        // the Mongoose-default DB (voiceflow-crm).
         const acct: any = event.data.object
         if (acct?.id) {
-          const mongoose = (await import('mongoose')).default
-          const db = mongoose.connection.db
-          if (db) {
-            await db.collection('users').updateOne(
+          const usersDb = mongoose.connection.db
+          if (usersDb) {
+            await usersDb.collection('users').updateOne(
               { stripe_account_id: acct.id },
               {
                 $set: {
@@ -412,11 +432,11 @@ export async function POST(req: NextRequest) {
       case 'transfer.updated':
       case 'transfer.reversed': {
         // Record the transfer state on our payouts_log row.
+        // payouts_log lives in the marketplace DB (ai-website-builder).
         const tr: any = event.data.object
-        const mongoose = (await import('mongoose')).default
-        const db = mongoose.connection.db
-        if (db && tr?.id) {
-          await db.collection('payouts_log').updateOne(
+        const mkt = await getMarketplaceDb()
+        if (mkt && tr?.id) {
+          await mkt.collection('payouts_log').updateOne(
             { stripeTransferId: tr.id },
             {
               $set: {
