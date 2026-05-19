@@ -712,6 +712,35 @@ export function applyThemeToHtml(html: string, preset: StylePreset): string {
     background: transparent !important;
   }
 
+  /* === HERO GRADIENT RECOLOR ===
+     The first hero section commonly uses a full gradient like
+     bg-gradient-to-br from-slate-900 to-purple-900 — these were NOT
+     getting recolored before because the global gradient rule deliberately
+     skipped them to protect background-image hero photos. Now we target
+     them explicitly, but ONLY when there's no inline url() / image, so
+     photo heroes still survive. Reported by Joshua: "hero header theme
+     color doesn't change but all the rest of the site changes."
+
+     Note the :first-of-type + element-specific selectors so we don't blow
+     away every gradient on the page — only the hero. */
+  section:first-of-type[class*="bg-gradient"]:not([style*="url("]):not([style*="background-image"]),
+  header[class*="bg-gradient"]:not([style*="url("]):not([style*="background-image"]),
+  [class*="hero"][class*="bg-gradient"]:not([style*="url("]):not([style*="background-image"]) {
+    background-image: linear-gradient(135deg, var(--primary), var(--secondary)) !important;
+    --tw-gradient-from: var(--primary) !important;
+    --tw-gradient-to: var(--secondary) !important;
+    --tw-gradient-via: color-mix(in srgb, var(--primary) 50%, var(--secondary)) !important;
+  }
+
+  /* Solid-color hero (no gradient class) that uses a dark Tailwind shade
+     — handled by the global bg-slate-950 rule above, but heroes often
+     stack section + inner div with the bg. Also target the FIRST direct
+     child of body with a dark bg class. */
+  body > section:first-of-type:not([style*="url("]):not([style*="background-image"]),
+  body > header:not([style*="url("]):not([style*="background-image"]) {
+    color: ${isLightTheme ? 'var(--fg)' : 'var(--fg)'} !important;
+  }
+
   /* Add subtle gradient overlay for depth */
   body::before {
     content: '';
