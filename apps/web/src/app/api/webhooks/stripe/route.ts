@@ -79,6 +79,47 @@ export async function POST(req: NextRequest) {
     switch (event.type) {
       case 'checkout.session.completed': {
         const sess: any = event.data.object
+
+        // Platform-owned template purchase (BUILTIN_TEMPLATES on /templates).
+        // Different from marketplace listings — no Connect destination, the
+        // platform receives 100% of the payment. Entitlement is granted by
+        // inserting into template_purchases keyed on (buyerId, templateId).
+        if (sess?.metadata?.source === 'webstew-template') {
+          try {
+            const templateId = String(sess.metadata.template_id || '')
+            const buyerId = String(sess.metadata.buyer_user_id || '')
+            if (templateId && buyerId) {
+              const mongoose = (await import('mongoose')).default
+              const db = mongoose.connection.db
+              if (db) {
+                // Idempotent — upsert keyed on (buyerId, templateId). A
+                // retried webhook delivery won't create a second row.
+                await db.collection('template_purchases').updateOne(
+                  { buyerId, templateId, status: { $ne: 'refunded' } },
+                  {
+                    $setOnInsert: {
+                      buyerId,
+                      templateId,
+                      stripeSessionId: sess.id,
+                      stripePaymentIntentId: sess.payment_intent,
+                      amountTotalCents: sess.amount_total,
+                      amountCurrency: sess.currency,
+                      source: 'stripe-checkout',
+                      status: 'active',
+                      purchasedAt: new Date(),
+                    },
+                  },
+                  { upsert: true },
+                )
+                console.log(`[templates] checkout completed → entitled ${buyerId} for ${templateId}`)
+              }
+            }
+          } catch (e: any) {
+            console.error('[templates] checkout.completed handler:', e?.message || e)
+          }
+          break
+        }
+
         // Marketplace direct-USD purchase path. Identified by metadata.source.
         // (Plan/credit Checkout sessions go through the legacy branch below.)
         if (sess?.metadata?.source === 'webstew-marketplace') {

@@ -174,8 +174,13 @@ export default function TemplatesPage() {
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null)
   const [previewDevice, setPreviewDevice] = useState<PreviewDevice>('desktop')
-  // Paywall modal — fires when a free user clicks a premium template.
+  // Paywall modal — fires when a premium template has no individual
+  // Stripe price configured (or Stripe is unavailable). Surfaces the
+  // plan-upgrade path as the fallback.
   const [paywallTemplate, setPaywallTemplate] = useState<Template | null>(null)
+  // Per-template purchase entitlements. Populated from /api/templates/owned
+  // on mount. Treated alongside hasPremiumAccess as a positive grant.
+  const [ownedTemplates, setOwnedTemplates] = useState<string[]>([])
 
   // Get the full template HTML if available.
   // Order: local builtin > API-returned html_content (Supabase templates).
@@ -194,6 +199,18 @@ export default function TemplatesPage() {
   useEffect(() => {
     loadTemplates()
   }, [])
+
+  // Load per-template purchase entitlements once the session resolves.
+  // Anonymous users get { owned: [] } silently.
+  useEffect(() => {
+    if (sessionStatus !== 'authenticated') return
+    let alive = true
+    fetch('/api/templates/owned', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : { owned: [] }))
+      .then((data) => { if (alive && Array.isArray(data?.owned)) setOwnedTemplates(data.owned) })
+      .catch(() => { /* silent — paywall fallback handles the rest */ })
+    return () => { alive = false }
+  }, [sessionStatus])
 
   const loadTemplates = async () => {
     setLoading(true)
@@ -220,19 +237,48 @@ export default function TemplatesPage() {
   })
 
   const useTemplate = async (template: Template) => {
-    // PAYWALL GATE — premium templates require an active paid plan.
-    // Anonymous users get bounced through /signup so they can authenticate
-    // and (if needed) upgrade.
+    // PURCHASE GATE — premium templates require either:
+    //  (a) a paid plan that includes premium templates, OR
+    //  (b) an explicit per-template Stripe Checkout purchase.
+    // Anonymous users get bounced through /signup so they can authenticate.
     if (template.is_premium) {
-      if (sessionStatus === 'loading') return // still waiting to know
+      if (sessionStatus === 'loading') return
       if (!session?.user) {
         const back = `/templates`
         router.push(`/signup?next=${encodeURIComponent(back)}&reason=premium_template`)
         return
       }
-      if (!hasPremiumAccess) {
-        setPaywallTemplate(template)
-        return
+      // Plan tier or prior purchase grants access. ownedTemplates is
+      // populated on mount by /api/templates/owned.
+      if (!hasPremiumAccess && !ownedTemplates.includes(template.id)) {
+        // Start a Stripe Checkout for this single template. The webhook at
+        // /api/webhooks/stripe ('webstew-template' source) writes the
+        // template_purchases row when the session completes; the workspace
+        // success_url re-routes the user with ?template=<id>&purchased=true.
+        try {
+          const res = await fetch(`/api/templates/checkout/${encodeURIComponent(template.id)}`, { method: 'POST' })
+          const data = await res.json().catch(() => ({} as any))
+          if (res.ok && data?.alreadyOwned && data?.redirect) {
+            router.push(data.redirect)
+            return
+          }
+          if (res.ok && data?.url) {
+            window.location.href = data.url
+            return
+          }
+          // 404 ("not for sale" — i.e. template doesn't have a USD price set):
+          // fall back to the plan-tier paywall modal so the user can still
+          // upgrade to a plan that bundles all premium templates.
+          if (res.status === 404 || res.status === 503) {
+            setPaywallTemplate(template)
+            return
+          }
+          throw new Error(data?.error || `HTTP ${res.status}`)
+        } catch (e) {
+          console.error('[templates] checkout failed:', e)
+          setPaywallTemplate(template)
+          return
+        }
       }
     }
     // Anonymous users hitting free templates can still try them — workspace
