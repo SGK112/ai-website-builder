@@ -430,8 +430,8 @@ async function createGitHubRepo(name: string, files: ProjectFile[], token: strin
 //   • package.json with `expo`  → Render `static_site`, `expo export --platform web` → 'dist'
 //   • package.json with anything else (Express, custom Node) → web_service node
 //
-// This stays narrow on purpose: every branch matches a target /app-builder can
-// actually generate. Native iOS/Android builds go through EAS, not Render —
+// This stays narrow on purpose: every branch matches a target the workspace
+// can actually generate. Native iOS/Android builds go through EAS, not Render —
 // that's a separate pipeline (Apple/Google creds, store submission). The
 // expo→web path here gives Expo apps a shareable URL today.
 type DeployShape =

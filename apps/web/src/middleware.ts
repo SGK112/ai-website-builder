@@ -3,10 +3,10 @@ import { getToken } from 'next-auth/jwt'
 
 // Routes that require an authenticated session. /workspace and the website
 // generate API are anon-accessible (with a 1-gen cookie cap enforced inside
-// the route). /app-builder + multi-target generate routes stay gated — those
-// are the iteration / power-user surfaces, and signup makes sense there.
+// the route). Multi-target generate routes stay gated — that's the
+// power-user surface, and signup makes sense there.
 // Save/Deploy/CMS/profile/dashboard/admin all remain gated.
-const GATED_PAGE_PREFIXES = ['/app-builder', '/dashboard', '/profile', '/admin', '/integrations', '/workspace', '/library']
+const GATED_PAGE_PREFIXES = ['/dashboard', '/profile', '/admin', '/integrations', '/workspace', '/library']
 const GATED_API_PREFIXES = [
   '/api/builder/converse',
   '/api/builder/chat',

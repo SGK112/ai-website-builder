@@ -2510,21 +2510,35 @@ function WorkspaceContent() {
       loadedFromUrlRef.current = true
       // Clear URL first so a reload / browser-back can't re-fire the same prompt
       router.replace('/workspace', { scroll: false })
-      // Show the prompt in the chat so the user sees what's being built
-      setChatMessages(prev => [...prev, { role: 'user', content: promptFromUrl }])
       setHasInitialized(true)
       // A prompt arriving via URL = user came from the landing page = a
-      // brand new build. Clear any leftover HTML so handleGenerate fires
-      // in fresh-build mode (no currentHtml = no "surgical editor" mode).
+      // brand new build. Clear any leftover HTML so generation fires in
+      // fresh-build mode (no currentHtml = no "surgical editor" mode).
       setHtml('')
-      setChatMessages(prev => prev.filter((_, i) => i === prev.length - 1)) // keep only the just-added user prompt
+      // Show the prompt in the chat so the user sees what's being built.
+      setChatMessages([{ role: 'user', content: promptFromUrl }])
+      // `target` carries over from the landing page's webapp / mobile picks.
+      // Non-website targets build into this same workspace via the
+      // multi-target path — one surface, not two.
+      const rawTarget = searchParams.get('target')
+      const urlTarget: BuildTarget =
+        rawTarget === 'expo' || rawTarget === 'nextjs' || rawTarget === 'react' || rawTarget === 'astro'
+          ? rawTarget
+          : 'website'
       // Fire generation immediately — this is the user's request from the landing page.
-      // useEffect callbacks can't be async; catch the promise so an Anthropic failure
-      // surfaces in the terminal/toast (via handleGenerate's own try/catch) without
-      // becoming an unhandled rejection. The inner handler already shows the error.
-      void handleGenerate(promptFromUrl).catch((e) => {
-        console.error('[workspace] URL-prompt generation failed:', e)
-      })
+      // useEffect callbacks can't be async; catch the promise so a generation failure
+      // surfaces in the terminal/toast (via the handler's own try/catch) without
+      // becoming an unhandled rejection.
+      if (urlTarget !== 'website') {
+        setBuildTarget(urlTarget)
+        void handleGenerateMultiTarget(urlTarget, promptFromUrl).catch((e) => {
+          console.error('[workspace] URL-prompt multi-target generation failed:', e)
+        })
+      } else {
+        void handleGenerate(promptFromUrl).catch((e) => {
+          console.error('[workspace] URL-prompt generation failed:', e)
+        })
+      }
     } else {
       setHasInitialized(true)
     }

@@ -519,10 +519,10 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prompt, buildTarget])
 
-  // Route to the right builder based on the user's chosen target. Website
-  // target is anon-accessible — they get 1 free generation, then a signup
-  // wall. Webapp / mobile targets still ride through /signup since
-  // /app-builder remains gated.
+  // Route to the workspace — the single build surface for every target.
+  // Website target is anon-accessible (1 free generation, then a signup
+  // wall); webapp / mobile targets ride through /signup since multi-target
+  // generation is gated.
   const navigateToBuilder = (projectPrompt: string, t: 'website' | 'webapp' | 'mobile' = buildTarget) => {
     setIsTransitioning(true)
     let url: string
@@ -534,7 +534,7 @@ export default function HomePage() {
     } else {
       const apiTarget = t === 'mobile' ? 'expo' : 'nextjs'
       const params = new URLSearchParams({ prompt: projectPrompt, target: apiTarget })
-      url = `/app-builder?${params.toString()}`
+      url = `/workspace?${params.toString()}`
     }
     if (anonOk || sessionStatus === 'authenticated') {
       router.push(url)
@@ -902,7 +902,7 @@ export default function HomePage() {
                     Community
                   </a>
                   <a
-                    href="/app-builder"
+                    href="/workspace"
                     className={cn(
                       "px-3 py-2 rounded-lg text-sm font-medium transition-all hidden sm:flex items-center gap-1.5",
                       isDark
@@ -2292,7 +2292,7 @@ export default function HomePage() {
                 </div>
                 <div className="flex items-center gap-x-5 gap-y-2 flex-wrap justify-center sm:justify-end">
                   <a href="/grader" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Site Grader</a>
-                  <a href="/app-builder" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>App Builder</a>
+                  <a href="/workspace" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>App Builder</a>
                   <a href="/community" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Community</a>
                   <a href="/community?tab=feedback" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Feedback</a>
                   <a href="/upgrade" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Pricing</a>
