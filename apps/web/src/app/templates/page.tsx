@@ -18,6 +18,7 @@ import {
   BookOpen,
   Rocket,
   Crown,
+  Check,
   Monitor,
   Tablet,
   Smartphone,
@@ -39,6 +40,16 @@ interface Template {
   preview_url?: string
   is_premium: boolean
   price_credits: number
+  // Per-template Stripe price in USD cents. Set ONLY for is_premium
+  // templates that are buyable individually. MUST match the
+  // TEMPLATE_USD_CENTS map in /api/templates/checkout/[id]/route.ts —
+  // the server map is authoritative for billing; this is the display
+  // copy. If they drift, the server wins and the user sees the right
+  // amount on Stripe Checkout, but the card shows stale price first.
+  priceUsdCents?: number
+  // What the user actually gets — surface on the card + preview modal
+  // so the purchase is transparent ("X full pages, drag-drop edit, etc.")
+  includes?: string[]
 }
 
 const CATEGORIES = [
@@ -89,6 +100,14 @@ const BUILTIN_TEMPLATES: Template[] = [
     thumbnail_url: 'https://www.webstew.net/api/media?q=restaurant&w=800&h=600',
     is_premium: true,
     price_credits: 10,
+    priceUsdCents: 1900,
+    includes: [
+      'Hero with reservation CTA',
+      'Full menu section (starters / mains / desserts)',
+      'Chef story + photo gallery',
+      'Hours + contact + map',
+      'Mobile-responsive, dark/light auto',
+    ],
   },
   {
     id: 'photography-portfolio',
@@ -107,6 +126,14 @@ const BUILTIN_TEMPLATES: Template[] = [
     thumbnail_url: 'https://www.webstew.net/api/media?q=techblog&w=800&h=600',
     is_premium: true,
     price_credits: 5,
+    priceUsdCents: 1900,
+    includes: [
+      'Hero + featured article',
+      'Article grid with categories',
+      'Single-post layout with TOC',
+      'Author bio + newsletter signup',
+      'Code-block syntax styling',
+    ],
   },
   {
     id: 'startup-landing',
@@ -125,6 +152,14 @@ const BUILTIN_TEMPLATES: Template[] = [
     thumbnail_url: 'https://www.webstew.net/api/media?q=fitness&w=800&h=600',
     is_premium: true,
     price_credits: 10,
+    priceUsdCents: 1900,
+    includes: [
+      'High-energy hero with class CTA',
+      'Class schedule grid',
+      'Trainer profile cards',
+      'Membership pricing tiers',
+      'Trial-pass signup form',
+    ],
   },
   {
     id: 'fashion-store',
@@ -152,6 +187,15 @@ const BUILTIN_TEMPLATES: Template[] = [
     thumbnail_url: 'https://www.webstew.net/api/media?q=dashboard&w=800&h=600',
     is_premium: true,
     price_credits: 15,
+    priceUsdCents: 2900,
+    includes: [
+      'Marketing home + pricing + features',
+      'Customer testimonials grid',
+      'FAQ accordion + CTAs',
+      'Dashboard layout sample',
+      'Login + signup forms',
+      'Multi-page navigation',
+    ],
   },
 ]
 
@@ -387,11 +431,27 @@ export default function TemplatesPage() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
-                    {/* Premium Badge */}
-                    {template.is_premium && (
-                      <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 bg-amber-500/90 rounded-full">
-                        <Crown className="w-3 h-3 text-white" />
-                        <span className="text-xs font-medium text-white">{template.price_credits} credits</span>
+                    {/* Price / Owned / Free Badge — clear pricing up-front so
+                        users know what they're committing to before they click. */}
+                    {template.is_premium ? (
+                      ownedTemplates.includes(template.id) ? (
+                        <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 bg-emerald-500/90 rounded-full">
+                          <Crown className="w-3 h-3 text-white" />
+                          <span className="text-xs font-medium text-white">Owned</span>
+                        </div>
+                      ) : (
+                        <div className="absolute top-3 right-3 flex items-center gap-1 px-2.5 py-1 bg-amber-500/95 rounded-full shadow-lg">
+                          <Crown className="w-3 h-3 text-white" />
+                          <span className="text-xs font-bold text-white">
+                            {template.priceUsdCents
+                              ? `$${(template.priceUsdCents / 100).toFixed(0)}`
+                              : 'Pro plan'}
+                          </span>
+                        </div>
+                      )
+                    ) : (
+                      <div className="absolute top-3 right-3 px-2 py-1 bg-emerald-500/80 rounded-full">
+                        <span className="text-xs font-medium text-white">Free</span>
                       </div>
                     )}
 
@@ -400,6 +460,7 @@ export default function TemplatesPage() {
                       <button
                         onClick={() => setPreviewTemplate(template)}
                         className="p-3 bg-white/10 backdrop-blur-sm rounded-xl hover:bg-white/20 transition"
+                        title="Preview"
                       >
                         <Eye className="w-5 h-5 text-white" />
                       </button>
@@ -407,8 +468,10 @@ export default function TemplatesPage() {
                         onClick={() => useTemplate(template)}
                         className="px-4 py-3 bg-violet-600 hover:bg-violet-500 rounded-xl text-white font-medium transition flex items-center gap-2"
                       >
-                        <Sparkles className="w-4 h-4" />
-                        Use Template
+                        {template.is_premium && !ownedTemplates.includes(template.id) && !hasPremiumAccess
+                          ? <><Crown className="w-4 h-4" />Buy {template.priceUsdCents ? `$${(template.priceUsdCents / 100).toFixed(0)}` : ''}</>
+                          : <><Sparkles className="w-4 h-4" />Use Template</>
+                        }
                       </button>
                     </div>
                   </div>
@@ -417,10 +480,15 @@ export default function TemplatesPage() {
                   <div className="p-4">
                     <h3 className="font-semibold text-white mb-1">{template.name}</h3>
                     <p className="text-sm text-slate-400 line-clamp-2">{template.description}</p>
-                    <div className="mt-3 flex items-center gap-2">
+                    <div className="mt-3 flex items-center gap-2 flex-wrap">
                       <span className="text-xs px-2 py-1 bg-white/5 rounded-full text-slate-400 capitalize">
                         {template.category}
                       </span>
+                      {template.includes && template.includes.length > 0 && (
+                        <span className="text-xs px-2 py-1 bg-white/5 rounded-full text-slate-400">
+                          {template.includes.length} sections
+                        </span>
+                      )}
                     </div>
                   </div>
                 </motion.div>
@@ -452,10 +520,19 @@ export default function TemplatesPage() {
                   <p className="text-sm text-slate-400">{previewTemplate.description}</p>
                 </div>
                 {previewTemplate.is_premium && (
-                  <span className="flex items-center gap-1 px-2 py-1 bg-amber-500/20 text-amber-400 rounded-full text-xs font-medium">
-                    <Crown className="w-3 h-3" />
-                    {previewTemplate.price_credits} credits
-                  </span>
+                  ownedTemplates.includes(previewTemplate.id) ? (
+                    <span className="flex items-center gap-1 px-2.5 py-1 bg-emerald-500/20 text-emerald-300 rounded-full text-xs font-bold">
+                      <Crown className="w-3 h-3" />
+                      Owned
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 px-2.5 py-1 bg-amber-500/95 text-white rounded-full text-xs font-bold shadow-lg">
+                      <Crown className="w-3 h-3" />
+                      {previewTemplate.priceUsdCents
+                        ? `$${(previewTemplate.priceUsdCents / 100).toFixed(0)} one-time`
+                        : 'Pro plan'}
+                    </span>
+                  )
                 )}
               </div>
               <div className="flex items-center gap-3">
@@ -550,6 +627,42 @@ export default function TemplatesPage() {
                   </div>
                 )}
               </div>
+
+              {/* What you get — purchase transparency. Shown for any template
+                  with an `includes` list so users know exactly what's in the
+                  package before they click Buy / Use. */}
+              {previewTemplate.includes && previewTemplate.includes.length > 0 && (
+                <div className="px-4 py-4 border-t border-white/10 bg-slate-900/60">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <div className="text-sm font-semibold text-white">What's included</div>
+                      <div className="text-[11px] text-slate-400">
+                        {previewTemplate.includes.length} section{previewTemplate.includes.length === 1 ? '' : 's'}
+                        {previewTemplate.is_premium && previewTemplate.priceUsdCents && !ownedTemplates.includes(previewTemplate.id) && (
+                          <> · <span className="text-amber-300 font-medium">${(previewTemplate.priceUsdCents / 100).toFixed(0)} one-time, lifetime access</span></>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => useTemplate(previewTemplate)}
+                      className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold flex items-center gap-2"
+                    >
+                      {previewTemplate.is_premium && !ownedTemplates.includes(previewTemplate.id) && !hasPremiumAccess
+                        ? <><Crown className="w-3.5 h-3.5" />Buy ${(previewTemplate.priceUsdCents || 0) / 100}</>
+                        : <><Sparkles className="w-3.5 h-3.5" />Use Template</>
+                      }
+                    </button>
+                  </div>
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+                    {previewTemplate.includes.map((item, i) => (
+                      <li key={i} className="text-[12px] text-slate-300 flex items-center gap-2">
+                        <Check className="w-3 h-3 text-emerald-400 shrink-0" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </motion.div>
         </motion.div>
