@@ -1287,6 +1287,10 @@ function WorkspaceContent() {
 
   // Core state
   const [html, setHtml] = useState('')
+  // What the preview iframe actually renders. Deliberately NOT `html`:
+  // see the throttle effect below — binding srcDoc straight to `html`
+  // reloaded the iframe once per streaming SSE delta.
+  const [previewHtml, setPreviewHtml] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [buildPhase, setBuildPhase] = useState<BuildPhase>('idle')
   const [currentSteps, setCurrentSteps] = useState<BuildStep[]>(buildSteps)
@@ -2154,6 +2158,11 @@ function WorkspaceContent() {
   // allow-same-origin, so cross-origin access throws SecurityError.
   const [previewBumpKey, setPreviewBumpKey] = useState(0)
   const terminalRef = useRef<HTMLDivElement>(null)
+  // Latest `html` readable from inside a throttled timer without re-arming
+  // the effect each delta.
+  const htmlRef = useRef('')
+  htmlRef.current = html
+  const previewSyncRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const consoleRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -3603,6 +3612,35 @@ ${html}
   }
 
   // Inject console interceptor and element selector into HTML
+  // Throttle what the preview iframe renders. The iframe's srcDoc is a
+  // wholesale document — any change reloads it and re-fetches every image +
+  // the Tailwind CDN. During a streaming generation `setHtml` fires once per
+  // SSE delta (hundreds of times), so binding the iframe straight to `html`
+  // reloaded it hundreds of times. Each reload cancelled the in-flight image
+  // requests before they finished (and before the browser could cache them),
+  // so every reload re-issued fresh /api/media requests — until the server
+  // 429'd and the preview collapsed to a flickering blank. (Joshua 2026-05-19.)
+  // Fix: while generating, push to the iframe at most once a second; when idle
+  // mirror `html` immediately.
+  useEffect(() => {
+    if (!isGenerating) {
+      if (previewSyncRef.current) {
+        clearTimeout(previewSyncRef.current)
+        previewSyncRef.current = null
+      }
+      setPreviewHtml(html)
+      return
+    }
+    // First streamed frame paints right away so the build is visibly alive;
+    // after that, coalesce reloads to ~1/sec so images have time to load + cache.
+    setPreviewHtml((prev) => (prev ? prev : html))
+    if (previewSyncRef.current) return
+    previewSyncRef.current = setTimeout(() => {
+      previewSyncRef.current = null
+      setPreviewHtml(htmlRef.current)
+    }, 1000)
+  }, [html, isGenerating])
+
   const getHtmlWithConsole = useCallback((originalHtml: string) => {
     const consoleScript = `
 <script>
@@ -10105,7 +10143,7 @@ npx eas build --platform all
                   <iframe
                     key={previewBumpKey}
                     ref={iframeRef}
-                    srcDoc={getHtmlWithConsole(html)}
+                    srcDoc={getHtmlWithConsole(previewHtml || html)}
                     className="w-full h-full border-0"
                     // SANDBOX HARDENING: removed `allow-same-origin`. With it,
                     // generated HTML (which is LLM-authored and could be
