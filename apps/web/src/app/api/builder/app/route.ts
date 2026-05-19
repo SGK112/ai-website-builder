@@ -230,6 +230,24 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(`[App Builder] Generated "${name}" — ${Object.keys(files).length} files, ${Math.round(rawText.length / 1024)}KB raw, ${attempts} attempt(s)`)
+
+    // Persist so user can close the tab and resume on return. Fire-and-forget.
+    try {
+      const { recordCompletedBuild } = await import('@/lib/pending-builds')
+      await recordCompletedBuild({
+        userId: session.user.id,
+        kind: 'expo',
+        prompt,
+        model,
+        files,
+        name,
+        slug,
+        description,
+      })
+    } catch (e: any) {
+      console.warn('[App Builder] pending_builds upsert failed:', e?.message || e)
+    }
+
     return result
   })
 }

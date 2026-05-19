@@ -203,6 +203,17 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(`[React Builder] Generated "${name}" — ${Object.keys(files).length} files, ${Math.round(rawText.length / 1024)}KB raw, ${attempts} attempt(s)`)
+
+    try {
+      const { recordCompletedBuild } = await import('@/lib/pending-builds')
+      await recordCompletedBuild({
+        userId: session.user.id, kind: 'react', prompt,
+        model: pickAnthropicModel(body.model), files, name, slug, description,
+      })
+    } catch (e: any) {
+      console.warn('[React Builder] pending_builds upsert failed:', e?.message || e)
+    }
+
     return result
   })
 }

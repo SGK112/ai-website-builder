@@ -229,6 +229,17 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(`[Next.js Builder] Generated "${name}" — ${Object.keys(files).length} files, ${Math.round(rawText.length / 1024)}KB raw, ${attempts} attempt(s)`)
+
+    try {
+      const { recordCompletedBuild } = await import('@/lib/pending-builds')
+      await recordCompletedBuild({
+        userId: session.user.id, kind: 'nextjs', prompt,
+        model, files, name, slug, description,
+      })
+    } catch (e: any) {
+      console.warn('[Next.js Builder] pending_builds upsert failed:', e?.message || e)
+    }
+
     return result
   })
 }

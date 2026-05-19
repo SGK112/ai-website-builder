@@ -2878,10 +2878,40 @@ Rules:
             })}\n\n`))
             safeEnqueue(encoder.encode('data: [DONE]\n\n'))
             safeClose()
+
+            // Persist the completed build so the user can close the tab and
+            // come back to it. Fire-and-forget — never block the stream on
+            // this and never throw out of the SSE controller.
+            if (userId) {
+              try {
+                const { recordCompletedBuild } = await import('@/lib/pending-builds')
+                await recordCompletedBuild({
+                  userId,
+                  kind: 'website',
+                  prompt: prompt || fullUserPrompt.slice(0, 500),
+                  model: claudeModel,
+                  html: finalHtml,
+                })
+              } catch (persistErr: any) {
+                console.warn('[Claude] pending_builds upsert failed:', persistErr?.message || persistErr)
+              }
+            }
           } catch (error: any) {
             console.error('[Claude] Stream error:', error)
             safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: error.message })}\n\n`))
             safeClose()
+            if (userId) {
+              try {
+                const { recordFailedBuild } = await import('@/lib/pending-builds')
+                await recordFailedBuild({
+                  userId,
+                  kind: 'website',
+                  prompt: prompt || fullUserPrompt.slice(0, 500),
+                  model: claudeModel,
+                  error: error?.message || 'Stream error',
+                })
+              } catch { /* swallow */ }
+            }
           }
         }
       })

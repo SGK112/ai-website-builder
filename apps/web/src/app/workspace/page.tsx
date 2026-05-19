@@ -156,6 +156,15 @@ import { useProject as useProjectHook } from '@/hooks/useProject'
 import { StarryNight, SunriseBackground } from '@/components/landing/BackgroundEffects'
 import { WebStewPanel, StewIngredient } from '@/components/WebStew'
 import { OnboardingTour, SkillPicker, IndustryWizard } from '@/components/onboarding'
+import {
+  notificationsSupported,
+  notificationPermission,
+  hasAskedForNotifications,
+  requestNotificationPermission,
+  fireBrowserNotification,
+  broadcastBuildEvent,
+  onBroadcastBuildEvent,
+} from '@/lib/notifications'
 import { MonacoCodeEditor } from '@/components/editor'
 import { StylePresetPicker, ComponentPicker, ThemeBuilder } from '@/components/builder'
 import { ContentPanel } from '@/components/builder/ContentPanel'
@@ -2633,20 +2642,148 @@ function WorkspaceContent() {
     setShowOnboarding(false)
   }
 
-  // Warn the user if they try to leave / refresh during an in-flight generation.
-  // Closing the tab or navigating away aborts the SSE stream — the server keeps
-  // running (and credits are still spent) but the client never sees the HTML,
-  // which is exactly the "I came back to a blank site" failure mode.
+  // Warn the user if they try to leave / refresh during an in-flight generation
+  // ONLY when the server can't recover the result on return — i.e. anonymous
+  // trial users (no userId = no pending_builds persistence). Signed-in users
+  // can safely close the tab; the server still finishes the build and
+  // /api/builder/latest hands it back when they come back.
   useEffect(() => {
     if (!isGenerating) return
+    if (session?.user?.id) return // signed-in users have server-side resume
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault()
-      e.returnValue = 'Your site is still generating. Leaving now will lose it — are you sure?'
+      e.returnValue = 'Your site is still generating. Leaving now will lose it — sign in to keep it cooking in the background.'
       return e.returnValue
     }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
-  }, [isGenerating])
+  }, [isGenerating, session?.user?.id])
+
+  // Document title — at-a-glance build status visible in the tab bar even
+  // when the tab is backgrounded. Restores to a stable default after a
+  // "Site ready ✓" flash.
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const DEFAULT = 'Webstew — AI Website Builder'
+    if (isGenerating) {
+      document.title = '🔄 Building… — Webstew'
+      return
+    }
+    if (html && html.length > 100) {
+      // Flash the success title briefly, then settle.
+      document.title = '✓ Site ready — Webstew'
+      const t = setTimeout(() => { document.title = DEFAULT }, 4000)
+      return () => clearTimeout(t)
+    }
+    document.title = DEFAULT
+  }, [isGenerating, html])
+
+  // Cross-tab build-complete listener — if a sibling Webstew tab finishes a
+  // build (user kicked off in Tab A, switched to Tab B), update title +
+  // surface a toast so they can hop back. The originating tab fires its own
+  // notification inline; this is just for OTHER tabs.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const off = onBroadcastBuildEvent((evt) => {
+      if (evt.type === 'build-complete') {
+        try {
+          document.title = '✓ Site ready in another tab — Webstew'
+          setTimeout(() => { document.title = 'Webstew — AI Website Builder' }, 6000)
+        } catch {}
+        addToast('info', `${evt.summary || 'A build'} finished in another Webstew tab — switch to it to load.`)
+      }
+    })
+    return off
+  }, [])
+
+  // Resume-on-return — when /workspace mounts with no current html and the
+  // user is signed in, check if they had a build finish while they were away.
+  // /api/builder/latest returns the most recent unclaimed build from the
+  // last 30 min. We render a banner via pendingBuild state below.
+  const [pendingBuild, setPendingBuild] = useState<{
+    id: string
+    kind: string
+    prompt: string
+    html?: string
+    files?: Record<string, string>
+    name?: string
+    slug?: string
+    completedAt?: string
+  } | null>(null)
+  useEffect(() => {
+    if (!session?.user?.id) return
+    if (!hasInitialized) return
+    if (html && html.length > 100) return // user already loaded something
+    if (loadedFromUrlRef.current) return  // URL-prompt path will produce its own
+    if (isGenerating) return
+    let alive = true
+    fetch('/api/builder/latest', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!alive) return
+        if (data?.build) setPendingBuild(data.build)
+      })
+      .catch(() => { /* silent — banner is opt-in by design */ })
+    return () => { alive = false }
+  }, [session?.user?.id, hasInitialized, html, isGenerating])
+
+  // Helper: load the pending build into the workspace + tell the server it's
+  // claimed so we don't keep re-offering it.
+  const consumePendingBuild = useCallback(async () => {
+    if (!pendingBuild) return
+    if (pendingBuild.kind === 'website' && pendingBuild.html) {
+      setHtml(pendingBuild.html)
+      setViewMode('preview')
+      addTerminalLine('success', `⏪ Restored "${pendingBuild.prompt.slice(0, 60)}" from background build`)
+    } else if (pendingBuild.files && Object.keys(pendingBuild.files).length > 0) {
+      setVfsFiles(pendingBuild.files)
+      setVfsProjectMeta({ name: pendingBuild.name || `${pendingBuild.kind} project`, slug: pendingBuild.slug || pendingBuild.kind })
+      // Switch to the right build target so WebContainerPreview knows what
+      // to boot. pendingBuild.kind matches the BuildTarget union exactly.
+      if (pendingBuild.kind !== 'website') {
+        setBuildTarget(pendingBuild.kind as BuildTarget)
+      }
+      addTerminalLine('success', `⏪ Restored ${pendingBuild.kind} project (${Object.keys(pendingBuild.files).length} files)`)
+    }
+    try {
+      await fetch('/api/builder/latest', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: pendingBuild.id, consumed: true }),
+      })
+    } catch { /* best-effort */ }
+    setPendingBuild(null)
+  }, [pendingBuild])
+
+  const dismissPendingBuild = useCallback(async () => {
+    if (!pendingBuild) return
+    try {
+      await fetch('/api/builder/latest', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: pendingBuild.id, consumed: true }),
+      })
+    } catch {}
+    setPendingBuild(null)
+  }, [pendingBuild])
+
+  // One-time notification permission prompt. Triggers on first generation
+  // start (a real user gesture, which is what the browser requires). Tracked
+  // in localStorage so we never nag a user who said no.
+  const [notifPromptShown, setNotifPromptShown] = useState(false)
+  useEffect(() => {
+    if (!isGenerating) return
+    if (notifPromptShown) return
+    if (!notificationsSupported()) return
+    if (hasAskedForNotifications()) return
+    // Defer one beat so the prompt doesn't fight with the build-starting UI.
+    const t = setTimeout(() => {
+      const perm = notificationPermission()
+      if (perm === 'granted' || perm === 'denied') return
+      setNotifPromptShown(true)
+    }, 1500)
+    return () => clearTimeout(t)
+  }, [isGenerating, notifPromptShown])
 
   // Auto-scroll terminal
   useEffect(() => {
@@ -3884,6 +4021,22 @@ ${html}
         role: 'assistant',
         content: `Generated **${data.name || target}** (${Object.keys(data.files).length} files). Preview is booting in WebContainer — ask me to refine and I'll edit the files directly.`,
       }])
+
+      // Browser notification + cross-tab broadcast — see lib/notifications.ts.
+      try {
+        const projectLabel = data.name || `${target} project`
+        fireBrowserNotification({
+          title: `${projectLabel} is ready ✓ — Webstew`,
+          body: promptText.slice(0, 80),
+          tag: 'webstew-build',
+        })
+        broadcastBuildEvent({
+          type: 'build-complete',
+          kind: target as any,
+          prompt: promptText.slice(0, 80),
+          summary: `${Object.keys(data.files).length}-file ${target} project`,
+        })
+      } catch { /* notifications unsupported / blocked — silent */ }
     } catch (e: any) {
       addTerminalLine('error', `Failed: ${e?.message || e}`)
       addConsoleLog('error', e?.message || String(e))
@@ -4136,6 +4289,25 @@ ${html}
       } else {
         addToast('success', 'Website generated!')
       }
+
+      // Notify the user — desktop notification (if granted), cross-tab
+      // broadcast (if they have Webstew open elsewhere), and a brief
+      // document.title flash so a glance at the tab bar tells them it's
+      // ready even with the tab backgrounded.
+      const promptShort = (promptText || '').slice(0, 80)
+      try {
+        fireBrowserNotification({
+          title: wasTruncated ? 'Site ready (truncated) — Webstew' : 'Your site is ready ✓ — Webstew',
+          body: promptShort,
+          tag: 'webstew-build',
+        })
+        broadcastBuildEvent({
+          type: wasTruncated ? 'build-failed' : 'build-complete',
+          kind: 'website',
+          prompt: promptShort,
+          summary: `${(generatedHtml.length / 1024).toFixed(1)}KB site`,
+        })
+      } catch { /* notifications unsupported / blocked — silent */ }
 
       // First-time users: show the workspace tour after their first site builds.
       // This fires even for users who came in from the landing page with a URL
@@ -11537,6 +11709,99 @@ npx eas build --platform all
         onComplete={handleOnboardingComplete}
         skillLevel={skillLevel}
       />
+
+      {/* Resume banner — surfaces when /api/builder/latest returns an
+          unclaimed completed build. Lets the user pick up a site that
+          finished while their tab was closed. Backed by pending_builds in
+          Mongo (see lib/pending-builds.ts). */}
+      <AnimatePresence>
+        {pendingBuild && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            className="fixed bottom-4 right-4 z-[300] max-w-sm bg-zinc-900 border border-violet-500/40 rounded-xl shadow-2xl shadow-violet-500/20 p-4 flex flex-col gap-3"
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-violet-500/20 flex items-center justify-center shrink-0">
+                <Sparkles className="w-4 h-4 text-violet-300" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-white mb-0.5">Your build finished while you were away</div>
+                <div className="text-xs text-zinc-400 line-clamp-2">
+                  "{pendingBuild.prompt}"
+                </div>
+                {pendingBuild.completedAt && (
+                  <div className="text-[10px] text-zinc-500 mt-1">
+                    Finished {new Date(pendingBuild.completedAt).toLocaleTimeString()}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={consumePendingBuild}
+                className="flex-1 px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition"
+              >
+                Load it
+              </button>
+              <button
+                onClick={dismissPendingBuild}
+                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white text-xs font-medium transition"
+              >
+                Dismiss
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* One-time notification opt-in. Shown the first time the user starts
+          a generation, only if Notification permission is still 'default'.
+          Backed by lib/notifications.ts which records the ask in localStorage. */}
+      <AnimatePresence>
+        {notifPromptShown && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            className="fixed bottom-4 left-4 z-[300] max-w-sm bg-zinc-900 border border-emerald-500/40 rounded-xl shadow-2xl shadow-emerald-500/20 p-4 flex flex-col gap-3"
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0">
+                <Sparkles className="w-4 h-4 text-emerald-300" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-white mb-0.5">Get notified when it's ready?</div>
+                <div className="text-xs text-zinc-400 leading-relaxed">
+                  Builds keep cooking in the background. We'll ping you when yours is done so you can go do other things.
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  await requestNotificationPermission()
+                  setNotifPromptShown(false)
+                }}
+                className="flex-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition"
+              >
+                Enable notifications
+              </button>
+              <button
+                onClick={() => {
+                  // Mark asked so we don't nag this user again on this device.
+                  try { localStorage.setItem('webstew-notif-asked', '1') } catch {}
+                  setNotifPromptShown(false)
+                }}
+                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white text-xs font-medium transition"
+              >
+                Not now
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Inline edit modal — replaces window.prompt() for right-click text/link edits */}
       <AnimatePresence>
