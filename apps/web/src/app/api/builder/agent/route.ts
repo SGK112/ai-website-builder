@@ -45,7 +45,10 @@ import mongoose from 'mongoose'
 import { dispatchToBridge, getBridgeStatus } from '@/lib/bridge-store'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 120 // give it real time for multi-step loops
+// 300s matches the website + multi-target builders. Agent loops with up to
+// 14 turns can run long on big files; the previous 120s was tight enough
+// to trip Cloudflare's 100s edge timeout on heavy edits.
+export const maxDuration = 300
 
 const SYSTEM_PROMPT_BASE = `You are Webstew Agent — an expert web/app developer working inside a live project.
 
