@@ -3,7 +3,7 @@
 export interface ComponentSection {
   id: string
   name: string
-  category: 'hero' | 'features' | 'pricing' | 'testimonials' | 'cta' | 'footer' | 'navigation' | 'content' | 'gallery' | 'contact' | 'stats'
+  category: 'hero' | 'features' | 'pricing' | 'testimonials' | 'cta' | 'footer' | 'navigation' | 'content' | 'gallery' | 'contact' | 'stats' | 'social-proof' | 'map' | 'faq' | 'newsletter' | 'team'
   description: string
   html: string
   thumbnail?: string
@@ -392,6 +392,188 @@ export const componentLibrary: ComponentSection[] = [
     </div>
   </div>
 </footer>`,
+  },
+
+  // ============== SOCIAL PROOF — logo cloud ==============
+  {
+    id: 'logos-trusted-by',
+    name: 'Trusted-by Logo Cloud',
+    category: 'social-proof',
+    description: 'Greyscale row of customer logos with a "trusted by" headline. Drop in any 5-8 brand names.',
+    html: `<section class="py-16 bg-white">
+  <div class="max-w-7xl mx-auto px-6">
+    <p class="text-center text-sm font-semibold uppercase tracking-wider text-slate-500 mb-10">Trusted by teams at</p>
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8 items-center opacity-60">
+      <div class="text-center font-serif text-2xl text-slate-700">Acme</div>
+      <div class="text-center font-mono text-2xl text-slate-700 tracking-tight">stripe</div>
+      <div class="text-center font-bold text-2xl text-slate-700 italic">Northwind</div>
+      <div class="text-center font-light text-2xl text-slate-700 tracking-widest">VERTEX</div>
+      <div class="text-center font-semibold text-2xl text-slate-700">Lumen</div>
+      <div class="text-center font-black text-2xl text-slate-700 uppercase">Forge</div>
+    </div>
+  </div>
+</section>`,
+  },
+
+  // ============== MAP — embedded ==============
+  {
+    id: 'map-with-contact',
+    name: 'Map + Address',
+    category: 'map',
+    description: 'Embedded map alongside contact info. Uses OpenStreetMap iframe so it works without a Google API key.',
+    html: `<section class="py-20 bg-slate-50">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="grid md:grid-cols-2 gap-12 items-center">
+      <div>
+        <h2 class="text-4xl font-bold text-slate-900 mb-4">Come say hi</h2>
+        <p class="text-lg text-slate-600 mb-8">Open 9–6 Mon–Fri, closed weekends. Walk-ins welcome.</p>
+        <div class="space-y-4 text-slate-700">
+          <div class="flex gap-3"><span class="text-indigo-600">📍</span><span>123 Main Street, Suite 400<br>Phoenix, AZ 85001</span></div>
+          <div class="flex gap-3"><span class="text-indigo-600">📞</span><a href="tel:+15555550100" class="hover:text-indigo-600">(555) 555-0100</a></div>
+          <div class="flex gap-3"><span class="text-indigo-600">✉️</span><a href="mailto:hello@example.com" class="hover:text-indigo-600">hello@example.com</a></div>
+        </div>
+      </div>
+      <div class="rounded-2xl overflow-hidden shadow-xl aspect-square">
+        <iframe
+          width="100%" height="100%" frameborder="0" scrolling="no"
+          src="https://www.openstreetmap.org/export/embed.html?bbox=-112.1%2C33.4%2C-112.0%2C33.5&amp;layer=mapnik"
+          title="Map"
+          style="border:0"
+          loading="lazy"
+        ></iframe>
+      </div>
+    </div>
+  </div>
+</section>`,
+  },
+
+  // ============== FAQ — accordion ==============
+  {
+    id: 'faq-accordion',
+    name: 'FAQ Accordion',
+    category: 'faq',
+    description: 'Five-question FAQ with native <details> elements — no JS needed.',
+    html: `<section class="py-24 bg-white">
+  <div class="max-w-3xl mx-auto px-6">
+    <h2 class="text-4xl font-bold text-slate-900 text-center mb-4">Frequently asked questions</h2>
+    <p class="text-lg text-slate-600 text-center mb-12">Everything you need to know before getting started.</p>
+    <div class="space-y-3">
+      <details class="group rounded-xl border border-slate-200 bg-slate-50 p-5 open:bg-white open:shadow-sm">
+        <summary class="cursor-pointer list-none flex items-center justify-between font-semibold text-slate-900">
+          How does the free trial work?
+          <span class="text-2xl text-slate-400 group-open:rotate-45 transition-transform">+</span>
+        </summary>
+        <p class="mt-3 text-slate-600 leading-relaxed">14 days, no credit card required. You'll get full access to every feature. Cancel anytime before the trial ends to avoid any charge.</p>
+      </details>
+      <details class="group rounded-xl border border-slate-200 bg-slate-50 p-5 open:bg-white open:shadow-sm">
+        <summary class="cursor-pointer list-none flex items-center justify-between font-semibold text-slate-900">
+          Can I change plans later?
+          <span class="text-2xl text-slate-400 group-open:rotate-45 transition-transform">+</span>
+        </summary>
+        <p class="mt-3 text-slate-600 leading-relaxed">Yes. Upgrade or downgrade at any time from your account settings — we'll prorate the difference.</p>
+      </details>
+      <details class="group rounded-xl border border-slate-200 bg-slate-50 p-5 open:bg-white open:shadow-sm">
+        <summary class="cursor-pointer list-none flex items-center justify-between font-semibold text-slate-900">
+          Do you offer refunds?
+          <span class="text-2xl text-slate-400 group-open:rotate-45 transition-transform">+</span>
+        </summary>
+        <p class="mt-3 text-slate-600 leading-relaxed">30-day money-back guarantee on all paid plans. Email us and we'll process it within 24 hours.</p>
+      </details>
+      <details class="group rounded-xl border border-slate-200 bg-slate-50 p-5 open:bg-white open:shadow-sm">
+        <summary class="cursor-pointer list-none flex items-center justify-between font-semibold text-slate-900">
+          Is my data secure?
+          <span class="text-2xl text-slate-400 group-open:rotate-45 transition-transform">+</span>
+        </summary>
+        <p class="mt-3 text-slate-600 leading-relaxed">Everything is encrypted at rest and in transit. We're SOC 2 Type II certified and never share your data with third parties.</p>
+      </details>
+      <details class="group rounded-xl border border-slate-200 bg-slate-50 p-5 open:bg-white open:shadow-sm">
+        <summary class="cursor-pointer list-none flex items-center justify-between font-semibold text-slate-900">
+          How do I get support?
+          <span class="text-2xl text-slate-400 group-open:rotate-45 transition-transform">+</span>
+        </summary>
+        <p class="mt-3 text-slate-600 leading-relaxed">Email support@example.com — we typically reply within 2 hours during business days.</p>
+      </details>
+    </div>
+  </div>
+</section>`,
+  },
+
+  // ============== NEWSLETTER — email capture ==============
+  {
+    id: 'newsletter-inline',
+    name: 'Newsletter Signup',
+    category: 'newsletter',
+    description: 'Inline email capture form with action="/api/forms/submit" — pairs with the FormSubmission collection.',
+    html: `<section class="py-20 bg-gradient-to-br from-indigo-600 to-violet-700">
+  <div class="max-w-3xl mx-auto px-6 text-center">
+    <h2 class="text-4xl font-bold text-white mb-4">Stay in the loop</h2>
+    <p class="text-xl text-indigo-100 mb-8">Get product updates, design tips, and the occasional dad joke — once a month, no spam.</p>
+    <form action="/api/forms/submit" method="POST" class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
+      <input type="hidden" name="_form" value="newsletter">
+      <input
+        type="email" name="email" required placeholder="you@company.com"
+        class="flex-1 px-5 py-3 rounded-xl text-slate-900 focus:outline-none focus:ring-4 focus:ring-white/30"
+      >
+      <button
+        type="submit"
+        class="px-6 py-3 rounded-xl bg-white text-indigo-700 font-semibold hover:bg-indigo-50 transition shadow-lg"
+      >
+        Subscribe
+      </button>
+    </form>
+    <p class="text-xs text-indigo-200 mt-4">Unsubscribe at any time. We'll never share your email.</p>
+  </div>
+</section>`,
+  },
+
+  // ============== TEAM grid ==============
+  {
+    id: 'team-grid',
+    name: 'Team Grid',
+    category: 'team',
+    description: 'Four-person team grid with photos, roles, and social links.',
+    html: `<section class="py-24 bg-white">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <h2 class="text-4xl font-bold text-slate-900 mb-4">Meet the team</h2>
+      <p class="text-lg text-slate-600 max-w-2xl mx-auto">A small group of obsessives who care deeply about the details.</p>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
+      <div class="text-center">
+        <img src="https://i.pravatar.cc/300?img=11" alt="Sarah Chen" class="w-32 h-32 rounded-full mx-auto mb-4 object-cover shadow-lg">
+        <h3 class="font-bold text-slate-900">Sarah Chen</h3>
+        <p class="text-sm text-slate-500 mb-2">Founder &amp; CEO</p>
+        <div class="flex justify-center gap-2 text-slate-400 text-sm">
+          <a href="#" class="hover:text-indigo-600">Twitter</a>·<a href="#" class="hover:text-indigo-600">LinkedIn</a>
+        </div>
+      </div>
+      <div class="text-center">
+        <img src="https://i.pravatar.cc/300?img=12" alt="Marcus Rivera" class="w-32 h-32 rounded-full mx-auto mb-4 object-cover shadow-lg">
+        <h3 class="font-bold text-slate-900">Marcus Rivera</h3>
+        <p class="text-sm text-slate-500 mb-2">Head of Engineering</p>
+        <div class="flex justify-center gap-2 text-slate-400 text-sm">
+          <a href="#" class="hover:text-indigo-600">Twitter</a>·<a href="#" class="hover:text-indigo-600">LinkedIn</a>
+        </div>
+      </div>
+      <div class="text-center">
+        <img src="https://i.pravatar.cc/300?img=13" alt="Priya Singh" class="w-32 h-32 rounded-full mx-auto mb-4 object-cover shadow-lg">
+        <h3 class="font-bold text-slate-900">Priya Singh</h3>
+        <p class="text-sm text-slate-500 mb-2">Design Lead</p>
+        <div class="flex justify-center gap-2 text-slate-400 text-sm">
+          <a href="#" class="hover:text-indigo-600">Twitter</a>·<a href="#" class="hover:text-indigo-600">LinkedIn</a>
+        </div>
+      </div>
+      <div class="text-center">
+        <img src="https://i.pravatar.cc/300?img=14" alt="Jake Thompson" class="w-32 h-32 rounded-full mx-auto mb-4 object-cover shadow-lg">
+        <h3 class="font-bold text-slate-900">Jake Thompson</h3>
+        <p class="text-sm text-slate-500 mb-2">Customer Success</p>
+        <div class="flex justify-center gap-2 text-slate-400 text-sm">
+          <a href="#" class="hover:text-indigo-600">Twitter</a>·<a href="#" class="hover:text-indigo-600">LinkedIn</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>`,
   },
 ]
 
