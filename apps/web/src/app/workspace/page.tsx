@@ -7244,10 +7244,10 @@ npx eas build --platform all
                 className="flex-1 overflow-y-auto p-3 space-y-3"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-zinc-500">Saved Projects</span>
+                  <span className={cn('text-xs font-medium', isDark ? 'text-zinc-400' : 'text-slate-700')}>Saved Projects</span>
                   <button
                     onClick={newProject}
-                    className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1"
+                    className={cn('text-xs flex items-center gap-1', isDark ? 'text-violet-300 hover:text-violet-200' : 'text-violet-700 hover:text-violet-900')}
                   >
                     <Plus className="w-3 h-3" />
                     New
@@ -7268,15 +7268,17 @@ npx eas build --platform all
                         className={cn(
                           'p-3 rounded-xl border transition-all cursor-pointer',
                           currentProject?.id === project.id
-                            ? 'bg-violet-500/10 border-violet-500/30'
-                            : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.05]'
+                            ? (isDark ? 'bg-violet-500/10 border-violet-500/30' : 'bg-violet-50 border-violet-300')
+                            : isDark
+                              ? 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.05]'
+                              : 'bg-slate-50 border-slate-200 hover:bg-slate-100',
                         )}
                         onClick={() => loadProject(project)}
                       >
                         <div className="flex items-start justify-between">
                           <div>
-                            <div className="text-sm font-medium text-white">{project.name}</div>
-                            <div className="text-[10px] text-zinc-600 mt-0.5">
+                            <div className={cn('text-sm font-medium', isDark ? 'text-white' : 'text-slate-900')}>{project.name}</div>
+                            <div className={cn('text-[10px] mt-0.5', isDark ? 'text-zinc-500' : 'text-slate-500')}>
                               {new Date(project.updatedAt).toLocaleString()}
                             </div>
                           </div>
@@ -7285,7 +7287,10 @@ npx eas build --platform all
                               e.stopPropagation()
                               deleteProject(project.id)
                             }}
-                            className="p-1.5 rounded hover:bg-red-500/20 text-zinc-600 hover:text-red-400"
+                            className={cn(
+                              'p-1.5 rounded hover:bg-red-500/15 hover:text-red-600 dark:hover:text-red-400',
+                              isDark ? 'text-zinc-500' : 'text-slate-500',
+                            )}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -7293,13 +7298,13 @@ npx eas build --platform all
                         <div className="flex items-center gap-2 mt-2">
                           <span className={cn(
                             'text-[9px] px-1.5 py-0.5 rounded',
-                            project.skillLevel === 'no-code' && 'bg-emerald-500/20 text-emerald-400',
-                            project.skillLevel === 'low-code' && 'bg-amber-500/20 text-amber-400',
-                            project.skillLevel === 'full-stack' && 'bg-violet-500/20 text-violet-400',
+                            project.skillLevel === 'no-code' && (isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-800'),
+                            project.skillLevel === 'low-code' && (isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-800'),
+                            project.skillLevel === 'full-stack' && (isDark ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-100 text-violet-800'),
                           )}>
                             {project.skillLevel}
                           </span>
-                          <span className="text-[9px] text-zinc-600">
+                          <span className={cn('text-[9px]', isDark ? 'text-zinc-500' : 'text-slate-500')}>
                             {(project.html.length / 1024).toFixed(1)}KB
                           </span>
                         </div>
