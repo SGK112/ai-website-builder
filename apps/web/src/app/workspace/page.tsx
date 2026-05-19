@@ -4122,6 +4122,33 @@ ${html}
     throw new Error('Stream ended before result arrived')
   }
 
+  // Parse an already-buffered SSE payload. Used when a proxy (Render edge /
+  // Cloudflare) strips the text/event-stream content-type off a streamed
+  // response — the client then skips the streaming reader and we'd otherwise
+  // hand the SSE body to res.json(), which chokes on the `: connected`
+  // heartbeat preamble ("Unexpected token ':'"). Mirrors readSseJsonResult.
+  const parseBufferedSseResult = (raw: string): any => {
+    for (const message of raw.split('\n\n')) {
+      let evt = 'message'
+      let dataLine = ''
+      for (const line of message.split('\n')) {
+        if (line.startsWith(':')) continue
+        if (line.startsWith('event: ')) evt = line.slice(7).trim()
+        else if (line.startsWith('data: ')) dataLine += line.slice(6)
+      }
+      if (evt === 'result' && dataLine) {
+        try { return JSON.parse(dataLine) }
+        catch { throw new Error('Could not parse generator result payload') }
+      }
+      if (evt === 'error' && dataLine) {
+        let err: any = {}
+        try { err = JSON.parse(dataLine) } catch {}
+        throw new Error(err.error || 'Generation failed')
+      }
+    }
+    throw new Error('Stream ended before result arrived')
+  }
+
   // Multi-target generation for Astro / Next.js / React / Expo. Routes now
   // wrap the Anthropic call in SSE with heartbeats (see streamJsonWithHeartbeats
   // in lib/llm-json.ts) so Cloudflare can't 524 us on long projects. Older
@@ -4183,7 +4210,18 @@ ${html}
       if (ctype.includes('text/event-stream')) {
         data = await readSseJsonResult(res)
       } else {
-        data = await res.json()
+        // Content-Type says JSON — but proxies sometimes strip the
+        // text/event-stream type off a streamed response, handing us an SSE
+        // body mislabeled as JSON. Sniff the body and parse what it actually
+        // is rather than letting res.json() choke on the `: connected` preamble.
+        const raw = await res.text()
+        const head = raw.trimStart()
+        if (head.startsWith(':') || head.startsWith('event:') || head.startsWith('data:')) {
+          data = parseBufferedSseResult(raw)
+        } else {
+          try { data = JSON.parse(raw) }
+          catch { throw new Error('Generator returned an unreadable response') }
+        }
       }
       if (!data?.files || typeof data.files !== 'object') {
         throw new Error('Generator returned no files')
