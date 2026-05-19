@@ -7086,10 +7086,13 @@ npx eas build --platform all
                     </div>
                   </div>
                 ) : (
-                  <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05] text-center">
-                    <Layout className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
-                    <p className="text-sm text-zinc-400">No templates available</p>
-                    <p className="text-[10px] text-zinc-600 mt-1">Check your Supabase connection</p>
+                  <div className={cn(
+                    'p-4 rounded-xl border text-center',
+                    isDark ? 'bg-white/[0.02] border-white/[0.05]' : 'bg-slate-50 border-slate-200',
+                  )}>
+                    <Layout className={cn('w-8 h-8 mx-auto mb-2', isDark ? 'text-zinc-500' : 'text-slate-400')} />
+                    <p className={cn('text-sm', isDark ? 'text-zinc-300' : 'text-slate-700')}>No templates available</p>
+                    <p className={cn('text-[10px] mt-1', isDark ? 'text-zinc-500' : 'text-slate-500')}>Check your Supabase connection</p>
                   </div>
                 )}
 
@@ -7204,9 +7207,9 @@ npx eas build --platform all
 
                 {projects.length === 0 ? (
                   <div className="text-center py-8">
-                    <FolderOpen className="w-8 h-8 mx-auto mb-2 text-zinc-700" />
-                    <p className="text-xs text-zinc-600">No saved projects yet</p>
-                    <p className="text-[10px] text-zinc-700 mt-1">Build something and save it!</p>
+                    <FolderOpen className={cn('w-8 h-8 mx-auto mb-2', isDark ? 'text-zinc-500' : 'text-slate-400')} />
+                    <p className={cn('text-xs', isDark ? 'text-zinc-300' : 'text-slate-700')}>No saved projects yet</p>
+                    <p className={cn('text-[10px] mt-1', isDark ? 'text-zinc-500' : 'text-slate-500')}>Build something and save it!</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -9152,10 +9155,13 @@ npx eas build --platform all
                 disabled={isGenerating || isThinking}
                 title="Convert this website to a React Native mobile app"
                 className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border whitespace-nowrap',
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border whitespace-nowrap shadow-sm',
                   (isGenerating || isThinking)
                     ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200 dark:bg-white/5 dark:text-zinc-500 dark:border-white/10'
-                    : 'bg-violet-100 text-violet-700 border-violet-300 hover:bg-violet-200 dark:bg-gradient-to-r dark:from-violet-500/20 dark:to-fuchsia-500/20 dark:text-violet-300 dark:border-violet-500/30 dark:hover:from-violet-500/30 dark:hover:to-fuchsia-500/30'
+                    // Light: subtle violet pill. Dark: solid violet→fuchsia
+                    // gradient with white text + glow so it pops against the
+                    // dark topbar (was 20% translucent before — invisible).
+                    : 'bg-violet-100 text-violet-700 border-violet-300 hover:bg-violet-200 dark:bg-gradient-to-r dark:from-violet-600 dark:to-fuchsia-600 dark:text-white dark:border-violet-400 dark:shadow-violet-500/30 dark:hover:from-violet-500 dark:hover:to-fuchsia-500'
                 )}
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>

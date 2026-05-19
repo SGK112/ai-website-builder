@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import Anthropic from '@anthropic-ai/sdk'
 import { generateJson, requireFiles, GenerateJsonError, streamJsonWithHeartbeats } from '@/lib/llm-json'
 import { augmentPromptWithReference } from '@/lib/site-reference'
+import { gateBuilderRequest, trackBuilderUsage } from '@/lib/builder-gate'
 
 export const dynamic = 'force-dynamic'
 // 300s matches /api/builder/generate. The previous 60s ceiling forced
@@ -143,18 +144,18 @@ function pickAnthropicModel(modelName: string | undefined): string {
 // ---------- Route ----------
 
 export async function POST(req: NextRequest) {
-  // Auth — app generation hits Anthropic, gate it
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-  }
-
   let body: AppGenerateRequest
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
+
+  // Auth + plan + monthly-credit gate — parity with /api/builder/generate.
+  // Before this, multi-target builders had ZERO metering; signed-in free
+  // users could burn unmetered Anthropic credits on Expo/Next/Astro/React.
+  const gate = await gateBuilderRequest(body.model)
+  if (!gate.ok) return gate.response
 
   const prompt = (body.prompt || '').trim()
   if (!prompt) {
@@ -235,7 +236,7 @@ export async function POST(req: NextRequest) {
     try {
       const { recordCompletedBuild } = await import('@/lib/pending-builds')
       await recordCompletedBuild({
-        userId: session.user.id,
+        userId: gate.userId,
         kind: 'expo',
         prompt,
         model,
@@ -243,6 +244,15 @@ export async function POST(req: NextRequest) {
         name,
         slug,
         description,
+      })
+      // Track usage so admin analytics + plan-limit counters reflect
+      // multi-target builds (was a billing blind spot before this gate).
+      await trackBuilderUsage({
+        userId: gate.userId,
+        kind: 'expo',
+        model,
+        rawSize: rawText.length,
+        prompt,
       })
     } catch (e: any) {
       console.warn('[App Builder] pending_builds upsert failed:', e?.message || e)

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import Anthropic from '@anthropic-ai/sdk'
 import { generateJson, requireFiles, GenerateJsonError, streamJsonWithHeartbeats } from '@/lib/llm-json'
+import { gateBuilderRequest, trackBuilderUsage } from '@/lib/builder-gate'
 import { augmentPromptWithReference } from '@/lib/site-reference'
 
 export const dynamic = 'force-dynamic'
@@ -124,13 +125,12 @@ function pickAnthropicModel(modelName: string | undefined): string {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-  }
-
   let body: AstroGenerateRequest
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
+
+  // Auth + plan + monthly-credit gate — parity with /api/builder/generate.
+  const gate = await gateBuilderRequest(body.model)
+  if (!gate.ok) return gate.response
 
   const prompt = (body.prompt || '').trim()
   if (!prompt) return NextResponse.json({ error: 'Prompt required' }, { status: 400 })
@@ -193,8 +193,13 @@ export async function POST(req: NextRequest) {
     try {
       const { recordCompletedBuild } = await import('@/lib/pending-builds')
       await recordCompletedBuild({
-        userId: session.user.id, kind: 'astro', prompt,
+        userId: gate.userId, kind: 'astro', prompt,
         model: pickAnthropicModel(body.model), files, name, slug, description,
+      })
+      await trackBuilderUsage({
+        userId: gate.userId, kind: 'astro',
+        model: pickAnthropicModel(body.model),
+        rawSize: rawText.length, prompt,
       })
     } catch (e: any) {
       console.warn('[Astro Builder] pending_builds upsert failed:', e?.message || e)
