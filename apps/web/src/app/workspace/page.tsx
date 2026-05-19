@@ -9259,10 +9259,18 @@ npx eas build --platform all
               />
               <button
                 onClick={() => setShowThemeBuilder(true)}
-                className="p-2 rounded-lg bg-white/5 hover:bg-violet-500/20 border border-white/10 hover:border-violet-500/30 transition-all group"
+                className={cn(
+                  'p-2 rounded-lg border transition-all group',
+                  isDark
+                    ? 'bg-white/5 hover:bg-violet-500/20 border-white/10 hover:border-violet-500/30'
+                    : 'bg-slate-100 hover:bg-violet-100 border-slate-200 hover:border-violet-300',
+                )}
                 title="Advanced Theme Builder"
               >
-                <Palette className="w-4 h-4 text-zinc-400 group-hover:text-violet-400 transition-colors" />
+                <Palette className={cn(
+                  'w-4 h-4 transition-colors',
+                  isDark ? 'text-zinc-400 group-hover:text-violet-400' : 'text-slate-500 group-hover:text-violet-700',
+                )} />
               </button>
             </div>
 
