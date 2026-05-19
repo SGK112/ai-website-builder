@@ -1,8 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { TEMPLATES as LOCAL_TEMPLATES, getTemplateById as getLocalTemplateById } from '@/lib/templates'
 
 export const dynamic = 'force-dynamic'
+
+// Local TEMPLATES from lib/templates/index.ts are fully-built HTML — they're
+// always valid. Supabase templates are user-managed and frequently have empty
+// or stub html_content. The list endpoint merges local FIRST so users always
+// see the working ones; single-by-id checks local first before hitting Supabase.
+function localToTemplate(t: typeof LOCAL_TEMPLATES[number], withHtml: boolean): Template {
+  return {
+    id: `local-${t.id}`,
+    name: t.name,
+    description: t.description,
+    category: t.category,
+    industry: t.category,
+    html_content: withHtml ? t.html : '',
+    thumbnail_url: t.preview || `/api/media?q=${encodeURIComponent(t.name)}&w=600&h=400`,
+    preview_url: t.preview,
+    is_premium: false,
+    price_credits: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }
+}
 
 // Admin emails that can create templates
 const ADMIN_EMAILS = [
@@ -46,15 +68,28 @@ export async function GET(req: NextRequest) {
     const industry = searchParams.get('industry')
     const id = searchParams.get('id')
 
-    if (!SUPABASE_URL || !SUPABASE_KEY) {
-      return NextResponse.json(
-        { error: 'Supabase not configured' },
-        { status: 500 }
-      )
-    }
-
     const session = await getServerSession(authOptions).catch(() => null)
     const isAuthed = !!session?.user?.id
+
+    // Single-by-id with a local- prefix bypasses Supabase entirely.
+    if (id && id.startsWith('local-')) {
+      const local = getLocalTemplateById(id.replace(/^local-/, ''))
+      if (!local) {
+        return NextResponse.json({ templates: [], count: 0 })
+      }
+      // Anon callers don't get html_content for parity with Supabase auth posture.
+      return NextResponse.json({ templates: [localToTemplate(local, isAuthed)], count: 1 })
+    }
+
+    // If Supabase isn't configured, fall back to local-only — better than a 500.
+    if (!SUPABASE_URL || !SUPABASE_KEY) {
+      if (id) return NextResponse.json({ templates: [], count: 0 })
+      const filtered = (category || industry)
+        ? LOCAL_TEMPLATES.filter((t) => t.category === (category || industry))
+        : LOCAL_TEMPLATES
+      const list = filtered.map((t) => localToTemplate(t, false))
+      return NextResponse.json({ templates: list, count: list.length })
+    }
 
     // Build query
     let query = `${SUPABASE_URL}/rest/v1/templates?`
@@ -111,9 +146,25 @@ export async function GET(req: NextRequest) {
           return true
         })
 
+    // List view: prepend the local TEMPLATES so users ALWAYS see fully-built
+    // working tiles, then real Supabase rows after. Single-by-id just returns
+    // the Supabase row as before.
+    if (id) {
+      return NextResponse.json({
+        templates,
+        count: Array.isArray(templates) ? templates.length : 1,
+      })
+    }
+    const localFiltered = (category || industry)
+      ? LOCAL_TEMPLATES.filter((t) => t.category === (category || industry))
+      : LOCAL_TEMPLATES
+    const merged = [
+      ...localFiltered.map((t) => localToTemplate(t, false)),
+      ...cleanedList,
+    ]
     return NextResponse.json({
-      templates: id ? templates : cleanedList,
-      count: Array.isArray(id ? templates : cleanedList) ? (id ? templates : cleanedList).length : 1
+      templates: merged,
+      count: merged.length,
     })
   } catch (error) {
     console.error('[Templates API] Error:', error)

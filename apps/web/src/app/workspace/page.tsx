@@ -9653,11 +9653,16 @@ npx eas build --platform all
               <ChefLoader isVisible={isGenerating} phase={buildPhase} />
 
               <motion.div
-                initial={{ scale: 0.98, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.25 }}
                 data-tour="preview"
                 className={cn(
-                  "bg-white rounded-lg overflow-hidden shadow-2xl shadow-black/50 h-full transition-all duration-300 relative",
+                  // Only width + box-shadow animate on user actions (device
+                  // mode switch). transition-all was animating EVERY computed
+                  // style on every streaming setHtml, which the user saw as a
+                  // "thin then expand" pinch as content arrived.
+                  "bg-white rounded-lg overflow-hidden shadow-2xl shadow-black/50 h-full transition-[width,box-shadow] duration-300 relative",
                   isDraggingImage && "ring-4 ring-violet-500/50 ring-offset-2 ring-offset-black"
                 )}
                 style={{ width: getDeviceWidth(), maxWidth: '100%' }}
