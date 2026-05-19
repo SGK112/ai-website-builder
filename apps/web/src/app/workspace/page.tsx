@@ -567,6 +567,52 @@ const buildingQuips = [
   "Sunrise delivery incoming...",
   "Brewing some late-night magic...",
   "The night shift is on duty...",
+  // Stew-themed additions — Joshua wants the cookery metaphor pulled
+  // through the whole workspace so the chef brand reads consistently.
+  "Stewing the ingredients together…",
+  "Letting the flavors meld…",
+  "Simmering the layout on low…",
+  "Folding the components in gently…",
+  "Chef's tasting — adjusting seasoning…",
+  "Adding the chef's secret sauce…",
+  "Marinating the prompt overnight…",
+  "Roasting the markup until golden…",
+  "Plating the pixels for presentation…",
+  "Reducing the prompt to its essence…",
+  "Deglazing the design pan…",
+  "Whisking the variables smooth…",
+  "Kneading the components in…",
+  "Garnishing with a sprinkle of polish…",
+]
+
+// Prompt tips — surfaced via the "Recipe tips" popover next to the chat
+// input. Quick best-practice patterns presented in chef voice so the
+// stew theme reads consistently across the workspace.
+const promptRecipeTips = [
+  {
+    title: "Lead with the dish, not the ingredients",
+    body: "Tell the AI what kind of site (\"e-commerce for boutique fashion\") before listing features. The chef plans the whole meal before chopping.",
+  },
+  {
+    title: "Name your hero in one sentence",
+    body: "\"Hero section pitching <product> to <audience> with a <CTA> button.\" Specific verbs > vague adjectives.",
+  },
+  {
+    title: "Reference the vibe, not the brand",
+    body: "Apple-quiet, Stripe-clean, Linear-snappy. Brand names map to design vocabularies the model knows cold.",
+  },
+  {
+    title: "Drop ingredients into Stew",
+    body: "Upload a logo, photo, or doc — the AI bakes them in instead of inventing placeholders. Stew panel, top-left.",
+  },
+  {
+    title: "Iterate, don't rebuild",
+    body: "After the first build, just say \"change X to Y.\" Fresh-build prompts (\"build a site...\") wipe the canvas. Refinement keeps the layout and edits in place.",
+  },
+  {
+    title: "Convert when ready, not before",
+    body: "Build the website first, then hit the → App button. Mobile generation uses the website's structure as the recipe.",
+  },
 ]
 
 // Business integrations configuration
@@ -2094,6 +2140,9 @@ function WorkspaceContent() {
   // Export panel state
   const [showExportPanel, setShowExportPanel] = useState(false)
   const [showPublishModal, setShowPublishModal] = useState(false)
+  // Recipe-tips popover — opened from a ChefHat button next to the chat
+  // input. Shows the 6 prompt patterns pros use, in stew-themed voice.
+  const [showRecipeTips, setShowRecipeTips] = useState(false)
 
   // Theme builder panel state
   const [showThemeBuilder, setShowThemeBuilder] = useState(false)
@@ -8720,6 +8769,25 @@ npx eas build --platform all
                   : <Paperclip className="w-3.5 h-3.5" />
                 }
               </button>
+
+              {/* Recipe tips — chef-themed prompt cheatsheet. Popover gives
+                  users the 6 patterns pros use so they're not flying blind
+                  on their first prompt. */}
+              <button
+                type="button"
+                onClick={() => setShowRecipeTips((v) => !v)}
+                title="Recipe tips — prompt patterns the pros use"
+                className={cn(
+                  'w-7 h-7 rounded-md flex items-center justify-center shrink-0 transition-all',
+                  showRecipeTips
+                    ? isDark ? 'bg-orange-500/20 text-orange-300' : 'bg-orange-100 text-orange-700'
+                    : isDark
+                      ? 'text-zinc-500 hover:text-orange-300 hover:bg-white/5'
+                      : 'text-slate-400 hover:text-orange-600 hover:bg-slate-200'
+                )}
+              >
+                <ChefHat className="w-3.5 h-3.5" />
+              </button>
               <input
                 ref={inputRef}
                 data-tour="chat"
@@ -9540,6 +9608,19 @@ npx eas build --platform all
             >
               <Save className="w-4 h-4" />
             </button>
+
+            {/* Publish — direct path to the marketplace from the topbar.
+                Was buried in the Deploy panel; sales path needed a top-level
+                entrypoint so users find it without spelunking. */}
+            {session?.user && html.trim() && (
+              <button
+                onClick={() => setShowPublishModal(true)}
+                title="Publish to community & marketplace — set a price to sell"
+                className="p-1.5 rounded-lg hover:bg-violet-500/10 text-zinc-600 hover:text-violet-400 hover:shadow-lg hover:shadow-violet-500/20 transition-all duration-200"
+              >
+                <Share2 className="w-4 h-4" />
+              </button>
+            )}
 
             <button
               onClick={handleExport}
@@ -11979,6 +12060,76 @@ npx eas build --platform all
         onComplete={handleOnboardingComplete}
         skillLevel={skillLevel}
       />
+
+      {/* Recipe tips popover — chef-themed cheat sheet. Floats above the
+          chat input, dismissed by clicking the chef hat again or anywhere
+          outside. Six cards in stew voice. */}
+      <AnimatePresence>
+        {showRecipeTips && (
+          <>
+            {/* Click-outside backdrop */}
+            <div
+              className="fixed inset-0 z-[280]"
+              onClick={() => setShowRecipeTips(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.15 }}
+              className={cn(
+                'fixed bottom-20 right-4 z-[281] w-[min(420px,calc(100vw-32px))] rounded-2xl border shadow-2xl overflow-hidden',
+                isDark ? 'bg-zinc-950 border-orange-500/30' : 'bg-white border-orange-300',
+              )}
+            >
+              <div className={cn(
+                'flex items-center gap-2 px-4 py-3 border-b',
+                isDark ? 'border-white/10 bg-gradient-to-r from-orange-500/15 to-amber-500/10' : 'border-orange-100 bg-gradient-to-r from-orange-50 to-amber-50',
+              )}>
+                <ChefHat className={cn('w-4 h-4', isDark ? 'text-orange-300' : 'text-orange-600')} />
+                <div className="flex-1">
+                  <div className={cn('text-sm font-semibold', isDark ? 'text-white' : 'text-slate-900')}>
+                    Recipe tips
+                  </div>
+                  <div className={cn('text-[10px]', isDark ? 'text-zinc-400' : 'text-slate-500')}>
+                    Six prompt patterns the pros use
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowRecipeTips(false)}
+                  className={cn(
+                    'p-1 rounded',
+                    isDark ? 'text-zinc-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100',
+                  )}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="max-h-[420px] overflow-y-auto p-3 space-y-2">
+                {promptRecipeTips.map((tip, i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      'p-3 rounded-xl border',
+                      isDark ? 'bg-white/[0.03] border-white/[0.06]' : 'bg-slate-50 border-slate-200',
+                    )}
+                  >
+                    <div className={cn('text-xs font-semibold mb-1 flex items-center gap-1.5', isDark ? 'text-orange-300' : 'text-orange-700')}>
+                      <span className={cn('inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px]', isDark ? 'bg-orange-500/20 text-orange-200' : 'bg-orange-200 text-orange-800')}>
+                        {i + 1}
+                      </span>
+                      {tip.title}
+                    </div>
+                    <div className={cn('text-[11px] leading-relaxed', isDark ? 'text-zinc-400' : 'text-slate-600')}>
+                      {tip.body}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Resume banner — surfaces when /api/builder/latest returns an
           unclaimed completed build. Lets the user pick up a site that
