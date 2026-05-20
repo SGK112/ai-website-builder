@@ -182,20 +182,38 @@ export async function POST(req: NextRequest) {
   const client = new Anthropic({ apiKey: anthropicKey })
 
   // Optional source website to convert. Not counted against the 5000-char
-  // prompt cap — it's reference material, not the instruction. <script> blocks
-  // are stripped (browser JS doesn't port to React Native); the markup that
-  // remains gives the model the real copy, layout, and inline styling.
+  // prompt cap — it's reference material, not the instruction.
+  //
+  // A raw AI-generated page is routinely 80k+ chars, but most of that is
+  // inline <svg> icons, base64 data URIs and whitespace — noise that doesn't
+  // port to React Native. Dumping all of it made the (non-streaming) two-pass
+  // generation run long enough to drop the SSE connection mid-build
+  // ("Stream ended before result arrived"). So we distil: pull the colour
+  // palette out first, then strip the noise and cap hard. What remains is the
+  // copy, navigation and section structure the converter actually needs.
   let sourceContext = ''
   if (typeof body.sourceHtml === 'string' && body.sourceHtml.trim()) {
-    const cleaned = body.sourceHtml
+    const raw = body.sourceHtml
+    const palette = Array.from(
+      new Set(raw.match(/#[0-9a-fA-F]{3,8}\b|rgba?\([^)]{1,40}\)/g) || []),
+    ).slice(0, 24)
+    const distilled = raw
       .replace(/<script[\s\S]*?<\/script>/gi, '')
-      .slice(0, 80_000)
+      .replace(/<svg[\s\S]*?<\/svg>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/(["'(])data:[^"')]{20,}(["')])/gi, '$1data-uri$2')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 30_000)
     sourceContext =
       `\n\n## SOURCE WEBSITE TO CONVERT\n` +
-      `Rebuild THIS existing website as the app. Match its branding, colours, ` +
-      `copy, navigation, and section structure — translate each major section ` +
-      `into a screen or component. Do not invent unrelated content.\n\n` +
-      '```html\n' + cleaned + '\n```\n'
+      `Rebuild THIS existing website as the app. Match its branding, copy, ` +
+      `navigation, and section structure — translate each major section ` +
+      `into a screen or component. Do not invent unrelated content.\n` +
+      (palette.length ? `\nColour palette: ${palette.join(', ')}\n` : '') +
+      `\nSource markup (distilled — SVG/scripts/styles stripped):\n` +
+      '```html\n' + distilled + '\n```\n'
   }
 
   const baseMsg = `Build this Expo / React Native app:\n\n${prompt}\n${sourceContext}\n${body.appName ? `App name: ${body.appName}\n` : ''}${body.bundleId ? `Bundle ID: ${body.bundleId}\n` : ''}\nRespond with the JSON object only.`
