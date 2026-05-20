@@ -56,10 +56,29 @@ export async function gateBuilderRequest(model?: string): Promise<BuilderGateRes
 
   try {
     await connectDB()
-    const user = (await User.findById(userId).lean()) as UserDoc | null
+    const user = (await User.findById(userId).lean()) as (UserDoc & { emailVerified?: boolean }) | null
     const userEmail = user?.email || sessionEmail
     const isAdmin = userEmail ? isAdminEmail(userEmail) : false
     const userPlan = (isAdmin ? 'enterprise' : (user?.plan || 'free')) as BuilderGateOk['userPlan']
+
+    // Email-verification gate. Each free account is worth ~$8 of Anthropic
+    // credits — unverified accounts are the cheapest abuse vector. Block
+    // generation until verified. NOTE: only accounts where emailVerified is
+    // EXPLICITLY false are blocked — legacy users (field absent) + admins
+    // are grandfathered through, so this can't lock out anyone who signed
+    // up before the verification flow existed.
+    if (user && user.emailVerified === false && !isAdmin) {
+      return {
+        ok: false,
+        response: NextResponse.json(
+          {
+            error: 'Verify your email to start generating. Check your inbox for the verification link — or resend it from your workspace.',
+            needsEmailVerification: true,
+          },
+          { status: 403 },
+        ),
+      }
+    }
 
     // Limit check — mirrors /generate's behavior. Admins bypass via isAdmin.
     const limitCheck = await checkUsageLimits(userId, userPlan, 'generation', userEmail)
