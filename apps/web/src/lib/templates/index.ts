@@ -12,6 +12,7 @@ import { SAAS_MULTIPAGE_TEMPLATE } from './saas-multipage'
 import { RESOURCE_APP_TEMPLATE } from './resource-app'
 import { DASHBOARD_APP_TEMPLATE } from './dashboard-app'
 import { TRACKER_APP_TEMPLATE } from './tracker-app'
+import { MOBILE_APP_TEMPLATE } from './mobile-app'
 
 // Template interface
 export interface WebsiteTemplate {
@@ -41,6 +42,7 @@ export const TEMPLATES: WebsiteTemplate[] = [
   RESOURCE_APP_TEMPLATE,
   DASHBOARD_APP_TEMPLATE,
   TRACKER_APP_TEMPLATE,
+  MOBILE_APP_TEMPLATE,
 ]
 
 // Get template by ID
