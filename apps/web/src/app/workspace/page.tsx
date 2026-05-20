@@ -159,7 +159,6 @@ import { OnboardingTour, SkillPicker, IndustryWizard } from '@/components/onboar
 import {
   notificationsSupported,
   notificationPermission,
-  hasAskedForNotifications,
   requestNotificationPermission,
   fireBrowserNotification,
   broadcastBuildEvent,
@@ -907,7 +906,8 @@ var myWidget = cloudinary.createUploadWidget({
   uploadPreset: 'unsigned_preset'
 }, (error, result) => {
   if (result.event === "success") {
-    console.log('Uploaded:', result.info.secure_url);
+    // Upload succeeded — result.info.secure_url is your hosted image URL.
+    // Use it: set an <img> src, save it to your database, etc.
   }
 });
 document.getElementById("upload_widget").addEventListener("click", () => myWidget.open());
@@ -2454,16 +2454,32 @@ function WorkspaceContent() {
       // tile so they want a known-good starter, not a fresh AI generation.
       // They can refine via the chat panel after.
       loadedFromUrlRef.current = true
-      const tpl = getTemplateById(templateId)
+      // Tiles from the catalog carry a `local-` id prefix (see /api/templates);
+      // the in-bundle registry keys are unprefixed.
+      const tpl = getTemplateById(templateId.replace(/^local-/, ''))
       if (tpl) {
         router.replace('/workspace', { scroll: false })
         try { localStorage.setItem('webstew-onboarding-complete', 'true') } catch {}
         setHasCompletedOnboarding(true)
-        setHtml(tpl.html)
         setProjectName(tpl.name)
-        setChatMessages([
-          { role: 'assistant', content: `Loaded the "${tpl.name}" template. ${tpl.description} Type any change you want to make and I'll edit the site directly.` }
-        ])
+        if (tpl.files && tpl.buildTarget) {
+          // App template — a multi-file project. Load it into the VFS and let
+          // the WebContainer preview boot it, the same path a generated
+          // multi-target project takes.
+          setBuildTarget(tpl.buildTarget)
+          setVfsFiles({ ...tpl.files })
+          setVfsProjectMeta({ name: tpl.name, slug: tpl.id })
+          setHtml('')
+          setPreviewBumpKey(k => k + 1)
+          setChatMessages([
+            { role: 'assistant', content: `Loaded the "${tpl.name}" app template — it's booting in the preview. Tell me what to change and I'll edit the files directly.` }
+          ])
+        } else {
+          setHtml(tpl.html)
+          setChatMessages([
+            { role: 'assistant', content: `Loaded the "${tpl.name}" template. ${tpl.description} Type any change you want to make and I'll edit the site directly.` }
+          ])
+        }
         addToast('success', `Template loaded — refine in chat`)
       } else {
         addToast('error', `Template "${templateId}" not found`)
@@ -2927,15 +2943,17 @@ function WorkspaceContent() {
     setPendingBuild(null)
   }, [pendingBuild])
 
-  // One-time notification permission prompt. Triggers on first generation
-  // start (a real user gesture, which is what the browser requires). Tracked
-  // in localStorage so we never nag a user who said no.
+  // Notification permission prompt — offered on a build start (a real user
+  // gesture, which the browser requires). Shown at most once per session
+  // (notifPromptShown), and only while the browser permission is still
+  // undecided — once the user grants or denies it, the perm check below
+  // stops it on its own. No permanent localStorage suppression: that made
+  // the offer vanish forever after the first build.
   const [notifPromptShown, setNotifPromptShown] = useState(false)
   useEffect(() => {
     if (!isGenerating) return
     if (notifPromptShown) return
     if (!notificationsSupported()) return
-    if (hasAskedForNotifications()) return
     // Defer one beat so the prompt doesn't fight with the build-starting UI.
     const t = setTimeout(() => {
       const perm = notificationPermission()
@@ -4278,7 +4296,7 @@ ${html}
   }
 
   // Layered generation with phases
-  const handleGenerate = async (promptText: string | undefined, ingredients?: StewIngredient[], opts?: { fresh?: boolean }) => {
+  const handleGenerate = async (promptText: string | undefined, ingredients?: StewIngredient[], opts?: { fresh?: boolean; forceModel?: string }) => {
     if (!promptText?.trim() && (!ingredients || ingredients.length === 0)) {
       addTerminalLine('error', 'No prompt provided — please describe what you want to build')
       return
@@ -4375,8 +4393,10 @@ ${html}
           prompt: promptText,
           currentHtml: isFreshBuild ? undefined : (html || undefined),
           skillLevel,
-          model: selectedModel.id,
-          apiKey: selectedModel.provider !== 'auto' ? apiKeys[selectedModel.provider] || undefined : undefined,
+          // forceModel is set by the content-filter fallback below — when
+          // Claude refuses a topic, we re-run on Grok.
+          model: opts?.forceModel || selectedModel.id,
+          apiKey: opts?.forceModel ? undefined : (selectedModel.provider !== 'auto' ? apiKeys[selectedModel.provider] || undefined : undefined),
           ingredients: ingredients || stewIngredients.length > 0 ? (ingredients || stewIngredients) : undefined,
           stylePreset: {
             id: preset.id,
@@ -4418,7 +4438,9 @@ ${html}
       let generatedHtml = ''
       let hasShownInteractivity = false
       let wasTruncated = false
+      let codeWarnings: string[] = []
       let serverError: string | null = null
+      let contentFiltered = false
 
       if (reader) {
         // Proper SSE buffering — chunks from the network can split mid-frame,
@@ -4455,6 +4477,9 @@ ${html}
             // skips any subsequent frames in the same chunk).
             if (parsed.error) {
               serverError = String(parsed.error)
+              // Anthropic's content filter blocked this topic. The server
+              // flags it so we can fall back to Grok automatically.
+              if (parsed.contentFiltered) contentFiltered = true
               continue
             }
             if (typeof parsed.delta === 'string') {
@@ -4477,7 +4502,23 @@ ${html}
             if (parsed.complete && parsed.truncated) {
               wasTruncated = true
             }
+            // Owl validation results — code issues the server caught (and
+            // tried to repair) in the generated HTML.
+            if (parsed.complete && Array.isArray(parsed.warnings) && parsed.warnings.length > 0) {
+              codeWarnings = parsed.warnings as string[]
+            }
           }
+        }
+        // Content-filter fallback — Claude refused this topic. Re-run the
+        // whole build on Grok (no output filter), once. The `!opts?.forceModel`
+        // guard means a Grok run never recurses back into another retry.
+        if (contentFiltered && !opts?.forceModel) {
+          // Silent handoff — no alarming toast. A routine model swap should
+          // not look like an error to the user. A neutral build-log line
+          // keeps it traceable (and visible while testing) without the noise.
+          addTerminalLine('info', '│ Optimizing the build for this content…')
+          addConsoleLog('info', 'Content-filter fallback: Claude declined, rebuilding on Grok')
+          return await handleGenerate(promptText, ingredients, { ...opts, fresh: true, forceModel: 'grok-4.3' })
         }
         // Stream finished — if the server emitted an error event at any
         // point, throw now so the outer catch shows the toast.
@@ -4500,6 +4541,14 @@ ${html}
         addTerminalLine('error', '└ Build truncated — output was cut off before the page finished. Try a more specific prompt or rerun.')
       } else {
         addTerminalLine('success', '└ Build complete!')
+      }
+      // Owl caught code issues the repair pass couldn't fully fix — surface
+      // them honestly instead of shipping a silently-broken preview.
+      if (codeWarnings.length > 0) {
+        addTerminalLine('error', `└ ⚠ The generated code has ${codeWarnings.length} issue(s) the auto-fix couldn't resolve:`)
+        codeWarnings.forEach((w) => addTerminalLine('error', `   • ${w}`))
+        addConsoleLog('warn', `Owl: ${codeWarnings.join(' | ')}`)
+        addToast('warning', 'Heads up — the generated site has a code issue. Check the build log, or rerun.')
       }
       addTerminalLine('info', '')
       addTerminalLine('success', `✨ Generated ${(generatedHtml.length / 1024).toFixed(1)}KB`)

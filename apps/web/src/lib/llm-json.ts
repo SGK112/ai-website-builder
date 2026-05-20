@@ -87,6 +87,11 @@ export async function generateJson<T = any>(
   opts: GenerateJsonOptions
 ): Promise<GenerateJsonResult<T>> {
   const validate = opts.validate ?? defaultValidate
+  // Capped at 16k on purpose: these are NON-streaming messages.create()
+  // calls, and the Anthropic SDK rejects a non-streaming request whose
+  // max_tokens is high enough to risk a >10-minute response ("Streaming is
+  // required…"). Bigger projects can still truncate — that surfaces as the
+  // clear error + template suggestion below, not a silent failure.
   const maxTokens = opts.maxTokens ?? 16000
 
   // Attempt 1 — clean shot
@@ -142,10 +147,15 @@ export async function generateJson<T = any>(
     return { parsed: parsed as T, rawText: secondText, attempts: 2 }
   }
 
+  // Honest, actionable message. "Be more specific" was misleading — a
+  // bigger/more-detailed prompt makes truncation *worse*, not better.
+  const hitTokenCap = first.stop_reason === 'max_tokens' || second.stop_reason === 'max_tokens'
   throw new GenerateJsonError(
-    'Model output was not valid JSON after two attempts. Try a more specific prompt.',
+    hitTokenCap
+      ? 'The project was too large to generate in one pass — it got cut off mid-file. Try an app with fewer screens, or start from an app template.'
+      : "The generated project couldn't be read as valid JSON. Try rephrasing, or start from an app template.",
     502,
-    validationError || 'parse failed'
+    validationError || 'parse failed',
   )
 }
 

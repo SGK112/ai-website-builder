@@ -49,3 +49,8 @@ coverage/
 # Misc
 *.log
 .cache/
+
+# Local template-authoring workspace — the editable source for app
+# templates. The committed artifact is apps/web/src/lib/templates/*.ts
+# (the generated VFS modules); this dir carries node_modules and is local.
+template-build/

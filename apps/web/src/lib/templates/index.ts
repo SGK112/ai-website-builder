@@ -9,17 +9,25 @@ import { SAAS_LANDING_TEMPLATE } from './saas-landing'
 import { FASHION_STORE_TEMPLATE } from './fashion-store'
 import { RESTAURANT_MENU_TEMPLATE } from './restaurant-menu'
 import { SAAS_MULTIPAGE_TEMPLATE } from './saas-multipage'
+import { RESOURCE_APP_TEMPLATE } from './resource-app'
+import { DASHBOARD_APP_TEMPLATE } from './dashboard-app'
+import { TRACKER_APP_TEMPLATE } from './tracker-app'
 
 // Template interface
 export interface WebsiteTemplate {
   id: string
   name: string
   description: string
-  category: 'ecommerce' | 'saas' | 'agency' | 'restaurant' | 'portfolio' | 'blog' | 'landing'
+  category: 'ecommerce' | 'saas' | 'agency' | 'restaurant' | 'portfolio' | 'blog' | 'landing' | 'app'
   tags: string[]
   preview: string
   variables: Record<string, string | number | object[]>
   html: string
+  // App templates: a multi-file project that boots in the WebContainer
+  // preview. When `files` is present the workspace loads it as a VFS
+  // project for `buildTarget` instead of dropping `html` into the iframe.
+  files?: Record<string, string>
+  buildTarget?: 'astro' | 'nextjs' | 'react' | 'expo'
 }
 
 // All available templates
@@ -30,6 +38,9 @@ export const TEMPLATES: WebsiteTemplate[] = [
   FASHION_STORE_TEMPLATE as WebsiteTemplate,
   RESTAURANT_MENU_TEMPLATE as WebsiteTemplate,
   SAAS_MULTIPAGE_TEMPLATE as WebsiteTemplate,
+  RESOURCE_APP_TEMPLATE,
+  DASHBOARD_APP_TEMPLATE,
+  TRACKER_APP_TEMPLATE,
 ]
 
 // Get template by ID

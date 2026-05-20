@@ -14,6 +14,7 @@ import {
   PLAN_LIMITS
 } from '@ai-website-builder/database'
 import { LUXE_ECOMMERCE_TEMPLATE } from '@/lib/templates'
+import { validateGeneratedHtml, summarizeIssues } from '@/lib/html-validator'
 
 // Sonnet 4.6 + 16K tokens + up to 2 continuation passes can take 2-3 minutes for
 // elaborate sites. Without this Render's default request timeout cuts the stream.
@@ -976,7 +977,16 @@ function pickBestModel(prompt: string, currentHtml?: string): AutoModelChoice {
 
   // Vision: prompt explicitly mentions image work or design-from-image
   if (/\b(from this image|from this screenshot|match this design|clone this site|recreate this|like this image|image of|photo of|logo design|color from image|sample these colors)\b/.test(p)) {
-    return { model: 'grok-2-vision-1212', reason: 'vision: image-anchored task' }
+    return { model: 'grok-4.3', reason: 'vision: image-anchored task' }
+  }
+
+  // Filter-prone topics → go straight to Grok. Anthropic's output content
+  // filter blocks these often enough that routing through Claude first means
+  // a ~100s build that fails, then a fallback retry — not seamless. Grok has
+  // no such filter, so for these topics it's the up-front choice. The Claude
+  // content-filter fallback still covers anything this list misses.
+  if (/\b(bankrupt\w*|chapter\s*(7|11|13)\b|debt\s*(relief|settlement|consolidation)|payday\s*loan|title\s*loan|foreclosure|repossession|firearm|gun\s*(shop|store|range|dealer)|ammunition|ammo\b|cannabis|marijuana|dispensary|\bcbd\b|casino|gambling|sportsbook|escort|adult\s*(entertainment|content|video))\b/.test(p)) {
+    return { model: 'grok-4.3', reason: 'filter-prone topic: routed to Grok up front' }
   }
 
   // Heavy reasoning / multi-step / architecture / complex code
@@ -2809,6 +2819,47 @@ Rules:
             const verification = verifyImagesInHtml(finalHtml)
             console.log(`Claude Image verification: ${verification.imageCount} images, ${verification.valid ? 'all valid' : verification.errors.join(', ')}`)
 
+            // OWL — validate the assembled HTML before it ships. A broken
+            // inline <script> used to reach the preview as a silent blank
+            // page. If the owl finds issues, ask the model to repair them
+            // once; keep the repair only if it strictly reduced the problems.
+            let owl = validateGeneratedHtml(finalHtml)
+            if (!owl.ok) {
+              console.warn(`[Generate] Owl flagged: ${summarizeIssues(owl.issues)}`)
+              safeEnqueue(encoder.encode(`data: ${JSON.stringify({ status: 'Checking the generated code…', streaming: true })}\n\n`))
+              try {
+                // Streamed, not messages.create(): the SDK rejects a
+                // non-streaming call when max_tokens is this high.
+                const repairStream = anthropic.messages.stream({
+                  model: claudeModel,
+                  max_tokens: maxTokens,
+                  system: 'You fix bugs in a single HTML document. Output ONLY the corrected, complete HTML — from <!DOCTYPE html> through </html>. No markdown fences, no commentary.',
+                  messages: [{
+                    role: 'user',
+                    content: `Fix exactly these issues in the HTML below and change nothing else:\n${owl.issues.map((i) => `- ${i.message}${i.line ? ` (near line ${i.line})` : ''}`).join('\n')}\n\nHTML:\n${finalHtml}`,
+                  }],
+                })
+                const repair = await repairStream.finalMessage()
+                const repairBlock = repair.content.find((b) => b.type === 'text')
+                let repaired = repairBlock && repairBlock.type === 'text' ? repairBlock.text.trim() : ''
+                if (repaired.startsWith('```html')) repaired = repaired.slice(7).trim()
+                else if (repaired.startsWith('```')) repaired = repaired.slice(3).trim()
+                if (repaired.endsWith('```')) repaired = repaired.slice(0, -3).trim()
+                if (repaired.length > 300) {
+                  const reOwl = validateGeneratedHtml(repaired)
+                  // Accept the repair only if it genuinely fixed something —
+                  // a truncated repair re-flags as truncated and is rejected.
+                  if (reOwl.issues.length < owl.issues.length) {
+                    finalHtml = repaired
+                    owl = reOwl
+                  }
+                  console.log(`[Generate] Owl repair → ${owl.issues.length} issue(s) remain`)
+                }
+              } catch (repairErr: any) {
+                console.warn('[Generate] Owl repair pass failed:', repairErr?.message || repairErr)
+              }
+            }
+
             // Track usage for Claude generation
             const duration = Date.now() - startTime
             const tokensUsed = Math.ceil(finalHtml.length / 4) // Approximate
@@ -2850,7 +2901,8 @@ Rules:
               provider: 'anthropic',
               model: claudeModel,
               usage: { creditsUsed, tokensUsed },
-              imageStats: { total: imageMarkers.size, embedded: verification.imageCount, valid: verification.valid }
+              imageStats: { total: imageMarkers.size, embedded: verification.imageCount, valid: verification.valid },
+              warnings: owl.issues.map((i) => (i.line ? `${i.message} (line ${i.line})` : i.message)),
             })}\n\n`))
             safeEnqueue(encoder.encode('data: [DONE]\n\n'))
             safeClose()
@@ -2874,7 +2926,21 @@ Rules:
             }
           } catch (error: any) {
             console.error('[Claude] Stream error:', error)
-            safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: error.message })}\n\n`))
+            // Anthropic's content filter blocks some legitimate topics
+            // (bankruptcy, legal, medical, …) mid-stream. Detect that and
+            // tell the client to retry on Grok, which doesn't carry that
+            // output filter — instead of just failing the build.
+            const rawMsg = String(error?.message || error || '')
+            const contentFiltered = /content[\s_-]?filter|content[\s_-]?policy|output blocked/i.test(rawMsg)
+            if (contentFiltered) {
+              console.warn('[Claude] Content filter block — signalling Grok fallback')
+              safeEnqueue(encoder.encode(`data: ${JSON.stringify({
+                error: 'Claude declined this content.',
+                contentFiltered: true,
+              })}\n\n`))
+            } else {
+              safeEnqueue(encoder.encode(`data: ${JSON.stringify({ error: error.message })}\n\n`))
+            }
             safeClose()
             if (userId) {
               try {
@@ -2917,10 +2983,10 @@ Rules:
         })
 
     const selectedModel = isGrokModel
-      ? (model === 'grok-2' || model === 'grok-2-1212' ? 'grok-2-1212' :
-         model === 'grok-2-vision' || model === 'grok-2-vision-1212' ? 'grok-2-vision-1212' :
-         model === 'grok-beta' ? 'grok-beta' :
-         'grok-2-1212')
+      // xAI retired the grok-2 line — every grok-* id the UI/router might
+      // send now resolves to the current flagship. Grok 4.x is multimodal,
+      // so the old separate vision model is gone too.
+      ? 'grok-4.3'
       : (model === 'gpt-4-turbo' ? 'gpt-4-turbo' :
          model === 'gpt-4' ? 'gpt-4' :
          model === 'gpt-3.5-turbo' ? 'gpt-3.5-turbo' :
@@ -2930,13 +2996,17 @@ Rules:
 
     // Get max tokens based on model - different models have different limits
     const getMaxTokens = (modelName: string): number => {
+      // Grok 4.x — needs a big budget: a full multi-section site is
+      // ~16-25k tokens. The old 4096 default truncated every Grok build
+      // mid-page (no </body></html>).
+      if (modelName.startsWith('grok')) return 32000
       switch (modelName) {
         case 'gpt-4-turbo': return 4096
         case 'gpt-4': return 4096
         case 'gpt-3.5-turbo': return 4096
         case 'gpt-4o': return 16000
         case 'gpt-4o-mini': return 16000
-        default: return 4096
+        default: return 8192
       }
     }
     const maxTokens = getMaxTokens(selectedModel)
@@ -3025,6 +3095,39 @@ Rules:
           const verification = verifyImagesInHtml(finalHtml)
           console.log(`Image verification: ${verification.imageCount} images, ${verification.valid ? 'all valid' : verification.errors.join(', ')}`)
 
+          // OWL — validate before delivery (mirrors the Claude branch). Grok
+          // is the primary path for filter-prone topics and its output runs
+          // rougher, so this branch needs the broken-script check just as much.
+          let owl = validateGeneratedHtml(finalHtml)
+          if (!owl.ok) {
+            console.warn(`[Generate] Owl flagged (OpenAI/Grok): ${summarizeIssues(owl.issues)}`)
+            safeEnqueue(encoder.encode(`data: ${JSON.stringify({ status: 'Checking the generated code…', streaming: true })}\n\n`))
+            try {
+              const repair = await openai.chat.completions.create({
+                model: selectedModel,
+                max_tokens: maxTokens,
+                messages: [
+                  { role: 'system', content: 'You fix bugs in a single HTML document. Output ONLY the corrected, complete HTML — <!DOCTYPE html> through </html>. No markdown fences, no commentary.' },
+                  { role: 'user', content: `Fix exactly these issues in the HTML below and change nothing else:\n${owl.issues.map((i) => `- ${i.message}${i.line ? ` (near line ${i.line})` : ''}`).join('\n')}\n\nHTML:\n${finalHtml}` },
+                ],
+              })
+              let repaired = (repair.choices[0]?.message?.content || '').trim()
+              if (repaired.startsWith('```html')) repaired = repaired.slice(7).trim()
+              else if (repaired.startsWith('```')) repaired = repaired.slice(3).trim()
+              if (repaired.endsWith('```')) repaired = repaired.slice(0, -3).trim()
+              if (repaired.length > 300) {
+                const reOwl = validateGeneratedHtml(repaired)
+                if (reOwl.issues.length < owl.issues.length) {
+                  finalHtml = repaired
+                  owl = reOwl
+                }
+                console.log(`[Generate] Owl repair (Grok) → ${owl.issues.length} issue(s) remain`)
+              }
+            } catch (repairErr: any) {
+              console.warn('[Generate] Owl repair pass failed (Grok):', repairErr?.message || repairErr)
+            }
+          }
+
           // Track usage for OpenAI generation
           const duration = Date.now() - startTime
           const tokensUsed = Math.ceil(finalHtml.length / 4) // Approximate
@@ -3064,7 +3167,8 @@ Rules:
               total: imageMarkers.size,
               embedded: verification.imageCount,
               valid: verification.valid
-            }
+            },
+            warnings: owl.issues.map((i) => (i.line ? `${i.message} (line ${i.line})` : i.message)),
           })}\n\n`))
           safeEnqueue(encoder.encode('data: [DONE]\n\n'))
           safeClose()

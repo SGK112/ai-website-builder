@@ -115,8 +115,18 @@ export function OnboardingTour({ isOpen, onClose, onComplete, skillLevel = 'no-c
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 })
   const tooltipRef = useRef<HTMLDivElement>(null)
 
-  const current = steps[step]
-  const Icon = current.icon || Zap
+  // `step` can briefly fall out of range — the auto-advance below can
+  // over-shoot, and a skillLevel change shrinks `steps`. Falling back to the
+  // last step means a stale index can never read `.icon` of undefined and
+  // crash the whole workspace to the error boundary.
+  const current = steps[step] ?? steps[steps.length - 1]
+  const Icon = current?.icon || Zap
+
+  // Self-heal an out-of-range step so the UI (progress dots, counter) stays
+  // consistent after the fallback above kicks in.
+  useEffect(() => {
+    if (step > steps.length - 1) setStep(steps.length - 1)
+  }, [step, steps.length])
 
   // Position tooltip relative to target
   useEffect(() => {
@@ -134,10 +144,10 @@ export function OnboardingTour({ isOpen, onClose, onComplete, skillLevel = 'no-c
 
       const el = document.querySelector(current.target)
       if (!el) {
-        // If element not found, try next step or close
-        if (step < steps.length - 1) {
-          setStep(s => s + 1)
-        }
+        // Target not on screen — skip ahead. Functional + bounded so the
+        // repeated calls (immediate + 100ms timer + resize + scroll) can't
+        // over-shoot the end of the list and leave `step` pointing at nothing.
+        setStep(s => (s < steps.length - 1 ? s + 1 : s))
         return
       }
 
