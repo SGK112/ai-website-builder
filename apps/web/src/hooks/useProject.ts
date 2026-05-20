@@ -272,27 +272,41 @@ export function useProject(options: UseProjectOptions = {}): UseProjectReturn {
     }
   }, [currentProject])
 
-  // Save project (create or update)
+  // Save project (create or update).
+  //
+  // A truthy `id` is NOT enough to PATCH — the workspace assigns client-side
+  // `proj_<ts>_<rand>` ids to projects that only ever lived in localStorage,
+  // and /api/projects/[id] rejects any non-ObjectId with a 400. So we only
+  // UPDATE when the id is a real 24-hex Mongo id; otherwise we CREATE a cloud
+  // row (promoting a local-only project), then write its content + files.
   const saveProject = useCallback(async (
     project: Partial<Project>
   ): Promise<Project | null> => {
     const id = project.id || project._id
+    const isCloudId = !!id && /^[a-f\d]{24}$/i.test(id)
 
-    if (id) {
-      return updateProject(id, project)
-    } else {
-      const created = await createProject(
-        project.name || 'Untitled Project',
-        project.description
-      )
-
-      if (created && project.html) {
-        // Update with content after creation
-        return updateProject(created.id, { html: project.html })
-      }
-
-      return created
+    if (isCloudId) {
+      return updateProject(id as string, project)
     }
+
+    const created = await createProject(
+      project.name || 'Untitled Project',
+      project.description
+    )
+    if (!created) return created
+
+    // Write content after creation. Prefer an explicit `files` array (it can
+    // describe a multi-target VFS or multi-page sidecars) — the old code
+    // forwarded only `html`, silently dropping every non-HTML file on the
+    // first save of a project. `updateProject` lets `files` override `html`,
+    // so pass exactly one to keep the intent unambiguous.
+    if (project.files !== undefined) {
+      return updateProject(created.id, { files: project.files })
+    }
+    if (project.html !== undefined) {
+      return updateProject(created.id, { html: project.html })
+    }
+    return created
   }, [createProject, updateProject])
 
   // Delete a project

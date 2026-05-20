@@ -21,6 +21,10 @@ interface AppGenerateRequest {
   appName?: string
   bundleId?: string
   referenceUrl?: string
+  // Raw HTML of an existing website to rebuild as the app (the workspace's
+  // "Convert to App" action). Reference context — NOT subject to the prompt
+  // length cap, since it's the source material, not the instruction.
+  sourceHtml?: string
 }
 
 interface AppGenerateResponse {
@@ -177,7 +181,24 @@ export async function POST(req: NextRequest) {
   const model = pickAnthropicModel(body.model)
   const client = new Anthropic({ apiKey: anthropicKey })
 
-  const baseMsg = `Build this Expo / React Native app:\n\n${prompt}\n\n${body.appName ? `App name: ${body.appName}\n` : ''}${body.bundleId ? `Bundle ID: ${body.bundleId}\n` : ''}\nRespond with the JSON object only.`
+  // Optional source website to convert. Not counted against the 5000-char
+  // prompt cap — it's reference material, not the instruction. <script> blocks
+  // are stripped (browser JS doesn't port to React Native); the markup that
+  // remains gives the model the real copy, layout, and inline styling.
+  let sourceContext = ''
+  if (typeof body.sourceHtml === 'string' && body.sourceHtml.trim()) {
+    const cleaned = body.sourceHtml
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .slice(0, 80_000)
+    sourceContext =
+      `\n\n## SOURCE WEBSITE TO CONVERT\n` +
+      `Rebuild THIS existing website as the app. Match its branding, colours, ` +
+      `copy, navigation, and section structure — translate each major section ` +
+      `into a screen or component. Do not invent unrelated content.\n\n` +
+      '```html\n' + cleaned + '\n```\n'
+  }
+
+  const baseMsg = `Build this Expo / React Native app:\n\n${prompt}\n${sourceContext}\n${body.appName ? `App name: ${body.appName}\n` : ''}${body.bundleId ? `Bundle ID: ${body.bundleId}\n` : ''}\nRespond with the JSON object only.`
   const { prompt: userMsg, warning: refWarning } = await augmentPromptWithReference(baseMsg, body.referenceUrl)
   if (refWarning) console.warn('[App Builder]', refWarning)
 

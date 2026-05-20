@@ -148,6 +148,7 @@ import {
   Edit3,
   Link as LinkIcon,
   Paperclip,
+  Bell,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/context/ThemeContext'
@@ -173,6 +174,9 @@ import { SiteGraderModal } from '@/components/builder/SiteGraderModal'
 import { ShareProposalModal } from '@/components/builder/ShareProposalModal'
 import { InlineUpgradeModal } from '@/components/builder/InlineUpgradeModal'
 import { SectionChat, type ChatSubmitPayload } from '@/components/builder/SectionChat'
+import { StewPlannerChat } from '@/components/builder/StewPlannerChat'
+import { StewPlannerModal } from '@/components/builder/StewPlannerModal'
+import type { ClarifyTurn, ClarifyResponse, StewPlan } from '@/lib/types/stew-planner'
 import { ChefDock } from '@/components/builder/ChefSpotlight'
 import { BridgePanel } from '@/components/integrations/BridgePanel'
 import { stylePresets, StylePreset, generatePresetStyles, applyThemeToHtml, generateAllThemesStyles } from '@/lib/builder/style-presets'
@@ -1275,6 +1279,26 @@ gtag('config', 'YOUR_GA_ID');
   },
 ]
 
+// A prompt is "rich" enough to skip the Stew Planner when the user has
+// already named the things the planner would ask for — audience, pages,
+// or a visual style — or simply wrote a long, detailed brief. Power users
+// who type a full spec go straight to building; thin prompts get interviewed.
+function isRichPrompt(text: string): boolean {
+  const audienceHint = /\b(for|targeting|aimed at|visitors|customers|clients|users|audience)\b/i
+  const pageHint = /\b(page|section|hero|about|pricing|contact|portfolio|blog|shop|gallery|menu|booking|landing)\b/i
+  const styleHint = /\b(dark|light|minimal|clean|bold|elegant|modern|playful|luxury|retro|apple|stripe|linear)\b/i
+  const score = [audienceHint, pageHint, styleHint].filter(r => r.test(text)).length
+  return text.trim().length > 140 || score >= 2
+}
+
+// A project id addresses a real Mongo row only when it's a 24-hex ObjectId.
+// The workspace also assigns client-side `proj_<ts>_<rand>` ids to projects
+// that have only ever lived in localStorage — /api/projects/[id] rejects
+// those with a 400, so cloud calls must check this before addressing an id.
+function isCloudProjectId(id: string | undefined | null): id is string {
+  return !!id && /^[a-f\d]{24}$/i.test(id)
+}
+
 function WorkspaceContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -1961,7 +1985,19 @@ function WorkspaceContent() {
       try { return localStorage.getItem('webstew-bridge-ever-seen') === '1' } catch { return false }
     })()
     id = setInterval(check, everSeen ? 10_000 : 60_000)
-    return () => { alive = false; if (id) clearInterval(id) }
+    // Re-check the moment the user returns to the tab — a bridge can die
+    // while the tab is backgrounded (the interval is throttled then), and
+    // we want fresh status before they fire the next request rather than
+    // routing a turn at a corpse and eating the failover round-trip.
+    const onFocus = () => { if (document.visibilityState === 'visible') void check() }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onFocus)
+    return () => {
+      alive = false
+      if (id) clearInterval(id)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onFocus)
+    }
   }, [])
   // Per-session toggle: when ON + bridge connected, requests skip
   // Webstew credits entirely and bill against the user's Claude
@@ -2168,6 +2204,17 @@ function WorkspaceContent() {
   // Recipe-tips popover — opened from a ChefHat button next to the chat
   // input. Shows the 6 prompt patterns pros use, in stew-themed voice.
   const [showRecipeTips, setShowRecipeTips] = useState(false)
+
+  // Stew Planner — the AI-to-AI clarifying agent. When a fresh build is
+  // requested with a thin prompt, the planner interviews the user, forms a
+  // plan, and only on "Go" hands the assembled prompt to the real builders.
+  const [plannerActive, setPlannerActive] = useState(false)
+  const [plannerMessages, setPlannerMessages] = useState<ClarifyTurn[]>([])
+  const [plannerPlan, setPlannerPlan] = useState<Partial<StewPlan>>({})
+  const [plannerThinking, setPlannerThinking] = useState(false)
+  const [plannerSuggestions, setPlannerSuggestions] = useState<string[]>([])
+  const [showPlanModal, setShowPlanModal] = useState(false)
+  const [planModalData, setPlanModalData] = useState<{ plan: StewPlan; prompt: string } | null>(null)
 
   // Theme builder panel state
   const [showThemeBuilder, setShowThemeBuilder] = useState(false)
@@ -2764,7 +2811,10 @@ function WorkspaceContent() {
     if (!session?.user?.id) return
     if (!currentProject?.id) return // first manual save creates the project; auto-save resumes after
     if (isGenerating) return // streaming churn — wait until the build settles
-    if (!html || html.length < 100) return
+    // Need real content to save — HTML for website projects, or VFS files
+    // for multi-target (Expo/Astro/etc). Without the VFS clause, multi-target
+    // projects (empty `html`) never autosaved at all.
+    if ((!html || html.length < 100) && Object.keys(vfsFiles).length === 0) return
     setSaveStatus('idle')
     const timer = setTimeout(async () => {
       setSaveStatus('saving')
@@ -2792,7 +2842,30 @@ function WorkspaceContent() {
                   },
                 ]
               : [{ path: 'index.html', content: html, type: 'html' as const }])
-        const res = await fetch(`/api/projects/${currentProject.id}`, {
+
+        // If the project still carries a client-side `proj_` id it has no
+        // cloud row yet — promote it with a POST first, then PATCH. Without
+        // this, autosave PATCHes a non-ObjectId and the API 400s every 3s.
+        let targetId = currentProject!.id
+        if (!isCloudProjectId(targetId)) {
+          const createRes = await fetch('/api/projects', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: projectName || 'Untitled site', type: 'website' }),
+          })
+          if (!createRes.ok) throw new Error(`HTTP ${createRes.status}`)
+          const created = await createRes.json()
+          const newId = created?.project?._id || created?.project?.id
+          if (!newId) throw new Error('Project create returned no id')
+          const oldId = targetId
+          targetId = String(newId)
+          // Re-point local state at the real cloud row so the next autosave
+          // PATCHes (not re-creates), and the sidebar list stays in sync.
+          setCurrentProject(prev => (prev ? { ...prev, id: targetId } : prev))
+          setProjects(prev => prev.map(p => (p.id === oldId ? { ...p, id: targetId } : p)))
+        }
+
+        const res = await fetch(`/api/projects/${targetId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ files: filesPayload }),
@@ -2806,7 +2879,7 @@ function WorkspaceContent() {
       }
     }, 3000)
     return () => clearTimeout(timer)
-  }, [html, vfsFiles, pages, activePageId, buildTarget, currentProject?.id, session?.user?.id, isGenerating])
+  }, [html, vfsFiles, pages, activePageId, buildTarget, currentProject?.id, projectName, session?.user?.id, isGenerating])
 
   // Pre-unload flush — on visibilitychange→hidden or pagehide, fire a
   // keepalive PATCH so the freshest html lands on disk even if the user
@@ -2814,15 +2887,18 @@ function WorkspaceContent() {
   // is the modern sendBeacon replacement that supports PATCH (beacon is
   // POST-only) — browser holds the request open across nav.
   useEffect(() => {
-    if (!session?.user?.id || !currentProject?.id) return
+    // Only flush cloud-backed projects — a client-only `proj_` id can't be
+    // PATCHed, and promoting it (POST) during unload isn't reliable. Those
+    // are caught by the debounced autosave above while the tab is still open.
+    if (!session?.user?.id || !isCloudProjectId(currentProject?.id)) return
     const flush = () => {
-      if (!html || html.length < 100) return
+      if ((!html || html.length < 100) && Object.keys(vfsFiles).length === 0) return
       const isMulti = buildTarget !== 'website' && Object.keys(vfsFiles).length > 0
       const filesPayload = isMulti
         ? Object.entries(vfsFiles).map(([path, content]) => ({ path, content, type: 'other' as const }))
         : [{ path: 'index.html', content: html, type: 'html' as const }]
       try {
-        fetch(`/api/projects/${currentProject.id}`, {
+        fetch(`/api/projects/${currentProject!.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ files: filesPayload }),
@@ -3215,17 +3291,23 @@ function WorkspaceContent() {
         // Sidecar for multi-page HTML projects — without this, only the
         // active page's HTML survived round-trips (single `html` column).
         // Encoded as JSON so it can be restored verbatim in loadProject.
+        // Include index.html alongside the sidecar — /api/projects PATCH lets
+        // `files` override the `html` shorthand, so a `files` array handed to
+        // the API must be COMPLETE or the page content is lost on save.
         const multiPageSidecar = (!isMultiTarget && pages.length > 1)
-          ? [{
-              path: '_webstew_pages.json',
-              content: JSON.stringify({
-                activePageId,
-                pages: pages.map(p => ({
-                  id: p.id, name: p.name, slug: p.slug, html: p.html, isHome: p.isHome,
-                })),
-              }),
-              type: 'json' as any,
-            }]
+          ? [
+              { path: 'index.html', content: html, type: 'html' as any },
+              {
+                path: '_webstew_pages.json',
+                content: JSON.stringify({
+                  activePageId,
+                  pages: pages.map(p => ({
+                    id: p.id, name: p.name, slug: p.slug, html: p.html, isHome: p.isHome,
+                  })),
+                }),
+                type: 'json' as any,
+              },
+            ]
           : []
         const filesPayload = isMultiTarget
           ? [
@@ -4207,7 +4289,13 @@ ${html}
   // in lib/llm-json.ts) so Cloudflare can't 524 us on long projects. Older
   // deploys still send plain JSON — readSseJsonResult is only invoked when
   // Content-Type is text/event-stream; otherwise we fall back to res.json().
-  const handleGenerateMultiTarget = async (target: Exclude<BuildTarget, 'website'>, promptText: string) => {
+  // Returns true on success, false on failure — callers that need to react
+  // (e.g. the website→app converter restoring state on a failed build) check it.
+  const handleGenerateMultiTarget = async (
+    target: Exclude<BuildTarget, 'website'>,
+    promptText: string,
+    opts?: { sourceHtml?: string },
+  ): Promise<boolean> => {
     const endpoint = {
       astro:  '/api/builder/astro',
       nextjs: '/api/builder/nextjs',
@@ -4221,60 +4309,90 @@ ${html}
     addTerminalLine('ai', `🤖 Generating ${target} project…`)
     addConsoleLog('info', `Starting ${target} build: ${promptText.slice(0, 60)}…`)
     try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: promptText,
-          model: selectedModel.id,
-          apiKey: selectedModel.provider !== 'auto' ? apiKeys[selectedModel.provider] || undefined : undefined,
-          // Route through the local bridge when connected — same credit-free
-          // path as the agent route uses. Each scaffolder endpoint checks this
-          // flag and dispatches to the bridge instead of calling Anthropic directly.
-          useBridge: bridgeActive || undefined,
-        }),
-      })
-      if (res.status === 402 || res.status === 429) {
-        const errBody = await res.json().catch(() => ({} as any))
-        const isPlanLimit = res.status === 429
-        setCreditWall({
-          show: true,
-          title: isPlanLimit ? 'Out of credits this month' : 'Out of free generations',
-          message: errBody.error || errBody.message ||
-            (isPlanLimit
-              ? `You're on the ${errBody.plan || 'free'} plan and used all your monthly credits.`
-              : `You've used your ${errBody.limit || 3} free generations.`),
-          limit: errBody.limit || (isPlanLimit ? 100 : 3),
-          isPlanLimit,
-          plan: errBody.plan,
+      const BRIDGE_FAILOVER_NOTICE =
+        '⚠️ Local bridge did not respond within 180s. Check that webstew-bridge connect … is running in your terminal.'
+      let viaBridge = bridgeActive
+      let data: any = null
+
+      // Resilient generation — if the bridge is asked for but drops (route
+      // 503s) or wedges (its 180s timeout surfaces as a thrown bridge error),
+      // fail over once to the server's Anthropic key so the build still lands.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: promptText,
+            model: selectedModel.id,
+            apiKey: selectedModel.provider !== 'auto' ? apiKeys[selectedModel.provider] || undefined : undefined,
+            // Route through the local bridge when connected — same credit-free
+            // path as the agent route. The failover attempt forces it off.
+            useBridge: viaBridge || undefined,
+            // Optional source website (the converter passes the current HTML)
+            // so the generator rebuilds the real site, not a generic app.
+            sourceHtml: opts?.sourceHtml || undefined,
+          }),
         })
-        return
-      }
-      if (!res.ok) {
-        const errText = await res.text().catch(() => '')
-        throw new Error(`HTTP ${res.status}${errText ? ': ' + errText.slice(0, 200) : ''}`)
-      }
-      // Multi-target routes now wrap the long Anthropic call in an SSE stream
-      // so Cloudflare's 100s edge timeout can't 524 us. Heartbeats arrive as
-      // `: ping` comment lines; final payload as `event: result\ndata: {...}`.
-      // Older deploys still send plain JSON — fall back gracefully.
-      const ctype = (res.headers.get('content-type') || '').toLowerCase()
-      let data: any
-      if (ctype.includes('text/event-stream')) {
-        data = await readSseJsonResult(res)
-      } else {
-        // Content-Type says JSON — but proxies sometimes strip the
-        // text/event-stream type off a streamed response, handing us an SSE
-        // body mislabeled as JSON. Sniff the body and parse what it actually
-        // is rather than letting res.json() choke on the `: connected` preamble.
-        const raw = await res.text()
-        const head = raw.trimStart()
-        if (head.startsWith(':') || head.startsWith('event:') || head.startsWith('data:')) {
-          data = parseBufferedSseResult(raw)
-        } else {
-          try { data = JSON.parse(raw) }
-          catch { throw new Error('Generator returned an unreadable response') }
+        // Bridge dropped between our status poll and this request — the route
+        // 503s rather than silently billing API credits. Fail over.
+        if (viaBridge && res.status === 503) {
+          addToast('warning', BRIDGE_FAILOVER_NOTICE, 12000)
+          viaBridge = false
+          continue
         }
+        if (res.status === 402 || res.status === 429) {
+          const errBody = await res.json().catch(() => ({} as any))
+          const isPlanLimit = res.status === 429
+          setCreditWall({
+            show: true,
+            title: isPlanLimit ? 'Out of credits this month' : 'Out of free generations',
+            message: errBody.error || errBody.message ||
+              (isPlanLimit
+                ? `You're on the ${errBody.plan || 'free'} plan and used all your monthly credits.`
+                : `You've used your ${errBody.limit || 3} free generations.`),
+            limit: errBody.limit || (isPlanLimit ? 100 : 3),
+            isPlanLimit,
+            plan: errBody.plan,
+          })
+          return false
+        }
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '')
+          throw new Error(`HTTP ${res.status}${errText ? ': ' + errText.slice(0, 200) : ''}`)
+        }
+        // Multi-target routes now wrap the long Anthropic call in an SSE stream
+        // so Cloudflare's 100s edge timeout can't 524 us. Heartbeats arrive as
+        // `: ping` comment lines; final payload as `event: result\ndata: {...}`.
+        // Older deploys still send plain JSON — fall back gracefully.
+        const ctype = (res.headers.get('content-type') || '').toLowerCase()
+        try {
+          if (ctype.includes('text/event-stream')) {
+            data = await readSseJsonResult(res)
+          } else {
+            // Content-Type says JSON — but proxies sometimes strip the
+            // text/event-stream type off a streamed response, handing us an SSE
+            // body mislabeled as JSON. Sniff the body and parse what it actually
+            // is rather than letting res.json() choke on the `: connected` preamble.
+            const raw = await res.text()
+            const head = raw.trimStart()
+            if (head.startsWith(':') || head.startsWith('event:') || head.startsWith('data:')) {
+              data = parseBufferedSseResult(raw)
+            } else {
+              try { data = JSON.parse(raw) }
+              catch { throw new Error('Generator returned an unreadable response') }
+            }
+          }
+        } catch (genErr: any) {
+          // A bridge wedge surfaces as a thrown error carrying the route's
+          // 180s bridge-timeout message. Fail over once before giving up.
+          if (viaBridge && /bridge/i.test(String(genErr?.message || ''))) {
+            addToast('warning', BRIDGE_FAILOVER_NOTICE, 12000)
+            viaBridge = false
+            continue
+          }
+          throw genErr
+        }
+        break
       }
       if (!data?.files || typeof data.files !== 'object') {
         throw new Error('Generator returned no files')
@@ -4303,6 +4421,7 @@ ${html}
           summary: `${Object.keys(data.files).length}-file ${target} project`,
         })
       } catch { /* notifications unsupported / blocked — silent */ }
+      return true
     } catch (e: any) {
       addTerminalLine('error', `Failed: ${e?.message || e}`)
       addConsoleLog('error', e?.message || String(e))
@@ -4310,6 +4429,7 @@ ${html}
         role: 'assistant',
         content: `Generation failed: ${e?.message || 'unknown error'}`,
       }])
+      return false
     } finally {
       setIsGenerating(false)
       setBuildPhase('idle')
@@ -5368,9 +5488,97 @@ ${html}
     }
   }
 
+  // ── Stew Planner — the AI-to-AI clarifying agent ───────────────────────
+  // One round-trip with /api/builder/clarify. Appends the user's message and
+  // the agent's next question to plannerMessages; when the agent decides it
+  // has enough, opens the plan-review modal instead of asking again.
+  const handlePlannerTurn = async (
+    userMessage: string,
+    history: ClarifyTurn[],
+    plan: Partial<StewPlan>,
+  ) => {
+    if (plannerThinking) return
+    const nextHistory: ClarifyTurn[] = [...history, { role: 'user', content: userMessage }]
+    setPlannerMessages(nextHistory)
+    setPlannerThinking(true)
+    setPlannerSuggestions([])
+    try {
+      const res = await fetch('/api/builder/clarify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userMessage,
+          history,
+          plan,
+          model: selectedModel.id,
+          apiKey: selectedModel.provider !== 'auto' ? apiKeys[selectedModel.provider] || undefined : undefined,
+        }),
+      })
+      if (!res.ok) throw new Error('Planner request failed')
+      const data: ClarifyResponse = await res.json()
+
+      const updatedPlan = { ...plan, ...data.updatedPlan }
+      setPlannerPlan(updatedPlan)
+      setPlannerSuggestions(data.suggestedReplies ?? [])
+
+      if (data.done && data.assembledPrompt) {
+        setPlanModalData({ plan: updatedPlan as StewPlan, prompt: data.assembledPrompt })
+        setShowPlanModal(true)
+      } else if (data.question) {
+        setPlannerMessages([...nextHistory, { role: 'assistant', content: data.question }])
+      }
+    } catch {
+      // Graceful fallback — drop planner mode and let the user build directly.
+      addToast('error', 'Planner hiccup — describe what you want and I\'ll build it.')
+      setPlannerActive(false)
+    } finally {
+      setPlannerThinking(false)
+    }
+  }
+
+  // "Go" from the plan-review modal — the assembled prompt feeds the existing
+  // generation paths unchanged. Planner state is cleared so chat resumes normal.
+  const handlePlannerGo = (prompt: string, _plan: StewPlan) => {
+    setShowPlanModal(false)
+    setPlanModalData(null)
+    setPlannerActive(false)
+    setPlannerMessages([])
+    setPlannerPlan({})
+    setPlannerSuggestions([])
+    if (buildTarget !== 'website') {
+      void handleGenerateMultiTarget(buildTarget, prompt)
+    } else {
+      void handleGenerate(prompt, stewIngredients.length > 0 ? stewIngredients : undefined, { fresh: true })
+    }
+  }
+
+  // Skip the interview — build straight from the user's original message.
+  const handlePlannerSkip = () => {
+    const raw = plannerMessages.find(m => m.role === 'user')?.content || commandInput
+    setPlannerActive(false)
+    setPlannerMessages([])
+    setPlannerPlan({})
+    setPlannerSuggestions([])
+    if (!raw.trim()) return
+    if (buildTarget !== 'website') {
+      void handleGenerateMultiTarget(buildTarget, raw)
+    } else {
+      void handleGenerate(raw, undefined, { fresh: true })
+    }
+  }
+
   // Handle conversational chat with AI assistant
   const handleChatMessage = async (message: string) => {
     if (!message.trim() || isGenerating || isThinking) return
+
+    // Stew Planner intercept — while the clarifying agent is interviewing,
+    // every chat message is an answer to it. Route there before the message
+    // ever reaches the normal chat log or any build dispatch.
+    if (plannerActive && !showPlanModal) {
+      setCommandInput('')
+      await handlePlannerTurn(message, plannerMessages, plannerPlan)
+      return
+    }
 
     // Add user message to chat
     setChatMessages(prev => [...prev, { role: 'user', content: message }])
@@ -5435,6 +5643,17 @@ ${html}
           setActivePageId('home')
           setPreviewBumpKey((k) => k + 1)
         }
+        // Thin fresh-build prompt → interview the user via the Stew Planner
+        // before building blind. Rich, fully-specified prompts skip straight
+        // to the generator. The message just added to chatMessages becomes
+        // the interview's lead-in; the planner conversation lives separately.
+        if (!isRichPrompt(message)) {
+          setPlannerActive(true)
+          setPlannerPlan({})
+          setPlannerSuggestions([])
+          await handlePlannerTurn(message, [], {})
+          return
+        }
         await handleGenerate(message, undefined, { fresh: true })
         return
       }
@@ -5477,198 +5696,251 @@ ${html}
       const agentFiles = buildTarget === 'website'
         ? { 'index.html': html }
         : vfsFiles
-      // Fresh abort controller per request — Stop button below the
-      // chat input flips this to recover from a wedged stream.
-      agentAbortRef.current = new AbortController()
-      const response = await fetch('/api/builder/agent', {
-        method: 'POST',
-        signal: agentAbortRef.current.signal,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: agentPrompt,
-          files: agentFiles,
-          history: agentHistory,
-          model: selectedModel.id,
-          apiKey: selectedModel.provider !== 'auto' ? apiKeys[selectedModel.provider] || undefined : undefined,
-          target: buildTarget,
-          // Tell the agent how chatty to be — Developer Mode users want to
-          // see Claude's reasoning, Creators want terse tool-only output.
-          skillLevel,
-          // Pass projectId so the agent can use cms_* tools to read/write
-          // content collections on this project. Persists file changes to
-          // Mongo via the onWrite/onDelete hooks too. Skip if no saved project.
-          projectId: currentProject?.id,
-          // If the user has a local bridge connected AND hasn't
-          // explicitly toggled off (the path chip near the chat
-          // input), route through their Claude Code subscription
-          // instead of the server's Anthropic key. /api/builder/agent
-          // 503s with a clear message if the bridge dropped between
-          // our status poll and now — no silent fallback to API
-          // billing.
-          useBridge: bridgeActive || undefined,
+      // ── Resilient agent turn ────────────────────────────────────────────
+      // Runs one /api/builder/agent SSE turn. When the local bridge is asked
+      // for (viaBridge) but drops (route 503s) or wedges (route emits an
+      // error event after its 180s bridge-timeout), this returns
+      // 'bridge-failed' so the caller can transparently re-run the same turn
+      // on the server's Anthropic key — the user never hits a dead end.
+      const BRIDGE_FAILOVER_NOTICE =
+        '⚠️ Local bridge did not respond within 180s. Check that webstew-bridge connect … is running in your terminal.'
+      let committedHtml: string | null = null
+      let placeholderAdded = false
+
+      const streamAgentTurn = async (
+        viaBridge: boolean,
+      ): Promise<'ok' | 'credit' | 'bridge-failed'> => {
+        // Fresh abort controller per attempt — Stop button below the
+        // chat input flips this to recover from a wedged stream.
+        agentAbortRef.current = new AbortController()
+        const response = await fetch('/api/builder/agent', {
+          method: 'POST',
+          signal: agentAbortRef.current.signal,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: agentPrompt,
+            files: agentFiles,
+            history: agentHistory,
+            model: selectedModel.id,
+            apiKey: selectedModel.provider !== 'auto' ? apiKeys[selectedModel.provider] || undefined : undefined,
+            target: buildTarget,
+            // Tell the agent how chatty to be — Developer Mode users want to
+            // see Claude's reasoning, Creators want terse tool-only output.
+            skillLevel,
+            // Pass projectId so the agent can use cms_* tools to read/write
+            // content collections on this project. Persists file changes to
+            // Mongo via the onWrite/onDelete hooks too. Skip if no saved project.
+            projectId: currentProject?.id,
+            // Route through the user's Claude Code subscription only on the
+            // bridge attempt; the failover attempt always runs server-side.
+            useBridge: viaBridge || undefined,
+          })
         })
-      })
 
-      if (response.status === 402 || response.status === 429) {
-        const errBody = await response.json().catch(() => ({} as any))
-        const isPlanLimit = response.status === 429
-        setCreditWall({
-          show: true,
-          title: isPlanLimit ? 'Out of credits this month' : 'Out of free chat refinements',
-          message: errBody.error || errBody.message ||
-            (isPlanLimit
-              ? `You're on the ${errBody.plan || 'free'} plan and used all your monthly credits. Upgrade or buy credits to keep iterating.`
-              : `You've used your ${errBody.limit || 3} free chat refinements on this browser.`),
-          limit: errBody.limit || (isPlanLimit ? 100 : 3),
-          isPlanLimit,
-          plan: errBody.plan,
-        })
-        setIsThinking(false)
-        return
-      }
-      if (!response.ok || !response.body) throw new Error('Agent stream failed')
+        // Bridge dropped between our status poll and this request — the
+        // route 503s rather than silently billing API credits. Signal a
+        // failover instead of surfacing a dead end to the user.
+        if (viaBridge && response.status === 503) return 'bridge-failed'
 
-      // ── SSE stream consumer ──────────────────────────────────────────────
-      // The agent route emits: text, tool_use, tool_result, file_update,
-      // file_delete, done, error. We map file_update on index.html → setHtml.
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let sseBuffer = ''
-      let textBuf = ''
-      let toolStatus = ''
-      let latestHtml: string | null = null
-      let wroteAnyFile = false
+        if (response.status === 402 || response.status === 429) {
+          const errBody = await response.json().catch(() => ({} as any))
+          const isPlanLimit = response.status === 429
+          setCreditWall({
+            show: true,
+            title: isPlanLimit ? 'Out of credits this month' : 'Out of free chat refinements',
+            message: errBody.error || errBody.message ||
+              (isPlanLimit
+                ? `You're on the ${errBody.plan || 'free'} plan and used all your monthly credits. Upgrade or buy credits to keep iterating.`
+                : `You've used your ${errBody.limit || 3} free chat refinements on this browser.`),
+            limit: errBody.limit || (isPlanLimit ? 100 : 3),
+            isPlanLimit,
+            plan: errBody.plan,
+          })
+          return 'credit'
+        }
+        if (!response.ok || !response.body) throw new Error('Agent stream failed')
 
-      // Insert a placeholder assistant message we'll mutate as events arrive.
-      // Tag with source so the chat bubble can show a bridge/api chip.
-      setChatMessages(prev => [...prev, { role: 'assistant', content: '…', source: bridgeActive ? 'bridge' as const : 'api' as const }])
-      const flushAssistant = (text: string) => {
-        setChatMessages(prev => {
-          const next = [...prev]
-          for (let i = next.length - 1; i >= 0; i--) {
-            if (next[i].role === 'assistant') {
-              next[i] = { ...next[i], content: text }
-              break
-            }
-          }
-          return next
-        })
-      }
-      const renderProgress = () => {
-        const body = textBuf.trim()
-        const status = toolStatus ? `_${toolStatus}_` : ''
-        return [body, status].filter(Boolean).join('\n\n') || '…'
-      }
+        // ── SSE stream consumer ──────────────────────────────────────────────
+        // The agent route emits: text, tool_use, tool_result, file_update,
+        // file_delete, done, error. We map file_update on index.html → setHtml.
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let sseBuffer = ''
+        let textBuf = ''
+        let toolStatus = ''
+        let latestHtml: string | null = null
+        let wroteAnyFile = false
 
-      let streamDone = false
-      while (!streamDone) {
-        const { value, done: rd } = await reader.read()
-        if (rd) break
-        sseBuffer += decoder.decode(value, { stream: true })
-        const blocks = sseBuffer.split('\n\n')
-        sseBuffer = blocks.pop() || ''
-        for (const block of blocks) {
-          if (!block.trim()) continue
-          let evtName = 'message'
-          let dataStr = ''
-          for (const line of block.split('\n')) {
-            if (line.startsWith('event: ')) evtName = line.slice(7).trim()
-            else if (line.startsWith('data: ')) dataStr += line.slice(6)
-          }
-          if (!dataStr) continue
-          let payload: any
-          try { payload = JSON.parse(dataStr) } catch { continue }
-
-          if (evtName === 'text') {
-            textBuf += payload.text || ''
-            flushAssistant(renderProgress())
-          } else if (evtName === 'tool_use') {
-            const n = payload.name
-            const p = payload.input?.path
-            if (n === 'list_files') toolStatus = 'Listing files…'
-            else if (n === 'read_file') toolStatus = p ? `Reading ${p}…` : 'Reading file…'
-            else if (n === 'write_file') toolStatus = p ? `Editing ${p}…` : 'Editing file…'
-            else if (n === 'delete_file') toolStatus = p ? `Deleting ${p}…` : 'Deleting file…'
-            else if (n === 'done') toolStatus = ''
-            else toolStatus = `Running ${n}…`
-            flushAssistant(renderProgress())
-          } else if (evtName === 'file_update') {
-            if (typeof payload.contents === 'string' && typeof payload.path === 'string') {
-              if (buildTarget === 'website' && payload.path === 'index.html') {
-                latestHtml = payload.contents
-              } else if (buildTarget !== 'website') {
-                // Multi-file VFS update — apply immediately so the WebContainer
-                // preview HMR / file watcher picks up the change.
-                setVfsFiles(prev => ({ ...prev, [payload.path]: payload.contents }))
+        // Insert a placeholder assistant message we'll mutate as events
+        // arrive — but only once. On a bridge→API failover we reuse the
+        // bridge attempt's bubble (and re-tag its source) so the user sees
+        // one continuous reply rather than a stray empty bubble.
+        if (placeholderAdded) {
+          setChatMessages(prev => {
+            const next = [...prev]
+            for (let i = next.length - 1; i >= 0; i--) {
+              if (next[i].role === 'assistant') {
+                next[i] = { ...next[i], content: '…', source: viaBridge ? 'bridge' as const : 'api' as const }
+                break
               }
-              wroteAnyFile = true
             }
-          } else if (evtName === 'file_delete') {
-            if (buildTarget !== 'website' && typeof payload.path === 'string') {
-              setVfsFiles(prev => {
-                const next = { ...prev }
-                delete next[payload.path]
-                return next
-              })
-              wroteAnyFile = true
+            return next
+          })
+        } else {
+          setChatMessages(prev => [...prev, { role: 'assistant', content: '…', source: viaBridge ? 'bridge' as const : 'api' as const }])
+          placeholderAdded = true
+        }
+        const flushAssistant = (text: string) => {
+          setChatMessages(prev => {
+            const next = [...prev]
+            for (let i = next.length - 1; i >= 0; i--) {
+              if (next[i].role === 'assistant') {
+                next[i] = { ...next[i], content: text }
+                break
+              }
             }
-          } else if (evtName === 'workspace.switch_target') {
-            // User already approved via permission modal. Clear the old
-            // project state exactly as the manual target-switch button does,
-            // then flip the target so the preview starts fresh.
-            const t = String(payload?.target || '')
-            const validTargets = ['website', 'nextjs', 'react', 'astro', 'expo']
-            if (validTargets.includes(t)) {
-              setHtml('')
-              setVfsFiles({})
-              setVfsProjectMeta(null)
-              setPages([{ id: 'home', name: 'Home', slug: 'index', html: '', isHome: true }])
-              setActivePageId('home')
-              setPreviewBumpKey(k => k + 1)
-              setBuildTarget(t as BuildTarget)
-              addToast('info', `Switched to ${t} — ready to build.`)
+            return next
+          })
+        }
+        const renderProgress = () => {
+          const body = textBuf.trim()
+          const status = toolStatus ? `_${toolStatus}_` : ''
+          return [body, status].filter(Boolean).join('\n\n') || '…'
+        }
+
+        let streamDone = false
+        let bridgeFailed = false
+        while (!streamDone) {
+          const { value, done: rd } = await reader.read()
+          if (rd) break
+          sseBuffer += decoder.decode(value, { stream: true })
+          const blocks = sseBuffer.split('\n\n')
+          sseBuffer = blocks.pop() || ''
+          for (const block of blocks) {
+            if (!block.trim()) continue
+            let evtName = 'message'
+            let dataStr = ''
+            for (const line of block.split('\n')) {
+              if (line.startsWith('event: ')) evtName = line.slice(7).trim()
+              else if (line.startsWith('data: ')) dataStr += line.slice(6)
             }
-          } else if (evtName === 'workspace.open_panel') {
-            // User already approved — open the panel.
-            const p = String(payload?.panel || '')
-            if (p) {
-              setActivePanel(p as Panel)
-              if (sidebarCollapsed) setSidebarCollapsed(false)
-              addToast('info', `Opened ${p}.`)
+            if (!dataStr) continue
+            let payload: any
+            try { payload = JSON.parse(dataStr) } catch { continue }
+
+            if (evtName === 'text') {
+              textBuf += payload.text || ''
+              flushAssistant(renderProgress())
+            } else if (evtName === 'tool_use') {
+              const n = payload.name
+              const p = payload.input?.path
+              if (n === 'list_files') toolStatus = 'Listing files…'
+              else if (n === 'read_file') toolStatus = p ? `Reading ${p}…` : 'Reading file…'
+              else if (n === 'write_file') toolStatus = p ? `Editing ${p}…` : 'Editing file…'
+              else if (n === 'delete_file') toolStatus = p ? `Deleting ${p}…` : 'Deleting file…'
+              else if (n === 'done') toolStatus = ''
+              else toolStatus = `Running ${n}…`
+              flushAssistant(renderProgress())
+            } else if (evtName === 'file_update') {
+              if (typeof payload.contents === 'string' && typeof payload.path === 'string') {
+                if (buildTarget === 'website' && payload.path === 'index.html') {
+                  latestHtml = payload.contents
+                } else if (buildTarget !== 'website') {
+                  // Multi-file VFS update — apply immediately so the WebContainer
+                  // preview HMR / file watcher picks up the change.
+                  setVfsFiles(prev => ({ ...prev, [payload.path]: payload.contents }))
+                }
+                wroteAnyFile = true
+              }
+            } else if (evtName === 'file_delete') {
+              if (buildTarget !== 'website' && typeof payload.path === 'string') {
+                setVfsFiles(prev => {
+                  const next = { ...prev }
+                  delete next[payload.path]
+                  return next
+                })
+                wroteAnyFile = true
+              }
+            } else if (evtName === 'workspace.switch_target') {
+              // User already approved via permission modal. Clear the old
+              // project state exactly as the manual target-switch button does,
+              // then flip the target so the preview starts fresh.
+              const t = String(payload?.target || '')
+              const validTargets = ['website', 'nextjs', 'react', 'astro', 'expo']
+              if (validTargets.includes(t)) {
+                setHtml('')
+                setVfsFiles({})
+                setVfsProjectMeta(null)
+                setPages([{ id: 'home', name: 'Home', slug: 'index', html: '', isHome: true }])
+                setActivePageId('home')
+                setPreviewBumpKey(k => k + 1)
+                setBuildTarget(t as BuildTarget)
+                addToast('info', `Switched to ${t} — ready to build.`)
+              }
+            } else if (evtName === 'workspace.open_panel') {
+              // User already approved — open the panel.
+              const p = String(payload?.panel || '')
+              if (p) {
+                setActivePanel(p as Panel)
+                if (sidebarCollapsed) setSidebarCollapsed(false)
+                addToast('info', `Opened ${p}.`)
+              }
+            } else if (evtName === 'permission_request') {
+              if (payload?.permissionId && payload?.title) {
+                const desc = String(payload.description || '')
+                setChatMessages(prev => [...prev, {
+                  role: 'assistant' as const,
+                  content: `**${String(payload.title)}**${desc ? '\n' + desc : ''}`,
+                  permission: {
+                    permissionId: String(payload.permissionId),
+                    action: String(payload.action || ''),
+                    approveLabel: String(payload.approveLabel || 'Approve'),
+                    denyLabel: String(payload.denyLabel || 'Deny'),
+                  },
+                }])
+              }
+            } else if (evtName === 'done') {
+              streamDone = true
+              toolStatus = ''
+              const summary = payload.summary || 'Done.'
+              const final = [textBuf.trim(), wroteAnyFile ? `✅ ${summary}` : summary]
+                .filter(Boolean).join('\n\n')
+              flushAssistant(final || summary)
+            } else if (evtName === 'error') {
+              streamDone = true
+              toolStatus = ''
+              // A bridge wedge surfaces here — the route emits an error
+              // event after its own 180s bridge-timeout. On the bridge
+              // attempt, treat any bridge-tagged failure as a failover
+              // trigger rather than flushing a dead-end message.
+              const errMsg = String(payload.message || '')
+              if (viaBridge && /bridge/i.test(errMsg)) {
+                bridgeFailed = true
+              } else {
+                flushAssistant(`⚠️ ${errMsg || 'Agent failed.'}`)
+              }
             }
-          } else if (evtName === 'permission_request') {
-            if (payload?.permissionId && payload?.title) {
-              const desc = String(payload.description || '')
-              setChatMessages(prev => [...prev, {
-                role: 'assistant' as const,
-                content: `**${String(payload.title)}**${desc ? '\n' + desc : ''}`,
-                permission: {
-                  permissionId: String(payload.permissionId),
-                  action: String(payload.action || ''),
-                  approveLabel: String(payload.approveLabel || 'Approve'),
-                  denyLabel: String(payload.denyLabel || 'Deny'),
-                },
-              }])
-            }
-          } else if (evtName === 'done') {
-            streamDone = true
-            toolStatus = ''
-            const summary = payload.summary || 'Done.'
-            const final = [textBuf.trim(), wroteAnyFile ? `✅ ${summary}` : summary]
-              .filter(Boolean).join('\n\n')
-            flushAssistant(final || summary)
-          } else if (evtName === 'error') {
-            streamDone = true
-            toolStatus = ''
-            flushAssistant(`⚠️ ${payload.message || 'Agent failed.'}`)
           }
         }
+        if (bridgeFailed) return 'bridge-failed'
+
+        // Hand the final HTML up to the caller — committed once after the
+        // turn settles to avoid thrashing the preview iframe mid-stream.
+        if (latestHtml) committedHtml = latestHtml
+        return 'ok'
       }
 
+      let outcome = await streamAgentTurn(bridgeActive)
+      if (outcome === 'bridge-failed') {
+        addToast('warning', BRIDGE_FAILOVER_NOTICE, 12000)
+        outcome = await streamAgentTurn(false)
+      }
+      if (outcome === 'credit') return
+
       // Commit HTML once at the end (avoids thrashing the preview iframe mid-stream)
-      if (latestHtml && latestHtml !== html) {
-        setHtml(latestHtml)
-        addToHistory(latestHtml, 'AI Edit: ' + message.slice(0, 60))
+      if (committedHtml && committedHtml !== html) {
+        setHtml(committedHtml)
+        addToHistory(committedHtml, 'AI Edit: ' + message.slice(0, 60))
         addToast('success', 'Dish is up. 🍽️')
       }
       setConversationIntent(null)
@@ -6972,8 +7244,9 @@ npx eas build --platform all
                     isDark ? "scrollbar-thumb-zinc-700" : "scrollbar-thumb-slate-300"
                   )}
                 >
-                  {/* Chat Messages */}
-                  {chatMessages.map((msg, i) => (
+                  {/* Chat Messages — hidden while the Stew Planner is
+                      interviewing; the planner owns the conversation then. */}
+                  {!plannerActive && chatMessages.map((msg, i) => (
                     <motion.div
                       key={i}
                       initial={{ opacity: 0, y: 10 }}
@@ -7178,8 +7451,25 @@ npx eas build --platform all
                     </motion.div>
                   )}
 
+                  {/* Stew Planner — the clarifying agent's conversation,
+                      shown in place of the quick-start grid while active. */}
+                  {plannerActive && (
+                    <StewPlannerChat
+                      messages={plannerMessages}
+                      plan={plannerPlan}
+                      isThinking={plannerThinking}
+                      suggestedReplies={plannerSuggestions}
+                      isDark={isDark}
+                      onSubmit={({ text }) => {
+                        setCommandInput('')
+                        void handlePlannerTurn(text, plannerMessages, plannerPlan)
+                      }}
+                      onSkip={handlePlannerSkip}
+                    />
+                  )}
+
                   {/* Quick Start Templates - Only show initially */}
-                  {(chatMessages.length === 1 || !html) && !isGenerating && (
+                  {!plannerActive && (chatMessages.length === 1 || !html) && !isGenerating && (
                     <div className="pt-4 space-y-4">
                       <div>
                         <p className={cn("text-[10px] uppercase tracking-wider mb-2", isDark ? "text-zinc-500" : "text-slate-500")}>Quick Start</p>
@@ -8968,7 +9258,7 @@ npx eas build --platform all
         {/* Docked Chat Input - Always Visible */}
         {!sidebarCollapsed && (
           <div className={cn(
-            "p-3 border-t",
+            "px-3 py-3.5 border-t",
             isDark ? "border-white/[0.08] bg-zinc-900/50" : "border-slate-200 bg-slate-50"
           )}>
             <div className="flex items-center gap-2">
@@ -9077,23 +9367,23 @@ npx eas build --platform all
               )}
             </div>
             {/* Model selector */}
-            <div className="flex items-center justify-between mt-2 relative">
+            <div className="flex items-center justify-between gap-2 mt-3 relative">
               <button
                 onClick={() => setShowChatModelSelector(!showChatModelSelector)}
                 className={cn(
-                  "flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all",
+                  "flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all min-w-0",
                   isDark ? "bg-white/5 hover:bg-white/10 text-zinc-400" : "bg-slate-200 hover:bg-slate-300 text-slate-600"
                 )}
               >
-                {selectedModel.provider === 'auto' ? <Sparkles className="w-3 h-3 text-violet-400" /> :
-                 selectedModel.provider === 'anthropic' ? <Brain className="w-3 h-3" /> :
-                 selectedModel.provider === 'openai' ? <Bot className="w-3 h-3" /> :
-                 selectedModel.provider === 'xai' ? <span className="text-[10px] font-bold leading-none">𝕏</span> :
-                 selectedModel.provider === 'huggingface' ? <Sparkles className="w-3 h-3" /> :
-                 <Sparkles className="w-3 h-3" />}
-                <span>{selectedModel.name}</span>
-                {selectedModel.free && <span className="text-emerald-400 text-[9px]">FREE</span>}
-                <ChevronDown className={cn("w-3 h-3 transition-transform", showChatModelSelector && "rotate-180")} />
+                {selectedModel.provider === 'auto' ? <Sparkles className="w-3 h-3 text-violet-400 shrink-0" /> :
+                 selectedModel.provider === 'anthropic' ? <Brain className="w-3 h-3 shrink-0" /> :
+                 selectedModel.provider === 'openai' ? <Bot className="w-3 h-3 shrink-0" /> :
+                 selectedModel.provider === 'xai' ? <span className="text-[10px] font-bold leading-none shrink-0">𝕏</span> :
+                 selectedModel.provider === 'huggingface' ? <Sparkles className="w-3 h-3 shrink-0" /> :
+                 <Sparkles className="w-3 h-3 shrink-0" />}
+                <span className="truncate">{selectedModel.name}</span>
+                {selectedModel.free && <span className="text-emerald-400 text-[9px] shrink-0">FREE</span>}
+                <ChevronDown className={cn("w-3 h-3 transition-transform shrink-0", showChatModelSelector && "rotate-180")} />
               </button>
 
               {/* Model Dropdown */}
@@ -9196,7 +9486,7 @@ npx eas build --platform all
                 )}
               </AnimatePresence>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 {/* Bridge path chip — shows only when bridge is paired
                     AND online. Click toggles between routing through
                     the local bridge (subscription quota) and the
@@ -9211,7 +9501,7 @@ npx eas build --platform all
                         : 'Webstew kitchen is cooking — credits charged. Click to send to your own chef.'
                     }
                     className={cn(
-                      'flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all',
+                      'flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all whitespace-nowrap shrink-0',
                       bridgePathEnabled
                         ? 'bg-gradient-to-br from-orange-500/20 to-amber-500/15 border border-orange-500/40 text-orange-700 dark:text-orange-300 hover:from-orange-500/30 hover:to-amber-500/25'
                         : isDark
@@ -9227,7 +9517,7 @@ npx eas build --platform all
                   <button
                     onClick={() => !bridgeActive && setUpgradeModal({ open: true, trigger: userCredits < 20 ? 'low_credits' : 'manual' })}
                     className={cn(
-                      'flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all',
+                      'flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all whitespace-nowrap shrink-0',
                       bridgeActive ? 'bg-white/[0.03] text-zinc-500 opacity-60 cursor-default' :
                       userCredits < 10 ? 'bg-red-500/10 text-red-700 dark:text-red-400 hover:bg-red-500/20' :
                       userCredits < 50 ? 'bg-amber-500/15 text-amber-800 dark:bg-amber-500/10 dark:text-amber-400 hover:bg-amber-500/25 dark:hover:bg-amber-500/20' :
@@ -9252,7 +9542,7 @@ npx eas build --platform all
 
         {/* Status Bar */}
         {!sidebarCollapsed && (
-          <div className="h-7 border-t border-white/[0.08] flex items-center justify-between px-3 text-[10px] text-zinc-600 bg-black/20">
+          <div className="h-8 border-t border-white/[0.08] flex items-center justify-between px-3 text-[10px] text-zinc-600 bg-black/20">
             <div className="flex items-center gap-2">
               <div className={cn(
                 'w-1.5 h-1.5 rounded-full',
@@ -9455,16 +9745,24 @@ npx eas build --platform all
                   const h1Match = html.match(/<h1[^>]*>([^<]*)<\/h1>/i)
                   const siteName = (titleMatch?.[1] || h1Match?.[1] || 'this website')
                     .replace(/\s*[-|–]\s*.*/g, '').trim().slice(0, 60)
-                  const conversionPrompt = `Convert "${siteName}" to a React Native mobile app. Keep the same branding, color scheme, content structure, and key features. Generate a complete, working Expo app with the main screens from the website.`
-                  setHtml('')
+                  const conversionPrompt = `Convert "${siteName}" to a React Native mobile app. Keep the same branding, colour scheme, content, and key features. Generate a complete, working Expo app with the main screens from the website.`
+                  // Snapshot the site and hand it to the generator as sourceHtml
+                  // so it rebuilds the REAL website, not a generic app from a
+                  // thin prompt. Keep `html` in state (don't wipe it) so a
+                  // failed conversion can roll straight back to the website.
+                  const sourceHtml = html
                   setVfsFiles({})
                   setVfsProjectMeta(null)
-                  setPages([{ id: 'home', name: 'Home', slug: 'index', html: '', isHome: true }])
-                  setActivePageId('home')
                   setPreviewBumpKey(k => k + 1)
                   setBuildTarget('expo')
                   setChatMessages(prev => [...prev, { role: 'user', content: conversionPrompt }])
-                  await handleGenerateMultiTarget('expo', conversionPrompt)
+                  const ok = await handleGenerateMultiTarget('expo', conversionPrompt, { sourceHtml })
+                  if (!ok) {
+                    // Conversion failed — restore the website so no work is lost.
+                    setBuildTarget('website')
+                    setPreviewBumpKey(k => k + 1)
+                    addToast('error', 'Conversion failed — your website is still here. Try again.')
+                  }
                 }}
                 disabled={isGenerating || isThinking}
                 title="Convert this website to a React Native mobile app"
@@ -12431,52 +12729,60 @@ npx eas build --platform all
         )}
       </AnimatePresence>
 
-      {/* One-time notification opt-in. Shown the first time the user starts
-          a generation, only if Notification permission is still 'default'.
-          Backed by lib/notifications.ts which records the ask in localStorage. */}
+      {/* "Get notified" slide-in. Auto-slides in from the left edge a beat
+          after a build starts, as a compact tag/CTA rather than a blocking
+          card — the build is the main event, this is a quiet offer beside
+          it. Only while Notification permission is still 'default'.
+          Future: route the same opt-in to email / SMS / Aria phone-call. */}
       <AnimatePresence>
         {notifPromptShown && (
           <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 12 }}
-            className="fixed bottom-4 left-4 z-[300] max-w-sm bg-zinc-900 border border-emerald-500/40 rounded-xl shadow-2xl shadow-emerald-500/20 p-4 flex flex-col gap-3"
+            initial={{ opacity: 0, x: -140 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -140 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+            className="fixed bottom-4 left-4 z-[300] flex items-center gap-2 bg-zinc-900 border border-emerald-500/40 rounded-full shadow-xl shadow-emerald-500/20 pl-3 pr-1.5 py-1.5"
           >
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0">
-                <Sparkles className="w-4 h-4 text-emerald-300" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-white mb-0.5">Get notified when it's ready?</div>
-                <div className="text-xs text-zinc-400 leading-relaxed">
-                  Builds keep cooking in the background. We'll ping you when yours is done so you can go do other things.
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={async () => {
-                  await requestNotificationPermission()
-                  setNotifPromptShown(false)
-                }}
-                className="flex-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition"
-              >
-                Enable notifications
-              </button>
-              <button
-                onClick={() => {
-                  // Mark asked so we don't nag this user again on this device.
-                  try { localStorage.setItem('webstew-notif-asked', '1') } catch {}
-                  setNotifPromptShown(false)
-                }}
-                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white text-xs font-medium transition"
-              >
-                Not now
-              </button>
-            </div>
+            <Bell className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+            <span className="text-xs text-zinc-300 whitespace-nowrap">
+              Ping me when it&apos;s ready
+            </span>
+            <button
+              onClick={async () => {
+                await requestNotificationPermission()
+                setNotifPromptShown(false)
+              }}
+              className="px-2.5 py-1 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold transition whitespace-nowrap"
+            >
+              Get notified
+            </button>
+            <button
+              onClick={() => {
+                // Mark asked so we don't nag this user again on this device.
+                try { localStorage.setItem('webstew-notif-asked', '1') } catch {}
+                setNotifPromptShown(false)
+              }}
+              title="Not now"
+              className="w-6 h-6 rounded-full flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/10 transition shrink-0"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Stew Planner — plan-review modal. Shown once the clarifying agent
+          has enough; "Go" hands the assembled prompt to the real builders. */}
+      {planModalData && (
+        <StewPlannerModal
+          open={showPlanModal}
+          plan={planModalData.plan}
+          assembledPrompt={planModalData.prompt}
+          isDark={isDark}
+          onGo={handlePlannerGo}
+          onClose={() => { setShowPlanModal(false); setPlannerActive(false); setPlanModalData(null) }}
+        />
+      )}
 
       {/* Inline edit modal — replaces window.prompt() for right-click text/link edits */}
       <AnimatePresence>
