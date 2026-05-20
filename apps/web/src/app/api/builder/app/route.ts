@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import Anthropic from '@anthropic-ai/sdk'
-import { generateJson, requireFiles, GenerateJsonError, streamJsonWithHeartbeats } from '@/lib/llm-json'
+import { generateJsonStreaming, requireFiles, GenerateJsonError, streamJsonWithHeartbeats } from '@/lib/llm-json'
 import { augmentPromptWithReference } from '@/lib/site-reference'
 import { gateBuilderRequest, trackBuilderUsage } from '@/lib/builder-gate'
 
@@ -228,7 +228,7 @@ export async function POST(req: NextRequest) {
     let rawText: string
     let attempts: number
     try {
-      const r = await generateJson({
+      const r = await generateJsonStreaming({
         client,
         model,
         systemPrompt: APP_SYSTEM_PROMPT,

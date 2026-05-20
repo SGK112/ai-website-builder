@@ -159,6 +159,99 @@ export async function generateJson<T = any>(
   )
 }
 
+// Streaming variant of generateJson.
+//
+// Two reasons to prefer it for large projects (a full Expo app — and
+// especially a website→app conversion):
+//   1. messages.stream() sidesteps the SDK's hard refusal of a
+//      non-streaming request whose max_tokens is high enough to risk a
+//      >10-minute response.
+//   2. When the model hits the token cap mid-JSON it CONTINUES from the
+//      partial output (prefilling the assistant turn) rather than failing.
+//      A blocking generateJson() just truncates and throws — the
+//      conversion of a real multi-screen site needs more than one pass.
+export async function generateJsonStreaming<T = any>(
+  opts: GenerateJsonOptions & { maxContinuations?: number },
+): Promise<GenerateJsonResult<T>> {
+  const validate = opts.validate ?? defaultValidate
+  const maxTokens = opts.maxTokens ?? 16000
+  const maxContinuations = opts.maxContinuations ?? 3
+
+  const runStream = async (
+    messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+  ): Promise<{ text: string; stopReason: string }> => {
+    const stream = opts.client.messages.stream({
+      model: opts.model,
+      max_tokens: maxTokens,
+      system: opts.systemPrompt,
+      messages,
+    })
+    const final = await stream.finalMessage()
+    const block = final.content.find((b) => b.type === 'text')
+    return {
+      text: block && block.type === 'text' ? block.text : '',
+      stopReason: final.stop_reason || 'end_turn',
+    }
+  }
+
+  // Pass 1 + continuation passes while the model keeps hitting the cap.
+  let { text: full, stopReason } = await runStream([
+    { role: 'user', content: opts.userMessage },
+  ])
+  let continuations = 0
+  while (stopReason === 'max_tokens' && continuations < maxContinuations) {
+    continuations++
+    const next = await runStream([
+      { role: 'user', content: opts.userMessage },
+      { role: 'assistant', content: full },
+      {
+        role: 'user',
+        content:
+          'Continue the JSON from exactly where you left off. Output only ' +
+          'the remaining characters — no repetition, no markdown fence, no commentary.',
+      },
+    ])
+    full += next.text
+    stopReason = next.stopReason
+  }
+
+  let parsed = safeJsonParse(full)
+  let validationError = parsed ? validate(parsed) : 'Could not parse response as JSON.'
+  if (!validationError && parsed) {
+    return { parsed: parsed as T, rawText: full, attempts: 1 + continuations }
+  }
+
+  // One corrective retry — feed the parse/validation error back.
+  const retry = await runStream([
+    { role: 'user', content: opts.userMessage },
+    { role: 'assistant', content: full },
+    {
+      role: 'user',
+      content: [
+        `Your previous response could not be processed: ${validationError}`,
+        '',
+        'Reply with ONLY the JSON object — no markdown fences, no prose, no commentary.',
+        'It must start with { and end with } and parse as strict JSON (no trailing commas, no comments, no single quotes).',
+        'All required fields from the schema must be present.',
+      ].join('\n'),
+    },
+  ])
+  parsed = safeJsonParse(retry.text)
+  validationError = parsed ? validate(parsed) : 'Could not parse response as JSON.'
+  if (!validationError && parsed) {
+    return { parsed: parsed as T, rawText: retry.text, attempts: 2 + continuations }
+  }
+
+  const hitTokenCap = stopReason === 'max_tokens' || retry.stopReason === 'max_tokens'
+  throw new GenerateJsonError(
+    hitTokenCap
+      ? 'The project was too large to generate even after continuation passes — try an app with fewer screens, or start from an app template.'
+      : "The generated project couldn't be read as valid JSON. Try rephrasing, or start from an app template.",
+    502,
+    validationError || 'parse failed',
+  )
+}
+
 // Validation helpers callers can compose into custom validate fns.
 export function requireFiles(parsed: any, paths: string[]): string | null {
   if (!parsed?.files || typeof parsed.files !== 'object') return 'Missing "files" object.'
