@@ -2705,10 +2705,6 @@ Rules:
 
       const encoder = new TextEncoder()
       let fullHtml = ''
-      // Track the cleaned+marker-replaced HTML we've already pushed to the
-      // client so we can stream deltas instead of cumulative full HTML.
-      // This cuts streamed bytes by ~100x for long generations.
-      let lastEmittedHtml = ''
 
       const readable = new ReadableStream({
         async start(controller) {
@@ -2749,36 +2745,16 @@ Rules:
 
             pass.on('text', (text) => {
               fullHtml += text
-              let streamHtml = fullHtml.trim()
-
-              // Remove markdown wrapper if present
-              if (streamHtml.startsWith('```html')) {
-                streamHtml = streamHtml.slice(7).trim()
-              } else if (streamHtml.startsWith('```')) {
-                streamHtml = streamHtml.slice(3).trim()
-              }
-
-              // Replace image markers
-              if (imageMarkers.size > 0) {
-                imageMarkers.forEach((imageData, marker) => {
-                  streamHtml = streamHtml.replace(new RegExp(escapeRegExp(marker), 'g'), imageData)
-                })
-              }
-
-              if (streamHtml === lastEmittedHtml) return
-
-              if (streamHtml.startsWith(lastEmittedHtml)) {
-                // Pure append (the common case) — emit only the new tail.
-                const delta = streamHtml.slice(lastEmittedHtml.length)
-                lastEmittedHtml = streamHtml
-                safeEnqueue(encoder.encode(`data: ${JSON.stringify({ delta, streaming: true })}\n\n`))
-              } else {
-                // Non-append change — typically an image-marker substitution
-                // shifted earlier content. Send the full canonical HTML so the
-                // client resyncs cleanly.
-                lastEmittedHtml = streamHtml
-                safeEnqueue(encoder.encode(`data: ${JSON.stringify({ html: streamHtml, replace: true, streaming: true })}\n\n`))
-              }
+              // Emit the raw token as a pure-append delta — O(1) per token.
+              // The previous handler rebuilt the cleaned, marker-substituted
+              // HTML on EVERY token (trim + a regex over the whole growing
+              // document per image marker), i.e. O(tokens x docSize) —
+              // quadratic. On a full-page build that pegged the Node event
+              // loop hard enough to stall the Anthropic socket until it
+              // dropped ("terminated"), leaving only the header streamed.
+              // Markdown fences + image markers are cleaned once in the final
+              // pass below; the `complete` event ships the canonical HTML.
+              safeEnqueue(encoder.encode(`data: ${JSON.stringify({ delta: text, streaming: true })}\n\n`))
             })
 
             const finalMsg = await pass.finalMessage()
@@ -3021,26 +2997,11 @@ Rules:
             const content = chunk.choices[0]?.delta?.content || ''
             if (content) {
               fullHtml += content
-
-              // During streaming, send HTML with placeholders (may be incomplete)
-              let streamHtml = fullHtml.trim()
-
-              // Remove markdown wrapper if present at start
-              if (streamHtml.startsWith('```html')) {
-                streamHtml = streamHtml.slice(7).trim()
-              } else if (streamHtml.startsWith('```')) {
-                streamHtml = streamHtml.slice(3).trim()
-              }
-
-              // During streaming, replace any complete image markers with actual data
-              // This provides live preview of images as they're generated
-              if (imageMarkers.size > 0) {
-                imageMarkers.forEach((imageData, marker) => {
-                  streamHtml = streamHtml.replace(new RegExp(escapeRegExp(marker), 'g'), imageData)
-                })
-              }
-
-              safeEnqueue(encoder.encode(`data: ${JSON.stringify({ html: streamHtml, streaming: true })}\n\n`))
+              // O(1) per token — emit the raw delta. Rebuilding the cleaned,
+              // marker-substituted HTML on every token is quadratic and
+              // stalls the stream (see the Claude branch above). Markdown
+              // fences + markers are cleaned once in the final pass below.
+              safeEnqueue(encoder.encode(`data: ${JSON.stringify({ delta: content, streaming: true })}\n\n`))
             }
           }
 
