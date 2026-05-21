@@ -3476,7 +3476,7 @@ function WorkspaceContent() {
     setIsDeploying(true)
     setDeployStatus('github')
     setDeployError(null)
-    addTerminalLine('info', '🚀 Starting GitHub deployment...')
+    addTerminalLine('info', '🚀 Starting GitHub deployment…')
 
     try {
       const repoName = projectName
@@ -3532,10 +3532,10 @@ function WorkspaceContent() {
 
     setIsDeploying(true)
     setDeployStatus('github')
-    addTerminalLine('info', '🚀 Starting full deployment...')
+    addTerminalLine('info', '🚀 Starting full deployment…')
 
     try {
-      addTerminalLine('info', '📦 Creating GitHub repository...')
+      addTerminalLine('info', '📦 Creating GitHub repository…')
       setDeployStatus('github')
 
       // Build the file list — every non-empty page becomes its own .html file.
@@ -3620,7 +3620,7 @@ ${body}
         throw new Error(data.error || 'Deployment failed')
       }
 
-      addTerminalLine('info', '🌐 Deploying to Render...')
+      addTerminalLine('info', '🌐 Deploying to Render…')
       setDeployStatus('render')
 
       // Wait a moment for Render to process
@@ -3728,7 +3728,7 @@ ${html}
   // Load template from Supabase
   const loadSupabaseTemplate = async (templateId: string, templateName: string) => {
     try {
-      addTerminalLine('info', `Loading template: ${templateName}...`)
+      addTerminalLine('info', `Loading template: ${templateName}…`)
       const res = await fetch(`/api/templates?id=${templateId}`)
       if (!res.ok) {
         addTerminalLine('error', `Template fetch failed (${res.status})`)
@@ -6189,7 +6189,7 @@ npx eas build --platform all
     ))
 
     addConsoleLog('info', `Processing: ${operation}`)
-    addTerminalLine('info', `Starting ${operation} on image...`)
+    addTerminalLine('info', `Starting ${operation} on image…`)
 
     try {
       const image = imageEdits.find(img => img.id === imageId)
@@ -6200,7 +6200,7 @@ npx eas build --platform all
 
       if (operation === 'to-video') {
         // Use our video generation API
-        addTerminalLine('info', 'Converting image to video (this may take 1-3 minutes)...')
+        addTerminalLine('info', 'Converting image to video — this may take 1-3 minutes…')
         response = await fetch('/api/ai/video', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -8197,7 +8197,7 @@ npx eas build --platform all
                       if (!imagePrompt.trim()) return
                       setImageGenerating(true)
                       setGeneratedImageUrl(null)
-                      addTerminalLine('info', 'Generating AI image...')
+                      addTerminalLine('info', 'Generating AI image…')
                       try {
                         const response = await fetch('/api/ai/image', {
                           method: 'POST',
