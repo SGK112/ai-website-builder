@@ -349,7 +349,16 @@ export function WebContainerPreview({
               </>
             ) : (
               <button
-                onClick={() => setBumpKey((k) => k + 1)}
+                onClick={() => {
+                  // Clear the error screen the instant it's clicked — the
+                  // boot effect re-runs off bumpKey and resets phase itself,
+                  // but a retry that fails again fast would otherwise look
+                  // like the button did nothing.
+                  setError(null)
+                  setLogs([])
+                  setPhase('booting')
+                  setBumpKey((k) => k + 1)
+                }}
                 className="mt-2 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium flex items-center gap-2"
               >
                 <Play className="w-3 h-3" /> Try again
