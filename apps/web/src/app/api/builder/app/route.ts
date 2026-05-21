@@ -109,6 +109,18 @@ carry them over, do not flatten them to a plain colour.
 - Match the source's gradient direction (a 135deg CSS gradient ≈ start
   {x:0,y:0} end {x:1,y:1}); solid section backgrounds come from theme colours.
 
+## KEEP IT FOCUSED — the whole app must fit one generation
+
+A converted website is a MOBILE APP, not a 1:1 copy of the site. Distil it.
+- 5 screens MAXIMUM. A long marketing site becomes a FEW scrollable
+  screens — group related sections onto one screen. Never one screen per
+  section.
+- Each screen file stays lean (~150 lines or less). Capture the essential
+  content and the key call-to-action, not every marketing block.
+- Reuse components (Card, Section, Button) — never repeat markup.
+- If the source is large, prefer fewer, well-built screens over many thin
+  ones. A truncated 12-screen app is worthless; a complete 5-screen app ships.
+
 ## SCREEN DESIGN
 
 - React Native StyleSheet.create — never inline literal style objects.
@@ -240,6 +252,10 @@ export async function POST(req: NextRequest) {
         model,
         systemPrompt: APP_SYSTEM_PROMPT,
         userMessage: userMsg,
+        // Streaming has no non-streaming SDK token ceiling — give a full
+        // Expo app real headroom so a converted site lands in one pass
+        // instead of degrading across continuation re-prompts.
+        maxTokens: 24000,
         validate: (p) => requireFiles(p, ['App.tsx']),
       })
       parsed = r.parsed
