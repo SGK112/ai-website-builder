@@ -3,6 +3,7 @@ import {
   rateLimit,
   getRateLimitHeaders,
   RateLimitError,
+  rateLimitConfigs,
   type RateLimitType,
 } from '@ai-website-builder/shared'
 
@@ -101,7 +102,9 @@ export function checkApiRateLimit(
   const result = rateLimit(identifier, type)
 
   if (!result.success) {
-    throw new RateLimitError(result)
+    // Pass the preset's own message so the 429 explains which limit was
+    // hit (e.g. "Too many listings…") instead of a generic line.
+    throw new RateLimitError(result, rateLimitConfigs[type].message)
   }
 
   return {

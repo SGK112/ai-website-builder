@@ -1819,7 +1819,7 @@ function WorkspaceContent() {
   // (declared later in this component).
   const saveBlockFromElement = useCallback((el: { outerHTML?: string; tagName?: string; textContent?: string } | null) => {
     if (!el?.outerHTML) {
-      addToast('error', 'Select an element first')
+      addToast('error', 'Select an element first — click one in the preview.')
       return
     }
     const tag = el.tagName?.toLowerCase() || 'block'
@@ -2548,7 +2548,7 @@ function WorkspaceContent() {
             { role: 'assistant', content: `Loaded the "${tpl.name}" template. ${tpl.description} Type any change you want to make and I'll edit the site directly.` }
           ])
         }
-        addToast('success', `Template loaded — refine in chat`)
+        addToast('success', `Template loaded — refine it in chat.`)
       } else {
         addToast('error', `Template "${templateId}" not found`)
       }
@@ -3183,7 +3183,7 @@ function WorkspaceContent() {
             setHistory(prev => [...prev.slice(-29), entry])
             setHistoryIndex(prev => Math.min(prev + 1, 29))
             addConsoleLog('success', `Image ${imageIndex + 1} replaced successfully!`)
-            addToast('success', 'Image replaced!')
+            addToast('success', 'Image replaced.')
             setChatMessages(prev => [...prev, {
               role: 'assistant',
               content: `Replaced image! You can drag more images onto specific images to replace them.`
@@ -3339,17 +3339,17 @@ function WorkspaceContent() {
           setCurrentProject(prev => prev ? { ...prev, id: savedProject.id } : null)
           addTerminalLine('success', `Project "${projectName}" saved to cloud`)
           addConsoleLog('success', `Project synced to cloud: ${projectName}`)
-          addToast('success', `Project saved to cloud`)
+          addToast('success', `Project saved to the cloud.`)
         }
       } catch (err) {
         addTerminalLine('error', `Failed to save to cloud: ${err}`)
         addConsoleLog('error', `Cloud save failed: ${err}`)
-        addToast('error', `Failed to save project`)
+        addToast('error', `Could not save to the cloud — your work is safe locally. Retrying shortly.`)
       }
     } else {
       addTerminalLine('success', `Project "${projectName}" saved locally`)
       addConsoleLog('info', `Project saved locally: ${projectName}`)
-      addToast('success', `Project saved locally`)
+      addToast('success', `Project saved locally.`)
     }
   }
 
@@ -3468,7 +3468,7 @@ function WorkspaceContent() {
       return
     }
     if (!html.trim()) {
-      addTerminalLine('error', 'No content to deploy')
+      addTerminalLine('error', 'Nothing to deploy yet — build a site first.')
       addConsoleLog('error', 'Deploy failed: No HTML content')
       return
     }
@@ -3525,7 +3525,7 @@ function WorkspaceContent() {
       return
     }
     if (!html.trim()) {
-      addTerminalLine('error', 'No content to deploy')
+      addTerminalLine('error', 'Nothing to deploy yet — build a site first.')
       addConsoleLog('error', 'Deploy failed: No HTML content')
       return
     }
@@ -3644,7 +3644,7 @@ ${body}
 
   const exportHtml = () => {
     if (!html.trim()) {
-      addTerminalLine('error', 'No content to export')
+      addTerminalLine('error', 'Nothing to export yet — build a site first.')
       return
     }
 
@@ -4448,7 +4448,7 @@ ${html}
   // Layered generation with phases
   const handleGenerate = async (promptText: string | undefined, ingredients?: StewIngredient[], opts?: { fresh?: boolean; forceModel?: string }) => {
     if (!promptText?.trim() && (!ingredients || ingredients.length === 0)) {
-      addTerminalLine('error', 'No prompt provided — please describe what you want to build')
+      addTerminalLine('error', 'No prompt yet — describe what you want to build.')
       return
     }
     promptText = promptText || ''
@@ -4488,7 +4488,7 @@ ${html}
     setViewMode('preview')
 
     addTerminalLine('command', promptText)
-    addTerminalLine('ai', '🤖 AI is thinking...')
+    addTerminalLine('ai', '🤖 Reading your prompt…')
     addConsoleLog('info', `Starting build: ${promptText.slice(0, 50)}...`)
 
     try {
@@ -4688,9 +4688,9 @@ ${html}
       }
       addTerminalLine('success', '│ ✓ JavaScript added')
       if (wasTruncated) {
-        addTerminalLine('error', '└ Build truncated — output was cut off before the page finished. Try a more specific prompt or rerun.')
+        addTerminalLine('error', '└ Build cut off before the page finished — the preview may be incomplete. Run it again.')
       } else {
-        addTerminalLine('success', '└ Build complete!')
+        addTerminalLine('success', '└ Build complete — your site is ready.')
       }
       // Owl caught code issues the repair pass couldn't fully fix — surface
       // them honestly instead of shipping a silently-broken preview.
@@ -4698,7 +4698,7 @@ ${html}
         addTerminalLine('error', `└ ⚠ The generated code has ${codeWarnings.length} issue(s) the auto-fix couldn't resolve:`)
         codeWarnings.forEach((w) => addTerminalLine('error', `   • ${w}`))
         addConsoleLog('warn', `Owl: ${codeWarnings.join(' | ')}`)
-        addToast('warning', 'Heads up — the generated site has a code issue. Check the build log, or rerun.')
+        addToast('warning', 'The generated site has a code issue — check the build log, or run it again.')
       }
       addTerminalLine('info', '')
       addTerminalLine('success', `✨ Generated ${(generatedHtml.length / 1024).toFixed(1)}KB`)
@@ -4727,9 +4727,9 @@ ${html}
       setIsGenerating(false)
       setViewMode('preview')
       if (wasTruncated) {
-        addToast('warning', 'Output was cut off — preview may be incomplete. Try rerunning.')
+        addToast('warning', 'The build was cut off — the preview may be incomplete. Run it again.')
       } else {
-        addToast('success', 'Website generated!')
+        addToast('success', 'Your site is ready. 🍽️')
       }
 
       // Notify the user — desktop notification (if granted), cross-tab
@@ -4782,9 +4782,9 @@ ${html}
 
     } catch (error) {
       console.error('Generation error:', error)
-      addTerminalLine('error', '└ Build failed. Please try again.')
+      addTerminalLine('error', '└ Build failed — nothing was changed. Try again, or rephrase your prompt.')
       addConsoleLog('error', 'Build failed')
-      addToast('error', 'Generation failed. Please try again.')
+      addToast('error', 'The build did not finish — nothing changed. Try again, or rephrase your prompt.')
       setBuildPhase('idle')
       setIsGenerating(false)
     }
@@ -5281,7 +5281,7 @@ ${html}
             addToHistory(result, `Edited text`)
             addToast('success', 'Text updated')
           } else {
-            addToast('error', 'Could not find element to edit')
+            addToast('error', 'Could not find that element — re-select it and try again.')
           }
         }
       })
@@ -5334,9 +5334,9 @@ ${html}
       if (result && result !== html) {
         setHtml(result)
         addToHistory(result, 'Inserted image')
-        addToast('info', 'Image added - drag a new image to replace it')
+        addToast('info', 'Image added — drag another image onto it to swap.')
       } else {
-        addToast('error', 'Could not find element to insert after')
+        addToast('error', 'Could not find that element — re-select it and try again.')
       }
       closeContextMenu()
     },
@@ -5374,7 +5374,7 @@ ${html}
             addToHistory(result, 'Updated link')
             addToast('success', 'Link updated')
           } else {
-            addToast('error', 'Could not find link to edit')
+            addToast('error', 'Could not find that link — re-select it and try again.')
           }
         }
       })
@@ -5398,7 +5398,7 @@ ${html}
         addToHistory(result, `Duplicated element`)
         addToast('success', 'Element duplicated')
       } else {
-        addToast('error', 'Could not find element to duplicate')
+        addToast('error', 'Could not find that element — re-select it and try again.')
       }
       closeContextMenu()
     },
@@ -5411,7 +5411,7 @@ ${html}
         addToHistory(result, `Deleted element`)
         addToast('success', 'Element deleted')
       } else {
-        addToast('error', 'Could not find element to delete')
+        addToast('error', 'Could not find that element — re-select it and try again.')
       }
       closeContextMenu()
     }
@@ -6013,7 +6013,7 @@ ${html}
         const imageUrl = Array.isArray(data.output) ? data.output[0] : data.output
         setGeneratedImageUrl(imageUrl)
         addConsoleLog('success', 'Image generated successfully!')
-        addToast('success', 'Image generated!')
+        addToast('success', 'Image generated.')
         setChatMessages(prev => [...prev, {
           role: 'assistant',
           content: `Your image has been generated! Check the Media panel to see it and add it to your site.`
@@ -6061,7 +6061,7 @@ ${html}
         setGeneratedVideoUrl(videoUrl)
         setVideoStatus('Video generated successfully!')
         addConsoleLog('success', 'Video generated successfully!')
-        addToast('success', 'Video generated!')
+        addToast('success', 'Video generated.')
         setChatMessages(prev => [...prev, {
           role: 'assistant',
           content: `Your video has been generated! Check the Video panel to preview it and add it to your site.`
@@ -8213,7 +8213,7 @@ npx eas build --platform all
                         if (data.success && data.output) {
                           const url = Array.isArray(data.output) ? data.output[0] : data.output
                           setGeneratedImageUrl(url)
-                          addTerminalLine('success', '✓ Image generated!')
+                          addTerminalLine('success', '✓ Image generated.')
                         } else {
                           throw new Error(data.error || 'Image generation failed')
                         }
@@ -8785,7 +8785,7 @@ npx eas build --platform all
                     <button
                       onClick={() => {
                         if (!html) {
-                          addTerminalLine('error', 'No website generated yet. Build a website first!')
+                          addTerminalLine('error', 'No site yet — build one first.')
                           return
                         }
                         const videoHtml = `
@@ -8807,7 +8807,7 @@ npx eas build --platform all
                         // Insert before closing body tag
                         const updatedHtml = html.replace('</body>', `${videoHtml}</body>`)
                         setHtml(updatedHtml)
-                        addTerminalLine('success', '✓ Video inserted into website!')
+                        addTerminalLine('success', '✓ Video inserted.')
                         setVideoStatus('Video added to your website')
                       }}
                       disabled={!html}
@@ -8831,7 +8831,7 @@ npx eas build --platform all
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(generatedVideoUrl)
-                          addTerminalLine('info', 'Video URL copied to clipboard!')
+                          addTerminalLine('info', 'Video URL copied.')
                         }}
                         className={cn(
                           'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition',
@@ -10596,7 +10596,7 @@ npx eas build --platform all
                       setHtml(newHtml)
                       addToHistory(newHtml, 'Replaced image via drag-and-drop')
                       addConsoleLog('success', 'Image replaced successfully!')
-                      addToast('success', 'Image replaced!')
+                      addToast('success', 'Image replaced.')
                       setChatMessages(prev => [...prev, {
                         role: 'assistant',
                         content: 'Image replaced! Drag onto different parts of the preview to replace other images.'
@@ -11108,7 +11108,7 @@ npx eas build --platform all
                             const input = document.getElementById('image-url-input') as HTMLInputElement
                             const newUrl = input?.value?.trim()
                             if (!newUrl) {
-                              addToast('error', 'Please enter an image URL')
+                              addToast('error', 'Enter an image URL first.')
                               return
                             }
                             const oldSrc = selectedMediaElement.src
@@ -11116,8 +11116,8 @@ npx eas build --platform all
                             if (newHtml !== html) {
                               setHtml(newHtml)
                               addToHistory(newHtml, 'Replaced image with URL')
-                              addTerminalLine('success', '✓ Image replaced with URL!')
-                              addToast('success', 'Image replaced successfully!')
+                              addTerminalLine('success', '✓ Image replaced.')
+                              addToast('success', 'Image replaced.')
                             }
                             setShowMediaReplacer(false)
                             setSelectedMediaElement(null)
@@ -11226,8 +11226,8 @@ npx eas build --platform all
                                   if (newHtml !== html) {
                                     setHtml(newHtml)
                                     addToHistory(newHtml, 'Replaced image with Unsplash photo')
-                                    addTerminalLine('success', '✓ Image replaced with Unsplash photo!')
-                                    addToast('success', 'Image replaced!')
+                                    addTerminalLine('success', '✓ Image replaced.')
+                                    addToast('success', 'Image replaced.')
                                   }
                                   setShowMediaReplacer(false)
                                   setSelectedMediaElement(null)
@@ -11295,7 +11295,7 @@ npx eas build --platform all
                         <button
                           onClick={async () => {
                             if (!imagePrompt.trim()) {
-                              addToast('error', 'Please enter a prompt')
+                              addToast('error', 'Enter a prompt first.')
                               return
                             }
                             setImageGenerating(true)
@@ -11314,13 +11314,13 @@ npx eas build --platform all
                               if (data.success && data.output) {
                                 const url = Array.isArray(data.output) ? data.output[0] : data.output
                                 setGeneratedImageUrl(url)
-                                addTerminalLine('success', '✓ New image generated!')
+                                addTerminalLine('success', '✓ Image generated.')
                               } else {
                                 throw new Error(data.error || 'Generation failed')
                               }
                             } catch (err) {
                               addTerminalLine('error', `Failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
-                              addToast('error', 'Image generation failed')
+                              addToast('error', 'Could not generate that image — try a different prompt.')
                             }
                             setImageGenerating(false)
                           }}
@@ -11349,8 +11349,8 @@ npx eas build --platform all
                               if (newHtml !== html) {
                                 setHtml(newHtml)
                                 addToHistory(newHtml, 'Replaced image with AI-generated')
-                                addTerminalLine('success', '✓ Image replaced with AI-generated!')
-                                addToast('success', 'Image replaced!')
+                                addTerminalLine('success', '✓ Image replaced.')
+                                addToast('success', 'Image replaced.')
                               }
                               setShowMediaReplacer(false)
                               setSelectedMediaElement(null)
@@ -11393,8 +11393,8 @@ npx eas build --platform all
                                 if (newHtml !== html) {
                                   setHtml(newHtml)
                                   addToHistory(newHtml, 'Replaced image with uploaded file')
-                                  addTerminalLine('success', '✓ Image replaced with uploaded file!')
-                                  addToast('success', 'Image uploaded and replaced!')
+                                  addTerminalLine('success', '✓ Image replaced.')
+                                  addToast('success', 'Image uploaded and replaced.')
                                 }
                                 setShowMediaReplacer(false)
                                 setSelectedMediaElement(null)
@@ -11417,8 +11417,8 @@ npx eas build --platform all
                                   if (newHtml !== html) {
                                     setHtml(newHtml)
                                     addToHistory(newHtml, 'Replaced image with uploaded file')
-                                    addTerminalLine('success', '✓ Image replaced with uploaded file!')
-                                    addToast('success', 'Image uploaded and replaced!')
+                                    addTerminalLine('success', '✓ Image replaced.')
+                                    addToast('success', 'Image uploaded and replaced.')
                                   }
                                   setShowMediaReplacer(false)
                                   setSelectedMediaElement(null)
@@ -11454,7 +11454,7 @@ npx eas build --platform all
                     <button
                       onClick={async () => {
                         if (!videoPrompt.trim()) {
-                          addToast('error', 'Please enter a prompt')
+                          addToast('error', 'Enter a prompt first.')
                           return
                         }
                         setVideoGenerating(true)
@@ -11473,7 +11473,7 @@ npx eas build --platform all
                           if (data.success && data.output) {
                             const url = Array.isArray(data.output) ? data.output[0] : data.output
                             setGeneratedVideoUrl(url)
-                            addTerminalLine('success', '✓ New video generated!')
+                            addTerminalLine('success', '✓ Video generated.')
                           } else {
                             throw new Error(data.error || 'Generation failed')
                           }
@@ -11511,7 +11511,7 @@ npx eas build --platform all
                             if (newHtml !== html) {
                               setHtml(newHtml)
                               addToHistory(newHtml, 'Replaced video with AI-generated')
-                              addTerminalLine('success', '✓ Video replaced!')
+                              addTerminalLine('success', '✓ Video replaced.')
                             }
                             setShowMediaReplacer(false)
                             setSelectedMediaElement(null)
@@ -12181,7 +12181,7 @@ npx eas build --platform all
                       await saveServiceCredentials()
                     }
                     setShowApiKeyModal(false)
-                    addTerminalLine('success', 'Settings saved successfully')
+                    addTerminalLine('success', 'Settings saved.')
                   }}
                   disabled={savingCredentials}
                   className={cn(
