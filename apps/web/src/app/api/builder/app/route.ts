@@ -5,6 +5,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { generateJsonStreaming, requireFiles, GenerateJsonError, streamJsonWithHeartbeats } from '@/lib/llm-json'
 import { augmentPromptWithReference } from '@/lib/site-reference'
 import { gateBuilderRequest, trackBuilderUsage } from '@/lib/builder-gate'
+import { MOBILE_APP_TEMPLATE } from '@/lib/templates/mobile-app'
 
 export const dynamic = 'force-dynamic'
 // 300s matches /api/builder/generate. The previous 60s ceiling forced
@@ -37,7 +38,7 @@ interface AppGenerateResponse {
 
 // ---------- System prompt ----------
 
-const APP_SYSTEM_PROMPT = `You are an expert React Native / Expo developer. Generate a COMPLETE, runnable Expo project as JSON.
+const APP_SYSTEM_PROMPT = `You are an expert React Native / Expo developer. Generate a COMPLETE, runnable Expo app as JSON.
 
 ## OUTPUT FORMAT (STRICT)
 
@@ -48,86 +49,60 @@ Return a single JSON object — no prose, no markdown fences. Schema:
   "description": "One-sentence description shown in the App Store",
   "files": {
     "App.tsx": "...full file contents...",
-    "package.json": "...",
-    "app.json": "...",
-    "babel.config.js": "...",
-    "tsconfig.json": "...",
-    "screens/HomeScreen.tsx": "...",
-    "components/Button.tsx": "..."
+    "src/theme.ts": "...",
+    "src/data.ts": "...",
+    "src/components/TabBar.tsx": "...",
+    "src/components/Card.tsx": "...",
+    "src/screens/HomeScreen.tsx": "..."
   }
 }
 
-## REQUIRED FILES (always include these)
+## RUNTIME — READ CAREFULLY
 
-1. **App.tsx** — Main entry. Use NavigationContainer from @react-navigation/native with a Stack.Navigator. Wire up screens. SafeAreaProvider at root. StatusBar style="auto".
+The build supplies package.json, app.json, tsconfig.json and the entry
+file. DO NOT author any of them — anything you put there is discarded.
 
-2. **package.json** — Use these EXACT dependency versions (latest Expo SDK 52 compatible):
-   {
-     "name": "<slug>",
-     "version": "1.0.0",
-     "main": "expo-router/entry",
-     "scripts": {
-       "start": "expo start",
-       "android": "expo start --android",
-       "ios": "expo start --ios",
-       "web": "expo start --web"
-     },
-     "dependencies": {
-       "expo": "~52.0.0",
-       "expo-status-bar": "~2.0.0",
-       "expo-router": "~4.0.0",
-       "expo-constants": "~17.0.0",
-       "expo-linking": "~7.0.0",
-       "react": "18.3.1",
-       "react-native": "0.76.5",
-       "react-native-safe-area-context": "4.12.0",
-       "react-native-screens": "~4.4.0",
-       "@react-navigation/native": "^7.0.0",
-       "@react-navigation/native-stack": "^7.0.0"
-     },
-     "devDependencies": {
-       "@babel/core": "^7.25.2",
-       "@types/react": "~18.3.12",
-       "typescript": "^5.3.3"
-     },
-     "private": true
-   }
+You may import ONLY from these three packages — nothing else is installed:
+  • react
+  • react-native
+  • expo-status-bar
+There is NO navigation library and NO expo-router. Do NOT import
+@react-navigation/*, expo-router, expo-linear-gradient, react-native-screens,
+react-native-safe-area-context, or any other package — the app will fail to
+build. Switch between screens with React useState, exactly like the
+structure below.
 
-3. **app.json** — Expo config. Fields: name, slug, version "1.0.0", orientation "portrait",
-   icon "./assets/icon.png", scheme matching slug, userInterfaceStyle "automatic",
-   splash { image "./assets/splash.png", resizeMode "contain", backgroundColor "#0f172a" },
-   assetBundlePatterns ["**/*"], ios { supportsTablet true, bundleIdentifier "com.example.<slug>" },
-   android { adaptiveIcon { foregroundImage "./assets/adaptive-icon.png", backgroundColor "#0f172a" }, package "com.example.<slug>" },
-   web { favicon "./assets/favicon.png" }
+## REQUIRED STRUCTURE (mirror this exactly)
 
-4. **babel.config.js** — module.exports with presets ['babel-preset-expo']
+- **App.tsx** — \`export default function App()\`. Holds the active-tab
+  state with useState, conditionally renders the matching screen, and
+  renders <TabBar/> below it. Import { StatusBar } from 'expo-status-bar'.
+- **src/theme.ts** — exports a \`theme\` object of design tokens: bg,
+  surface, text, muted, border, primary, primaryText, radius, gap, plus
+  any brand colours. Every colour/spacing value in the app comes from here.
+- **src/data.ts** — exports the app's content: app name + tagline, a
+  \`TabKey\` union type, a \`tabs\` array of { key, label, icon }, and the
+  data each screen renders. ALL copy lives here.
+- **src/components/TabBar.tsx** — bottom tab bar. Props: { tabs, active, onChange }.
+- **src/components/*.tsx** — small reusable components (Card, etc.).
+- **src/screens/*.tsx** — one file per screen, 3-5 screens. Each is a
+  NAMED export, reads from src/theme + src/data, wraps content in ScrollView.
 
-5. **tsconfig.json** — extends "expo/tsconfig.base", strict true
+## SCREEN DESIGN
 
-## SCREEN DESIGN PRINCIPLES
-
-- Use React Native StyleSheet.create — NOT inline styles
-- Dark mode aware: read useColorScheme() from react-native, branch styles
-- Modern, polished design — gradients (expo-linear-gradient if needed), rounded cards, shadows
-- Real content: realistic copy, fake-but-believable data
-- Navigation: bottom tabs OR stack with header — choose based on app type
-- Accessibility: accessibilityLabel on interactive elements, accessible roles
-- Use Pressable not TouchableOpacity (newer API)
-
-## CONTENT RULES
-
-- Generate ~3-5 screens minimum
-- Each screen 60-200 lines, real interactivity (state, lists, inputs as appropriate)
-- Use TypeScript with proper interfaces for data shapes
-- No external image URLs that require auth — use https://picsum.photos/seed/<keyword>/<w>/<h> or solid color/gradient placeholders
+- React Native StyleSheet.create — never inline literal style objects.
+- Real, believable copy and data — no lorem ipsum, no TODO placeholders.
+- Modern and polished: rounded cards, subtle borders, clear type hierarchy.
+- Pressable (not TouchableOpacity) for taps.
+- No <Image> with external URLs — use coloured Views or emoji as visuals.
+- TypeScript with a proper interface for every data shape.
 
 ## DO NOT
 
-- Do not include node_modules
-- Do not output README.md (waste of tokens — user knows how to run Expo)
-- Do not generate prebuilt icons or images (instructions tell user to add)
-- Do not use packages outside the dependency list above
-- Do not include native code (ios/, android/ folders) — Expo Managed Workflow only`
+- Do not author package.json / app.json / tsconfig.json / babel.config.js / index.ts.
+- Do not import any package other than react, react-native, expo-status-bar.
+- Do not use a navigation library — switch screens with useState.
+- Do not include node_modules, README.md, or native ios/ / android/ folders.`
 
 // ---------- Helpers ----------
 
@@ -233,7 +208,7 @@ export async function POST(req: NextRequest) {
         model,
         systemPrompt: APP_SYSTEM_PROMPT,
         userMessage: userMsg,
-        validate: (p) => requireFiles(p, ['App.tsx', 'package.json', 'app.json']),
+        validate: (p) => requireFiles(p, ['App.tsx']),
       })
       parsed = r.parsed
       rawText = r.rawText
@@ -257,6 +232,30 @@ export async function POST(req: NextRequest) {
       if (typeof content === 'string' && content.length > 0 && content.length < 100_000) {
         files[path] = content
       }
+    }
+
+    // Force the scaffolding files to the verified Expo-template versions.
+    // The model only authors components; when it picked its own dependency
+    // versions it produced unresolvable sets that broke `npm install` in the
+    // WebContainer preview ("npm install failed (exit 1)"). These exact files
+    // are known to install and run `expo start --web`. Any package.json /
+    // app.json / config the model emitted is discarded here.
+    const scaffold = MOBILE_APP_TEMPLATE.files as Record<string, string>
+    files['package.json'] = scaffold['package.json']
+    files['tsconfig.json'] = scaffold['tsconfig.json']
+    files['index.ts'] = scaffold['index.ts']
+    delete files['babel.config.js']
+    delete files['index.js']
+    delete files['App.js']
+    try {
+      const appJson = JSON.parse(scaffold['app.json'])
+      if (appJson.expo) {
+        appJson.expo.name = name
+        appJson.expo.slug = slug
+      }
+      files['app.json'] = JSON.stringify(appJson, null, 2) + '\n'
+    } catch {
+      files['app.json'] = scaffold['app.json']
     }
 
     const result: AppGenerateResponse = {
