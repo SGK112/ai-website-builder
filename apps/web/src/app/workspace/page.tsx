@@ -2493,6 +2493,26 @@ function WorkspaceContent() {
     fetchTemplates()
   }, [])
 
+  // Cross-origin isolation self-heal. The WebContainer preview needs
+  // `crossOriginIsolated`, which only turns on when /workspace is loaded as
+  // a full document — the COOP/COEP headers ride the document response. A
+  // soft client-side navigation in from another route keeps the previous,
+  // non-isolated document, so WebContainer can't start ("requires COOP/COEP
+  // headers and SharedArrayBuffer"). Hard-reload ONCE to re-fetch /workspace
+  // with its headers. Guarded via sessionStorage so a browser that genuinely
+  // can't isolate (no `credentialless` COEP support) doesn't reload-loop.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const KEY = 'webstew-coi-reload'
+    if (window.crossOriginIsolated) {
+      sessionStorage.removeItem(KEY)
+      return
+    }
+    if (sessionStorage.getItem(KEY)) return // already retried — genuinely unsupported
+    sessionStorage.setItem(KEY, '1')
+    window.location.reload()
+  }, [])
+
   // Load initial prompt from URL params. Auto-fire generation immediately —
   // matches Lovable/v0/Bolt/Manus, the standard new-user flow: type prompt on
   // landing, land in workspace with preview already building. The URL is

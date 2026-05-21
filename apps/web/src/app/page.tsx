@@ -538,10 +538,13 @@ export default function HomePage() {
       const params = new URLSearchParams({ prompt: projectPrompt, target: apiTarget })
       url = `/workspace?${params.toString()}`
     }
+    // Hard navigation (not router.push): /workspace's WebContainer preview
+    // needs cross-origin isolation, which only applies on a full document
+    // load — a soft client-side nav keeps the non-isolated home document.
     if (anonOk || sessionStatus === 'authenticated') {
-      router.push(url)
+      window.location.assign(url)
     } else {
-      router.push(`/signup?next=${encodeURIComponent(url)}`)
+      window.location.assign(`/signup?next=${encodeURIComponent(url)}`)
     }
   }
 
@@ -554,10 +557,14 @@ export default function HomePage() {
   const handlePickTarget = (target: BuildTargetId) => {
     setShowTargetModal(false)
     const url = target === 'website' ? '/workspace' : `/workspace?target=${target}`
+    // Hard navigation (not router.push): /workspace's WebContainer preview
+    // needs cross-origin isolation, and the COOP/COEP headers only take
+    // effect on a full document load — a soft client-side nav keeps the
+    // non-isolated home document and breaks the preview.
     if (target === 'website' || sessionStatus === 'authenticated') {
-      router.push(url)
+      window.location.assign(url)
     } else {
-      router.push(`/signup?next=${encodeURIComponent(url)}`)
+      window.location.assign(`/signup?next=${encodeURIComponent(url)}`)
     }
   }
 
