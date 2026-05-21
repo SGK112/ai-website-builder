@@ -62,12 +62,13 @@ Return a single JSON object — no prose, no markdown fences. Schema:
 The build supplies package.json, app.json, tsconfig.json and the entry
 file. DO NOT author any of them — anything you put there is discarded.
 
-You may import ONLY from these three packages — nothing else is installed:
+You may import ONLY from these packages — nothing else is installed:
   • react
   • react-native
   • expo-status-bar
+  • expo-linear-gradient   — for gradient backgrounds (see BACKGROUNDS below)
 There is NO navigation library and NO expo-router. Do NOT import
-@react-navigation/*, expo-router, expo-linear-gradient, react-native-screens,
+@react-navigation/*, expo-router, react-native-screens,
 react-native-safe-area-context, or any other package — the app will fail to
 build. Switch between screens with React useState, exactly like the
 structure below.
@@ -79,7 +80,10 @@ structure below.
   renders <TabBar/> below it. Import { StatusBar } from 'expo-status-bar'.
 - **src/theme.ts** — exports a \`theme\` object of design tokens: bg,
   surface, text, muted, border, primary, primaryText, radius, gap, plus
-  any brand colours. Every colour/spacing value in the app comes from here.
+  any brand colours. It ALSO exports \`gradients\` — a map of named gradients,
+  each shaped \`{ colors: string[]; start?: {x:number;y:number}; end?: {x:number;y:number} }\`
+  (e.g. \`hero\`, \`cta\`). Every colour, spacing, and gradient value in the
+  app is read from this file.
 - **src/data.ts** — exports the app's content: app name + tagline, a
   \`TabKey\` union type, a \`tabs\` array of { key, label, icon }, and the
   data each screen renders. ALL copy lives here.
@@ -88,19 +92,34 @@ structure below.
 - **src/screens/*.tsx** — one file per screen, 3-5 screens. Each is a
   NAMED export, reads from src/theme + src/data, wraps content in ScrollView.
 
+## BACKGROUNDS & GRADIENTS
+
+The source site's backgrounds and gradients ARE its visual identity —
+carry them over, do not flatten them to a plain colour.
+- Define every gradient in \`theme.ts\` under \`gradients\` (colours from the
+  "Gradients" / "Colour palette" context below, in source order).
+- Render them with LinearGradient from 'expo-linear-gradient':
+  \`import { LinearGradient } from 'expo-linear-gradient'\`, then
+  \`<LinearGradient colors={theme.gradients.hero.colors} start={...} end={...} style={...}>\`.
+- The hero / header and any section that is gradient-backed on the site
+  should be gradient-backed in the app. A LinearGradient with
+  \`StyleSheet.absoluteFill\`, or wrapping the screen, is the standard pattern.
+- Match the source's gradient direction (a 135deg CSS gradient ≈ start
+  {x:0,y:0} end {x:1,y:1}); solid section backgrounds come from theme colours.
+
 ## SCREEN DESIGN
 
 - React Native StyleSheet.create — never inline literal style objects.
 - Real, believable copy and data — no lorem ipsum, no TODO placeholders.
 - Modern and polished: rounded cards, subtle borders, clear type hierarchy.
 - Pressable (not TouchableOpacity) for taps.
-- No <Image> with external URLs — use coloured Views or emoji as visuals.
+- No <Image> with external URLs — use coloured Views, gradients, or emoji as visuals.
 - TypeScript with a proper interface for every data shape.
 
 ## DO NOT
 
 - Do not author package.json / app.json / tsconfig.json / babel.config.js / index.ts.
-- Do not import any package other than react, react-native, expo-status-bar.
+- Do not import any package other than react, react-native, expo-status-bar, expo-linear-gradient.
 - Do not use a navigation library — switch screens with useState.
 - Do not include node_modules, README.md, or native ios/ / android/ folders.`
 
@@ -172,6 +191,15 @@ export async function POST(req: NextRequest) {
     const palette = Array.from(
       new Set(raw.match(/#[0-9a-fA-F]{3,8}\b|rgba?\([^)]{1,40}\)/g) || []),
     ).slice(0, 24)
+    // CSS gradients carry much of a modern site's visual identity, but the
+    // <style> blocks that define them get stripped below — pull them out
+    // first so the model can rebuild them via expo-linear-gradient. The
+    // inner alternation tolerates one level of nested parens (rgba() stops).
+    const gradients = Array.from(
+      new Set(
+        raw.match(/(?:linear|radial|conic)-gradient\((?:[^()]|\([^()]*\))*\)/gi) || [],
+      ),
+    ).slice(0, 10)
     const distilled = raw
       .replace(/<script[\s\S]*?<\/script>/gi, '')
       .replace(/<svg[\s\S]*?<\/svg>/gi, '')
@@ -187,6 +215,9 @@ export async function POST(req: NextRequest) {
       `navigation, and section structure — translate each major section ` +
       `into a screen or component. Do not invent unrelated content.\n` +
       (palette.length ? `\nColour palette: ${palette.join(', ')}\n` : '') +
+      (gradients.length
+        ? `\nGradients — rebuild these as expo-linear-gradient backgrounds:\n${gradients.map((g) => `  - ${g}`).join('\n')}\n`
+        : '') +
       `\nSource markup (distilled — SVG/scripts/styles stripped):\n` +
       '```html\n' + distilled + '\n```\n'
   }
