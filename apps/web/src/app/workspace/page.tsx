@@ -2120,7 +2120,7 @@ function WorkspaceContent() {
   // Conversational chat state
   const [showWelcome, setShowWelcome] = useState(true)
   const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string; suggestions?: string[]; source?: 'bridge' | 'api'; permission?: { permissionId: string; action: string; approveLabel: string; denyLabel: string; resolved?: 'approved' | 'denied' } }[]>([
-    { role: 'assistant', content: "Welcome! I'm your AI creative assistant. What would you like to create today?", suggestions: ['Build a website', 'Generate an image', 'Create a video'] }
+    { role: 'assistant', content: "Welcome to Webstew — I'm your creative assistant. What should we build today?", suggestions: ['Build a website', 'Generate an image', 'Create a video'] }
   ])
   const [chatSuggestions, setChatSuggestions] = useState<string[]>(['Build a website', 'Generate an image', 'Create a video'])
   const [conversationIntent, setConversationIntent] = useState<'website' | 'image' | 'video' | 'edit' | null>(null)
@@ -3186,7 +3186,7 @@ function WorkspaceContent() {
             addToast('success', 'Image replaced.')
             setChatMessages(prev => [...prev, {
               role: 'assistant',
-              content: `Replaced image! You can drag more images onto specific images to replace them.`
+              content: `Image replaced. Drag another image onto any image in the preview to swap it.`
             }])
           }
         }
@@ -4436,7 +4436,7 @@ ${html}
       addConsoleLog('error', e?.message || String(e))
       setChatMessages(prev => [...prev, {
         role: 'assistant',
-        content: `Generation failed: ${e?.message || 'unknown error'}`,
+        content: `The build did not finish — ${e?.message || 'an unknown error'}. Want me to try again?`,
       }])
       return false
     } finally {
@@ -4496,7 +4496,7 @@ ${html}
       setCurrentSteps(prev => prev.map(s =>
         s.phase === 'structure' ? { ...s, status: 'active' } : s
       ))
-      addTerminalLine('phase', '┌ Building in layers...')
+      addTerminalLine('phase', '┌ Building in layers…')
       addTerminalLine('info', '│ ○ Creating HTML structure')
       await new Promise(r => setTimeout(r, 400))
 
@@ -6016,14 +6016,14 @@ ${html}
         addToast('success', 'Image generated.')
         setChatMessages(prev => [...prev, {
           role: 'assistant',
-          content: `Your image has been generated! Check the Media panel to see it and add it to your site.`
+          content: `Your image is ready — open the Media panel to add it to your site.`
         }])
       }
     } catch (error) {
       addConsoleLog('error', 'Image generation failed')
       setChatMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Image generation failed. Please try again with a different prompt.'
+        content: 'That image did not come out — try again with a different prompt.'
       }])
     } finally {
       setImageGenerating(false)
@@ -6064,7 +6064,7 @@ ${html}
         addToast('success', 'Video generated.')
         setChatMessages(prev => [...prev, {
           role: 'assistant',
-          content: `Your video has been generated! Check the Video panel to preview it and add it to your site.`
+          content: `Your video is ready — open the Video panel to preview and add it.`
         }])
       }
     } catch (error) {
@@ -6072,7 +6072,7 @@ ${html}
       addConsoleLog('error', 'Video generation failed')
       setChatMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Video generation failed. Please try again with a different prompt.'
+        content: 'That video did not come out — try again with a different prompt.'
       }])
     } finally {
       setVideoGenerating(false)
@@ -7499,7 +7499,7 @@ npx eas build --platform all
                                     setViewMode('preview')
                                     setChatMessages(prev => [...prev, {
                                       role: 'assistant',
-                                      content: `Loaded the "${template.label}" template! You can now customize it by telling me what changes you'd like to make.`
+                                      content: `Loaded the "${template.label}" template — tell me what to change and I'll edit it directly.`
                                     }])
                                     addToHistory(rendered, `Loaded ${template.label} template`)
                                   } else {
@@ -10599,7 +10599,7 @@ npx eas build --platform all
                       addToast('success', 'Image replaced.')
                       setChatMessages(prev => [...prev, {
                         role: 'assistant',
-                        content: 'Image replaced! Drag onto different parts of the preview to replace other images.'
+                        content: 'Image replaced. Drag onto any other image in the preview to swap it.'
                       }])
                     } else {
                       // No images in the HTML - add the image
