@@ -2843,11 +2843,15 @@ function WorkspaceContent() {
                 ]
               : [{ path: 'index.html', content: html, type: 'html' as const }])
 
-        // If the project still carries a client-side `proj_` id it has no
-        // cloud row yet — promote it with a POST first, then PATCH. Without
-        // this, autosave PATCHes a non-ObjectId and the API 400s every 3s.
         let targetId = currentProject!.id
-        if (!isCloudProjectId(targetId)) {
+
+        // Promote a project that has no live cloud row to a fresh one and
+        // re-point local state, so the next autosave PATCHes a real id.
+        // Two ways a project gets here: it still carries a client-side
+        // `proj_` id (never saved), or its ObjectId 404s — the row was
+        // deleted, or belongs to another account / DB (e.g. a project
+        // created against prod, now autosaving against a local dev DB).
+        const promoteToFreshProject = async () => {
           const createRes = await fetch('/api/projects', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2859,17 +2863,26 @@ function WorkspaceContent() {
           if (!newId) throw new Error('Project create returned no id')
           const oldId = targetId
           targetId = String(newId)
-          // Re-point local state at the real cloud row so the next autosave
-          // PATCHes (not re-creates), and the sidebar list stays in sync.
           setCurrentProject(prev => (prev ? { ...prev, id: targetId } : prev))
           setProjects(prev => prev.map(p => (p.id === oldId ? { ...p, id: targetId } : p)))
         }
 
-        const res = await fetch(`/api/projects/${targetId}`, {
+        if (!isCloudProjectId(targetId)) {
+          await promoteToFreshProject()
+        }
+
+        const patch = () => fetch(`/api/projects/${targetId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ files: filesPayload }),
         })
+        let res = await patch()
+        // 404 = the id looks like a cloud row but the server has none.
+        // Re-create once instead of looping a dead id every 3s.
+        if (res.status === 404) {
+          await promoteToFreshProject()
+          res = await patch()
+        }
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         setSaveStatus('saved')
         setTimeout(() => setSaveStatus((s) => (s === 'saved' ? 'idle' : s)), 2000)
@@ -3040,25 +3053,21 @@ function WorkspaceContent() {
     setPendingBuild(null)
   }, [pendingBuild])
 
-  // Notification permission prompt — offered on a build start (a real user
-  // gesture, which the browser requires). Shown at most once per session
-  // (notifPromptShown), and only while the browser permission is still
-  // undecided — once the user grants or denies it, the perm check below
-  // stops it on its own. No permanent localStorage suppression: that made
-  // the offer vanish forever after the first build.
+  // "Cooking" reassurance pill — slides in a beat after EVERY build starts.
+  // Its job is twofold: remind the user the build runs server-side so they
+  // can leave the tab (it resumes on return), and — if browser notifications
+  // aren't decided yet — offer to ping them when it's done. Re-shown on each
+  // build (reset when generation ends); auto-hides after ~12s so it doesn't
+  // sit there for the whole cook. The copy adapts to the permission state.
   const [notifPromptShown, setNotifPromptShown] = useState(false)
   useEffect(() => {
-    if (!isGenerating) return
-    if (notifPromptShown) return
+    if (!isGenerating) { setNotifPromptShown(false); return }
     if (!notificationsSupported()) return
-    // Defer one beat so the prompt doesn't fight with the build-starting UI.
-    const t = setTimeout(() => {
-      const perm = notificationPermission()
-      if (perm === 'granted' || perm === 'denied') return
-      setNotifPromptShown(true)
-    }, 1500)
-    return () => clearTimeout(t)
-  }, [isGenerating, notifPromptShown])
+    // Defer one beat so the pill doesn't fight with the build-starting UI.
+    const showT = setTimeout(() => setNotifPromptShown(true), 1500)
+    const hideT = setTimeout(() => setNotifPromptShown(false), 13500)
+    return () => { clearTimeout(showT); clearTimeout(hideT) }
+  }, [isGenerating])
 
   // Auto-scroll terminal
   useEffect(() => {
@@ -12729,46 +12738,53 @@ npx eas build --platform all
         )}
       </AnimatePresence>
 
-      {/* "Get notified" slide-in. Auto-slides in from the left edge a beat
-          after a build starts, as a compact tag/CTA rather than a blocking
-          card — the build is the main event, this is a quiet offer beside
-          it. Only while Notification permission is still 'default'.
+      {/* "Cooking" reassurance pill. Slides in from the right edge a beat
+          after each build starts — sits just above the toast stack so it
+          reads as part of the bottom-right notification column, not a
+          blocking card. Copy adapts to notification permission: an opt-in
+          offer while it's undecided, otherwise a "you can leave" reminder.
           Future: route the same opt-in to email / SMS / Aria phone-call. */}
       <AnimatePresence>
-        {notifPromptShown && (
-          <motion.div
-            initial={{ opacity: 0, x: -140 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -140 }}
-            transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-            className="fixed bottom-4 left-4 z-[300] flex items-center gap-2 bg-zinc-900 border border-emerald-500/40 rounded-full shadow-xl shadow-emerald-500/20 pl-3 pr-1.5 py-1.5"
-          >
-            <Bell className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
-            <span className="text-xs text-zinc-300 whitespace-nowrap">
-              Ping me when it&apos;s ready
-            </span>
-            <button
-              onClick={async () => {
-                await requestNotificationPermission()
-                setNotifPromptShown(false)
-              }}
-              className="px-2.5 py-1 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold transition whitespace-nowrap"
+        {notifPromptShown && (() => {
+          const perm = notificationPermission()
+          const canAsk = perm === 'default'
+          return (
+            <motion.div
+              initial={{ opacity: 0, x: 140 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 140 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+              className="fixed bottom-20 right-4 z-[300] flex items-center gap-2 bg-zinc-900 border border-emerald-500/40 rounded-full shadow-xl shadow-emerald-500/20 pl-3 pr-1.5 py-1.5"
             >
-              Get notified
-            </button>
-            <button
-              onClick={() => {
-                // Mark asked so we don't nag this user again on this device.
-                try { localStorage.setItem('webstew-notif-asked', '1') } catch {}
-                setNotifPromptShown(false)
-              }}
-              title="Not now"
-              className="w-6 h-6 rounded-full flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/10 transition shrink-0"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </motion.div>
-        )}
+              <Bell className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+              <span className="text-xs text-zinc-300 whitespace-nowrap">
+                {canAsk
+                  ? 'Cooking — get notified when it’s ready?'
+                  : perm === 'granted'
+                    ? 'Cooking — leave anytime, we’ll ping you when it’s ready.'
+                    : 'Cooking — it keeps going even if you close this tab.'}
+              </span>
+              {canAsk && (
+                <button
+                  onClick={async () => {
+                    await requestNotificationPermission()
+                    setNotifPromptShown(false)
+                  }}
+                  className="px-2.5 py-1 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold transition whitespace-nowrap"
+                >
+                  Get notified
+                </button>
+              )}
+              <button
+                onClick={() => setNotifPromptShown(false)}
+                title="Dismiss"
+                className="w-6 h-6 rounded-full flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/10 transition shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </motion.div>
+          )
+        })()}
       </AnimatePresence>
 
       {/* Stew Planner — plan-review modal. Shown once the clarifying agent
