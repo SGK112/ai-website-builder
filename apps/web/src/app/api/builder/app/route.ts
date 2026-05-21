@@ -335,8 +335,14 @@ export async function POST(req: NextRequest) {
         slug,
         description,
       })
-      // Track usage so admin analytics + plan-limit counters reflect
-      // multi-target builds (was a billing blind spot before this gate).
+    } catch (e: any) {
+      console.warn('[App Builder] pending_builds upsert failed:', e?.message || e)
+    }
+
+    // Meter the build — in its OWN try, separate from pending-builds. When
+    // these shared one try, any pending_builds hiccup jumped to the catch
+    // and silently skipped billing: a multi-target build escaped metering.
+    try {
       await trackBuilderUsage({
         userId: gate.userId,
         kind: 'expo',
@@ -345,7 +351,7 @@ export async function POST(req: NextRequest) {
         prompt,
       })
     } catch (e: any) {
-      console.warn('[App Builder] pending_builds upsert failed:', e?.message || e)
+      console.warn('[App Builder] trackBuilderUsage failed:', e?.message || e)
     }
 
     return result

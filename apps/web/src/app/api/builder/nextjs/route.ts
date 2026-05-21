@@ -240,12 +240,19 @@ export async function POST(req: NextRequest) {
         userId: gate.userId, kind: 'nextjs', prompt,
         model, files, name, slug, description,
       })
+    } catch (e: any) {
+      console.warn('[Next.js Builder] pending_builds upsert failed:', e?.message || e)
+    }
+
+    // Meter separately — a shared try meant a pending_builds hiccup
+    // silently skipped billing.
+    try {
       await trackBuilderUsage({
         userId: gate.userId, kind: 'nextjs', model,
         rawSize: rawText.length, prompt,
       })
     } catch (e: any) {
-      console.warn('[Next.js Builder] pending_builds upsert failed:', e?.message || e)
+      console.warn('[Next.js Builder] trackBuilderUsage failed:', e?.message || e)
     }
 
     return result

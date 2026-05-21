@@ -200,13 +200,20 @@ export async function POST(req: NextRequest) {
         userId: gate.userId, kind: 'astro', prompt,
         model: pickAnthropicModel(body.model), files, name, slug, description,
       })
+    } catch (e: any) {
+      console.warn('[Astro Builder] pending_builds upsert failed:', e?.message || e)
+    }
+
+    // Meter separately — a shared try meant a pending_builds hiccup
+    // silently skipped billing.
+    try {
       await trackBuilderUsage({
         userId: gate.userId, kind: 'astro',
         model: pickAnthropicModel(body.model),
         rawSize: rawText.length, prompt,
       })
     } catch (e: any) {
-      console.warn('[Astro Builder] pending_builds upsert failed:', e?.message || e)
+      console.warn('[Astro Builder] trackBuilderUsage failed:', e?.message || e)
     }
 
     return result
