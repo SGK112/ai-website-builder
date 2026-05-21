@@ -15,7 +15,7 @@
 // and kill any in-flight processes so we don't leak workers.
 
 import { useEffect, useRef, useState } from 'react'
-import { Loader2, Terminal, AlertCircle, RefreshCw, Play, ExternalLink, Monitor, Tablet, Smartphone, QrCode, X } from 'lucide-react'
+import { Loader2, Terminal, AlertCircle, RefreshCw, Play, ExternalLink, Monitor, Tablet, Smartphone, X } from 'lucide-react'
 import { getWebContainer, buildFileTree, isWebContainerSupported } from '@/lib/webcontainer'
 
 type Phase = 'idle' | 'booting' | 'mounting' | 'installing' | 'starting' | 'running' | 'error'
@@ -220,11 +220,13 @@ export function WebContainerPreview({
               })}
             </div>
           )}
-          {/* QR code — lets user open the running preview on their phone */}
+          {/* Device-preview info — the in-browser sandbox can't be reached
+              from a phone, so this explains the real path rather than
+              showing a QR that can't connect. */}
           {phase === 'running' && serverUrl && (
-            <button onClick={() => setShowQr(v => !v)} title="Open on device"
+            <button onClick={() => setShowQr(v => !v)} title="Test on a device"
               className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition ${showQr ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'}`}>
-              <QrCode className="w-3 h-3" />
+              <Smartphone className="w-3 h-3" />
             </button>
           )}
           <button onClick={() => setLogsOpen((v) => !v)}
@@ -250,34 +252,36 @@ export function WebContainerPreview({
           </span>
           <button onClick={() => setShowQr(v => !v)}
             className="text-[11px] text-amber-300 underline underline-offset-2 whitespace-nowrap">
-            Open on device ↗
+            Test on a device ↗
           </button>
         </div>
       )}
 
-      {/* QR code popover */}
-      {showQr && serverUrl && (
-        <div className="absolute top-10 right-2 z-20 bg-zinc-900 border border-white/15 rounded-xl p-4 shadow-2xl w-56">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-medium text-white">Open on device</span>
+      {/* Device-preview info popover. There's deliberately no QR here: the
+          dev server runs inside this browser tab (a *.webcontainer-api.io
+          URL backed by a service worker) and is NOT reachable from a phone
+          — a QR pointing at it always fails with ERR_CONNECTION_FAILED.
+          So we tell the user the honest path instead. */}
+      {showQr && (
+        <div className="absolute top-10 right-2 z-20 bg-zinc-900 border border-white/15 rounded-xl p-4 shadow-2xl w-72">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium text-white">Test on a device</span>
             <button onClick={() => setShowQr(false)} className="text-zinc-500 hover:text-white">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
-          <img
-            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=4&data=${encodeURIComponent(serverUrl)}`}
-            alt="QR code"
-            className="w-full rounded-lg bg-white p-1"
-            width={180} height={180}
-          />
-          <p className="text-[10px] text-zinc-500 mt-2 text-center leading-relaxed">
-            Scan with your phone camera<br/>to open in browser
+          <p className="text-[11px] text-zinc-400 leading-relaxed">
+            This preview runs inside your browser&apos;s sandbox — a phone can&apos;t
+            connect to it. To run {isExpoWeb ? 'the app' : 'this'} on a real device:
           </p>
-          {isExpoWeb && (
-            <p className="text-[10px] text-amber-400/70 mt-1.5 text-center leading-relaxed">
-              Web preview only — use <span className="font-semibold">Expo Go</span> + Metro for native
-            </p>
-          )}
+          <ol className="text-[11px] text-zinc-400 leading-relaxed mt-2 flex flex-col gap-1 list-decimal pl-4">
+            <li>Download the project — <span className="text-zinc-300">Export</span> in the workspace toolbar.</li>
+            <li>Run <code className="px-1 rounded bg-white/10 text-zinc-200 font-mono">npx expo start</code> in the folder.</li>
+            <li>Scan the Metro QR with {isExpoWeb ? <span className="font-semibold">Expo Go</span> : 'your browser'}.</li>
+          </ol>
+          <p className="text-[10px] text-violet-300/80 mt-2.5">
+            One-tap on-device preview from Webstew is coming soon.
+          </p>
         </div>
       )}
 

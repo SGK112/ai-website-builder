@@ -176,6 +176,7 @@ import { InlineUpgradeModal } from '@/components/builder/InlineUpgradeModal'
 import { SectionChat, type ChatSubmitPayload } from '@/components/builder/SectionChat'
 import { StewPlannerChat } from '@/components/builder/StewPlannerChat'
 import { StewPlannerModal } from '@/components/builder/StewPlannerModal'
+import { ConversionScopeModal, type ConversionScope } from '@/components/builder/ConversionScopeModal'
 import type { ClarifyTurn, ClarifyResponse, StewPlan } from '@/lib/types/stew-planner'
 import { ChefDock } from '@/components/builder/ChefSpotlight'
 import { BridgePanel } from '@/components/integrations/BridgePanel'
@@ -1299,6 +1300,15 @@ function isCloudProjectId(id: string | undefined | null): id is string {
   return !!id && /^[a-f\d]{24}$/i.test(id)
 }
 
+// Candidate screen names for the conversion clarity modal — pulled from a
+// built site's h1/h2 headings, deduped and capped.
+function detectSiteSections(html: string): string[] {
+  const heads = Array.from(html.matchAll(/<h[12][^>]*>([\s\S]*?)<\/h[12]>/gi))
+    .map((m) => m[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
+    .filter((t) => t.length > 1 && t.length <= 40)
+  return Array.from(new Set(heads)).slice(0, 12)
+}
+
 function WorkspaceContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -2215,6 +2225,8 @@ function WorkspaceContent() {
   const [plannerSuggestions, setPlannerSuggestions] = useState<string[]>([])
   const [showPlanModal, setShowPlanModal] = useState(false)
   const [planModalData, setPlanModalData] = useState<{ plan: StewPlan; prompt: string } | null>(null)
+  // Website→app conversion clarity step — opened by "Convert to App".
+  const [conversionModal, setConversionModal] = useState<{ siteName: string; sections: string[] } | null>(null)
 
   // Theme builder panel state
   const [showThemeBuilder, setShowThemeBuilder] = useState(false)
@@ -5590,6 +5602,45 @@ ${html}
     } else {
       void handleGenerate(prompt, stewIngredients.length > 0 ? stewIngredients : undefined, { fresh: true })
     }
+  }
+
+  // Website→app conversion, scoped by the clarity modal. Snapshots the
+  // current site as `sourceHtml`, switches the workspace to the Expo
+  // target, fires the multi-target build, and rolls back to the website
+  // if it fails so no work is lost.
+  const startScopedConversion = (siteName: string, scope: ConversionScope) => {
+    setConversionModal(null)
+    if (isGenerating || isThinking) return
+    const screenLine = scope.screens.length
+      ? `Build EXACTLY these screens, nothing more: ${scope.screens.join(', ')}.`
+      : 'Build the main screens from the site.'
+    const contentLine = scope.contentMode === 'real'
+      ? "Use the site's real copy and data."
+      : 'Use realistic placeholder copy in the same voice.'
+    const contactLine = {
+      call: 'Contact buttons should open the phone dialer (tel: via Linking).',
+      email: 'Contact buttons should open the email composer (mailto: via Linking).',
+      both: 'Offer both a call button and an email button.',
+      info: 'Show the contact details as plain text — no action buttons.',
+    }[scope.contactAction]
+    const prompt =
+      `Convert "${siteName}" to a React Native mobile app (Expo).\n\n` +
+      `${screenLine}\n${contentLine}\n${contactLine}\n\n` +
+      `Keep the branding and colour scheme. Keep it focused — a few well-built screens beat many thin ones.`
+    const sourceHtml = html
+    setVfsFiles({})
+    setVfsProjectMeta(null)
+    setPreviewBumpKey((k) => k + 1)
+    setBuildTarget('expo')
+    setChatMessages((prev) => [...prev, { role: 'user', content: prompt }])
+    void (async () => {
+      const ok = await handleGenerateMultiTarget('expo', prompt, { sourceHtml })
+      if (!ok) {
+        setBuildTarget('website')
+        setPreviewBumpKey((k) => k + 1)
+        addToast('error', 'Conversion failed — your website is still here. Try again.')
+      }
+    })()
   }
 
   // Skip the interview — build straight from the user's original message.
@@ -9778,31 +9829,17 @@ npx eas build --platform all
             {/* Convert to App — only shown when a website has been built */}
             {buildTarget === 'website' && !!html && (
               <button
-                onClick={async () => {
+                onClick={() => {
                   if (isGenerating || isThinking) return
-                  // Extract a brief description from the HTML title/h1 for context
+                  // Open the clarity modal — the user scopes which screens,
+                  // content mode and contact behaviour BEFORE the heavy
+                  // generation. The actual conversion runs in
+                  // startScopedConversion once they confirm.
                   const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
                   const h1Match = html.match(/<h1[^>]*>([^<]*)<\/h1>/i)
                   const siteName = (titleMatch?.[1] || h1Match?.[1] || 'this website')
                     .replace(/\s*[-|–]\s*.*/g, '').trim().slice(0, 60)
-                  const conversionPrompt = `Convert "${siteName}" to a React Native mobile app. Keep the same branding, colour scheme, content, and key features. Generate a complete, working Expo app with the main screens from the website.`
-                  // Snapshot the site and hand it to the generator as sourceHtml
-                  // so it rebuilds the REAL website, not a generic app from a
-                  // thin prompt. Keep `html` in state (don't wipe it) so a
-                  // failed conversion can roll straight back to the website.
-                  const sourceHtml = html
-                  setVfsFiles({})
-                  setVfsProjectMeta(null)
-                  setPreviewBumpKey(k => k + 1)
-                  setBuildTarget('expo')
-                  setChatMessages(prev => [...prev, { role: 'user', content: conversionPrompt }])
-                  const ok = await handleGenerateMultiTarget('expo', conversionPrompt, { sourceHtml })
-                  if (!ok) {
-                    // Conversion failed — restore the website so no work is lost.
-                    setBuildTarget('website')
-                    setPreviewBumpKey(k => k + 1)
-                    addToast('error', 'Conversion failed — your website is still here. Try again.')
-                  }
+                  setConversionModal({ siteName, sections: detectSiteSections(html) })
                 }}
                 disabled={isGenerating || isThinking}
                 title="Convert this website to a React Native mobile app"
@@ -12830,6 +12867,19 @@ npx eas build --platform all
           onClose={() => { setShowPlanModal(false); setPlannerActive(false); setPlanModalData(null) }}
         />
       )}
+
+      {/* Website→app conversion clarity step — scopes screens/content/contact
+          before the heavy generation. Opened by the "→ App" toolbar button. */}
+      <ConversionScopeModal
+        open={!!conversionModal}
+        isDark={isDark}
+        siteName={conversionModal?.siteName || ''}
+        sections={conversionModal?.sections || []}
+        onClose={() => setConversionModal(null)}
+        onConvert={(scope) => {
+          if (conversionModal) startScopedConversion(conversionModal.siteName, scope)
+        }}
+      />
 
       {/* Inline edit modal — replaces window.prompt() for right-click text/link edits */}
       <AnimatePresence>
