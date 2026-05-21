@@ -78,12 +78,14 @@ structure below.
 - **App.tsx** — \`export default function App()\`. Holds the active-tab
   state with useState, conditionally renders the matching screen, and
   renders <TabBar/> below it. Import { StatusBar } from 'expo-status-bar'.
-- **src/theme.ts** — exports a \`theme\` object of design tokens: bg,
-  surface, text, muted, border, primary, primaryText, radius, gap, plus
-  any brand colours. It ALSO exports \`gradients\` — a map of named gradients,
-  each shaped \`{ colors: string[]; start?: {x:number;y:number}; end?: {x:number;y:number} }\`
-  (e.g. \`hero\`, \`cta\`). Every colour, spacing, and gradient value in the
-  app is read from this file.
+- **src/theme.ts** — exports EXACTLY ONE thing: \`export const theme\`. It
+  is a single object holding every design token — bg, surface, text, muted,
+  border, primary, primaryText, radius, gap, brand colours, AND \`gradients\`:
+  a nested map of named gradients reached as \`theme.gradients.hero\`, each
+  shaped \`{ colors: string[]; start?: {x:number;y:number}; end?: {x:number;y:number} }\`.
+  Do NOT add a second export — \`gradients\` is a PROPERTY of \`theme\`, never
+  its own export. Every value the app reads (colour, spacing, gradient) is
+  accessed as \`theme.something\`; \`theme.gradients\` is always defined.
 - **src/data.ts** — exports the app's content: app name + tagline, a
   \`TabKey\` union type, a \`tabs\` array of { key, label, icon }, and the
   data each screen renders. ALL copy lives here.
@@ -96,8 +98,8 @@ structure below.
 
 The source site's backgrounds and gradients ARE its visual identity —
 carry them over, do not flatten them to a plain colour.
-- Define every gradient in \`theme.ts\` under \`gradients\` (colours from the
-  "Gradients" / "Colour palette" context below, in source order).
+- Define every gradient on \`theme.gradients\` in \`theme.ts\` (colours from
+  the "Gradients" / "Colour palette" context below, in source order).
 - Render them with LinearGradient from 'expo-linear-gradient':
   \`import { LinearGradient } from 'expo-linear-gradient'\`, then
   \`<LinearGradient colors={theme.gradients.hero.colors} start={...} end={...} style={...}>\`.
@@ -139,6 +141,46 @@ function pickAnthropicModel(modelName: string | undefined): string {
   return 'claude-haiku-4-5-20251001'
 }
 
+// Distil a source website into compact, signal-dense conversion context.
+// A raw AI-generated page is routinely 80k+ chars, mostly inline <svg>,
+// base64 data URIs and whitespace — noise that doesn't port to React Native
+// and ran the generation long enough to drop the SSE connection. We pull the
+// colour palette + CSS gradients out first (the <style> blocks that define
+// them are about to be stripped), then strip the noise and cap hard. Returns
+// the "## SOURCE WEBSITE" prompt block, or '' when there's no usable source.
+function distillSourceWebsite(rawHtml: string): string {
+  const raw = rawHtml.trim()
+  if (!raw) return ''
+  const palette = Array.from(
+    new Set(raw.match(/#[0-9a-fA-F]{3,8}\b|rgba?\([^)]{1,40}\)/g) || []),
+  ).slice(0, 24)
+  // The inner alternation tolerates one level of nested parens (rgba() stops).
+  const gradients = Array.from(
+    new Set(raw.match(/(?:linear|radial|conic)-gradient\((?:[^()]|\([^()]*\))*\)/gi) || []),
+  ).slice(0, 10)
+  const distilled = raw
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<svg[\s\S]*?<\/svg>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/(["'(])data:[^"')]{20,}(["')])/gi, '$1data-uri$2')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 30_000)
+  return (
+    `\n\n## SOURCE WEBSITE TO CONVERT\n` +
+    `Rebuild THIS existing website as the app. Match its branding, copy, ` +
+    `navigation, and section structure — translate each major section ` +
+    `into a screen or component. Do not invent unrelated content.\n` +
+    (palette.length ? `\nColour palette: ${palette.join(', ')}\n` : '') +
+    (gradients.length
+      ? `\nGradients — rebuild these as expo-linear-gradient backgrounds:\n${gradients.map((g) => `  - ${g}`).join('\n')}\n`
+      : '') +
+    `\nSource markup (distilled — SVG/scripts/styles stripped):\n` +
+    '```html\n' + distilled + '\n```\n'
+  )
+}
+
 // ---------- Route ----------
 
 export async function POST(req: NextRequest) {
@@ -175,52 +217,11 @@ export async function POST(req: NextRequest) {
   const model = pickAnthropicModel(body.model)
   const client = new Anthropic({ apiKey: anthropicKey })
 
-  // Optional source website to convert. Not counted against the 5000-char
-  // prompt cap — it's reference material, not the instruction.
-  //
-  // A raw AI-generated page is routinely 80k+ chars, but most of that is
-  // inline <svg> icons, base64 data URIs and whitespace — noise that doesn't
-  // port to React Native. Dumping all of it made the (non-streaming) two-pass
-  // generation run long enough to drop the SSE connection mid-build
-  // ("Stream ended before result arrived"). So we distil: pull the colour
-  // palette out first, then strip the noise and cap hard. What remains is the
-  // copy, navigation and section structure the converter actually needs.
-  let sourceContext = ''
-  if (typeof body.sourceHtml === 'string' && body.sourceHtml.trim()) {
-    const raw = body.sourceHtml
-    const palette = Array.from(
-      new Set(raw.match(/#[0-9a-fA-F]{3,8}\b|rgba?\([^)]{1,40}\)/g) || []),
-    ).slice(0, 24)
-    // CSS gradients carry much of a modern site's visual identity, but the
-    // <style> blocks that define them get stripped below — pull them out
-    // first so the model can rebuild them via expo-linear-gradient. The
-    // inner alternation tolerates one level of nested parens (rgba() stops).
-    const gradients = Array.from(
-      new Set(
-        raw.match(/(?:linear|radial|conic)-gradient\((?:[^()]|\([^()]*\))*\)/gi) || [],
-      ),
-    ).slice(0, 10)
-    const distilled = raw
-      .replace(/<script[\s\S]*?<\/script>/gi, '')
-      .replace(/<svg[\s\S]*?<\/svg>/gi, '')
-      .replace(/<style[\s\S]*?<\/style>/gi, '')
-      .replace(/<!--[\s\S]*?-->/g, '')
-      .replace(/(["'(])data:[^"')]{20,}(["')])/gi, '$1data-uri$2')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 30_000)
-    sourceContext =
-      `\n\n## SOURCE WEBSITE TO CONVERT\n` +
-      `Rebuild THIS existing website as the app. Match its branding, copy, ` +
-      `navigation, and section structure — translate each major section ` +
-      `into a screen or component. Do not invent unrelated content.\n` +
-      (palette.length ? `\nColour palette: ${palette.join(', ')}\n` : '') +
-      (gradients.length
-        ? `\nGradients — rebuild these as expo-linear-gradient backgrounds:\n${gradients.map((g) => `  - ${g}`).join('\n')}\n`
-        : '') +
-      `\nSource markup (distilled — SVG/scripts/styles stripped):\n` +
-      '```html\n' + distilled + '\n```\n'
-  }
+  // Optional source website to convert (the workspace's "Convert to App").
+  // Distilled, not raw — see distillSourceWebsite. Not counted against the
+  // 5000-char prompt cap: it's reference material, not the instruction.
+  const sourceContext =
+    typeof body.sourceHtml === 'string' ? distillSourceWebsite(body.sourceHtml) : ''
 
   const baseMsg = `Build this Expo / React Native app:\n\n${prompt}\n${sourceContext}\n${body.appName ? `App name: ${body.appName}\n` : ''}${body.bundleId ? `Bundle ID: ${body.bundleId}\n` : ''}\nRespond with the JSON object only.`
   const { prompt: userMsg, warning: refWarning } = await augmentPromptWithReference(baseMsg, body.referenceUrl)
