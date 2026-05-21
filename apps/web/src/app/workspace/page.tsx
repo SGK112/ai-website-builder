@@ -2624,6 +2624,17 @@ function WorkspaceContent() {
         })
       }
     } else {
+      // No prompt/project/template/listing — but the home "App Builder"
+      // chooser may have sent a bare `?target=`. Open the workspace already
+      // in that build mode so the target tab is pre-selected and the user's
+      // first chat prompt builds for it. Website is the default, so only the
+      // app targets need handling. Clear the param so a later UI target
+      // switch survives a reload.
+      const rawTarget = searchParams.get('target')
+      if (rawTarget === 'expo' || rawTarget === 'nextjs' || rawTarget === 'react' || rawTarget === 'astro') {
+        setBuildTarget(rawTarget)
+        router.replace('/workspace', { scroll: false })
+      }
       setHasInitialized(true)
     }
   }, [searchParams, hasInitialized, projects])

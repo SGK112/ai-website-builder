@@ -27,6 +27,7 @@ import { useTheme } from '@/context/ThemeContext'
 import { cn } from '@/lib/utils'
 import { TECH_ICONS } from '@/lib/tech-icons'
 import { DEMO_SITES } from '@/lib/demo-sites'
+import { BuildTargetModal, type BuildTargetId } from '@/components/builder/BuildTargetModal'
 import { SiteGraderWidget } from '@/components/landing/SiteGraderWidget'
 import { VoiceBuilderPreview } from '@/components/landing/VoiceBuilderPreview'
 
@@ -405,6 +406,7 @@ export default function HomePage() {
 
   const [prompt, setPrompt] = useState('')
   const [isTransitioning, setIsTransitioning] = useState(false)
+  const [showTargetModal, setShowTargetModal] = useState(false)
   const [projectTheme, setProjectTheme] = useState<'light' | 'dark'>('dark')
   const [buildTarget, setBuildTarget] = useState<'website' | 'webapp' | 'mobile'>('website')
   const [placeholderIndex, setPlaceholderIndex] = useState(0)
@@ -545,6 +547,19 @@ export default function HomePage() {
 
   // Kept for backwards-compat with any inline call sites further down the file.
   const navigateToWorkspace = (projectPrompt: string) => navigateToBuilder(projectPrompt, 'website')
+
+  // App Builder chooser — open the workspace already set to the picked
+  // build target. Website is anon-accessible; the app targets are gated,
+  // so route those through /signup when the visitor isn't signed in.
+  const handlePickTarget = (target: BuildTargetId) => {
+    setShowTargetModal(false)
+    const url = target === 'website' ? '/workspace' : `/workspace?target=${target}`
+    if (target === 'website' || sessionStatus === 'authenticated') {
+      router.push(url)
+    } else {
+      router.push(`/signup?next=${encodeURIComponent(url)}`)
+    }
+  }
 
   const handleSubmit = () => {
     if (!prompt.trim() || isTransitioning) return
@@ -901,8 +916,8 @@ export default function HomePage() {
                   >
                     Community
                   </a>
-                  <a
-                    href="/workspace"
+                  <button
+                    onClick={() => setShowTargetModal(true)}
                     className={cn(
                       "px-3 py-2 rounded-lg text-sm font-medium transition-all hidden sm:flex items-center gap-1.5",
                       isDark
@@ -915,7 +930,7 @@ export default function HomePage() {
                       "text-[10px] px-1.5 py-0.5 rounded-full font-semibold",
                       isDark ? "bg-violet-500/20 text-violet-300" : "bg-violet-100 text-violet-600"
                     )}>NEW</span>
-                  </a>
+                  </button>
                   <a
                     href="/login"
                     className={cn(
@@ -2292,7 +2307,7 @@ export default function HomePage() {
                 </div>
                 <div className="flex items-center gap-x-5 gap-y-2 flex-wrap justify-center sm:justify-end">
                   <a href="/grader" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Site Grader</a>
-                  <a href="/workspace" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>App Builder</a>
+                  <button onClick={() => setShowTargetModal(true)} className={cn("transition-colors text-left", isDark ? "hover:text-white" : "hover:text-slate-900")}>App Builder</button>
                   <a href="/community" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Community</a>
                   <a href="/community?tab=feedback" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Feedback</a>
                   <a href="/upgrade" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Pricing</a>
@@ -2600,6 +2615,15 @@ export default function HomePage() {
                 </motion.div>
               )}
             </AnimatePresence>
+
+            {/* App Builder chooser — opened from the "App Builder" nav/footer
+                entries. Picking a target routes to /workspace?target=<id>. */}
+            <BuildTargetModal
+              open={showTargetModal}
+              isDark={isDark}
+              onClose={() => setShowTargetModal(false)}
+              onPick={handlePickTarget}
+            />
 
             {/* Keyboard hint removed — was a fixed overlay that covered the
                 tech-stack heading on first load. The dropdown + send arrow
