@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { guardAnonAbuse } from '@/lib/abuse-guard'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import clientPromise from '@/lib/mongodb'
@@ -133,6 +134,8 @@ export async function GET(request: NextRequest) {
 
 // POST - Create a new community post
 export async function POST(request: NextRequest) {
+  const blocked = guardAnonAbuse(request, { rateLimit: 'marketplacePublish' })
+  if (blocked) return blocked
   try {
     // SECURITY: Require authentication
     const session = await getServerSession(authOptions)

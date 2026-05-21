@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { guardAnonAbuse } from '@/lib/abuse-guard'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import clientPromise from '@/lib/mongodb'
@@ -40,6 +41,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const blocked = guardAnonAbuse(request, { rateLimit: 'communityAction' })
+  if (blocked) return blocked
   try {
     // SECURITY: Require authentication for likes
     const session = await getServerSession(authOptions)
@@ -115,6 +118,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const blocked = guardAnonAbuse(request, { rateLimit: 'communityAction' })
+  if (blocked) return blocked
   try {
     // SECURITY: Require authentication
     const session = await getServerSession(authOptions)

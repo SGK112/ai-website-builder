@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { guardAnonAbuse } from '@/lib/abuse-guard'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
 
@@ -62,6 +63,8 @@ export async function GET(request: NextRequest) {
 
 // POST - Send a chat message
 export async function POST(request: NextRequest) {
+  const blocked = guardAnonAbuse(request, { rateLimit: 'communityAction' })
+  if (blocked) return blocked
   try {
     const body = await request.json()
     const { roomId = 'global', userId, userName, userAvatar, message, type = 'text', attachments, replyTo } = body

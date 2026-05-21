@@ -20,6 +20,7 @@
 // money actually changed hands.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { guardAnonAbuse } from '@/lib/abuse-guard'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getStripe } from '@/lib/stripe'
@@ -32,7 +33,9 @@ const CENTS_PER_CREDIT = Math.max(1, parseInt(process.env.MARKETPLACE_CREDIT_USD
 const PLATFORM_FEE_BPS = Math.max(0, parseInt(process.env.MARKETPLACE_PLATFORM_FEE_BPS || '3000', 10) || 3000)
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://www.webstew.net').replace(/\/$/, '')
 
-export async function POST(_req: NextRequest, { params }: { params: { postId: string } }) {
+export async function POST(req: NextRequest, { params }: { params: { postId: string } }) {
+  const blocked = guardAnonAbuse(req, { rateLimit: 'marketplaceBuy' })
+  if (blocked) return blocked
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   if (!ObjectId.isValid(params.postId)) return NextResponse.json({ error: 'Invalid listing id' }, { status: 400 })

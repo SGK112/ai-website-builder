@@ -194,6 +194,36 @@ export const rateLimitConfigs = {
     windowMs: 60 * 60 * 1000, // 8 anon AI calls per hour per IP
     message: 'Free-tier limit reached. Sign in for more, or try again later.',
   },
+
+  // Publishing to the community marketplace — caps listing-spam farms.
+  marketplacePublish: {
+    maxRequests: 12,
+    windowMs: 60 * 60 * 1000, // 12 listings per hour per IP
+    message: 'Too many listings published from this address. Please slow down.',
+  },
+
+  // Marketplace purchase attempts (checkout + credit buy). Generous enough
+  // for genuine retries, tight enough to stop card-testing / scripted buys.
+  marketplaceBuy: {
+    maxRequests: 20,
+    windowMs: 60 * 60 * 1000, // 20 purchase attempts per hour per IP
+    message: 'Too many purchase attempts. Please try again later.',
+  },
+
+  // Seller cashouts. Money leaves the platform here — keep the ceiling low.
+  marketplacePayout: {
+    maxRequests: 5,
+    windowMs: 60 * 60 * 1000, // 5 payout requests per hour per IP
+    message: 'Too many payout requests. Please try again later.',
+  },
+
+  // Cheap community interactions (like / save / edit / delete). High
+  // ceiling — these are harmless toggles, this just stops a runaway script.
+  communityAction: {
+    maxRequests: 60,
+    windowMs: 60 * 1000, // 60 actions per minute per IP
+    message: 'Too many requests, please slow down.',
+  },
 } as const
 
 export type RateLimitType = keyof typeof rateLimitConfigs

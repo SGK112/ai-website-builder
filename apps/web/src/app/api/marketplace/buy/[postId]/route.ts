@@ -16,6 +16,7 @@
 //   6. Return { ok: true, html } so the buyer's workspace can hydrate
 
 import { NextRequest, NextResponse } from 'next/server'
+import { guardAnonAbuse } from '@/lib/abuse-guard'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import clientPromise from '@/lib/mongodb'
@@ -24,7 +25,9 @@ import { connectDB } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(_req: NextRequest, { params }: { params: { postId: string } }) {
+export async function POST(req: NextRequest, { params }: { params: { postId: string } }) {
+  const blocked = guardAnonAbuse(req, { rateLimit: 'marketplaceBuy' })
+  if (blocked) return blocked
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })

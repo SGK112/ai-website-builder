@@ -12,6 +12,7 @@
 //   amount = credits to cash out. Defaults to full balance.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { guardAnonAbuse } from '@/lib/abuse-guard'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getStripe } from '@/lib/stripe'
@@ -24,6 +25,8 @@ const CENTS_PER_CREDIT = Math.max(1, parseInt(process.env.MARKETPLACE_CREDIT_USD
 const MIN_PAYOUT_CENTS = Math.max(100, parseInt(process.env.MARKETPLACE_PAYOUT_MIN_CENTS || '500', 10) || 500)
 
 export async function POST(req: NextRequest) {
+  const blocked = guardAnonAbuse(req, { rateLimit: 'marketplacePayout' })
+  if (blocked) return blocked
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })

@@ -9,6 +9,7 @@
 // dashboard surface lands; for now this is the write side.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { guardAnonAbuse } from '@/lib/abuse-guard'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import clientPromise from '@/lib/mongodb'
@@ -16,7 +17,9 @@ import { ObjectId } from 'mongodb'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const blocked = guardAnonAbuse(req, { rateLimit: 'communityAction' })
+  if (blocked) return blocked
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
