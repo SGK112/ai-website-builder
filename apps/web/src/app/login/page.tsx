@@ -23,6 +23,10 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState<string | null>(null)
   // Hide OAuth buttons for providers that aren't configured server-side.
   const [availableProviders, setAvailableProviders] = useState<Set<string>>(new Set())
+  // In-page error from a redirect:false credentials sign-in (the URL `error`
+  // param only covers OAuth redirects). EMAIL_NOT_VERIFIED gets special UI.
+  const [loginError, setLoginError] = useState<string | null>(null)
+  const [resend, setResend] = useState<'idle' | 'sending' | 'sent'>('idle')
 
   useEffect(() => {
     getProviders().then(p => {
@@ -33,16 +37,42 @@ export default function LoginPage() {
   const handleCredentialsLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading('credentials')
+    setLoginError(null)
+    setResend('idle')
     try {
-      await signIn('credentials', {
-        email,
-        password,
-        callbackUrl,
-      })
+      // redirect:false so we can read the authorize() error — NextAuth
+      // surfaces the thrown message (e.g. EMAIL_NOT_VERIFIED) here.
+      const res = await signIn('credentials', { email, password, redirect: false })
+      if (res?.ok && !res.error) {
+        window.location.href = callbackUrl
+        return
+      }
+      setLoginError(res?.error || 'CredentialsSignin')
     } catch (err) {
       console.error(err)
+      setLoginError('CredentialsSignin')
     } finally {
       setIsLoading(null)
+    }
+  }
+
+  // Resend the verification email — needed because a gated-out user has no
+  // session, so /api/auth/verify accepts the email in the body for this case.
+  const handleResendVerification = async () => {
+    if (!email.trim()) {
+      setLoginError('Enter your email above first, then resend.')
+      return
+    }
+    setResend('sending')
+    try {
+      await fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      })
+      setResend('sent')
+    } catch {
+      setResend('idle')
     }
   }
 
@@ -102,21 +132,47 @@ export default function LoginPage() {
               - Configuration: NextAuth itself is misconfigured (NEXTAUTH_SECRET,
                 NEXTAUTH_URL, or DB unreachable)
               - Default: catch-all */}
-          {error && (
+          {/* Unverified email — a distinct, friendly state with a resend
+              action, not a red "error". The login authorize() throws
+              EMAIL_NOT_VERIFIED for accounts that signed up but haven't
+              clicked their verification link. */}
+          {(loginError === 'EMAIL_NOT_VERIFIED') && (
+            <div className="mb-6 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-700 dark:text-amber-300 text-sm">
+              <div className="font-medium mb-1">Verify your email to sign in</div>
+              <div className="text-xs leading-relaxed">
+                When you signed up we emailed you a verification link. Click it,
+                then sign in. Didn&apos;t get it? Check spam, or resend below.
+              </div>
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                disabled={resend !== 'idle'}
+                className="mt-2 text-xs font-semibold underline underline-offset-2 disabled:opacity-60"
+              >
+                {resend === 'sent'
+                  ? 'Verification email sent ✓'
+                  : resend === 'sending'
+                    ? 'Sending…'
+                    : 'Resend the verification email'}
+              </button>
+            </div>
+          )}
+
+          {(() => { const shown = (loginError && loginError !== 'EMAIL_NOT_VERIFIED') ? loginError : (loginError ? null : error); return shown && (
             <div className="mb-6 p-3 bg-red-500/10 border border-red-500/30 dark:border-red-500/20 rounded-lg text-red-600 dark:text-red-400 text-sm">
               <div className="font-medium mb-1">
-                {error === 'CredentialsSignin' && 'Invalid email or password'}
-                {error === 'OAuthAccountNotLinked' && 'This email is already registered with a different sign-in method'}
-                {(error === 'OAuthSignin' || error === 'OAuthCallback') && 'OAuth provider rejected the sign-in'}
-                {error === 'Configuration' && 'Server misconfigured — contact admin'}
-                {error === 'AccessDenied' && 'Access denied'}
-                {error === 'auth_callback_failed' && 'Authentication failed. Please try again.'}
-                {!['CredentialsSignin','OAuthAccountNotLinked','OAuthSignin','OAuthCallback','Configuration','AccessDenied','auth_callback_failed'].includes(error) && 'Sign-in failed'}
+                {(shown === 'CredentialsSignin' || shown === 'Invalid email or password') && 'Invalid email or password'}
+                {shown === 'OAuthAccountNotLinked' && 'This email is already registered with a different sign-in method'}
+                {(shown === 'OAuthSignin' || shown === 'OAuthCallback') && 'OAuth provider rejected the sign-in'}
+                {shown === 'Configuration' && 'Server misconfigured — contact admin'}
+                {shown === 'AccessDenied' && 'Access denied'}
+                {shown === 'auth_callback_failed' && 'Authentication failed. Please try again.'}
+                {!['CredentialsSignin','Invalid email or password','OAuthAccountNotLinked','OAuthSignin','OAuthCallback','Configuration','AccessDenied','auth_callback_failed'].includes(shown) && 'Sign-in failed'}
               </div>
               <div className="text-xs text-red-500/80 dark:text-red-400/70 font-mono">
-                Error code: {error}
+                Error code: {shown}
               </div>
-              {(error === 'OAuthSignin' || error === 'OAuthCallback' || error === 'Configuration') && (
+              {(shown === 'OAuthSignin' || shown === 'OAuthCallback' || shown === 'Configuration') && (
                 <div className="text-xs text-red-500/90 dark:text-red-400/80 mt-2 leading-relaxed">
                   Likely fix: confirm the OAuth callback URL on the provider matches{' '}
                   <code className="px-1 py-0.5 bg-red-500/10 rounded">https://&lt;your-domain&gt;/api/auth/callback/&lt;provider&gt;</code>
@@ -124,7 +180,7 @@ export default function LoginPage() {
                 </div>
               )}
             </div>
-          )}
+          ) })()}
 
           {/* OAuth Buttons — only render configured providers */}
           {(availableProviders.has('google') || availableProviders.has('github')) && (

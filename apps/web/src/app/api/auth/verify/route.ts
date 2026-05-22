@@ -1,7 +1,8 @@
 // GET  /api/auth/verify?token=...  — consume an email-verification token,
 //      flip emailVerified:true on the user doc.
-// POST /api/auth/verify            — resend the verification email for the
-//      signed-in (but unverified) user.
+// POST /api/auth/verify            — resend the verification email. Works
+//      with OR without a session: login is now gated on verification, so an
+//      unverified user has no session and resends with { email } in the body.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
@@ -10,6 +11,7 @@ import { connectDB } from '@/lib/db'
 import { User } from '@ai-website-builder/database'
 import { verifyVerifyToken, makeVerifyToken, verifyEmailContent } from '@/lib/email-verification'
 import { sendMail } from '@/lib/mailer'
+import { guardAnonAbuse } from '@/lib/abuse-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,26 +46,37 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // Rate-limited — this sends email; an open resend endpoint is an
+  // inbox-spam vector otherwise.
+  const blocked = guardAnonAbuse(req, { rateLimit: 'waitlist', allowBotUa: true })
+  if (blocked) return blocked
+
+  // Email comes from the session (logged-in resend) or the request body
+  // (unverified user, who has no session since login is gated on it).
   const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  let email = session?.user?.email?.toLowerCase() || ''
+  if (!email) {
+    const body = await req.json().catch(() => ({} as any))
+    email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
   }
-  const email = session.user.email.toLowerCase()
+  if (!email) {
+    return NextResponse.json({ error: 'Email required' }, { status: 400 })
+  }
   try {
     await connectDB()
-    const user: any = await User.findOne({ email }).select('_id').lean()
-    if (!user) return NextResponse.json({ error: 'Account not found' }, { status: 404 })
-
-    const origin =
-      req.headers.get('origin') ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      process.env.NEXTAUTH_URL ||
-      'https://www.webstew.net'
-    const link = `${origin}/verify-email?token=${encodeURIComponent(makeVerifyToken(email))}`
-    const mail = verifyEmailContent(link)
-    const result = await sendMail({ to: email, subject: mail.subject, text: mail.text, html: mail.html })
-    if (!result.ok) {
-      return NextResponse.json({ error: 'Could not send the email — try again shortly.' }, { status: 502 })
+    const user: any = await User.findOne({ email }).select('_id emailVerified').lean()
+    // Only send for a real account that is still unverified — and return
+    // the SAME response either way, so this can't be used to probe which
+    // emails are registered.
+    if (user && user.emailVerified === false) {
+      const origin =
+        req.headers.get('origin') ||
+        process.env.NEXT_PUBLIC_APP_URL ||
+        process.env.NEXTAUTH_URL ||
+        'https://www.webstew.net'
+      const link = `${origin}/verify-email?token=${encodeURIComponent(makeVerifyToken(email))}`
+      const mail = verifyEmailContent(link)
+      await sendMail({ to: email, subject: mail.subject, text: mail.text, html: mail.html })
     }
     return NextResponse.json({ ok: true })
   } catch (e: any) {

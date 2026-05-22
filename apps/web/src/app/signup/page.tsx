@@ -64,15 +64,10 @@ export default function SignupPage() {
         return
       }
 
+      // No auto sign-in: login is gated on email verification. Show the
+      // "check your email" state instead — the user verifies via the link
+      // we just emailed, then signs in.
       setSuccess(true)
-      // Auto sign in after signup
-      setTimeout(async () => {
-        await signIn('credentials', {
-          email,
-          password,
-          callbackUrl,
-        })
-      }, 1500)
     } catch (err) {
       setError('An error occurred. Please try again.')
     } finally {
@@ -100,8 +95,17 @@ export default function SignupPage() {
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/15 dark:bg-emerald-500/20 flex items-center justify-center">
             <Check className="w-8 h-8 text-emerald-500 dark:text-emerald-400" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Welcome to Webstew AI!</h1>
-          <p className="text-slate-500 dark:text-zinc-400">Signing you in…</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Check your email</h1>
+          <p className="text-slate-500 dark:text-zinc-400 max-w-sm mx-auto leading-relaxed">
+            We sent a verification link to <span className="font-medium text-slate-700 dark:text-zinc-200">{email}</span>.
+            Click it to verify your account, then sign in.
+          </p>
+          <Link
+            href="/login"
+            className="inline-block mt-5 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition"
+          >
+            Go to sign in
+          </Link>
         </motion.div>
       </div>
     )

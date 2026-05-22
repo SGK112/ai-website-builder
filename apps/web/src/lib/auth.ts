@@ -56,6 +56,16 @@ const providers: any[] = [
         throw new Error('Invalid email or password')
       }
 
+      // Email-verification gate. A fake / disposable email can't receive the
+      // verification link, so blocking login until verified stops throwaway
+      // accounts from burning free credits and walking off with a build.
+      // Only EXPLICITLY unverified accounts are blocked — legacy users (no
+      // emailVerified field) are grandfathered through. OAuth logins skip
+      // this entirely; the provider already verified the address.
+      if (user.emailVerified === false) {
+        throw new Error('EMAIL_NOT_VERIFIED')
+      }
+
       return {
         id: user._id.toString(),
         email: user.email,
