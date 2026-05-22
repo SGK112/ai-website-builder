@@ -1313,7 +1313,7 @@ function WorkspaceContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { theme, toggleTheme } = useTheme()
-  const { data: session } = useSession()
+  const { data: session, status: sessionStatus } = useSession()
   const isDark = theme === 'dark'
 
   // Database persistence hook
@@ -2398,8 +2398,30 @@ function WorkspaceContent() {
     }
   }, [session?.user, serviceCredentials, addConsoleLog, fetchServiceCredentials])
 
+  // Account-scoped cache guard — MUST run before any localStorage content
+  // is read below. localStorage is per-BROWSER, not per-account: without
+  // this, a new signup (or a different user, or anon→login) on the same
+  // browser inherits the previous session's site, projects and BYOK keys.
+  // On any change of signed-in identity, wipe the per-session content cache
+  // so each account starts clean. Gated on a resolved session so a returning
+  // user's own cache isn't wiped during the brief 'loading' window.
+  useEffect(() => {
+    if (typeof window === 'undefined' || sessionStatus === 'loading') return
+    const current = session?.user?.id || 'anon'
+    const prev = localStorage.getItem('webstew-cache-owner')
+    if (prev !== null && prev !== current) {
+      for (const k of ['webstew-autosave', 'vibe-projects', 'webstew-last-generation', 'ai-builder-api-keys']) {
+        try { localStorage.removeItem(k) } catch {}
+      }
+      setProjects([])
+    }
+    try { localStorage.setItem('webstew-cache-owner', current) } catch {}
+  }, [sessionStatus, session?.user?.id])
+
   // Load projects from localStorage and merge with database projects
   useEffect(() => {
+    // Wait for the cache guard above to settle the identity first.
+    if (sessionStatus === 'loading') return
     // Load local projects
     const savedProjects = localStorage.getItem('vibe-projects')
     if (savedProjects) {
@@ -2484,7 +2506,7 @@ function WorkspaceContent() {
         console.error('Failed to parse saved API keys')
       }
     }
-  }, [session?.user, projectHook.projects])
+  }, [session?.user, projectHook.projects, sessionStatus])
 
   // Fetch templates from Supabase
   useEffect(() => {
@@ -2765,6 +2787,9 @@ function WorkspaceContent() {
   useEffect(() => {
     if (
       hasInitialized
+      // Wait for a resolved session so the cache-owner guard has run first —
+      // otherwise this could restore the previous account's autosaved site.
+      && sessionStatus !== 'loading'
       && !html
       && !loadedFromUrlRef.current
       && !searchParams.get('prompt')
@@ -2807,7 +2832,7 @@ function WorkspaceContent() {
         }
       }
     }
-  }, [hasInitialized, searchParams])
+  }, [hasInitialized, searchParams, sessionStatus])
 
   // Check onboarding status on mount. Only show for users who landed here with
   // no prompt and no existing project — otherwise the tour interrupts an
