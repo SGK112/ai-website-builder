@@ -2869,14 +2869,26 @@ Rules:
               }
             }
 
-            // Track usage for Claude generation — metered on REAL token
-            // usage via creditsForUsage (same as the multi-target routes),
-            // not a flat per-model rate. Opus was underwater at a flat 10.
+            // Structural completeness check FIRST — it gates billing below.
+            // If Claude was cut off mid-tag and even the continuation passes
+            // didn't close the document, this is a bad build.
+            const finalLower = finalHtml.toLowerCase()
+            const structurallyComplete = finalLower.includes('</body>') && finalLower.includes('</html>')
+            const truncated = wasTruncated || !structurallyComplete
+
+            // Track usage for Claude generation — metered on REAL token usage
+            // via creditsForUsage (same as the multi-target routes), not a
+            // flat per-model rate. QUALITY-GATED: a truncated/incomplete build
+            // is a bad build — we do NOT charge for it (credit-system best
+            // practice: never bill a failed result). The client sees
+            // creditsUsed:0 + truncated:true and surfaces "not charged".
             const duration = Date.now() - startTime
             const tokensUsed = claudeUsage.inputTokens + claudeUsage.outputTokens
-            const creditsUsed = creditsForUsage(claudeModel, claudeUsage.inputTokens, claudeUsage.outputTokens)
+            const creditsUsed = truncated
+              ? 0
+              : creditsForUsage(claudeModel, claudeUsage.inputTokens, claudeUsage.outputTokens)
 
-            if (userId) {
+            if (userId && !truncated) {
               try {
                 await trackUsage(userId, {
                   type: 'generation',
@@ -2895,14 +2907,9 @@ Rules:
               } catch (trackError) {
                 console.warn('[Generate] Failed to track Claude usage:', trackError)
               }
+            } else if (truncated) {
+              console.log(`[Generate] Build truncated — NOT charging user ${userId || '(anon)'}`)
             }
-
-            // Structural completeness check: if Claude was cut off mid-tag and even
-            // the continuation passes didn't close the document, surface that to the UI
-            // so the chat agent doesn't claim success while the preview is half-rendered.
-            const finalLower = finalHtml.toLowerCase()
-            const structurallyComplete = finalLower.includes('</body>') && finalLower.includes('</html>')
-            const truncated = wasTruncated || !structurallyComplete
 
             safeEnqueue(encoder.encode(`data: ${JSON.stringify({
               html: finalHtml,

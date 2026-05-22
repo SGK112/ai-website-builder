@@ -311,17 +311,32 @@ export async function checkUsageLimits(
   const todayUsage = await getUserUsageToday(userId)
 
   if (type === 'generation') {
-    if (limits.dailyGenerations === -1) {
-      return { allowed: true }
+    // CREDIT-BASED CEILING. Credits track real COGS (see creditsForUsage),
+    // so the monthly credit budget is the true limit — it bounds spend no
+    // matter how cheap or expensive each build is. The daily generation
+    // COUNT is kept only as an anti-abuse guardrail, not the real limit.
+    if (limits.monthlyCredits === -1) {
+      return { allowed: true, remaining: 'unlimited' }
     }
-    if (todayUsage.generations >= limits.dailyGenerations) {
+    const monthUsage = await getUserUsageThisMonth(userId)
+    const creditsRemaining = Math.max(0, limits.monthlyCredits - monthUsage.credits)
+    if (creditsRemaining <= 0) {
       return {
         allowed: false,
-        reason: `Daily generation limit reached (${limits.dailyGenerations}/day). Upgrade to Pro for more.`,
+        reason: `Monthly credit budget used up (${limits.monthlyCredits} on the ${plan} plan). Upgrade your plan or top up credits to keep building.`,
         remaining: 0,
       }
     }
-    return { allowed: true, remaining: limits.dailyGenerations - todayUsage.generations }
+    // Guardrail: a hard daily build cap stops scripted abuse even when the
+    // user still has credits. This is NOT the real limit — credits are.
+    if (limits.dailyGenerations !== -1 && todayUsage.generations >= limits.dailyGenerations) {
+      return {
+        allowed: false,
+        reason: `Daily build limit reached (${limits.dailyGenerations}/day) — an anti-abuse guardrail. It resets tomorrow; your credits are untouched.`,
+        remaining: creditsRemaining,
+      }
+    }
+    return { allowed: true, remaining: creditsRemaining }
   }
 
   if (type === 'image') {
