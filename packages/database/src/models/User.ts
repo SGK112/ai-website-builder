@@ -22,6 +22,15 @@ export interface IUser extends Document {
   createdAt: Date
   updatedAt: Date
   lastLoginAt?: Date
+  // Email verification. Declared so Mongoose stops STRIPPING it — it was
+  // added after the schema was first registered, so hydrated queries (e.g.
+  // the login authorize()) never saw the value the signup route raw-wrote,
+  // and the verification gate silently never fired. NO default: a legacy
+  // account (field absent) must read as `undefined` so the gate grandfathers
+  // it; new signups are written `false` and get gated until they verify.
+  emailVerified?: boolean
+  emailVerifiedAt?: Date
+  emailVerifySentAt?: Date
   // Tenant marker — see schema below. 'webstew' separates this product
   // from VoiceNow co-tenants in the shared users collection.
   app?: 'webstew' | string
@@ -75,6 +84,11 @@ const userSchema = new Schema<IUser>(
       default: 'active',
     },
     credits: { type: Number, default: 100 },
+    // Email verification — NO default on purpose (see IUser above): legacy
+    // accounts must stay `undefined` so the login gate grandfathers them.
+    emailVerified: { type: Boolean },
+    emailVerifiedAt: { type: Date },
+    emailVerifySentAt: { type: Date },
     defaultAIAgent: {
       type: String,
       enum: ['claude', 'gemini', 'openai', 'auto'],
