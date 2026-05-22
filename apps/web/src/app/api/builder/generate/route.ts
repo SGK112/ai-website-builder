@@ -6,6 +6,7 @@ import { connectDB } from '@/lib/db'
 import { generateTextFree, FreeAIProvider } from '@/lib/free-ai-providers'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 import { guardAnonAbuse } from '@/lib/abuse-guard'
+import { creditsForUsage } from '@/lib/builder-gate'
 import {
   User,
   trackUsage,
@@ -2741,6 +2742,10 @@ Rules:
             }
           }
 
+          // Real Anthropic token usage, summed across passes + the owl
+          // repair — credits are metered off this, not a flat per-model rate.
+          const claudeUsage = { inputTokens: 0, outputTokens: 0 }
+
           // Run a single streaming pass. Returns stop_reason so the caller can decide
           // whether to continue from the partial HTML.
           const runPass = async (
@@ -2768,6 +2773,8 @@ Rules:
             })
 
             const finalMsg = await pass.finalMessage()
+            claudeUsage.inputTokens += finalMsg.usage?.input_tokens || 0
+            claudeUsage.outputTokens += finalMsg.usage?.output_tokens || 0
             return finalMsg.stop_reason || 'end_turn'
           }
 
@@ -2840,6 +2847,8 @@ Rules:
                   }],
                 })
                 const repair = await repairStream.finalMessage()
+                claudeUsage.inputTokens += repair.usage?.input_tokens || 0
+                claudeUsage.outputTokens += repair.usage?.output_tokens || 0
                 const repairBlock = repair.content.find((b) => b.type === 'text')
                 let repaired = repairBlock && repairBlock.type === 'text' ? repairBlock.text.trim() : ''
                 if (repaired.startsWith('```html')) repaired = repaired.slice(7).trim()
@@ -2860,10 +2869,12 @@ Rules:
               }
             }
 
-            // Track usage for Claude generation
+            // Track usage for Claude generation — metered on REAL token
+            // usage via creditsForUsage (same as the multi-target routes),
+            // not a flat per-model rate. Opus was underwater at a flat 10.
             const duration = Date.now() - startTime
-            const tokensUsed = Math.ceil(finalHtml.length / 4) // Approximate
-            const creditsUsed = claudeModel.includes('opus') ? 10 : claudeModel.includes('sonnet') ? 5 : 2
+            const tokensUsed = claudeUsage.inputTokens + claudeUsage.outputTokens
+            const creditsUsed = creditsForUsage(claudeModel, claudeUsage.inputTokens, claudeUsage.outputTokens)
 
             if (userId) {
               try {
