@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose'
+import { User } from './User'
 
 export interface IUsage {
   _id: mongoose.Types.ObjectId
@@ -132,8 +133,9 @@ export async function trackUsage(
   userId: string | mongoose.Types.ObjectId,
   data: UsageInput
 ): Promise<IUsage> {
+  const uid = typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId
   const usage = await Usage.create({
-    userId: typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId,
+    userId: uid,
     type: data.type,
     provider: data.provider,
     aiModel: data.model, // Map model to aiModel for storage
@@ -142,6 +144,19 @@ export async function trackUsage(
     prompt: data.prompt,
     metadata: data.metadata,
   })
+  // Deduct from the user's running credit balance — the SINGLE source of
+  // truth: /api/credits displays User.credits, checkUsageLimits gates on
+  // it, credit packs top it up. The Usage row above is the audit log; this
+  // is the money. Before this, the two were disconnected and builds never
+  // moved the balance the user sees ("nothing charged"). creditsUsed 0
+  // (truncated build, BYOK, free providers at 0) → skipped.
+  if (data.creditsUsed > 0) {
+    try {
+      await User.updateOne({ _id: uid }, { $inc: { credits: -data.creditsUsed } })
+    } catch (e: any) {
+      console.warn('[trackUsage] credit balance decrement failed:', e?.message || e)
+    }
+  }
   return usage
 }
 
@@ -311,19 +326,20 @@ export async function checkUsageLimits(
   const todayUsage = await getUserUsageToday(userId)
 
   if (type === 'generation') {
-    // CREDIT-BASED CEILING. Credits track real COGS (see creditsForUsage),
-    // so the monthly credit budget is the true limit — it bounds spend no
-    // matter how cheap or expensive each build is. The daily generation
-    // COUNT is kept only as an anti-abuse guardrail, not the real limit.
+    // CREDIT-BASED CEILING. The user's running credit balance (User.credits)
+    // is the single source of truth — trackUsage decrements it per charge,
+    // /api/credits displays it, credit packs + plan renewals top it up.
+    // Gate on THAT so what the user sees == what they're allowed to do.
+    // The daily generation COUNT is kept only as an anti-abuse guardrail.
     if (limits.monthlyCredits === -1) {
       return { allowed: true, remaining: 'unlimited' }
     }
-    const monthUsage = await getUserUsageThisMonth(userId)
-    const creditsRemaining = Math.max(0, limits.monthlyCredits - monthUsage.credits)
+    const userDoc = (await User.findById(userId).select('credits').lean()) as { credits?: number } | null
+    const creditsRemaining = typeof userDoc?.credits === 'number' ? userDoc.credits : 0
     if (creditsRemaining <= 0) {
       return {
         allowed: false,
-        reason: `Monthly credit budget used up (${limits.monthlyCredits} on the ${plan} plan). Upgrade your plan or top up credits to keep building.`,
+        reason: `You're out of credits. Upgrade your plan or top up to keep building.`,
         remaining: 0,
       }
     }
