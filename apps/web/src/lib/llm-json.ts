@@ -31,6 +31,9 @@ export interface GenerateJsonResult<T = any> {
   parsed: T
   rawText: string
   attempts: number
+  // Real Anthropic token usage, summed across every pass/retry. Callers
+  // meter credits off this — COGS scales with tokens, not with model alone.
+  usage: { inputTokens: number; outputTokens: number }
 }
 
 export class GenerateJsonError extends Error {
@@ -110,7 +113,10 @@ export async function generateJson<T = any>(
   let validationError = parsed ? validate(parsed) : 'Could not parse response as JSON.'
 
   if (!validationError && parsed) {
-    return { parsed: parsed as T, rawText: firstText, attempts: 1 }
+    return {
+      parsed: parsed as T, rawText: firstText, attempts: 1,
+      usage: { inputTokens: first.usage.input_tokens, outputTokens: first.usage.output_tokens },
+    }
   }
 
   // Attempt 2 — feed the error back, ask for clean JSON.
@@ -144,7 +150,13 @@ export async function generateJson<T = any>(
   validationError = parsed ? validate(parsed) : 'Could not parse response as JSON.'
 
   if (!validationError && parsed) {
-    return { parsed: parsed as T, rawText: secondText, attempts: 2 }
+    return {
+      parsed: parsed as T, rawText: secondText, attempts: 2,
+      usage: {
+        inputTokens: first.usage.input_tokens + second.usage.input_tokens,
+        outputTokens: first.usage.output_tokens + second.usage.output_tokens,
+      },
+    }
   }
 
   // Honest, actionable message. "Be more specific" was misleading — a
@@ -177,6 +189,9 @@ export async function generateJsonStreaming<T = any>(
   const maxTokens = opts.maxTokens ?? 16000
   const maxContinuations = opts.maxContinuations ?? 3
 
+  // Summed across every pass + continuation + retry — the whole job's cost.
+  const usage = { inputTokens: 0, outputTokens: 0 }
+
   const runStream = async (
     messages: Array<{ role: 'user' | 'assistant'; content: string }>,
   ): Promise<{ text: string; stopReason: string }> => {
@@ -187,6 +202,8 @@ export async function generateJsonStreaming<T = any>(
       messages,
     })
     const final = await stream.finalMessage()
+    usage.inputTokens += final.usage?.input_tokens || 0
+    usage.outputTokens += final.usage?.output_tokens || 0
     const block = final.content.find((b) => b.type === 'text')
     return {
       text: block && block.type === 'text' ? block.text : '',
@@ -218,7 +235,7 @@ export async function generateJsonStreaming<T = any>(
   let parsed = safeJsonParse(full)
   let validationError = parsed ? validate(parsed) : 'Could not parse response as JSON.'
   if (!validationError && parsed) {
-    return { parsed: parsed as T, rawText: full, attempts: 1 + continuations }
+    return { parsed: parsed as T, rawText: full, attempts: 1 + continuations, usage: { ...usage } }
   }
 
   // One corrective retry — feed the parse/validation error back.
@@ -239,7 +256,7 @@ export async function generateJsonStreaming<T = any>(
   parsed = safeJsonParse(retry.text)
   validationError = parsed ? validate(parsed) : 'Could not parse response as JSON.'
   if (!validationError && parsed) {
-    return { parsed: parsed as T, rawText: retry.text, attempts: 2 + continuations }
+    return { parsed: parsed as T, rawText: retry.text, attempts: 2 + continuations, usage: { ...usage } }
   }
 
   const hitTokenCap = stopReason === 'max_tokens' || retry.stopReason === 'max_tokens'

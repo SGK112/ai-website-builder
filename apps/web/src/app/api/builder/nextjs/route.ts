@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
   // SSE wrap — heartbeats every 15s defeat Cloudflare's 100s edge timeout
   // on long generations. Result lands as a single `result` event.
   return streamJsonWithHeartbeats(async () => {
-    let parsed: any, rawText: string, attempts: number
+    let parsed: any, rawText: string, attempts: number, usage = { inputTokens: 0, outputTokens: 0 }
     try {
       const r = await generateJson({
         client,
@@ -197,7 +197,7 @@ export async function POST(req: NextRequest) {
         userMessage: userMsg,
         validate: (p) => requireFiles(p, ['app/page.tsx', 'app/layout.tsx', 'package.json']),
       })
-      parsed = r.parsed; rawText = r.rawText; attempts = r.attempts
+      parsed = r.parsed; rawText = r.rawText; attempts = r.attempts; usage = r.usage
     } catch (err: any) {
       if (err instanceof GenerateJsonError) {
         console.error('[Next.js Builder] Generation failed after retry:', err.detail)
@@ -245,14 +245,16 @@ export async function POST(req: NextRequest) {
     }
 
     // Meter separately — a shared try meant a pending_builds hiccup
-    // silently skipped billing.
-    try {
-      await trackBuilderUsage({
-        userId: gate.userId, kind: 'nextjs', model,
-        rawSize: rawText.length, prompt,
-      })
-    } catch (e: any) {
-      console.warn('[Next.js Builder] trackBuilderUsage failed:', e?.message || e)
+    // silently skipped billing. Skipped for BYOK (user paid Anthropic).
+    if (!body.apiKey) {
+      try {
+        await trackBuilderUsage({
+          userId: gate.userId, kind: 'nextjs', model,
+          inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, prompt,
+        })
+      } catch (e: any) {
+        console.warn('[Next.js Builder] trackBuilderUsage failed:', e?.message || e)
+      }
     }
 
     return result

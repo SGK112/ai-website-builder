@@ -139,13 +139,49 @@ export async function gateBuilderRequest(model?: string): Promise<BuilderGateRes
   }
 }
 
-// Record a successful multi-target generation. Mirrors /generate's
-// trackUsage call. Fire-and-forget — never block on this.
+// Anthropic API price per 1M tokens (input, output) by model family.
+// Update if Anthropic changes pricing.
+const MODEL_PRICING: Record<'opus' | 'sonnet' | 'haiku', { in: number; out: number }> = {
+  opus:   { in: 15, out: 75 },
+  sonnet: { in: 3,  out: 15 },
+  haiku:  { in: 1,  out: 5 },
+}
+
+// Raw AI cost (COGS, in USD) that ONE credit is priced to cover. Credits
+// retail at ~$0.05–$0.10 in the credit packs, so covering $0.02 of COGS
+// per credit leaves gross margin for infra + profit. Tunable WITHOUT a
+// deploy via the CREDIT_USD_COGS env var — set it once the cost table is
+// reviewed. At 0.02 a typical Haiku build ≈ 2 credits (unchanged), while a
+// conversion or an Opus build costs proportionally more (they used to be
+// mispriced flat).
+const USD_PER_CREDIT = Number(process.env.CREDIT_USD_COGS) || 0.02
+
+function modelFamily(model: string): 'opus' | 'sonnet' | 'haiku' {
+  const m = (model || '').toLowerCase()
+  if (m.includes('opus')) return 'opus'
+  if (m.includes('sonnet')) return 'sonnet'
+  return 'haiku'
+}
+
+// Credits for a generation, derived from REAL token usage (COGS) — not a
+// flat per-model rate. A conversion that burns 70k tokens now costs many
+// more credits than a 5k-token fresh build; the old flat rate charged both
+// the same and lost money on the big ones.
+export function creditsForUsage(model: string, inputTokens: number, outputTokens: number): number {
+  const p = MODEL_PRICING[modelFamily(model)]
+  const cogs = (inputTokens / 1_000_000) * p.in + (outputTokens / 1_000_000) * p.out
+  return Math.max(1, Math.ceil(cogs / USD_PER_CREDIT))
+}
+
+// Record a successful multi-target generation, metered on real token usage.
+// Fire-and-forget — never block on this. Callers must skip it for BYOK
+// builds (the user pays Anthropic directly).
 export async function trackBuilderUsage(input: {
   userId: string
   kind: BuilderKind
   model: string
-  rawSize: number
+  inputTokens: number
+  outputTokens: number
   prompt?: string
 }): Promise<void> {
   try {
@@ -153,11 +189,11 @@ export async function trackBuilderUsage(input: {
       type: 'generation',
       provider: 'anthropic',
       model: input.model,
-      tokensUsed: Math.ceil(input.rawSize / 4),
-      creditsUsed: input.model.includes('opus') ? 10 : input.model.includes('sonnet') ? 5 : 2,
+      tokensUsed: input.inputTokens + input.outputTokens,
+      creditsUsed: creditsForUsage(input.model, input.inputTokens, input.outputTokens),
       prompt: input.prompt?.slice(0, 500),
       metadata: {
-        responseLength: input.rawSize,
+        responseLength: input.outputTokens,
         success: true,
       },
     })

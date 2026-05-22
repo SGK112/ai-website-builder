@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
   // SSE wrap — heartbeats every 15s so Cloudflare's 100s edge timeout
   // doesn't 524 long generations. Result lands as a single `result` event.
   return streamJsonWithHeartbeats(async () => {
-    let parsed: any, rawText: string, attempts: number
+    let parsed: any, rawText: string, attempts: number, usage = { inputTokens: 0, outputTokens: 0 }
     try {
       const r = await generateJson({
         client,
@@ -161,7 +161,7 @@ export async function POST(req: NextRequest) {
         userMessage: userMsg,
         validate: (p) => requireFiles(p, ['src/pages/index.astro', 'package.json']),
       })
-      parsed = r.parsed; rawText = r.rawText; attempts = r.attempts
+      parsed = r.parsed; rawText = r.rawText; attempts = r.attempts; usage = r.usage
     } catch (err: any) {
       if (err instanceof GenerateJsonError) {
         console.error('[Astro Builder] Generation failed after retry:', err.detail)
@@ -205,15 +205,17 @@ export async function POST(req: NextRequest) {
     }
 
     // Meter separately — a shared try meant a pending_builds hiccup
-    // silently skipped billing.
-    try {
-      await trackBuilderUsage({
-        userId: gate.userId, kind: 'astro',
-        model: pickAnthropicModel(body.model),
-        rawSize: rawText.length, prompt,
-      })
-    } catch (e: any) {
-      console.warn('[Astro Builder] trackBuilderUsage failed:', e?.message || e)
+    // silently skipped billing. Skipped for BYOK (user paid Anthropic).
+    if (!body.apiKey) {
+      try {
+        await trackBuilderUsage({
+          userId: gate.userId, kind: 'astro',
+          model: pickAnthropicModel(body.model),
+          inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, prompt,
+        })
+      } catch (e: any) {
+        console.warn('[Astro Builder] trackBuilderUsage failed:', e?.message || e)
+      }
     }
 
     return result

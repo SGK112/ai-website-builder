@@ -246,6 +246,7 @@ export async function POST(req: NextRequest) {
     let parsed: any
     let rawText: string
     let attempts: number
+    let usage = { inputTokens: 0, outputTokens: 0 }
     try {
       const r = await generateJsonStreaming({
         client,
@@ -261,6 +262,7 @@ export async function POST(req: NextRequest) {
       parsed = r.parsed
       rawText = r.rawText
       attempts = r.attempts
+      usage = r.usage
     } catch (err: any) {
       if (err instanceof GenerateJsonError) {
         console.error('[App Builder] Generation failed after retry:', err.detail)
@@ -342,16 +344,20 @@ export async function POST(req: NextRequest) {
     // Meter the build — in its OWN try, separate from pending-builds. When
     // these shared one try, any pending_builds hiccup jumped to the catch
     // and silently skipped billing: a multi-target build escaped metering.
-    try {
-      await trackBuilderUsage({
-        userId: gate.userId,
-        kind: 'expo',
-        model,
-        rawSize: rawText.length,
-        prompt,
-      })
-    } catch (e: any) {
-      console.warn('[App Builder] trackBuilderUsage failed:', e?.message || e)
+    // Skipped for BYOK — the user paid Anthropic directly with their key.
+    if (!body.apiKey) {
+      try {
+        await trackBuilderUsage({
+          userId: gate.userId,
+          kind: 'expo',
+          model,
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          prompt,
+        })
+      } catch (e: any) {
+        console.warn('[App Builder] trackBuilderUsage failed:', e?.message || e)
+      }
     }
 
     return result
