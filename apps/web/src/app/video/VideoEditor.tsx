@@ -66,6 +66,7 @@ export default function VideoEditor() {
   const [library, setLibrary] = useState<GeneratedVideo[]>([])
   const [selectedVideo, setSelectedVideo] = useState<GeneratedVideo | null>(null)
   const [uploadedImage, setUploadedImage] = useState<string | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
   const [uploadedVideo, setUploadedVideo] = useState<File | null>(null)
   const [editingVideo, setEditingVideo] = useState<GeneratedVideo | null>(null)
 
@@ -167,12 +168,40 @@ export default function VideoEditor() {
     }
   }
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => setUploadedImage(ev.target?.result as string)
-    reader.readAsDataURL(file)
+
+    // Image-to-video sends `uploadedImage` straight to Replicate as
+    // `imageUrl`. Replicate fetches that URL server-side and can't
+    // resolve `data:` URLs — so we MUST end up with a public HTTPS
+    // URL here, never a base64 data URL. Upload to /api/upload and
+    // reject any data: response (means Cloudinary isn't configured).
+    setError(null)
+    setUploadingImage(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/upload', { method: 'POST', body: formData })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `Upload failed (${res.status})`)
+      }
+      const json = await res.json()
+      if (!json.url) throw new Error('Upload returned no URL')
+      if (json.url.startsWith('data:')) {
+        // Cloudinary not configured on this server — refuse to set a data:
+        // URL because Replicate can't fetch it. Surfaces the real cause
+        // instead of letting the generation silently time out 5 minutes later.
+        throw new Error('Image storage isn\'t configured on this server. Ask an admin to set CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET on the Webstew service.')
+      }
+      setUploadedImage(json.url)
+    } catch (e: any) {
+      setError(e?.message || 'Image upload failed')
+      setUploadedImage(null)
+    } finally {
+      setUploadingImage(false)
+    }
   }
 
   const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -313,7 +342,12 @@ export default function VideoEditor() {
               {generateMode === 'image' && (
                 <div>
                   <label className="block text-xs font-medium text-zinc-400 mb-2">Source Image</label>
-                  {uploadedImage ? (
+                  {uploadingImage ? (
+                    <div className="w-full aspect-video rounded-xl border-2 border-dashed border-fuchsia-500/40 bg-fuchsia-500/5 flex flex-col items-center justify-center gap-2 text-zinc-400">
+                      <div className="w-6 h-6 rounded-full border-2 border-fuchsia-500/40 border-t-fuchsia-500 animate-spin" />
+                      <span className="text-xs">Uploading to image storage…</span>
+                    </div>
+                  ) : uploadedImage ? (
                     <div className="relative rounded-xl overflow-hidden aspect-video bg-zinc-900">
                       <img src={uploadedImage} alt="" className="w-full h-full object-cover" />
                       <button
@@ -459,7 +493,7 @@ export default function VideoEditor() {
               {/* Generate button */}
               <button
                 onClick={generate}
-                disabled={generating || (!prompt.trim() && generateMode === 'text') || (!uploadedImage && generateMode === 'image')}
+                disabled={generating || uploadingImage || (!prompt.trim() && generateMode === 'text') || (!uploadedImage && generateMode === 'image') || (generateMode === 'image' && uploadedImage?.startsWith('data:'))}
                 className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:brightness-110 text-white font-semibold transition-all shadow-lg shadow-violet-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {generating ? (
