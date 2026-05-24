@@ -104,31 +104,34 @@ async function uploadToCloudinary(
   mimeType: string,
   projectId: string | null
 ): Promise<UploadResult> {
-  // Create form data for Cloudinary
-  const formData = new FormData()
+  // Params that are part of the Cloudinary signature. Cloudinary requires every
+  // upload param except file/api_key/signature/cloud_name/resource_type to be
+  // signed, sorted alphabetically. Omitting upload_preset here yields
+  // "Invalid Signature" 500s.
+  const folder = `ai-website-builder/${projectId || 'uploads'}`
+  const timestamp = Math.round(Date.now() / 1000)
+  const signedParams: Record<string, string> = {
+    folder,
+    timestamp: timestamp.toString(),
+    upload_preset: 'ml_default',
+  }
 
-  // Convert buffer to Uint8Array then to blob (TypeScript compatibility)
+  const crypto = await import('crypto')
+  const toSign =
+    Object.keys(signedParams)
+      .sort()
+      .map((k) => `${k}=${signedParams[k]}`)
+      .join('&') + CLOUDINARY_API_SECRET
+  const signature = crypto.createHash('sha1').update(toSign).digest('hex')
+
+  const formData = new FormData()
   const uint8Array = new Uint8Array(buffer)
   const blob = new Blob([uint8Array], { type: mimeType })
   formData.append('file', blob, filename)
-  formData.append('upload_preset', 'ml_default') // You may need to configure this
-
-  // Add folder based on project
-  if (projectId) {
-    formData.append('folder', `ai-website-builder/${projectId}`)
-  } else {
-    formData.append('folder', 'ai-website-builder/uploads')
+  for (const [k, v] of Object.entries(signedParams)) {
+    formData.append(k, v)
   }
-
-  // Generate signature for authenticated upload
-  const timestamp = Math.round(Date.now() / 1000)
-  formData.append('timestamp', timestamp.toString())
   formData.append('api_key', CLOUDINARY_API_KEY!)
-
-  // Create signature
-  const crypto = await import('crypto')
-  const toSign = `folder=ai-website-builder/${projectId || 'uploads'}&timestamp=${timestamp}${CLOUDINARY_API_SECRET}`
-  const signature = crypto.createHash('sha1').update(toSign).digest('hex')
   formData.append('signature', signature)
 
   // Upload to Cloudinary
