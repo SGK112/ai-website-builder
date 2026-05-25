@@ -10733,17 +10733,33 @@ npx eas build --platform all
                 isDark ? 'bg-zinc-950/50' : 'bg-slate-100/50',
               viewMode === 'split' ? 'w-1/2' : 'w-full'
             )}>
-              {/* Fullscreen Toggle */}
+              {/* Fullscreen Toggle. iOS Safari blocks requestFullscreen on
+                  non-video elements (Apple restriction) so the button used
+                  to silently no-op on iPhone. We try the real fullscreen
+                  API first; if the element doesn't support it (or the call
+                  rejects), fall back to focusMode which collapses the
+                  sidebar + header for the same "give me the preview"
+                  effect on phones. */}
               <button
-                onClick={() => {
-                  const previewEl = document.querySelector('[data-tour="preview"]')
-                  if (previewEl) {
-                    if (document.fullscreenElement) {
-                      document.exitFullscreen()
-                    } else {
-                      previewEl.requestFullscreen()
+                onClick={async () => {
+                  const previewEl = document.querySelector('[data-tour="preview"]') as HTMLElement | null
+                  // Detect browsers without working Element.requestFullscreen.
+                  const supportsFs =
+                    !!previewEl &&
+                    typeof previewEl.requestFullscreen === 'function' &&
+                    !!document.fullscreenEnabled
+                  if (supportsFs) {
+                    try {
+                      if (document.fullscreenElement) await document.exitFullscreen()
+                      else await previewEl!.requestFullscreen()
+                      return
+                    } catch {
+                      // Fall through to focus-mode fallback.
                     }
                   }
+                  // iOS / unsupported — toggle focusMode so the preview at
+                  // least claims the whole viewport.
+                  setFocusMode((v) => !v)
                 }}
                 className={cn(
                   "absolute top-6 right-6 z-10 p-2 rounded-lg border transition-all",
