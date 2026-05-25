@@ -5689,12 +5689,10 @@ ${html}
   const handleChatMessage = async (message: string) => {
     if (!message.trim() || isGenerating || isThinking) return
 
-    // Mobile: auto-collapse the sidebar drawer once the user submits so the
-    // preview area takes over the screen. Without this they'd watch the
-    // generation log inside the drawer and never see the result.
-    if (isMobile && !sidebarCollapsed) {
-      setSidebarCollapsed(true)
-    }
+    // (Mobile auto-collapse-sidebar removed — was suspect for header+blank
+    // +footer regression where streaming HTML stopped arriving after the
+    // re-render the close triggered. Users can swipe the drawer closed
+    // themselves; the streaming preview is still visible behind it.)
 
     // Stew Planner intercept — while the clarifying agent is interviewing,
     // every chat message is an answer to it. Route there before the message
