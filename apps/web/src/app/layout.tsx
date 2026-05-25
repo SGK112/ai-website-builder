@@ -3,6 +3,7 @@ import { Inter, Playfair_Display, Inter_Tight } from 'next/font/google'
 import './globals.css'
 import { Toaster } from '@/components/ui/toaster'
 import { PwaInstallPrompt } from '@/components/PwaInstallPrompt'
+import { MobileBottomNav } from '@/components/MobileBottomNav'
 import { AuthProvider } from '@/components/shared/AuthProvider'
 import { AppProvider } from '@/context/AppContext'
 import { ClientLayout } from '@/components/shared/ClientLayout'
@@ -247,6 +248,7 @@ export default function RootLayout({
               </ClientLayout>
               <Toaster />
               <PwaInstallPrompt />
+              <MobileBottomNav />
             </AppProvider>
           </AuthProvider>
         </ThemeProvider>

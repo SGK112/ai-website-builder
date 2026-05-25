@@ -1035,3 +1035,14 @@
 .pb-safe-4 { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); }
 .pt-safe-2 { padding-top: calc(env(safe-area-inset-top, 0px) + 8px); }
 .pt-safe-4 { padding-top: calc(env(safe-area-inset-top, 0px) + 16px); }
+
+/* ============================================
+   MOBILE BOTTOM TAB BAR — reserve vertical space
+   ============================================
+   The MobileBottomNav is a fixed bar that overlays the bottom of every
+   signed-in page on phones. Components that anchor to the bottom (chat
+   composer, sticky CTAs) read this var to add the same offset and avoid
+   hiding behind it. Desktop and signed-out users get 0px. */
+@media (max-width: 767px) {
+  :root { --bottom-nav-h: 56px; }
+}

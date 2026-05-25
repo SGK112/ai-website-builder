@@ -7175,11 +7175,10 @@ npx eas build --platform all
           </button>
         </div>
 
-        {/* Skill Level Selector — Visual / Hybrid / Developer mode. On
-            mobile the three tabs stack with taller hit targets so they're
-            thumb-friendly, but they're STILL VISIBLE so users can change
-            modes without leaving the drawer. */}
-        {!sidebarCollapsed && (
+        {/* Skill Level Selector — desktop only. On mobile the bottom tab
+            nav handles cross-page navigation; the drawer keeps just chat
+            + welcome to feel like an app, not a stuffed sidebar. */}
+        {!sidebarCollapsed && !isMobile && (
           <div className={cn("p-3 border-b", isDark ? "border-white/[0.08]" : "border-slate-200")}>
             <div className={cn(
               "grid grid-cols-3 gap-1 p-1 rounded-xl border",
@@ -7219,8 +7218,9 @@ npx eas build --platform all
           </div>
         )}
 
-        {/* Panel Tabs - Horizontal Scrolling Gallery. */}
-        {!sidebarCollapsed && (
+        {/* Panel Tabs — desktop only. 12 destinations don't fit on a
+            phone screen; the bottom tab nav replaces this on mobile. */}
+        {!sidebarCollapsed && !isMobile && (
           <div className={cn("relative border-b", isDark ? "border-white/[0.08]" : "border-slate-200")}>
             {/* Scroll gradient indicators */}
             <div className={cn(
@@ -9392,7 +9392,10 @@ npx eas build --platform all
             // send button isn't sitting under the home bar. The constant
             // 14px pad-bottom is preserved as the floor — env() resolves
             // to 0 on browsers without notches.
-            style={{ paddingBottom: 'calc(14px + env(safe-area-inset-bottom, 0px))' }}
+            // Reserve the iPhone home-indicator's safe area + the mobile
+            // bottom-nav height (56px) on phones so the send button isn't
+            // hidden behind the tab bar.
+            style={{ paddingBottom: 'calc(14px + env(safe-area-inset-bottom, 0px) + var(--bottom-nav-h, 0px))' }}
           >
             <div className="flex items-center gap-2">
               <div className={cn(
