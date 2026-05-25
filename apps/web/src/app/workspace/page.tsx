@@ -176,6 +176,7 @@ import { SiteGraderModal } from '@/components/builder/SiteGraderModal'
 import { ShareProposalModal } from '@/components/builder/ShareProposalModal'
 import { InlineUpgradeModal } from '@/components/builder/InlineUpgradeModal'
 import { SectionChat, type ChatSubmitPayload } from '@/components/builder/SectionChat'
+import { MobileBuildSheet } from '@/components/workspace/MobileBuildSheet'
 import { StewPlannerChat } from '@/components/builder/StewPlannerChat'
 import { StewPlannerModal } from '@/components/builder/StewPlannerModal'
 import { ConversionScopeModal, type ConversionScope } from '@/components/builder/ConversionScopeModal'
@@ -305,6 +306,47 @@ const stockImageCategories = [
 ]
 
 type BuildTarget = 'website' | 'astro' | 'nextjs' | 'react' | 'expo'
+
+// Mobile quick-start picker → MobileBuildSheet bridge. Each card lands the
+// user in a dedicated describe screen with copy + tips tuned to the intent.
+// The `target` flips the workspace builder route; `label/placeholder/tips`
+// are what MobileBuildSheet renders.
+interface QuickstartIntent {
+  id: string
+  icon: string
+  title: string
+  sub: string
+  target: BuildTarget
+  label: string
+  placeholder: string
+  tips: string[]
+}
+const QUICKSTART_INTENTS: QuickstartIntent[] = [
+  {
+    id: 'website', icon: '🌐', title: 'Website', sub: 'Landing, marketing, blog',
+    target: 'website', label: 'Website',
+    placeholder: 'A modern landing page for a coffee shop with menu, story, and locations. Warm tones, big hero image.',
+    tips: ['Modern minimal', 'Dark mode', 'Big hero', 'Newsletter signup'],
+  },
+  {
+    id: 'mobile', icon: '📱', title: 'Mobile app', sub: 'iOS + Android — Expo',
+    target: 'expo', label: 'Mobile app',
+    placeholder: 'A fitness tracker app with daily workouts, progress charts, and a profile screen. Energetic colors.',
+    tips: ['Tab navigation', 'Dark mode', 'Onboarding', '3–5 screens'],
+  },
+  {
+    id: 'store', icon: '🛒', title: 'Online store', sub: 'Products, cart, checkout',
+    target: 'website', label: 'Online store',
+    placeholder: 'A boutique store selling handmade candles. Product grid, cart, checkout, brand story page.',
+    tips: ['Product grid', 'Cart', 'Brand story', 'Premium feel'],
+  },
+  {
+    id: 'app', icon: '⚡', title: 'Web app', sub: 'Dashboard, tools, SaaS',
+    target: 'react', label: 'Web app',
+    placeholder: 'A simple invoicing tool with a dashboard, client list, invoice editor, and settings.',
+    tips: ['Dashboard', 'Data tables', 'Sidebar nav', 'Settings'],
+  },
+]
 
 interface Project {
   id: string
@@ -1080,7 +1122,7 @@ const completion = await openai.chat.completions.create({
   model: 'gpt-4',
   messages: [{ role: 'user', content: 'Hello!' }]
 });
-console.log(completion.choices[0].message.content);`,
+// Use completion.choices[0].message.content`,
   },
   {
     id: 'anthropic',
@@ -1410,6 +1452,10 @@ function WorkspaceContent() {
   const [commandSearch, setCommandSearch] = useState('')
   const [commandIndex, setCommandIndex] = useState(0)
   const [focusMode, setFocusMode] = useState(false)
+  // Full-screen mobile describe sheet — opens when the user taps a
+  // quick-start card on the empty mobile workspace. Replaces the
+  // drawer-overlay-with-inherited-desktop-chrome flow that felt broken.
+  const [mobileBuildIntent, setMobileBuildIntent] = useState<QuickstartIntent | null>(null)
   const commandInputRef = useRef<HTMLInputElement>(null)
 
   // Toast notifications
@@ -10925,18 +10971,12 @@ npx eas build --platform all
                       </p>
                     </div>
                     <div className="px-3 pb-6 grid gap-2">
-                      {([
-                        { id: 'website', icon: '🌐', title: 'Website',     sub: 'Landing, marketing, blog',  target: 'website' as const },
-                        { id: 'mobile',  icon: '📱', title: 'Mobile app',  sub: 'iOS + Android — Expo',     target: 'expo' as const },
-                        { id: 'store',   icon: '🛒', title: 'Online store', sub: 'Products, cart, checkout', target: 'website' as const },
-                        { id: 'app',     icon: '⚡', title: 'Web app',      sub: 'Dashboard, tools, SaaS',    target: 'react' as const },
-                      ]).map((c) => (
+                      {(QUICKSTART_INTENTS).map((c) => (
                         <button
                           key={c.id}
                           onClick={() => {
                             setBuildTarget(c.target as BuildTarget)
-                            setSidebarCollapsed(false)
-                            setTimeout(() => inputRef.current?.focus(), 200)
+                            setMobileBuildIntent(c)
                           }}
                           className="flex items-center gap-3 p-4 rounded-2xl bg-white/[0.04] border border-white/10 active:bg-white/10 transition text-left"
                         >
@@ -10952,8 +10992,16 @@ npx eas build --platform all
                       ))}
                       <button
                         onClick={() => {
-                          setSidebarCollapsed(false)
-                          setTimeout(() => inputRef.current?.focus(), 200)
+                          setMobileBuildIntent({
+                            id: 'freeform',
+                            icon: '✨',
+                            title: 'Build anything',
+                            sub: 'Describe what you want',
+                            target: 'website',
+                            label: 'Build anything',
+                            placeholder: 'A modern portfolio site with a hero, projects grid, and contact form. Soft gradients, dark mode.',
+                            tips: ['Dark mode', 'Modern minimal', 'Animated hero', 'Mobile-first'],
+                          })
                         }}
                         className="mt-2 w-full py-3 text-[13px] font-medium text-violet-300 hover:text-violet-200 transition"
                       >
@@ -13518,6 +13566,27 @@ npx eas build --platform all
           Architected with input-source abstraction so the Aria voice
           bridge can call onSubmit() with the same shape later
           (see feedback_aria_in_workspace_north_star.md). */}
+      {/* Mobile full-screen describe sheet — owns the "tap card → type
+          your prompt" flow. Replaces the desktop drawer overlay that
+          looked broken on phones. Closes itself and hands the prompt to
+          the existing handleChatMessage path on submit. */}
+      <MobileBuildSheet
+        open={!!mobileBuildIntent && isMobile}
+        onClose={() => setMobileBuildIntent(null)}
+        intent={
+          mobileBuildIntent
+            ? {
+                icon: mobileBuildIntent.icon,
+                label: mobileBuildIntent.label,
+                placeholder: mobileBuildIntent.placeholder,
+                tips: mobileBuildIntent.tips,
+              }
+            : null
+        }
+        onSubmit={(t) => handleChatMessage(t)}
+        isGenerating={isGenerating || isThinking}
+      />
+
       {/* SectionChat is the "Edit with AI" FAB. We don't show it on mobile
           when there's no project yet — there's nothing to edit, and it
           competes with the real first-time CTA. Once they have content,
