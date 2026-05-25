@@ -5687,6 +5687,13 @@ ${html}
   const handleChatMessage = async (message: string) => {
     if (!message.trim() || isGenerating || isThinking) return
 
+    // Mobile: auto-collapse the sidebar drawer once the user submits so the
+    // preview area takes over the screen. Without this they'd watch the
+    // generation log inside the drawer and never see the result.
+    if (isMobile && !sidebarCollapsed) {
+      setSidebarCollapsed(true)
+    }
+
     // Stew Planner intercept — while the clarifying agent is interviewing,
     // every chat message is an answer to it. Route there before the message
     // ever reaches the normal chat log or any build dispatch.
@@ -10798,6 +10805,62 @@ npx eas build --platform all
                       </div>
                     </div>
                   </div>
+                ) : isMobile ? (
+                  // Vibecode-style mobile hero. Passive "Your website appears
+                  // here" placeholder replaced with a real first-tap CTA so
+                  // new users have an obvious next step instead of staring
+                  // at an empty preview. Quick-start cards mirror the
+                  // "What do you want to build?" pattern. Each card sets
+                  // the build target + auto-focuses the docked chat input.
+                  <div className="w-full h-full flex flex-col bg-zinc-950 overflow-y-auto">
+                    <div className="px-5 pt-6 pb-3">
+                      <p className="text-[11px] uppercase tracking-[0.15em] text-zinc-500 font-semibold mb-1">
+                        Webstew
+                      </p>
+                      <h2 className="text-2xl font-bold text-white leading-tight">
+                        What do you want to build?
+                      </h2>
+                      <p className="text-sm text-zinc-400 mt-1.5">
+                        Pick a starting point — you can change it later.
+                      </p>
+                    </div>
+                    <div className="px-3 pb-6 grid gap-2">
+                      {([
+                        { id: 'website', icon: '🌐', title: 'Website',     sub: 'Landing, marketing, blog',  target: 'website' as const },
+                        { id: 'mobile',  icon: '📱', title: 'Mobile app',  sub: 'iOS + Android — Expo',     target: 'expo' as const },
+                        { id: 'store',   icon: '🛒', title: 'Online store', sub: 'Products, cart, checkout', target: 'website' as const },
+                        { id: 'app',     icon: '⚡', title: 'Web app',      sub: 'Dashboard, tools, SaaS',    target: 'react' as const },
+                      ]).map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => {
+                            setBuildTarget(c.target as BuildTarget)
+                            setSidebarCollapsed(false)
+                            setTimeout(() => inputRef.current?.focus(), 200)
+                          }}
+                          className="flex items-center gap-3 p-4 rounded-2xl bg-white/[0.04] border border-white/10 active:bg-white/10 transition text-left"
+                        >
+                          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 border border-violet-500/30 flex items-center justify-center text-xl shrink-0">
+                            {c.icon}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-white font-semibold text-[15px]">{c.title}</div>
+                            <div className="text-[12px] text-zinc-500 truncate">{c.sub}</div>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-zinc-600 shrink-0" />
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => {
+                          setSidebarCollapsed(false)
+                          setTimeout(() => inputRef.current?.focus(), 200)
+                        }}
+                        className="mt-2 w-full py-3 text-[13px] font-medium text-violet-300 hover:text-violet-200 transition"
+                      >
+                        Or just describe it →
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-zinc-900/50 p-6">
                     <div className="text-center max-w-md">
@@ -13355,38 +13418,50 @@ npx eas build --platform all
           Architected with input-source abstraction so the Aria voice
           bridge can call onSubmit() with the same shape later
           (see feedback_aria_in_workspace_north_star.md). */}
-      <SectionChat
-        messages={chatMessages.map((m) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : String(m.content || '') }))}
-        isThinking={isThinking || isGenerating}
-        selectedElement={
-          selectedElement
-            ? {
-                tagName: selectedElement.tagName,
-                outerHtml: selectedElement.outerHTML,
-                textSnippet: selectedElement.textContent?.slice(0, 80) || '',
-              }
-            : null
-        }
-        onClearSelection={() => setSelectedElement(null)}
-        onSubmit={(payload: ChatSubmitPayload) => {
-          // Single submit pathway. Text and (future) voice both route here;
-          // selection metadata is already on chatMessages's enriched-prompt
-          // step inside handleChatMessage (it reads selectedElement state).
-          handleChatMessage(payload.text)
-        }}
-        ariaStatus={null}
-        hideFabOnDesktop
-        selectMode={selectMode}
-        onToggleSelectMode={(next) => setSelectMode(next)}
-      />
+      {/* SectionChat is the "Edit with AI" FAB. We don't show it on mobile
+          when there's no project yet — there's nothing to edit, and it
+          competes with the real first-time CTA. Once they have content,
+          the FAB returns. Desktop already hides the FAB via
+          hideFabOnDesktop and only renders the sheet when a section is
+          selected, so the desktop path is unaffected. */}
+      {(!isMobile || html.length > 0 || Object.keys(vfsFiles).length > 0) && (
+        <SectionChat
+          messages={chatMessages.map((m) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : String(m.content || '') }))}
+          isThinking={isThinking || isGenerating}
+          selectedElement={
+            selectedElement
+              ? {
+                  tagName: selectedElement.tagName,
+                  outerHtml: selectedElement.outerHTML,
+                  textSnippet: selectedElement.textContent?.slice(0, 80) || '',
+                }
+              : null
+          }
+          onClearSelection={() => setSelectedElement(null)}
+          onSubmit={(payload: ChatSubmitPayload) => {
+            // Single submit pathway. Text and (future) voice both route here;
+            // selection metadata is already on chatMessages's enriched-prompt
+            // step inside handleChatMessage (it reads selectedElement state).
+            handleChatMessage(payload.text)
+          }}
+          ariaStatus={null}
+          hideFabOnDesktop
+          selectMode={selectMode}
+          onToggleSelectMode={(next) => setSelectMode(next)}
+        />
+      )}
 
       {/* Chef dock — glassmorphic in-canvas chat anchored center-bottom.
           Only shown when the sidebar is collapsed (otherwise the side panel
           chat is primary, no need to duplicate). Bubble click or ⌘J
           expands it in place into a texting-style thread. Same
           handleChatMessage path as the side panel + section chat. */}
+      {/* ChefDock — desktop-only. On mobile it duplicates the SectionChat
+          FAB ("Edit with AI") which is the canonical mobile-first chat
+          surface. Showing both produces the "three chefs" feel users
+          flagged on /workspace mobile. */}
       <ChefDock
-        visible={sidebarCollapsed && !focusMode}
+        visible={sidebarCollapsed && !focusMode && !isMobile}
         expanded={chefSpotlightOpen}
         onToggle={setChefSpotlightOpen}
         messages={chatMessages.map((m) => ({
