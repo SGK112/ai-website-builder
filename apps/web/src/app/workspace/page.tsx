@@ -7177,11 +7177,11 @@ npx eas build --platform all
           </button>
         </div>
 
-        {/* Skill Level Selector — desktop only. Visual / Hybrid / Developer
-            Mode are power-user toggles; on mobile they were three extra
-            tabs above the welcome message before the user could even type
-            a prompt. Hidden on mobile to honor the "less is more" rule. */}
-        {!sidebarCollapsed && !isMobile && (
+        {/* Skill Level Selector — Visual / Hybrid / Developer mode. On
+            mobile the three tabs stack with taller hit targets so they're
+            thumb-friendly, but they're STILL VISIBLE so users can change
+            modes without leaving the drawer. */}
+        {!sidebarCollapsed && (
           <div className={cn("p-3 border-b", isDark ? "border-white/[0.08]" : "border-slate-200")}>
             <div className={cn(
               "grid grid-cols-3 gap-1 p-1 rounded-xl border",
@@ -7202,7 +7202,7 @@ npx eas build --platform all
                       else setViewMode('code') // full-stack Developer Mode — full Monaco
                     }}
                     className={cn(
-                      'flex flex-col items-center gap-0.5 py-2 px-1 rounded-lg text-[10px] font-medium transition-all',
+                      'flex flex-col items-center gap-1 py-2.5 sm:py-2 px-1 rounded-lg text-[11px] sm:text-[10px] font-medium transition-all',
                       skillLevel === level
                         ? isDark
                           ? 'bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 text-white border border-violet-500/30'
@@ -7212,7 +7212,7 @@ npx eas build --platform all
                           : 'text-slate-500 hover:text-slate-900 hover:bg-white/50'
                     )}
                   >
-                    <Icon className="w-4 h-4" />
+                    <Icon className="w-4 h-4 sm:w-4 sm:h-4" />
                     <span>{config.label}</span>
                   </button>
                 )
@@ -7221,12 +7221,8 @@ npx eas build --platform all
           </div>
         )}
 
-        {/* Panel Tabs - Horizontal Scrolling Gallery. Hidden on mobile —
-            Build/Templates/Stew/Files/Media/Video/CMS/Plugins/Env/Log/
-            Bridge/Ship are 12 destinations a thumb can't usefully scroll
-            through. Power-user panels stay on desktop; on mobile the user
-            describes what they want and the agent picks the panel for them. */}
-        {!sidebarCollapsed && !isMobile && (
+        {/* Panel Tabs - Horizontal Scrolling Gallery. */}
+        {!sidebarCollapsed && (
           <div className={cn("relative border-b", isDark ? "border-white/[0.08]" : "border-slate-200")}>
             {/* Scroll gradient indicators */}
             <div className={cn(
@@ -7261,7 +7257,7 @@ npx eas build --platform all
                   onClick={() => setActivePanel(id)}
                   data-tour={tour}
                   className={cn(
-                    'flex-shrink-0 px-3 py-1.5 text-[11px] font-medium transition-all flex items-center gap-1.5 rounded-md whitespace-nowrap',
+                    'flex-shrink-0 px-3.5 py-2.5 sm:px-3 sm:py-1.5 text-[12px] sm:text-[11px] font-medium transition-all flex items-center gap-1.5 rounded-md whitespace-nowrap',
                     activePanel === id
                       ? `text-${color}-400 bg-${color}-500/15 ring-1 ring-${color}-500/30`
                       : isDark
@@ -7305,7 +7301,7 @@ npx eas build --platform all
                                      color === 'red' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(139, 92, 246, 0.15)',
                   } : {}}
                 >
-                  <Icon className="w-3.5 h-3.5" />
+                  <Icon className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                   {label}
                 </button>
               ))}
@@ -9720,14 +9716,14 @@ npx eas build --platform all
           )}
         </AnimatePresence>
 
-        {/* Mobile header — minimal: hamburger + brand + one menu dot.
-            All the desktop toolbar's controls (device size, save, export,
-            mode tabs, build target) become noise on a 390px screen.
-            Power-user actions move into the sidebar drawer instead. */}
+        {/* Mobile header — proper-sized controls. Left: menu + brand.
+            Right: undo / redo / save / profile, sized for thumbs (40px
+            tap targets). Save + undo/redo are the controls users actually
+            need most often; everything else lives behind the drawer. */}
         {isMobile && (
           <header
             className={cn(
-              "flex items-center justify-between px-4 backdrop-blur-xl relative z-50",
+              "flex items-center justify-between px-3 backdrop-blur-xl relative z-50",
               isDark ? "border-b border-white/[0.06] bg-zinc-950/95" : "border-b border-slate-200 bg-white/95"
             )}
             style={{
@@ -9735,36 +9731,69 @@ npx eas build --platform all
               paddingTop: 'env(safe-area-inset-top, 0px)',
             }}
           >
-            <button
-              onClick={() => setSidebarCollapsed(v => !v)}
-              className={cn(
-                "p-2 -ml-2 rounded-lg transition-colors",
-                isDark ? "text-zinc-300 hover:bg-white/5" : "text-slate-700 hover:bg-slate-100"
-              )}
-              aria-label="Menu"
-            >
-              {sidebarCollapsed
-                ? <Menu className="w-5 h-5" />
-                : <X className="w-5 h-5" />}
-            </button>
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-base shadow-md shadow-violet-900/40">
-                🍲
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setSidebarCollapsed(v => !v)}
+                className={cn(
+                  "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
+                  isDark ? "text-zinc-300 hover:bg-white/5" : "text-slate-700 hover:bg-slate-100"
+                )}
+                aria-label="Menu"
+              >
+                {sidebarCollapsed
+                  ? <Menu className="w-5 h-5" />
+                  : <X className="w-5 h-5" />}
+              </button>
+              <div className="flex items-center gap-1.5 pl-1">
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-base shadow-md shadow-violet-900/40">
+                  🍲
+                </div>
+                <span className={cn('text-[15px] font-bold', isDark ? 'text-white' : 'text-slate-900')}>
+                  Webstew
+                </span>
               </div>
-              <span className={cn('text-base font-bold', isDark ? 'text-white' : 'text-slate-900')}>
-                Webstew
-              </span>
             </div>
-            <button
-              onClick={() => router.push('/profile')}
-              className={cn(
-                "p-2 -mr-2 rounded-lg transition-colors",
-                isDark ? "text-zinc-300 hover:bg-white/5" : "text-slate-700 hover:bg-slate-100"
-              )}
-              aria-label="Profile"
-            >
-              <UserCircle className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-0.5">
+              {/* Undo / Redo — only meaningful once history exists. We
+                  show them disabled-styled when there's nothing to undo
+                  so the layout doesn't reflow when users start building. */}
+              <button
+                onClick={() => historyIndex > 0 && setHistoryIndex(historyIndex - 1)}
+                disabled={historyIndex <= 0}
+                className={cn(
+                  "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
+                  historyIndex > 0
+                    ? isDark ? "text-zinc-300 hover:bg-white/5" : "text-slate-700 hover:bg-slate-100"
+                    : "text-zinc-700 opacity-40"
+                )}
+                aria-label="Undo"
+              >
+                <Undo2 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => historyIndex < history.length - 1 && setHistoryIndex(historyIndex + 1)}
+                disabled={historyIndex >= history.length - 1}
+                className={cn(
+                  "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
+                  historyIndex < history.length - 1
+                    ? isDark ? "text-zinc-300 hover:bg-white/5" : "text-slate-700 hover:bg-slate-100"
+                    : "text-zinc-700 opacity-40"
+                )}
+                aria-label="Redo"
+              >
+                <Redo2 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => router.push('/profile')}
+                className={cn(
+                  "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
+                  isDark ? "text-zinc-300 hover:bg-white/5" : "text-slate-700 hover:bg-slate-100"
+                )}
+                aria-label="Profile"
+              >
+                <UserCircle className="w-5 h-5" />
+              </button>
+            </div>
           </header>
         )}
 
