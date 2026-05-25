@@ -149,6 +149,8 @@ import {
   Link as LinkIcon,
   Paperclip,
   Bell,
+  Menu,
+  UserCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/context/ThemeContext'
@@ -7175,8 +7177,11 @@ npx eas build --platform all
           </button>
         </div>
 
-        {/* Skill Level Selector */}
-        {!sidebarCollapsed && (
+        {/* Skill Level Selector — desktop only. Visual / Hybrid / Developer
+            Mode are power-user toggles; on mobile they were three extra
+            tabs above the welcome message before the user could even type
+            a prompt. Hidden on mobile to honor the "less is more" rule. */}
+        {!sidebarCollapsed && !isMobile && (
           <div className={cn("p-3 border-b", isDark ? "border-white/[0.08]" : "border-slate-200")}>
             <div className={cn(
               "grid grid-cols-3 gap-1 p-1 rounded-xl border",
@@ -7216,8 +7221,12 @@ npx eas build --platform all
           </div>
         )}
 
-        {/* Panel Tabs - Horizontal Scrolling Gallery */}
-        {!sidebarCollapsed && (
+        {/* Panel Tabs - Horizontal Scrolling Gallery. Hidden on mobile —
+            Build/Templates/Stew/Files/Media/Video/CMS/Plugins/Env/Log/
+            Bridge/Ship are 12 destinations a thumb can't usefully scroll
+            through. Power-user panels stay on desktop; on mobile the user
+            describes what they want and the agent picks the panel for them. */}
+        {!sidebarCollapsed && !isMobile && (
           <div className={cn("relative border-b", isDark ? "border-white/[0.08]" : "border-slate-200")}>
             {/* Scroll gradient indicators */}
             <div className={cn(
@@ -9711,12 +9720,57 @@ npx eas build --platform all
           )}
         </AnimatePresence>
 
+        {/* Mobile header — minimal: hamburger + brand + one menu dot.
+            All the desktop toolbar's controls (device size, save, export,
+            mode tabs, build target) become noise on a 390px screen.
+            Power-user actions move into the sidebar drawer instead. */}
+        {isMobile && (
+          <header
+            className={cn(
+              "flex items-center justify-between px-4 backdrop-blur-xl relative z-50",
+              isDark ? "border-b border-white/[0.06] bg-zinc-950/95" : "border-b border-slate-200 bg-white/95"
+            )}
+            style={{
+              height: 'calc(52px + env(safe-area-inset-top, 0px))',
+              paddingTop: 'env(safe-area-inset-top, 0px)',
+            }}
+          >
+            <button
+              onClick={() => setSidebarCollapsed(v => !v)}
+              className={cn(
+                "p-2 -ml-2 rounded-lg transition-colors",
+                isDark ? "text-zinc-300 hover:bg-white/5" : "text-slate-700 hover:bg-slate-100"
+              )}
+              aria-label="Menu"
+            >
+              {sidebarCollapsed
+                ? <Menu className="w-5 h-5" />
+                : <X className="w-5 h-5" />}
+            </button>
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-base shadow-md shadow-violet-900/40">
+                🍲
+              </div>
+              <span className={cn('text-base font-bold', isDark ? 'text-white' : 'text-slate-900')}>
+                Webstew
+              </span>
+            </div>
+            <button
+              onClick={() => router.push('/profile')}
+              className={cn(
+                "p-2 -mr-2 rounded-lg transition-colors",
+                isDark ? "text-zinc-300 hover:bg-white/5" : "text-slate-700 hover:bg-slate-100"
+              )}
+              aria-label="Profile"
+            >
+              <UserCircle className="w-5 h-5" />
+            </button>
+          </header>
+        )}
+
         {/* Toolbar - High z-index so dropdowns appear above preview.
-            Top safe-area inset reserves space for the iPhone notch when
-            this runs as a PWA (display:standalone) — without it the header
-            controls sit under the dynamic island. env() is 0 on
-            non-notched browsers so desktop is unaffected. */}
-        <header
+            Desktop only — mobile uses the minimal header above. */}
+        {!isMobile && <header
           className={cn(
             "border-b flex items-center justify-between px-4 backdrop-blur-xl relative z-50 gap-2 min-w-0",
             isDark ? "border-white/[0.08] bg-zinc-950/95" : "border-slate-200 bg-white/95"
@@ -10317,7 +10371,7 @@ npx eas build --platform all
               Export
             </button>
           </div>
-        </header>
+        </header>}
 
         {/* Selected Element Action Bar — quick edits without typing in chat */}
         <AnimatePresence>
