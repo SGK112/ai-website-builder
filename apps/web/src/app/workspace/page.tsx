@@ -10785,7 +10785,10 @@ npx eas build --platform all
                   setFocusMode((v) => !v)
                 }}
                 className={cn(
-                  "absolute top-6 right-6 z-10 p-2 rounded-lg border transition-all",
+                  // Hidden on mobile — the preview is already as big as
+                  // the phone allows, focusMode has no extra room to give,
+                  // and the button overlaps the user's site content.
+                  "hidden md:block absolute top-6 right-6 z-10 p-2 rounded-lg border transition-all",
                   isDark
                     ? "bg-zinc-900/80 hover:bg-zinc-800 border-white/10 text-zinc-400 hover:text-white"
                     : "bg-white/80 hover:bg-white border-slate-200 text-slate-400 hover:text-slate-900 shadow-sm"
