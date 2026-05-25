@@ -59,7 +59,10 @@ export function MobileBottomNav() {
 
   return (
     <nav
-      className="fixed left-0 right-0 bottom-0 z-[60] bg-zinc-950/95 backdrop-blur-xl border-t border-white/10"
+      // The data-[*] selector hides this nav while a full-screen modal
+      // (e.g. MobileBuildSheet) sets body[data-mobile-sheet-open]. Stops
+      // the tab bar from covering modal action buttons.
+      className="mobile-bottom-nav fixed left-0 right-0 bottom-0 z-[60] bg-zinc-950/95 backdrop-blur-xl border-t border-white/10"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       aria-label="Primary"
     >

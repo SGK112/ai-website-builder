@@ -49,6 +49,16 @@ export function MobileBuildSheet({ open, onClose, intent, onSubmit, isGenerating
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
+  // Hide the global MobileBottomNav while this sheet is the foreground —
+  // the tab bar otherwise covers the Build button at the bottom of the
+  // dock. Modal pattern: when you're describing your idea you can't
+  // navigate, so the tabs aren't needed.
+  useEffect(() => {
+    if (!open) return
+    document.body.dataset.mobileSheetOpen = 'true'
+    return () => { delete document.body.dataset.mobileSheetOpen }
+  }, [open])
+
   if (!open || !intent) return null
 
   const submit = () => {
@@ -61,7 +71,7 @@ export function MobileBuildSheet({ open, onClose, intent, onSubmit, isGenerating
 
   return (
     <div
-      className="fixed inset-0 z-[70] bg-zinc-950 flex flex-col"
+      className="fixed inset-0 z-[100] bg-zinc-950 flex flex-col"
       role="dialog"
       aria-label={`Describe your ${intent.label}`}
     >
@@ -122,10 +132,11 @@ export function MobileBuildSheet({ open, onClose, intent, onSubmit, isGenerating
         </div>
       </div>
 
-      {/* Bottom dock — attachment / mic / send. Reserves safe-area and
-          tab-bar height so the row stays above both. */}
+      {/* Bottom dock — attachment / mic / send. shrink-0 stops flexbox
+          from collapsing the row to 0 when the keyboard reduces the
+          visible viewport on iOS. */}
       <div
-        className="border-t border-white/[0.06] bg-zinc-950/95 backdrop-blur-xl px-3 py-2.5 flex items-center gap-2"
+        className="shrink-0 border-t border-white/[0.06] bg-zinc-950/95 backdrop-blur-xl px-3 py-2.5 flex items-center gap-2"
         style={{ paddingBottom: 'calc(10px + env(safe-area-inset-bottom, 0px))' }}
       >
         <button

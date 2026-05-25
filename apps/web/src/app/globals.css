@@ -1046,3 +1046,9 @@
 @media (max-width: 767px) {
   :root { --bottom-nav-h: 56px; }
 }
+
+/* Hide the global mobile tab bar while a full-screen modal is open.
+   MobileBuildSheet, the Snack publish modal, etc. set this attribute on
+   <body> while mounted. */
+body[data-mobile-sheet-open] .mobile-bottom-nav { display: none; }
+body[data-mobile-sheet-open] { --bottom-nav-h: 0px; }
