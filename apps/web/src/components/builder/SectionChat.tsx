@@ -115,7 +115,10 @@ export function SectionChat({
 
   return (
     <>
-      {/* FAB — closed state */}
+      {/* FAB — closed state. Bottom offset accounts for the mobile bottom
+          tab nav (56px on phones, 0 on desktop via the --bottom-nav-h
+          CSS var) + iPhone home-indicator safe area. Without this the
+          FAB was hidden behind the tab bar. */}
       <AnimatePresence>
         {!open && (
           <motion.button
@@ -124,8 +127,11 @@ export function SectionChat({
             exit={{ scale: 0.6, opacity: 0, y: 20 }}
             transition={{ type: 'spring', stiffness: 420, damping: 28 }}
             onClick={() => setOpen(true)}
+            style={{
+              bottom: 'calc(16px + env(safe-area-inset-bottom, 0px) + var(--bottom-nav-h, 0px))',
+            }}
             className={cn(
-              'fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full px-4 py-3 shadow-2xl',
+              'fixed right-4 z-40 flex items-center gap-2 rounded-full px-4 py-3 shadow-2xl',
               'bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white font-semibold text-sm',
               'shadow-violet-500/40 hover:shadow-violet-500/60 transition-shadow',
               hideFabOnDesktop && 'lg:hidden'
