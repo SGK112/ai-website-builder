@@ -15,7 +15,8 @@
 // and kill any in-flight processes so we don't leak workers.
 
 import { useEffect, useRef, useState } from 'react'
-import { Loader2, Terminal, AlertCircle, RefreshCw, Play, ExternalLink, Monitor, Tablet, Smartphone, X } from 'lucide-react'
+import { Loader2, Terminal, AlertCircle, RefreshCw, Play, ExternalLink, Monitor, Tablet, Smartphone, X, Copy, Check, QrCode } from 'lucide-react'
+import QRCode from 'qrcode'
 import { getWebContainer, buildFileTree, isWebContainerSupported } from '@/lib/webcontainer'
 
 type Phase = 'idle' | 'booting' | 'mounting' | 'installing' | 'starting' | 'running' | 'error'
@@ -27,6 +28,17 @@ interface Props {
   devCommand?: string[]
   // Install command. Defaults to `npm install`.
   installCommand?: string[]
+  // For Expo projects, lets us hand a nicer name/slug/description to Snack
+  // when the user clicks "Open in Expo Go". `userPlan` flips on auto-publish
+  // + the prominent CTA for paid plans (and shows the paywall hint to free
+  // users before they click). Optional.
+  projectMeta?: { name?: string; slug?: string; description?: string; userPlan?: string }
+}
+
+interface SnackResult {
+  url: string
+  embedUrl: string
+  expoGoUrl: string
 }
 
 const PREVIEW_SIZES = {
@@ -50,6 +62,7 @@ export function WebContainerPreview({
   // --prefer-offline: when retrying, reuse the WC filesystem cache instead of
   //   re-fetching everything.
   installCommand = ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--prefer-offline'],
+  projectMeta,
 }: Props) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [serverUrl, setServerUrl] = useState<string | null>(null)
@@ -62,6 +75,271 @@ export function WebContainerPreview({
   const logsEndRef = useRef<HTMLDivElement>(null)
   const isExpoWeb = devCommand.join(' ') === 'run web'
 
+  // Snack publishing — Expo target only. For paid users we auto-publish the
+  // moment the WC build reaches `running` so the QR is ready without a
+  // click; for free users we hold off and show a paywall hint instead.
+  const [snackPhase, setSnackPhase] = useState<'idle' | 'saving' | 'ready' | 'error' | 'upgrade'>('idle')
+  const [snackResult, setSnackResult] = useState<SnackResult | null>(null)
+  const [snackQr, setSnackQr] = useState<string | null>(null)
+  const [snackError, setSnackError] = useState<string | null>(null)
+  const [linkCopied, setLinkCopied] = useState(false)
+  const [snackPublishedAt, setSnackPublishedAt] = useState<number | null>(null)
+
+  // App-icon picker state — emoji char + the corresponding 1024px PNG URL
+  // (Cloudinary-hosted, generated on selection). Default emoji is picked
+  // from a tiny menu of category-agnostic glyphs so each project has an
+  // identity even before the user touches the picker.
+  const [iconEmoji, setIconEmoji] = useState<string>(() =>
+    pickDefaultEmoji(projectMeta?.name || ''),
+  )
+  const [iconUrl, setIconUrl] = useState<string | null>(null)
+  const [iconUploading, setIconUploading] = useState(false)
+  const [iconPickerOpen, setIconPickerOpen] = useState(false)
+  // Cache the file hash of the last successful publish so quick re-opens of
+  // the popover (or auto-publish re-runs) don't burn a round-trip to Snack
+  // when nothing has changed.
+  const lastPublishedHashRef = useRef<string | null>(null)
+  const autoRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // userPlan can be 'free' / 'starter' / 'pro' / 'scale' / 'enterprise' — we
+  // treat anything that isn't free/empty/demo as paid. Server still enforces
+  // the gate; this is just the UI hint.
+  const planRaw = (projectMeta?.userPlan || 'free').toLowerCase()
+  const isPaidUser = planRaw !== 'free' && planRaw !== 'demo' && planRaw !== ''
+
+  // Stable hash of the current Expo VFS. Browsers ship SubtleCrypto; we
+  // hash the sorted "path:length:contents" stream so equivalent file sets
+  // produce the same digest regardless of key ordering.
+  async function hashFiles(filesMap: Record<string, string>): Promise<string> {
+    const paths = Object.keys(filesMap).sort()
+    const blob = paths.map((p) => `${p}:${filesMap[p].length}:${filesMap[p]}`).join('\n')
+    const enc = new TextEncoder().encode(blob)
+    const digest = await crypto.subtle.digest('SHA-1', enc)
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('')
+  }
+
+  // When files swap (new build / agent edit), only blow away the cached
+  // result if the HASH actually changed. The previous version reset on
+  // every render that handed us a new object reference even when the
+  // contents matched — that meant every parent re-render flashed the popover
+  // back to the idle CTA mid-scan.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!isExpoWeb) return
+      try {
+        const h = await hashFiles(files)
+        if (cancelled) return
+        if (lastPublishedHashRef.current && lastPublishedHashRef.current !== h) {
+          // Real change while we held a result. If the popover is open and
+          // a result is showing, silently auto-refresh after a short debounce
+          // so the user always scans the live build; otherwise just clear.
+          if (showQr && snackResult && isPaidUser) {
+            if (autoRefreshTimerRef.current) clearTimeout(autoRefreshTimerRef.current)
+            autoRefreshTimerRef.current = setTimeout(() => {
+              publishToSnack({ silent: true })
+            }, 1500)
+          } else {
+            setSnackPhase('idle')
+            setSnackResult(null)
+            setSnackQr(null)
+            setSnackError(null)
+            lastPublishedHashRef.current = null
+          }
+        }
+      } catch {
+        // Hashing failure (no subtle crypto, e.g. non-secure context): just
+        // fall back to the old behaviour — invalidate on any prop change.
+        setSnackPhase('idle')
+        setSnackResult(null)
+        setSnackQr(null)
+        setSnackError(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [files, isExpoWeb])
+
+  async function publishToSnack(opts: { silent?: boolean } = {}) {
+    if (!opts.silent) {
+      setSnackPhase('saving')
+      setSnackError(null)
+    }
+    try {
+      const fileHash = await hashFiles(files).catch(() => '')
+      // Cache hit — same hash as last successful publish, reuse the result
+      // without a round-trip. Saves 3-5s on repeat opens.
+      if (
+        fileHash &&
+        snackResult &&
+        snackQr &&
+        lastPublishedHashRef.current === fileHash &&
+        snackPhase === 'ready'
+      ) {
+        return
+      }
+      const r = await fetch('/api/builder/snack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          files,
+          name: projectMeta?.name,
+          slug: projectMeta?.slug,
+          description: projectMeta?.description,
+          iconUrl: iconUrl || undefined,
+        }),
+      })
+      const data = await r.json()
+      if (!r.ok) {
+        // 402 = paid-only feature. Surface a dedicated upgrade state so
+        // the popover can link to /upgrade instead of a dead error.
+        if (r.status === 402 || data?.upgrade) {
+          setSnackError(data?.error || 'Running your app on a real phone is a Pro feature.')
+          setSnackPhase('upgrade')
+          return
+        }
+        throw new Error(data?.error || `Snack save failed (${r.status})`)
+      }
+      const result: SnackResult = {
+        url: data.url,
+        embedUrl: data.embedUrl,
+        expoGoUrl: data.expoGoUrl,
+      }
+      // QR encodes the https Snack URL — Expo Go's built-in scanner opens
+      // it as a Snack, and the iPhone/Android camera apps open it in a
+      // browser where Snack offers a one-tap "Open in Expo Go" button. An
+      // exp:// link would skip the redirect for Expo Go's scanner but
+      // fails for camera-app scanners that only follow https.
+      const qr = await QRCode.toDataURL(result.url, {
+        width: 240,
+        margin: 1,
+        color: { dark: '#18181b', light: '#ffffff' },
+      })
+      setSnackResult(result)
+      setSnackQr(qr)
+      setSnackPhase('ready')
+      setSnackPublishedAt(Date.now())
+      if (fileHash) lastPublishedHashRef.current = fileHash
+    } catch (e: any) {
+      // Silent auto-refresh failures should NOT clobber a still-valid QR
+      // already on screen — surface only when the user explicitly asked.
+      if (!opts.silent) {
+        setSnackError(e?.message || 'Snack save failed')
+        setSnackPhase('error')
+      }
+    }
+  }
+
+  // Free users get a pre-emptive paywall instead of clicking through to the
+  // 402. Paid users get the real publish flow.
+  function onPrimaryAction() {
+    if (!isPaidUser) {
+      setSnackPhase('upgrade')
+      setSnackError('Running your app on a real phone is part of the Pro plan.')
+      return
+    }
+    publishToSnack()
+  }
+
+  // Auto-publish when the WC build first reaches `running` on Expo, but
+  // only for paid users — free users would hit the 402 anyway, and we'd be
+  // burning Snack API + their attention. We never auto-publish twice for the
+  // same file hash (hashFiles cache short-circuits inside publishToSnack).
+  useEffect(() => {
+    if (!isExpoWeb) return
+    if (phase !== 'running') return
+    if (!isPaidUser) return
+    if (snackPhase === 'saving' || snackPhase === 'ready') return
+    // Defer slightly so we don't race the WC `server-ready` flush.
+    const t = setTimeout(() => {
+      publishToSnack({ silent: true })
+    }, 600)
+    return () => clearTimeout(t)
+    // intentionally narrow deps — re-run on phase / target / plan changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, isExpoWeb, isPaidUser])
+
+  // Render an emoji to a 1024×1024 PNG with a soft gradient background
+  // (rounded squircle is left to the system — iOS/Android both clip app
+  // icons to their platform mask automatically). Returns a PNG data URL.
+  function emojiToPng(emoji: string, size = 1024): string {
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = size
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Canvas 2D not available')
+    // Background — deterministic gradient seeded by the emoji codepoint so
+    // every icon has a brand-feel ground, not a flat white square.
+    const code = emoji.codePointAt(0) || 0
+    const palette = [
+      ['#7c3aed', '#db2777'],
+      ['#0ea5e9', '#6366f1'],
+      ['#10b981', '#06b6d4'],
+      ['#f59e0b', '#ef4444'],
+      ['#e11d48', '#db2777'],
+      ['#14b8a6', '#10b981'],
+    ]
+    const [a, b] = palette[code % palette.length]
+    const grad = ctx.createLinearGradient(0, 0, size, size)
+    grad.addColorStop(0, a)
+    grad.addColorStop(1, b)
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, size, size)
+    ctx.font = `${Math.floor(size * 0.68)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(emoji, size / 2, size / 2 + size * 0.04)
+    return canvas.toDataURL('image/png')
+  }
+
+  // Upload the rendered icon PNG to our Cloudinary bucket via /api/upload.
+  // We host the asset ourselves because Snack/Expo Go needs a stable https
+  // URL to fetch — random data URIs aren't fetched from Expo Go.
+  async function uploadIcon(emoji: string): Promise<string> {
+    const dataUrl = emojiToPng(emoji)
+    const blob = await fetch(dataUrl).then((r) => r.blob())
+    const file = new File([blob], 'icon.png', { type: 'image/png' })
+    const form = new FormData()
+    form.append('file', file)
+    const r = await fetch('/api/upload', { method: 'POST', body: form })
+    if (!r.ok) throw new Error(`Icon upload failed (${r.status})`)
+    const data = await r.json()
+    const url = data.url || data.secure_url
+    if (!url) throw new Error('Icon upload returned no URL')
+    return url
+  }
+
+  async function selectIconEmoji(emoji: string) {
+    setIconEmoji(emoji)
+    setIconPickerOpen(false)
+    setIconUploading(true)
+    try {
+      const url = await uploadIcon(emoji)
+      setIconUrl(url)
+      // If we already have a published Snack and the user changes the icon,
+      // republish so the next scan reflects the new icon. Cache short-circuit
+      // doesn't fire because iconUrl is part of the publish body.
+      if (snackPhase === 'ready' && isPaidUser) {
+        lastPublishedHashRef.current = null
+        publishToSnack({ silent: true })
+      }
+    } catch (e) {
+      console.warn('[icon] upload failed:', e)
+    } finally {
+      setIconUploading(false)
+    }
+  }
+
+  async function copySnackLink() {
+    if (!snackResult) return
+    try {
+      await navigator.clipboard.writeText(snackResult.url)
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 1500)
+    } catch {}
+  }
+
   // Auto-scroll logs to bottom on new content
   useEffect(() => {
     if (logsOpen) {
@@ -70,6 +348,20 @@ export function WebContainerPreview({
   }, [logs, logsOpen])
 
   useEffect(() => {
+    // Phones don't benefit from the WC web preview — it's a desktop-shape
+    // render of a mobile app inside a phone, and iOS Safari often can't
+    // boot WC at all (cross-origin isolation gaps). For Expo on touch
+    // devices we skip the boot entirely and let the publish flow (the QR
+    // / "Open on this phone" path) be the canonical preview.
+    const isPhone =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(max-width: 767px)').matches &&
+      ('ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0)
+    if (isPhone && isExpoWeb) {
+      setPhase('error')
+      setError('PHONE_SKIP_WC')
+      return
+    }
     // Bail early if the browser doesn't support WebContainers — surface
     // a clear error rather than booting and silently failing.
     if (!isWebContainerSupported()) {
@@ -197,17 +489,25 @@ export function WebContainerPreview({
             )}
           </span>
           <span className="font-mono text-slate-300">{phaseLabel[phase]}</span>
-          {serverUrl && (
+          {/* Debug-only link to the in-browser WebContainer URL. Hidden
+              on mobile/tablet (it ate the "Try on Phone" button) and on
+              Expo at any width (the WC URL isn't reachable from a phone
+              anyway — the QR is the real path). Devs on desktop with a
+              web target still get the click-out. */}
+          {serverUrl && !isExpoWeb && (
             <a href={serverUrl} target="_blank" rel="noopener noreferrer"
-              className="ml-2 text-violet-300 hover:text-violet-200 flex items-center gap-1">
+              className="ml-2 hidden lg:flex text-violet-300 hover:text-violet-200 items-center gap-1">
               <span className="font-mono text-[10px] opacity-70">{new URL(serverUrl).host}</span>
               <ExternalLink className="w-3 h-3" />
             </a>
           )}
         </div>
         <div className="flex items-center gap-1">
-          {/* Device-size switcher */}
-          {phase === 'running' && (
+          {/* For Expo (mobile app) builds the device-size switcher makes no
+              sense — the canonical preview is the phone, not desktop/tablet
+              shapes of a web rendering. Hide it for Expo, keep it for the
+              web targets where it's still useful. */}
+          {phase === 'running' && !isExpoWeb && (
             <div className="flex items-center gap-0.5 mr-1 bg-zinc-800 rounded-lg p-0.5">
               {(Object.keys(PREVIEW_SIZES) as PreviewSize[]).map((s) => {
                 const c = PREVIEW_SIZES[s]; const Icon = c.icon; const active = previewSize === s
@@ -220,19 +520,26 @@ export function WebContainerPreview({
               })}
             </div>
           )}
-          {/* Device-preview info — the in-browser sandbox can't be reached
-              from a phone, so this explains the real path rather than
-              showing a QR that can't connect. */}
-          {phase === 'running' && serverUrl && (
+          {/* Primary CTA for Expo: "Try on Phone" pill. Labelled, not just an
+              icon — this is the action customers actually want, and burying
+              it inside a tiny smartphone glyph (like web targets do) sent
+              them straight to the amber warning instead. */}
+          {phase === 'running' && isExpoWeb && (
+            <button onClick={() => setShowQr(v => !v)}
+              className={`flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md transition ${showQr ? 'bg-violet-600 text-white' : 'bg-violet-500/15 text-violet-200 hover:bg-violet-500/25'}`}>
+              <Smartphone className="w-3 h-3" />
+              <span>Try on Phone</span>
+            </button>
+          )}
+          {phase === 'running' && serverUrl && !isExpoWeb && (
             <button onClick={() => setShowQr(v => !v)} title="Test on a device"
               className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition ${showQr ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'}`}>
               <Smartphone className="w-3 h-3" />
             </button>
           )}
-          <button onClick={() => setLogsOpen((v) => !v)}
+          <button onClick={() => setLogsOpen((v) => !v)} title="Logs"
             className="flex items-center gap-1 text-xs text-slate-400 hover:text-white px-2 py-1 rounded transition">
             <Terminal className="w-3 h-3" />
-            <span className="hidden sm:inline">Logs</span> ({logs.length})
           </button>
           <button onClick={() => setBumpKey((k) => k + 1)} title="Restart"
             className="flex items-center gap-1 text-xs text-slate-400 hover:text-white px-2 py-1 rounded transition">
@@ -241,47 +548,48 @@ export function WebContainerPreview({
         </div>
       </div>
 
-      {/* Expo web-only disclaimer — own row so it doesn't break toolbar layout */}
-      {phase === 'running' && isExpoWeb && (
-        <div className="px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 flex items-center gap-2">
-          <svg className="w-3 h-3 text-amber-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
-          </svg>
-          <span className="text-[11px] text-amber-300/80 flex-1">
-            Web preview — camera, push notifications &amp; other native APIs won&apos;t work here.
-          </span>
-          <button onClick={() => setShowQr(v => !v)}
-            className="text-[11px] text-amber-300 underline underline-offset-2 whitespace-nowrap">
-            Test on a device ↗
-          </button>
-        </div>
+      {/* Phone-preview surface. Expo gets a full centered modal (premium
+          feel — backdrop blur, phone-frame mock, icon picker). Web targets
+          keep the lightweight top-right popover (their version just
+          explains the in-browser sandbox; no real device target). */}
+      {showQr && isExpoWeb && (
+        <PhonePreviewModal
+          onClose={() => setShowQr(false)}
+          name={projectMeta?.name || 'Your app'}
+          iconEmoji={iconEmoji}
+          iconUploading={iconUploading}
+          iconPickerOpen={iconPickerOpen}
+          setIconPickerOpen={setIconPickerOpen}
+          selectIconEmoji={selectIconEmoji}
+          snackPhase={snackPhase}
+          snackResult={snackResult}
+          snackQr={snackQr}
+          snackError={snackError}
+          snackPublishedAt={snackPublishedAt}
+          isPaidUser={isPaidUser}
+          linkCopied={linkCopied}
+          copySnackLink={copySnackLink}
+          publishToSnack={() => publishToSnack()}
+          onPrimaryAction={onPrimaryAction}
+        />
       )}
-
-      {/* Device-preview info popover. There's deliberately no QR here: the
-          dev server runs inside this browser tab (a *.webcontainer-api.io
-          URL backed by a service worker) and is NOT reachable from a phone
-          — a QR pointing at it always fails with ERR_CONNECTION_FAILED.
-          So we tell the user the honest path instead. */}
-      {showQr && (
-        <div className="absolute top-10 right-2 z-20 bg-zinc-900 border border-white/15 rounded-xl p-4 shadow-2xl w-72">
+      {showQr && !isExpoWeb && (
+        <div className="absolute top-10 right-2 z-20 bg-zinc-900 border border-white/15 rounded-xl p-4 shadow-2xl w-80">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-white">Test on a device</span>
+            <span className="text-sm font-medium text-white">Test on a device</span>
             <button onClick={() => setShowQr(false)} className="text-zinc-500 hover:text-white">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
           <p className="text-[11px] text-zinc-400 leading-relaxed">
             This preview runs inside your browser&apos;s sandbox — a phone can&apos;t
-            connect to it. To run {isExpoWeb ? 'the app' : 'this'} on a real device:
+            connect to it. To run this on a real device:
           </p>
           <ol className="text-[11px] text-zinc-400 leading-relaxed mt-2 flex flex-col gap-1 list-decimal pl-4">
             <li>Download the project — <span className="text-zinc-300">Export</span> in the workspace toolbar.</li>
-            <li>Run <code className="px-1 rounded bg-white/10 text-zinc-200 font-mono">npx expo start</code> in the folder.</li>
-            <li>Scan the Metro QR with {isExpoWeb ? <span className="font-semibold">Expo Go</span> : 'your browser'}.</li>
+            <li>Run <code className="px-1 rounded bg-white/10 text-zinc-200 font-mono">npm run dev</code> in the folder.</li>
+            <li>Open the dev server URL in your phone&apos;s browser on the same Wi-Fi.</li>
           </ol>
-          <p className="text-[10px] text-violet-300/80 mt-2.5">
-            One-tap on-device preview from Webstew is coming soon.
-          </p>
         </div>
       )}
 
@@ -306,8 +614,29 @@ export function WebContainerPreview({
           </div>
         )}
 
+        {/* Phone-skip state — not an error, just a different path. On a
+            phone we don't try to render a tiny desktop preview of a
+            mobile app inside the phone; we point them at the publish
+            flow which IS the canonical preview on this device. */}
+        {phase === 'error' && error === 'PHONE_SKIP_WC' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 gap-3">
+            <Smartphone className="w-10 h-10 text-violet-400" />
+            <div className="text-white font-semibold">Your phone IS the preview</div>
+            <div className="text-xs text-zinc-400 max-w-xs leading-relaxed">
+              Tap below to publish this build and open it in Webstew Preview right here on your phone.
+            </div>
+            <button
+              onClick={() => setShowQr(true)}
+              className="mt-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl flex items-center gap-2 transition shadow-lg shadow-violet-900/50"
+            >
+              <QrCode className="w-4 h-4" />
+              Open on this phone
+            </button>
+          </div>
+        )}
+
         {/* Error state */}
-        {phase === 'error' && (
+        {phase === 'error' && error !== 'PHONE_SKIP_WC' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 gap-3">
             <AlertCircle className="w-7 h-7 text-red-400" />
             <div className="text-red-400 font-medium">Preview failed to start</div>
@@ -413,6 +742,374 @@ export function WebContainerPreview({
           <div ref={logsEndRef} />
         </div>
       )}
+    </div>
+  )
+}
+
+// Small, deterministic letter-avatar — pick a gradient from the project
+// name's first character so each app gets a stable, distinct look without
+// needing the user to upload an icon. The picker (#7 in the suggestions
+// queue) will replace this with the real chosen icon.
+const AVATAR_GRADIENTS = [
+  ['from-violet-500', 'to-fuchsia-500'],
+  ['from-sky-500', 'to-indigo-500'],
+  ['from-emerald-500', 'to-cyan-500'],
+  ['from-amber-500', 'to-rose-500'],
+  ['from-rose-500', 'to-pink-500'],
+  ['from-teal-500', 'to-emerald-500'],
+] as const
+
+function AppIconAvatar({ name }: { name: string }) {
+  const ch = (name.trim()[0] || 'W').toUpperCase()
+  const idx = ch.charCodeAt(0) % AVATAR_GRADIENTS.length
+  const [from, to] = AVATAR_GRADIENTS[idx]
+  return (
+    <div
+      className={`w-9 h-9 rounded-xl bg-gradient-to-br ${from} ${to} flex items-center justify-center text-white font-bold text-sm shadow-md shadow-black/30 shrink-0`}
+    >
+      {ch}
+    </div>
+  )
+}
+
+// Tiny relative-time pill — re-renders itself every 30s so a stale popover
+// doesn't keep showing "just now" five minutes later.
+function RelativeTime({ ts }: { ts: number }) {
+  const [, force] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => force((n) => n + 1), 30_000)
+    return () => clearInterval(id)
+  }, [])
+  const diffSec = Math.round((Date.now() - ts) / 1000)
+  if (diffSec < 10) return <span>Updated just now</span>
+  if (diffSec < 60) return <span>Updated {diffSec}s ago</span>
+  const m = Math.round(diffSec / 60)
+  if (m < 60) return <span>Updated {m} min ago</span>
+  const h = Math.round(m / 60)
+  return <span>Updated {h} h ago</span>
+}
+
+// A curated, intentionally short list. Bigger picker = decision paralysis;
+// this fits in one row of the modal and covers the common app categories.
+// The first one is "auto" — a brand-neutral default seeded from the name.
+const EMOJI_CHOICES = [
+  '⭐', '🚀', '🍔', '💪', '🛒', '📅', '🎵', '📚',
+  '💼', '📷', '🏠', '✈️', '🎯', '💡', '❤️', '🐶',
+  '🌱', '⚡', '🔥', '🎨', '☕', '🧘', '🎮', '💰',
+]
+
+// When the user hasn't picked anything, seed an emoji from the project
+// name so each app starts with its own identity. Deterministic — same
+// name always picks the same default.
+function pickDefaultEmoji(name: string): string {
+  const seed = name.toLowerCase()
+  if (/finance|money|bank|wallet|crypto/.test(seed)) return '💰'
+  if (/food|restaurant|menu|recipe/.test(seed)) return '🍔'
+  if (/fitness|workout|gym|health/.test(seed)) return '💪'
+  if (/shop|store|cart|commerce/.test(seed)) return '🛒'
+  if (/booking|calendar|schedule|appointment/.test(seed)) return '📅'
+  if (/photo|gallery|camera/.test(seed)) return '📷'
+  if (/music|audio|playlist/.test(seed)) return '🎵'
+  if (/learn|course|study|book/.test(seed)) return '📚'
+  if (/travel|trip|flight/.test(seed)) return '✈️'
+  if (/home|house|real.?estate/.test(seed)) return '🏠'
+  if (/dog|pet|cat/.test(seed)) return '🐶'
+  if (/garden|plant|nature/.test(seed)) return '🌱'
+  const charCode = seed.charCodeAt(0) || 0
+  return EMOJI_CHOICES[charCode % EMOJI_CHOICES.length]
+}
+
+// The premium modal — replaces the legacy popover for Expo. Two-column on
+// desktop (phone-frame mock on the left, QR + sharing on the right);
+// stacks on narrow screens. The container has its own backdrop + close
+// behavior, so the parent only needs to mount it conditionally.
+interface PhonePreviewModalProps {
+  onClose: () => void
+  name: string
+  iconEmoji: string
+  iconUploading: boolean
+  iconPickerOpen: boolean
+  setIconPickerOpen: (v: boolean) => void
+  selectIconEmoji: (emoji: string) => void
+  snackPhase: 'idle' | 'saving' | 'ready' | 'error' | 'upgrade'
+  snackResult: SnackResult | null
+  snackQr: string | null
+  snackError: string | null
+  snackPublishedAt: number | null
+  isPaidUser: boolean
+  linkCopied: boolean
+  copySnackLink: () => void
+  publishToSnack: () => void
+  onPrimaryAction: () => void
+}
+
+function PhonePreviewModal(props: PhonePreviewModalProps) {
+  const {
+    onClose, name, iconEmoji, iconUploading, iconPickerOpen, setIconPickerOpen,
+    selectIconEmoji, snackPhase, snackResult, snackQr, snackError,
+    snackPublishedAt, isPaidUser, linkCopied, copySnackLink, publishToSnack,
+    onPrimaryAction,
+  } = props
+
+  // Close on Escape — modal pattern users expect.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  // Same-device flow: when the user is ALREADY on a phone, scanning their
+  // own screen is impossible — so the primary CTA becomes "Open on this
+  // phone" (universal-link that hands off to Expo Go) and the QR drops to
+  // a secondary "Or share with another device" affordance.
+  const [isPhone, setIsPhone] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const phone =
+      window.matchMedia?.('(max-width: 767px)').matches &&
+      ('ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0)
+    setIsPhone(!!phone)
+  }, [])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-2xl bg-gradient-to-br from-zinc-900 via-zinc-900 to-violet-950/40 border border-white/10 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden"
+      >
+        {/* Header — the avatar button OPENS the icon picker drawer below.
+            We surface that with a labelled "Change icon" pill so users
+            don't have to guess what the tile-tap does. */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-white/5">
+          <button
+            onClick={() => setIconPickerOpen(!iconPickerOpen)}
+            className="relative group shrink-0"
+            title="Change app icon"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-3xl shadow-lg shadow-violet-900/40 group-hover:scale-105 transition">
+              {iconUploading ? <Loader2 className="w-5 h-5 animate-spin text-white" /> : iconEmoji}
+            </div>
+            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-violet-600 border-2 border-zinc-900 flex items-center justify-center text-[9px] text-white transition">
+              ✎
+            </div>
+          </button>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="text-base font-semibold text-white truncate">{name}</div>
+              <button
+                onClick={() => setIconPickerOpen(!iconPickerOpen)}
+                className={`hidden sm:inline-flex text-[10px] font-medium px-2 py-0.5 rounded-full transition ${iconPickerOpen ? 'bg-violet-600 text-white' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`}
+              >
+                {iconPickerOpen ? 'Done' : 'Change icon'}
+              </button>
+            </div>
+            <div className="text-[11px] text-zinc-500 flex items-center gap-1.5">
+              {snackPhase === 'ready' && snackPublishedAt ? (
+                <>
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <RelativeTime ts={snackPublishedAt} />
+                  <button onClick={publishToSnack} title="Refresh now" className="text-zinc-500 hover:text-violet-300 transition ml-1">
+                    <RefreshCw className="w-3 h-3" />
+                  </button>
+                </>
+              ) : (
+                <span>Running on your phone</span>
+              )}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white transition">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Icon picker drawer */}
+        {iconPickerOpen && (
+          <div className="px-5 py-3 border-b border-white/5 bg-black/20">
+            <div className="text-[11px] text-zinc-400 mb-2 font-medium uppercase tracking-wider">Choose an icon</div>
+            <div className="grid grid-cols-12 gap-1.5">
+              {EMOJI_CHOICES.map((e) => (
+                <button
+                  key={e}
+                  onClick={() => selectIconEmoji(e)}
+                  className={`aspect-square rounded-lg flex items-center justify-center text-xl transition ${e === iconEmoji ? 'bg-violet-600 ring-2 ring-violet-400' : 'bg-white/5 hover:bg-white/10'}`}
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
+            <div className="text-[10px] text-zinc-500 mt-2">
+              AI-generated icons + upload coming soon.
+            </div>
+          </div>
+        )}
+
+        {/* Body */}
+        <div className="grid md:grid-cols-2 gap-0">
+          {/* Left — phone frame mock */}
+          <div className="hidden md:flex items-center justify-center p-6 bg-gradient-to-br from-black/40 to-violet-950/20 border-r border-white/5">
+            <PhoneFrame iconEmoji={iconEmoji} name={name} />
+          </div>
+
+          {/* Right — QR + actions */}
+          <div className="p-6 flex flex-col items-center justify-center min-h-[340px]">
+            {snackPhase === 'idle' && (
+              <div className="text-center w-full">
+                <QrCode className="w-10 h-10 text-violet-400 mx-auto mb-3" />
+                <h3 className="text-white font-semibold mb-1">Run on your phone</h3>
+                <p className="text-[12px] text-zinc-400 leading-relaxed mb-4">
+                  {isPaidUser
+                    ? 'We’ll generate a one-time QR you can scan with the Webstew Preview app. Your phone mirrors this build live.'
+                    : 'See your app on a real device. Scan a QR with the Webstew Preview app and your phone runs the build live.'}
+                </p>
+                <button
+                  onClick={onPrimaryAction}
+                  className="w-full bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold px-4 py-3 rounded-xl flex items-center justify-center gap-2 transition shadow-lg shadow-violet-900/50"
+                >
+                  <QrCode className="w-4 h-4" />
+                  {isPaidUser ? 'Get my QR code' : 'Unlock phone preview'}
+                </button>
+                <p className="text-[10px] text-zinc-500 mt-3">
+                  Don&apos;t have it yet?{' '}
+                  <a href="https://apps.apple.com/app/expo-go/id982107779" target="_blank" rel="noopener noreferrer" className="text-violet-300 underline underline-offset-2">iPhone</a>{' · '}
+                  <a href="https://play.google.com/store/apps/details?id=host.exp.exponent" target="_blank" rel="noopener noreferrer" className="text-violet-300 underline underline-offset-2">Android</a>
+                </p>
+              </div>
+            )}
+
+            {snackPhase === 'saving' && (
+              <div className="flex flex-col items-center gap-3 text-zinc-300">
+                <Loader2 className="w-8 h-8 animate-spin text-violet-400" />
+                <span className="text-sm">Preparing your phone preview…</span>
+              </div>
+            )}
+
+            {snackPhase === 'ready' && snackResult && snackQr && (
+              <div className="w-full flex flex-col items-center">
+                {isPhone ? (
+                  <>
+                    {/* Same-device path — the user is on their phone, no
+                        QR scanning needed. Snack's https URL is a
+                        universal link: iOS hands it to Expo Go (when
+                        installed) and runs the app full-screen. */}
+                    <Smartphone className="w-10 h-10 text-violet-400 mb-3" />
+                    <h3 className="text-white font-semibold text-center mb-1">Open right here</h3>
+                    <p className="text-[12px] text-zinc-400 leading-relaxed mb-4 text-center max-w-xs">
+                      One tap launches your build in
+                      <span className="text-white font-medium"> Webstew Preview</span>.
+                    </p>
+                    <a
+                      href={snackResult.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold px-4 py-3 rounded-xl flex items-center justify-center gap-2 transition shadow-lg shadow-violet-900/50"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      Open on this phone
+                    </a>
+                    <button
+                      onClick={copySnackLink}
+                      className="mt-2 w-full bg-white/5 hover:bg-white/10 text-zinc-200 text-[12px] font-medium px-3 py-2 rounded-lg flex items-center justify-center gap-1.5 transition"
+                    >
+                      {linkCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      {linkCopied ? 'Link copied' : 'Or send to someone'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {/* Desktop path — show the QR for scanning with a
+                        second device. Copy-link is the share fallback. */}
+                    <div className="bg-white rounded-2xl p-4 shadow-xl shadow-black/30">
+                      <img src={snackQr} alt="Phone preview QR" className="w-52 h-52" />
+                    </div>
+                    <p className="text-[12px] text-zinc-400 leading-relaxed mt-3 text-center max-w-xs">
+                      Scan with your phone camera, then tap to open in
+                      <span className="text-white font-medium"> Webstew Preview</span>.
+                    </p>
+                    <button
+                      onClick={copySnackLink}
+                      className="mt-4 w-full bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium px-3 py-2.5 rounded-lg flex items-center justify-center gap-2 transition"
+                    >
+                      {linkCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      {linkCopied ? 'Link copied' : 'Copy share link'}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {snackPhase === 'error' && (
+              <div className="w-full">
+                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-start gap-2.5">
+                  <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <div className="text-sm text-red-300 font-medium">Something went wrong</div>
+                    <div className="text-[11px] text-red-300/70 mt-1 break-words">{snackError}</div>
+                  </div>
+                </div>
+                <button
+                  onClick={publishToSnack}
+                  className="mt-3 w-full bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium px-3 py-2 rounded-lg flex items-center justify-center gap-2 transition"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+
+            {snackPhase === 'upgrade' && (
+              <div className="w-full text-center">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-2xl mx-auto mb-3 shadow-lg shadow-violet-900/40">
+                  ✨
+                </div>
+                <h3 className="text-white font-semibold mb-1">Pro feature</h3>
+                <p className="text-[12px] text-zinc-400 leading-relaxed mb-4 max-w-xs mx-auto">
+                  Running your app on a real phone is part of the Pro plan. Upgrade and your QR is ready in seconds.
+                </p>
+                <a
+                  href="/upgrade"
+                  className="w-full bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold px-4 py-3 rounded-xl flex items-center justify-center gap-2 transition"
+                >
+                  Upgrade to Pro
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Stylized iPhone-shape mock with the user's app icon + name centered. Pure
+// CSS — no image asset needed. Used in the left column of the phone-preview
+// modal to give the abstract "QR for your app" some visual grounding.
+function PhoneFrame({ iconEmoji, name }: { iconEmoji: string; name: string }) {
+  return (
+    <div className="relative w-[220px] h-[440px] flex-col items-center">
+      {/* Bezel */}
+      <div className="absolute inset-0 rounded-[44px] bg-zinc-800 border-2 border-zinc-700 shadow-2xl shadow-black/60" />
+      {/* Screen */}
+      <div className="absolute inset-[6px] rounded-[38px] overflow-hidden bg-gradient-to-b from-violet-900 via-fuchsia-900 to-zinc-950 flex flex-col">
+        {/* Dynamic island */}
+        <div className="flex justify-center pt-3 pb-2 shrink-0">
+          <div className="w-20 h-5 rounded-full bg-black" />
+        </div>
+        {/* Status bar (decorative) */}
+        <div className="px-5 flex items-center justify-between text-[9px] text-white/80 font-medium">
+          <span>9:41</span>
+          <span>● ● ● ●</span>
+        </div>
+        {/* App icon stage */}
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 px-4">
+          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-5xl shadow-2xl shadow-violet-900/50">
+            {iconEmoji}
+          </div>
+          <div className="text-white text-sm font-semibold text-center truncate max-w-full">{name}</div>
+        </div>
+        {/* Home indicator */}
+        <div className="flex justify-center pb-2.5 shrink-0">
+          <div className="w-28 h-1 rounded-full bg-white/40" />
+        </div>
+      </div>
     </div>
   )
 }

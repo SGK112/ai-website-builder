@@ -1013,3 +1013,25 @@
 .build-phase-pending {
   @apply text-zinc-500;
 }
+
+/* ============================================
+   SAFE-AREA INSETS (PWA / iPhone notch + home bar)
+   ============================================
+   When Webstew runs as a standalone PWA on iOS, the viewport extends into
+   the notch and home-indicator regions. These utilities reserve those
+   areas so fixed bars don't sit under the OS chrome. env() resolves to
+   0 on browsers without notches, so adding these classes is safe to
+   apply on every page (no desktop regression). */
+
+.pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.pl-safe { padding-left: env(safe-area-inset-left, 0px); }
+.pr-safe { padding-right: env(safe-area-inset-right, 0px); }
+
+/* Min-height variants — useful for bottom-anchored bars that already have
+   their own padding; the constant + env() keeps the visual padding while
+   adding the safe-area floor. */
+.pb-safe-2 { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); }
+.pb-safe-4 { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); }
+.pt-safe-2 { padding-top: calc(env(safe-area-inset-top, 0px) + 8px); }
+.pt-safe-4 { padding-top: calc(env(safe-area-inset-top, 0px) + 16px); }

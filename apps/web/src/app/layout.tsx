@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter, Playfair_Display, Inter_Tight } from 'next/font/google'
 import './globals.css'
 import { Toaster } from '@/components/ui/toaster'
+import { PwaInstallPrompt } from '@/components/PwaInstallPrompt'
 import { AuthProvider } from '@/components/shared/AuthProvider'
 import { AppProvider } from '@/context/AppContext'
 import { ClientLayout } from '@/components/shared/ClientLayout'
@@ -26,6 +27,11 @@ export const viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
+  // viewportFit:cover lets the page paint behind the iPhone notch + home
+  // bar — required for PWA installs to feel native. Pair with
+  // `env(safe-area-inset-*)` in CSS for any fixed bars (workspace top bar,
+  // chat composer, install banner) so they don't sit under the notch.
+  viewportFit: 'cover',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#ffffff' },
     { media: '(prefers-color-scheme: dark)',  color: '#0a0a0f' },
@@ -66,6 +72,27 @@ export const metadata: Metadata = {
   creator: 'Remodely LLC',
   publisher: 'Webstew AI',
   alternates: { canonical: '/' },
+  // iOS treats sites added to the home screen as PWAs only when these tags
+  // are present. apple-mobile-web-app-capable=yes hides Safari chrome;
+  // status-bar-style=black-translucent lets the app paint behind the notch.
+  // The 180x180 Apple touch icon comes from the existing brand pngs — iOS
+  // downscales the 256 cleanly.
+  appleWebApp: {
+    capable: true,
+    title: 'Webstew',
+    statusBarStyle: 'black-translucent',
+    startupImage: ['/brand/webstew-logo-1024.png'],
+  },
+  icons: {
+    icon: [
+      { url: '/brand/webstew-logo-128.png', sizes: '128x128', type: 'image/png' },
+      { url: '/brand/webstew-logo-256.png', sizes: '256x256', type: 'image/png' },
+      { url: '/brand/webstew-logo-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/brand/webstew-logo-256.png', sizes: '180x180', type: 'image/png' },
+    ],
+  },
   openGraph: {
     title: 'Webstew AI — The AI Website Builder',
     description: 'One prompt → production site, app, or store. Free to start, multi-target.',
@@ -219,6 +246,7 @@ export default function RootLayout({
                 {children}
               </ClientLayout>
               <Toaster />
+              <PwaInstallPrompt />
             </AppProvider>
           </AuthProvider>
         </ThemeProvider>

@@ -164,34 +164,35 @@ export default function UpgradePage() {
     )}>
       {/* Header */}
       <header className={cn(
-        'border-b backdrop-blur-xl sticky top-0 z-50',
+        'border-b backdrop-blur-xl sticky top-0 z-50 pt-safe',
         isDark ? 'border-white/10 bg-slate-950/80' : 'border-slate-200 bg-white/90'
       )}>
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2">
           <Link href="/workspace" className={cn(
-            'flex items-center gap-2 transition',
+            'flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base transition min-w-0',
             isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
           )}>
-            <ArrowLeft className="w-4 h-4" />
-            Back to Workspace
+            <ArrowLeft className="w-4 h-4 shrink-0" />
+            <span className="hidden sm:inline">Back to Workspace</span>
+            <span className="sm:hidden">Back</span>
           </Link>
           <WebstewLogo href="/" size="sm" isDark={isDark} />
         </div>
       </header>
 
       {/* Hero */}
-      <section className="py-16 px-6 text-center">
+      <section className="py-8 sm:py-16 px-4 sm:px-6 text-center">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="max-w-3xl mx-auto"
         >
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-violet-500/10 border border-violet-500/20 rounded-full mb-6">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-violet-500/10 border border-violet-500/20 rounded-full mb-4 sm:mb-6">
             <Sparkles className="w-4 h-4 text-violet-400" />
             <span className="text-violet-400 text-sm font-medium">Upgrade Your Plan</span>
           </div>
           <h1 className={cn(
-            'text-4xl md:text-5xl font-bold mb-4',
+            'text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4',
             isDark ? 'text-white' : 'text-slate-900'
           )}>
             Build More, Pay Less
@@ -283,8 +284,8 @@ export default function UpgradePage() {
       </section>
 
       {/* Pricing Cards */}
-      <section className="pb-16 px-6">
-        <div className="max-w-6xl mx-auto grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <section className="pb-8 sm:pb-16 px-4 sm:px-6">
+        <div className="max-w-6xl mx-auto grid sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {PLANS.map((plan, index) => {
             const Icon = plan.icon
             const price = billingPeriod === 'annual' ? Math.floor(plan.annualPrice / 12) : plan.monthlyPrice

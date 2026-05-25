@@ -324,32 +324,34 @@ export default function CommunityPage() {
         {isDark ? <StarryNight /> : <SunriseBackground />}
       </div>
 
-      {/* Header */}
+      {/* Header — sticky on top, with safe-area reservation so PWAs paint
+          the notch correctly. The breadcrumb chevron + "Community" label
+          are hidden below sm so the bar doesn't overflow on phone widths. */}
       <header className={cn(
-        'sticky top-0 z-50 border-b backdrop-blur-xl',
+        'sticky top-0 z-50 border-b backdrop-blur-xl pt-safe',
         isDark ? 'bg-black/50 border-white/10' : 'bg-white/80 border-zinc-200'
       )}>
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <WebstewLogo href="/" size="sm" isDark={isDark} />
-            <ChevronRight className="w-4 h-4 text-slate-500 dark:text-zinc-500" />
-            <div className="flex items-center gap-2">
+            <ChevronRight className="hidden sm:block w-4 h-4 text-slate-500 dark:text-zinc-500" />
+            <div className="hidden sm:flex items-center gap-2">
               <Users className={isDark ? 'w-4 h-4 text-violet-400' : 'w-4 h-4 text-orange-500'} />
               <span className="font-medium">Community</span>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <Link
               href="/workspace"
               className={cn(
-                'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                'flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-all',
                 isDark
                   ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:shadow-lg hover:shadow-violet-500/25'
                   : 'bg-gradient-to-r from-orange-400 to-pink-500 text-white hover:shadow-lg hover:shadow-orange-500/25'
               )}
             >
               <Plus className="w-4 h-4" />
-              Create
+              <span className="hidden sm:inline">Create</span>
             </Link>
           </div>
         </div>
@@ -357,7 +359,7 @@ export default function CommunityPage() {
 
       {/* Hero Section */}
       <section className={cn(
-        "relative z-10 py-12 border-b",
+        "relative z-10 py-6 sm:py-12 border-b",
         isDark ? "border-white/10" : "border-slate-200"
       )}>
         <div className="max-w-7xl mx-auto px-4 text-center">
@@ -365,7 +367,7 @@ export default function CommunityPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4">
               <span className={cn(
                 'bg-clip-text text-transparent',
                 isDark

@@ -316,16 +316,16 @@ export default function TemplatesPage() {
       <WebStewNav />
 
       {/* Hero */}
-      <section className="py-12 px-6 text-center border-b border-white/10">
+      <section className="py-8 sm:py-12 px-4 sm:px-6 text-center border-b border-white/10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="max-w-3xl mx-auto"
         >
-          <h1 className="text-4xl font-bold text-white mb-4">
+          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3 sm:mb-4">
             Template Library
           </h1>
-          <p className="text-xl text-slate-400 mb-8">
+          <p className="text-base sm:text-xl text-slate-400 mb-6 sm:mb-8">
             Start with a professionally designed template and customize it with AI
           </p>
 
@@ -343,8 +343,9 @@ export default function TemplatesPage() {
         </motion.div>
       </section>
 
-      {/* Categories */}
-      <section className="py-6 px-6 border-b border-white/10 overflow-x-auto">
+      {/* Categories — horizontal scroll on mobile; the chips never wrap so
+          you can swipe through them without losing screen real estate. */}
+      <section className="py-3 sm:py-6 px-4 sm:px-6 border-b border-white/10 overflow-x-auto scrollbar-hide">
         <div className="max-w-7xl mx-auto flex gap-2">
           {CATEGORIES.map((cat) => {
             const Icon = cat.icon
@@ -369,7 +370,7 @@ export default function TemplatesPage() {
       </section>
 
       {/* Templates Grid */}
-      <section className="py-12 px-6">
+      <section className="py-6 sm:py-12 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto">
           {loading ? (
             <div className="flex items-center justify-center py-20">
@@ -380,7 +381,7 @@ export default function TemplatesPage() {
               <p className="text-slate-400">No templates found matching your criteria</p>
             </div>
           ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
               {filteredTemplates.map((template, index) => (
                 <motion.div
                   key={template.id}
@@ -409,7 +410,10 @@ export default function TemplatesPage() {
                         else img.style.display = 'none'
                       }}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    {/* Bottom-up gradient. On mobile (no hover) we leave a
+                        subtle wash so action buttons (below) remain legible
+                        against the thumbnail; desktop fades it in on hover. */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent opacity-60 md:opacity-0 md:group-hover:opacity-100 transition-opacity" />
 
                     {/* Price / Owned / Free Badge — clear pricing up-front so
                         users know what they're committing to before they click. */}
@@ -435,18 +439,23 @@ export default function TemplatesPage() {
                       </div>
                     )}
 
-                    {/* Hover Actions */}
-                    <div className="absolute inset-0 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* Action buttons over the thumbnail. On mobile (no
+                        hover) they sit at the bottom of the card image so
+                        the user can actually preview / use the template
+                        with one tap. On desktop we keep the original
+                        center-fade-on-hover for the discovery feel. */}
+                    <div className="absolute inset-x-0 bottom-0 md:inset-0 flex items-end md:items-center justify-center gap-2 p-3 md:p-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => setPreviewTemplate(template)}
-                        className="p-3 bg-white/10 backdrop-blur-sm rounded-xl hover:bg-white/20 transition"
+                        className="p-2.5 md:p-3 bg-white/15 backdrop-blur-sm rounded-xl hover:bg-white/25 transition shrink-0"
                         title="Preview"
+                        aria-label="Preview template"
                       >
-                        <Eye className="w-5 h-5 text-white" />
+                        <Eye className="w-4 h-4 md:w-5 md:h-5 text-white" />
                       </button>
                       <button
                         onClick={() => useTemplate(template)}
-                        className="px-4 py-3 bg-violet-600 hover:bg-violet-500 rounded-xl text-white font-medium transition flex items-center gap-2"
+                        className="flex-1 md:flex-none px-3 md:px-4 py-2.5 md:py-3 bg-violet-600 hover:bg-violet-500 rounded-xl text-white text-sm font-medium transition flex items-center justify-center gap-1.5"
                       >
                         {template.is_premium && !ownedTemplates.includes(template.id) && !hasPremiumAccess
                           ? <><Crown className="w-4 h-4" />Buy {template.priceUsdCents ? `$${(template.priceUsdCents / 100).toFixed(0)}` : ''}</>

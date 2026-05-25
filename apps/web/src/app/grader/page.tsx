@@ -21,11 +21,11 @@ function GraderInner() {
       'min-h-screen transition-colors',
       isDark ? 'bg-[#09090b] text-white' : 'bg-gradient-to-b from-white to-slate-50 text-slate-900'
     )}>
-      <div className="max-w-5xl mx-auto px-6 py-10 md:py-16">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10 md:py-16">
         <Link
           href="/"
           className={cn(
-            'inline-flex items-center gap-2 text-sm mb-8 transition-colors',
+            'inline-flex items-center gap-2 text-sm mb-6 sm:mb-8 transition-colors',
             isDark ? 'text-zinc-500 hover:text-white' : 'text-slate-500 hover:text-slate-900'
           )}
         >

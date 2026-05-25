@@ -7766,7 +7766,7 @@ npx eas build --platform all
                   <div className="flex items-center gap-2 mb-3">
                     <svg className="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
                     <h3 className={cn('text-sm font-medium', isDark ? 'text-white' : 'text-slate-900')}>Mobile App Starters</h3>
-                    <span className="text-[10px] text-zinc-500">Expo / React Native</span>
+                    <span className="text-[10px] text-zinc-500">iOS &amp; Android</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     {([
@@ -9373,10 +9373,17 @@ npx eas build --platform all
 
         {/* Docked Chat Input - Always Visible */}
         {!sidebarCollapsed && (
-          <div className={cn(
-            "px-3 py-3.5 border-t",
-            isDark ? "border-white/[0.08] bg-zinc-900/50" : "border-slate-200 bg-slate-50"
-          )}>
+          <div
+            className={cn(
+              "px-3 py-3.5 border-t",
+              isDark ? "border-white/[0.08] bg-zinc-900/50" : "border-slate-200 bg-slate-50"
+            )}
+            // Reserve the iPhone home-indicator's safe area on PWAs so the
+            // send button isn't sitting under the home bar. The constant
+            // 14px pad-bottom is preserved as the floor — env() resolves
+            // to 0 on browsers without notches.
+            style={{ paddingBottom: 'calc(14px + env(safe-area-inset-bottom, 0px))' }}
+          >
             <div className="flex items-center gap-2">
               <div className={cn(
                 'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all',
@@ -9697,11 +9704,21 @@ npx eas build --platform all
           )}
         </AnimatePresence>
 
-        {/* Toolbar - High z-index so dropdowns appear above preview */}
-        <header className={cn(
-          "h-12 border-b flex items-center justify-between px-4 backdrop-blur-xl relative z-50 gap-2 min-w-0",
-          isDark ? "border-white/[0.08] bg-zinc-950/95" : "border-slate-200 bg-white/95"
-        )}>
+        {/* Toolbar - High z-index so dropdowns appear above preview.
+            Top safe-area inset reserves space for the iPhone notch when
+            this runs as a PWA (display:standalone) — without it the header
+            controls sit under the dynamic island. env() is 0 on
+            non-notched browsers so desktop is unaffected. */}
+        <header
+          className={cn(
+            "border-b flex items-center justify-between px-4 backdrop-blur-xl relative z-50 gap-2 min-w-0",
+            isDark ? "border-white/[0.08] bg-zinc-950/95" : "border-slate-200 bg-white/95"
+          )}
+          style={{
+            height: 'calc(48px + env(safe-area-inset-top, 0px))',
+            paddingTop: 'env(safe-area-inset-top, 0px)',
+          }}
+        >
           {/* LHS toolbar group — allow horizontal scroll when content exceeds
               available width (e.g. when the chat sidebar is open). Without
               min-w-0 + overflow-x-auto here the LHS would push the RHS
@@ -9722,9 +9739,11 @@ npx eas build --platform all
               {sidebarCollapsed ? <PanelLeft className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
             </button>
 
-            {/* Device toggles */}
+            {/* Device toggles — hidden below md (the phone IS the mobile
+                preview). Saves three buttons of horizontal toolbar real
+                estate on the surface where it matters most. */}
             <div className={cn(
-              "flex rounded-lg p-0.5 border",
+              "hidden md:flex rounded-lg p-0.5 border",
               isDark ? "bg-white/[0.03] border-white/[0.05]" : "bg-slate-100 border-slate-200"
             )}>
               {([
@@ -10725,6 +10744,11 @@ npx eas build --platform all
                     key={previewBumpKey}
                     files={vfsFiles}
                     devCommand={buildTarget === 'expo' ? ['run', 'web'] : ['run', 'dev']}
+                    projectMeta={
+                      buildTarget === 'expo'
+                        ? { name: projectName, userPlan }
+                        : undefined
+                    }
                   />
                 ) : html ? (
                   <iframe
