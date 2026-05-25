@@ -28,12 +28,17 @@ const TABS: Tab[] = [
   { href: '/profile',    label: 'Profile',   icon: UserCircle, match: (p) => p.startsWith('/profile') },
 ]
 
-// Routes where the bottom nav HIDES — full-screen flows like signup,
-// auth, payment, raw preview share, etc.
-const HIDE_ON: RegExp[] = [
-  /^\/(login|signup|forgot-password|reset-password|verify-email)/,
-  /^\/preview\//,
-  /^\/(admin|seller)/,
+// Whitelist — only the five app surfaces get the bottom tab nav. The
+// landing page, upgrade flow, grader, marketing pages etc. keep the
+// regular top nav. A whitelist is the safer pattern: if we add a new
+// app surface we add it here intentionally, instead of a marketing
+// page accidentally inheriting app chrome.
+const SHOW_ON: RegExp[] = [
+  /^\/workspace($|\/)/,
+  /^\/templates($|\/)/,
+  /^\/community($|\/)/,
+  /^\/library($|\/)/,
+  /^\/profile($|\/)/,
 ]
 
 export function MobileBottomNav() {
@@ -55,7 +60,7 @@ export function MobileBottomNav() {
   // sales-oriented top nav.
   if (!session?.user?.id) return null
   if (!isMobile) return null
-  if (HIDE_ON.some((re) => re.test(pathname))) return null
+  if (!SHOW_ON.some((re) => re.test(pathname))) return null
 
   return (
     <nav
