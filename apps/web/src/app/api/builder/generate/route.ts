@@ -2689,8 +2689,15 @@ Rules:
       })
 
       // Map UI model IDs to current Anthropic model snapshots (Claude 4.x family).
-      // Older claude-3-* aliases are kept for backwards compat with existing UI selections.
-      const claudeModel = model === 'claude-opus' || model === 'claude-3-opus' ? 'claude-opus-4-7' :
+      // Older claude-3-* aliases are kept for backwards compat with existing UI
+      // selections. The auto-router may also pass the FULL model id straight
+      // through (e.g. "claude-haiku-4-5-20251001") — accept that as-is.
+      // Bug fix 2026-05-25: previously the full-id case fell into the Sonnet
+      // default, so the router intended Haiku but Sonnet ran. Sonnet's 16K
+      // cap blew through 3 max_tokens continuations on complex prompts and
+      // shipped a truncated site to the user.
+      const claudeModel = /^claude-(haiku|sonnet|opus)-/.test(model || '') ? model! :
+                          model === 'claude-opus' || model === 'claude-3-opus' ? 'claude-opus-4-7' :
                           model === 'claude-sonnet' || model === 'claude-3-sonnet' || model === 'claude-3.5-sonnet' ? 'claude-sonnet-4-6' :
                           model === 'claude-haiku' || model === 'claude-3-haiku' || model === 'claude-haiku-3.5' || model === 'claude-3.5-haiku' ? 'claude-haiku-4-5-20251001' :
                           model === 'claude' ? 'claude-sonnet-4-6' :
