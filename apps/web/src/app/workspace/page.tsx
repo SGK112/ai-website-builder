@@ -85,6 +85,7 @@ import {
   PenTool,
   Hammer,
   Rocket,
+  ShoppingBag,
   Cloud,
   Crosshair,
   Target,
@@ -2233,6 +2234,17 @@ function WorkspaceContent() {
   // Export panel state
   const [showExportPanel, setShowExportPanel] = useState(false)
   const [showPublishModal, setShowPublishModal] = useState(false)
+  // Post-build "What's next" coach — appears once per project, dismissed
+  // per-project via localStorage so a user who shipped 5 sites doesn't
+  // see the same coach 5 times. The check runs against the project ID
+  // (or 'unsaved' bucket for not-yet-saved local builds).
+  const [whatsNextDismissed, setWhatsNextDismissed] = useState<boolean>(false)
+  useEffect(() => {
+    try {
+      const key = `webstew-whatsnext-${currentProject?.id || 'unsaved'}`
+      setWhatsNextDismissed(localStorage.getItem(key) === '1')
+    } catch { setWhatsNextDismissed(false) }
+  }, [currentProject?.id])
   // Recipe-tips popover — opened from a ChefHat button next to the chat
   // input. Shows the 6 prompt patterns pros use, in stew-themed voice.
   const [showRecipeTips, setShowRecipeTips] = useState(false)
@@ -10744,6 +10756,76 @@ npx eas build --platform all
                 <span>Sync nav</span>
               </button>
             )}
+          </div>
+        )}
+
+        {/* "What's next" coach — appears once after the first successful
+            build of each project. Single horizontal strip above the
+            preview with the three actions that actually take a project
+            from "built" to "selling": deploy, custom domain, publish to
+            community. Dismissed per-project. Hidden during generation so
+            it doesn't compete with the live build animation. */}
+        {!whatsNextDismissed && !isGenerating && !isThinking && (html.length > 100 || Object.keys(vfsFiles).length > 0) && (
+          <div className={cn(
+            'border-b px-3 sm:px-5 py-3 flex items-center gap-2 sm:gap-3 overflow-x-auto scrollbar-hide',
+            isDark ? 'border-white/[0.06] bg-gradient-to-r from-violet-950/20 to-fuchsia-950/10' : 'border-slate-200 bg-gradient-to-r from-violet-50 to-pink-50'
+          )}>
+            <div className="hidden sm:flex items-center gap-2 shrink-0 pr-2 border-r border-white/10">
+              <Sparkles className={cn('w-4 h-4', isDark ? 'text-violet-400' : 'text-violet-600')} />
+              <span className={cn('text-[12px] font-semibold', isDark ? 'text-white' : 'text-slate-900')}>What&apos;s next?</span>
+            </div>
+            <button
+              onClick={() => {
+                setActivePanel('deploy')
+                setSidebarCollapsed(false)
+              }}
+              className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white text-[12px] font-medium transition-colors"
+            >
+              <Rocket className="w-3.5 h-3.5" />
+              <span>Ship it</span>
+            </button>
+            <button
+              onClick={() => {
+                setActivePanel('deploy')
+                setSidebarCollapsed(false)
+                // CustomDomainCard lives inside the deploy panel — opening
+                // it scrolls naturally into view.
+              }}
+              className={cn(
+                'shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors',
+                isDark ? 'bg-white/[0.06] hover:bg-white/10 text-zinc-200' : 'bg-white border border-slate-200 hover:bg-slate-50 text-slate-700'
+              )}
+            >
+              <LinkIcon className="w-3.5 h-3.5" />
+              <span className="whitespace-nowrap">Connect domain</span>
+            </button>
+            <button
+              onClick={() => setShowPublishModal(true)}
+              className={cn(
+                'shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors',
+                isDark ? 'bg-white/[0.06] hover:bg-white/10 text-zinc-200' : 'bg-white border border-slate-200 hover:bg-slate-50 text-slate-700'
+              )}
+            >
+              <ShoppingBag className="w-3.5 h-3.5" />
+              <span className="whitespace-nowrap">Sell on community</span>
+            </button>
+            <div className="flex-1" />
+            <button
+              onClick={() => {
+                try {
+                  const key = `webstew-whatsnext-${currentProject?.id || 'unsaved'}`
+                  localStorage.setItem(key, '1')
+                } catch {}
+                setWhatsNextDismissed(true)
+              }}
+              title="Hide"
+              className={cn(
+                'shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-colors',
+                isDark ? 'text-zinc-500 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+              )}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
 
