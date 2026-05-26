@@ -21,7 +21,34 @@ export async function GET(_req: NextRequest) {
 
   try {
     const connected = await listUserConnections(session.user.id)
-    const byToolkit = new Map(connected.map((c) => [c.toolkitSlug, c]))
+    // Composio returns one row per (user, auth_config) attempt — a user
+    // who reconnected after a revoke has multiple rows for the same
+    // toolkit. The original `new Map(connected.map(...))` kept whichever
+    // row came LAST from the API which was often a stale REVOKED entry
+    // and clobbered the active connection. Prefer ACTIVE > INITIATED >
+    // anything else; ties broken by most-recent createdAt.
+    const STATUS_RANK: Record<string, number> = {
+      ACTIVE: 4,
+      INITIATED: 3,
+      INACTIVE: 2,
+      EXPIRED: 1,
+      REVOKED: 0,
+      FAILED: 0,
+    }
+    const rank = (s: string | undefined) => STATUS_RANK[s || ''] ?? 0
+    const byToolkit = new Map<string, typeof connected[number]>()
+    for (const c of connected) {
+      const cur = byToolkit.get(c.toolkitSlug)
+      if (!cur) { byToolkit.set(c.toolkitSlug, c); continue }
+      const a = rank(c.status), b = rank(cur.status)
+      if (a > b) { byToolkit.set(c.toolkitSlug, c); continue }
+      if (a === b) {
+        // Same status — pick the newer one so a fresh re-auth wins.
+        const ca = c.createdAt ? new Date(c.createdAt).getTime() : 0
+        const cb = cur.createdAt ? new Date(cur.createdAt).getTime() : 0
+        if (ca > cb) byToolkit.set(c.toolkitSlug, c)
+      }
+    }
     const items = SUPPORTED_TOOLKITS.map((t) => {
       const conn = byToolkit.get(t.slug)
       return {
