@@ -12,6 +12,7 @@ import { useSession } from 'next-auth/react'
 import { Home, Layout, Users, Folder, UserCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEffect, useState } from 'react'
+import { useTheme } from '@/context/ThemeContext'
 
 interface Tab {
   href: string
@@ -45,6 +46,8 @@ export function MobileBottomNav() {
   const { data: session } = useSession()
   const pathname = usePathname() || '/'
   const router = useRouter()
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
   const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
@@ -67,7 +70,10 @@ export function MobileBottomNav() {
       // The data-[*] selector hides this nav while a full-screen modal
       // (e.g. MobileBuildSheet) sets body[data-mobile-sheet-open]. Stops
       // the tab bar from covering modal action buttons.
-      className="mobile-bottom-nav fixed left-0 right-0 bottom-0 z-[60] bg-zinc-950/95 backdrop-blur-xl border-t border-white/10"
+      className={cn(
+        'mobile-bottom-nav fixed left-0 right-0 bottom-0 z-[60] backdrop-blur-xl border-t',
+        isDark ? 'bg-zinc-950/95 border-white/10' : 'bg-white/95 border-slate-200'
+      )}
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       aria-label="Primary"
     >
@@ -75,18 +81,22 @@ export function MobileBottomNav() {
         {TABS.map((t) => {
           const Icon = t.icon
           const active = t.match(pathname)
+          const activeColor = isDark ? 'text-violet-400' : 'text-violet-600'
+          const inactiveColor = isDark
+            ? 'text-zinc-500 active:text-zinc-300'
+            : 'text-slate-500 active:text-slate-800'
           return (
             <button
               key={t.href}
               onClick={() => router.push(t.href)}
               className={cn(
                 'flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors',
-                active ? 'text-violet-400' : 'text-zinc-500 active:text-zinc-300'
+                active ? activeColor : inactiveColor
               )}
               aria-label={t.label}
               aria-current={active ? 'page' : undefined}
             >
-              <Icon className={cn('w-5 h-5', active && 'drop-shadow-[0_0_6px_rgba(167,139,250,0.6)]')} />
+              <Icon className="w-5 h-5" />
               <span className="text-[10px] font-medium tracking-wide">{t.label}</span>
             </button>
           )

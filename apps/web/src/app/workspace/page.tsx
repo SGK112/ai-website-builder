@@ -11077,15 +11077,21 @@ npx eas build --platform all
                   // at an empty preview. Quick-start cards mirror the
                   // "What do you want to build?" pattern. Each card sets
                   // the build target + auto-focuses the docked chat input.
-                  <div className="w-full h-full flex flex-col bg-zinc-950 overflow-y-auto">
-                    <div className="px-5 pt-6 pb-3">
-                      <p className="text-[11px] uppercase tracking-[0.15em] text-zinc-500 font-semibold mb-1">
-                        Webstew
-                      </p>
-                      <h2 className="text-2xl font-bold text-white leading-tight">
+                  <div className={cn(
+                    'w-full h-full flex flex-col overflow-y-auto',
+                    isDark ? 'bg-zinc-950' : 'bg-slate-50'
+                  )}>
+                    <div className="px-5 pt-8 pb-4">
+                      <h2 className={cn(
+                        'text-[26px] font-bold leading-tight tracking-tight',
+                        isDark ? 'text-white' : 'text-slate-900'
+                      )}>
                         What do you want to build?
                       </h2>
-                      <p className="text-sm text-zinc-400 mt-1.5">
+                      <p className={cn(
+                        'text-[15px] mt-1.5',
+                        isDark ? 'text-zinc-400' : 'text-slate-500'
+                      )}>
                         Pick a starting point — you can change it later.
                       </p>
                     </div>
@@ -11103,16 +11109,25 @@ npx eas build --platform all
                             setSidebarCollapsed(false)
                             void handleChatMessage(c.seed)
                           }}
-                          className="flex items-center gap-3 p-4 rounded-2xl bg-white/[0.04] border border-white/10 active:bg-white/10 transition text-left"
+                          className={cn(
+                            'flex items-center gap-3 p-4 rounded-2xl border transition text-left',
+                            isDark
+                              ? 'bg-white/[0.04] border-white/10 active:bg-white/10'
+                              : 'bg-white border-slate-200 active:bg-slate-50 shadow-sm'
+                          )}
                         >
-                          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 border border-violet-500/30 flex items-center justify-center text-xl shrink-0">
+                          <div className={cn(
+                            'w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0',
+                            isDark
+                              ? 'bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 border border-violet-500/30'
+                              : 'bg-gradient-to-br from-violet-100 to-fuchsia-100 border border-violet-200'
+                          )}>
                             {c.icon}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-white font-semibold text-[15px]">{c.title}</div>
-                            <div className="text-[12px] text-zinc-500 truncate">{c.sub}</div>
+                            <div className={cn('font-semibold text-[15px]', isDark ? 'text-white' : 'text-slate-900')}>{c.title}</div>
+                            <div className={cn('text-[12px] truncate', isDark ? 'text-zinc-500' : 'text-slate-500')}>{c.sub}</div>
                           </div>
-                          <ChevronRight className="w-4 h-4 text-zinc-600 shrink-0" />
                         </button>
                       ))}
                       <button

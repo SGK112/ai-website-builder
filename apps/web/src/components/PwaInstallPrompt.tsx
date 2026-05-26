@@ -19,6 +19,8 @@
 
 import { useEffect, useState } from 'react'
 import { X, Share, Download } from 'lucide-react'
+import { useTheme } from '@/context/ThemeContext'
+import { cn } from '@/lib/utils'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -33,6 +35,8 @@ export function PwaInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [show, setShow] = useState(false)
   const [iosHint, setIosHint] = useState(false)
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -111,18 +115,23 @@ export function PwaInstallPrompt() {
       role="dialog"
       aria-label="Install Webstew"
     >
-      <div className="bg-zinc-900/95 backdrop-blur-md border border-white/15 rounded-2xl shadow-2xl shadow-black/50 p-3.5 flex items-center gap-3">
-        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-xl shrink-0 shadow-lg shadow-violet-900/50">
+      <div className={cn(
+        'backdrop-blur-md border rounded-2xl shadow-2xl p-3.5 flex items-center gap-3',
+        isDark
+          ? 'bg-zinc-900/95 border-white/15 shadow-black/50'
+          : 'bg-white/95 border-slate-200 shadow-slate-900/15'
+      )}>
+        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-xl shrink-0 shadow-md shadow-violet-900/30">
           🍲
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-[13px] font-semibold text-white">Install Webstew</div>
+          <div className={cn('text-[13px] font-semibold', isDark ? 'text-white' : 'text-slate-900')}>Install Webstew</div>
           {iosHint ? (
-            <div className="text-[11px] text-zinc-400 leading-snug flex items-center gap-1">
-              Tap <Share className="w-3 h-3 inline" /> Share → <span className="text-zinc-200">Add to Home Screen</span>
+            <div className={cn('text-[11px] leading-snug flex items-center gap-1', isDark ? 'text-zinc-400' : 'text-slate-600')}>
+              Tap <Share className="w-3 h-3 inline" /> Share → <span className={isDark ? 'text-zinc-200' : 'text-slate-900'}>Add to Home Screen</span>
             </div>
           ) : (
-            <div className="text-[11px] text-zinc-400 leading-snug">
+            <div className={cn('text-[11px] leading-snug', isDark ? 'text-zinc-400' : 'text-slate-600')}>
               Add the app to your home screen for faster access.
             </div>
           )}
@@ -136,7 +145,11 @@ export function PwaInstallPrompt() {
             Install
           </button>
         )}
-        <button onClick={dismiss} className="text-zinc-500 hover:text-white transition shrink-0" aria-label="Dismiss">
+        <button
+          onClick={dismiss}
+          className={cn('transition shrink-0', isDark ? 'text-zinc-500 hover:text-white' : 'text-slate-400 hover:text-slate-700')}
+          aria-label="Dismiss"
+        >
           <X className="w-4 h-4" />
         </button>
       </div>
