@@ -107,6 +107,13 @@ export const metadata: Metadata = {
     description: 'One prompt → production site, app, or store. Free to start, multi-target.',
   },
   category: 'technology',
+  // Next.js's appleWebApp.capable only emits the legacy
+  // `apple-mobile-web-app-capable` meta tag. Chrome deprecated that and
+  // wants `mobile-web-app-capable` (no prefix). Emit both via `other` so
+  // the deprecation warning stops firing without losing iOS PWA support.
+  other: {
+    'mobile-web-app-capable': 'yes',
+  },
 }
 
 export default function RootLayout({

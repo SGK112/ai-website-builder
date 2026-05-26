@@ -9402,12 +9402,17 @@ npx eas build --platform all
                   </button>
 
                   {/* Custom domain — only meaningful after a deploy exists.
-                      The card itself handles the "not deployed yet" state. */}
-                  <CustomDomainCard
-                    projectId={currentProject?.id || null}
-                    isDeployed={deployStatus === 'success' || !!deployUrl}
-                    isDark={isDark}
-                  />
+                      The card itself handles the "not deployed yet" state.
+                      id="custom-domain-card" is the scroll-into-view target
+                      so the "Connect domain" button in the What's-next coach
+                      can bring this card into view directly. */}
+                  <div id="custom-domain-card" className="scroll-mt-4">
+                    <CustomDomainCard
+                      projectId={currentProject?.id || null}
+                      isDeployed={deployStatus === 'success' || !!deployUrl}
+                      isDark={isDark}
+                    />
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -10817,7 +10822,17 @@ npx eas build --platform all
                   <span>Share</span>
                 </button>
                 <button
-                  onClick={() => { setActivePanel('deploy'); setSidebarCollapsed(false) }}
+                  onClick={() => {
+                    setActivePanel('deploy')
+                    setSidebarCollapsed(false)
+                    // CustomDomainCard lives at the bottom of the deploy
+                    // panel — without this scroll users land at the top
+                    // (Project Name / API Keys) and think the button did
+                    // nothing.
+                    setTimeout(() => {
+                      document.getElementById('custom-domain-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                    }, 220)
+                  }}
                   className={cn(
                     'shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors',
                     isDark ? 'bg-white/[0.06] hover:bg-white/10 text-zinc-200' : 'bg-white border border-slate-200 hover:bg-slate-50 text-slate-700'
@@ -10848,7 +10863,13 @@ npx eas build --platform all
                   <span>Ship it</span>
                 </button>
                 <button
-                  onClick={() => { setActivePanel('deploy'); setSidebarCollapsed(false) }}
+                  onClick={() => {
+                    setActivePanel('deploy')
+                    setSidebarCollapsed(false)
+                    setTimeout(() => {
+                      document.getElementById('custom-domain-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                    }, 220)
+                  }}
                   className={cn(
                     'shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors',
                     isDark ? 'bg-white/[0.06] hover:bg-white/10 text-zinc-200' : 'bg-white border border-slate-200 hover:bg-slate-50 text-slate-700'

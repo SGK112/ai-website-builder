@@ -33,7 +33,21 @@ export async function GET(_req: NextRequest) {
     })
     return NextResponse.json({ items })
   } catch (e: any) {
-    console.error('[integrations] list error:', e?.message || e)
+    const msg = e?.message || ''
+    console.error('[integrations] list error:', msg)
+    // Either Composio's API rejected the key (401 / HTTP_Unauthorized) or
+    // the key isn't configured in this environment (local dev without a
+    // .env.local entry). Either way, return the catalog with everything
+    // marked disconnected so the UI renders the toolkit list and the user
+    // sees a soft warning instead of a hard 500.
+    const isAuthOrMissing = /Invalid API key|HTTP_Unauthorized|401|not configured/i.test(msg)
+    if (isAuthOrMissing) {
+      const items = SUPPORTED_TOOLKITS.map((t) => ({ ...t, connected: false, connectionId: undefined, status: null }))
+      const warning = /not configured/i.test(msg)
+        ? 'Integrations service is not configured in this environment.'
+        : 'Integrations service is temporarily unavailable — try again in a moment.'
+      return NextResponse.json({ items, warning }, { status: 200 })
+    }
     return NextResponse.json({ error: 'Failed to list integrations' }, { status: 500 })
   }
 }

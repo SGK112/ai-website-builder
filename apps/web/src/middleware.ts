@@ -61,7 +61,12 @@ const GATED_API_PREFIXES = [
   '/api/media/upload',   // server-side Cloudinary secret
   // Closes additional holes found in a gates audit (2026-05-14):
   '/api/ai/runpod',      // expensive GPU endpoints + RUNPOD_API_KEY
-  '/api/community',      // user content (posts already inline-auth; gate at edge for chat too)
+  // NOTE: /api/community intentionally NOT gated. The GET endpoints serve
+  // public approved posts to anonymous visitors (the /community page lands
+  // them on the showcase before signup). Each handler does inline auth on
+  // its own mutations (POST/DELETE for posts, likes, saves, comments,
+  // chat). Edge-gating broke the read flow — community page silently
+  // showed an empty feed because the public GET was returning 401.
   '/api/images/search',  // proxies Unsplash/Pexels/Pixabay keys
 ]
 

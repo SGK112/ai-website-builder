@@ -407,7 +407,12 @@ export default function HomePage() {
   const [showAllTemplates, setShowAllTemplates] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [rotatingWordIdx, setRotatingWordIdx] = useState(0)
-  const rotatingWords = ['delicious', 'real', 'alive', 'beautiful', 'fast']
+  // Rotates through concrete OUTPUTS — what Webstew actually ships. Each
+  // matches a card in the workspace's "What do you want to build?" picker
+  // so the landing's promise lines up with the product's first step.
+  // "store" not "online store" so "Build a ___" reads cleanly (no a/an
+  // article problem) and landing page is dropped as a subset of website.
+  const rotatingWords = ['website', 'mobile app', 'store', 'web app']
   const rotatingWord = rotatingWords[rotatingWordIdx]
   // Typewriter placeholder state
   const [typedText, setTypedText] = useState('')
@@ -440,30 +445,23 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prompt])
 
-  // Cycle the demo iframe through DEMO_SITES every ~7s with a brief
-  // "generating" overlay so it looks like Webstew is rebuilding each time.
-  // Pauses when the user is INSIDE the scroll-driven showcase section
-  // (pin window: progress 0.23-0.77) — scroll progress drives demo
-  // selection in there so every demo gets seen during the presentation.
+  // Auto-cycle through DEMO_SITES every ~11s. Long enough for iframe
+  // srcDoc to render, for visitors to actually take in the demo, and for
+  // the 1s crossfade to feel deliberate rather than abrupt. Pauses inside
+  // the pinned showcase (pin progress 0.20-0.80) because scroll progress
+  // drives demo selection there.
   useEffect(() => {
     const tick = () => {
-      // Skip auto-cycle while user is in the pinned showcase; scroll
-      // handles demo selection during that window.
       const p = smoothProgress.get()
       if (p > 0.20 && p < 0.80) return
-      setDemoGenerating(true)
-      setTimeout(() => {
-        setDemoIdx(i => (i + 1) % DEMO_SITES.length)
-        setDemoGenerating(false)
-      }, 1100)
+      setDemoIdx(i => (i + 1) % DEMO_SITES.length)
     }
-    const t = setInterval(tick, 7000)
+    const t = setInterval(tick, 11000)
     return () => clearInterval(t)
   }, [smoothProgress])
 
-  // Scroll-driven demo selection during the pinned showcase. Maps the
-  // pin progress (0.23 → 0.77) to demo index 0 → DEMO_SITES.length-1 so
-  // users see every "pretty site" while they scroll through the morph.
+  // Scroll-driven demo selection during the pinned showcase. Maps pin
+  // progress (0.23 → 0.77) to demo index 0 → DEMO_SITES.length-1.
   useMotionValueEvent(smoothProgress, 'change', (v) => {
     if (v < 0.23 || v > 0.77) return
     const t = (v - 0.23) / (0.77 - 0.23)
@@ -969,40 +967,16 @@ export default function HomePage() {
             {/* Main Content */}
             <main className="min-h-[60vh] flex items-center justify-center px-6 pb-4 pt-2">
               <div className="w-full max-w-2xl">
-                {/* Hero — centered like Lovable / Replit. */}
+                {/* Hero — minimal Lovable shape: headline + input. No
+                    status pill, no paragraph, no eyebrow. */}
                 <motion.div
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6 }}
-                  className="text-center mb-8 relative"
+                  className="text-center mb-10 relative"
                 >
-                  {/* Status pill — small, premium, signals the product is live */}
-                  <motion.a
-                    href="/community"
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6, delay: 0.05 }}
-                    className={cn(
-                      "inline-flex items-center gap-2 px-3 py-1 mb-7 rounded-full text-[11px] font-medium backdrop-blur-md border transition-all group",
-                      isDark
-                        ? "bg-white/[0.04] border-white/[0.08] text-slate-300 hover:bg-white/[0.08] hover:border-white/[0.14]"
-                        : "bg-white/70 border-slate-200/80 text-slate-600 hover:bg-white hover:border-slate-300"
-                    )}
-                  >
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
-                    </span>
-                    <span className="text-[10px] uppercase tracking-[0.18em] font-semibold">Live</span>
-                    <span className={cn("opacity-50", isDark ? "text-slate-500" : "text-slate-400")}>·</span>
-                    <span>Sites · web apps · mobile, generated by AI</span>
-                    <ArrowRight className="w-3 h-3 opacity-50 group-hover:translate-x-0.5 transition-transform" />
-                  </motion.a>
-                  <h1 className={cn(
-                    "text-6xl md:text-8xl font-bold tracking-[-0.04em] leading-[0.95] mb-6",
-                    "text-foreground"
-                  )}>
-                    Build something
+                  <h1 className="text-6xl md:text-8xl font-bold tracking-[-0.04em] leading-[0.95] text-foreground">
+                    Build a
                     <span className="block relative h-[1.15em] mt-2 overflow-visible">
                       <AnimatePresence mode="wait">
                         <motion.span
@@ -1012,10 +986,10 @@ export default function HomePage() {
                           exit={{ opacity: 0, y: -30, filter: 'blur(8px)' }}
                           transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
                           className={cn(
-                            "absolute inset-0 italic font-normal bg-clip-text text-transparent",
+                            'absolute inset-0 italic font-normal bg-clip-text text-transparent',
                             isDark
-                              ? "bg-gradient-to-br from-violet-200 via-fuchsia-300 to-cyan-200"
-                              : "bg-gradient-to-br from-violet-600 via-fuchsia-600 to-cyan-600"
+                              ? 'bg-gradient-to-br from-violet-200 via-fuchsia-300 to-cyan-200'
+                              : 'bg-gradient-to-br from-violet-600 via-fuchsia-600 to-cyan-600'
                           )}
                           style={{
                             fontFamily: 'var(--font-playfair), Georgia, "Times New Roman", serif',
@@ -1029,32 +1003,23 @@ export default function HomePage() {
                       </AnimatePresence>
                     </span>
                   </h1>
-                  <p className={cn(
-                    "text-lg md:text-xl max-w-2xl mx-auto leading-relaxed",
-                    "text-muted-foreground"
-                  )}>
-                    Describe what you want. Webstew generates a working{' '}
-                    <span className={cn("font-semibold", "text-foreground")}>
-                      website, web app, or mobile app
-                    </span>{' '}
-                    — production-grade code, deployed in minutes, yours to keep.
-                  </p>
                 </motion.div>
 
-                {/* Smaller, tighter input — target picker lives inside footer */}
+                {/* Prompt window — large, generous padding. Single primary
+                    action surface; visitors should never miss it. */}
                 <motion.div
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.1 }}
                   className={cn(
-                    "rounded-2xl backdrop-blur-xl border transition-all duration-300",
+                    'rounded-3xl backdrop-blur-xl border-2 transition-all duration-300',
                     isDark
-                      ? "bg-slate-900/70 border-white/10 shadow-xl shadow-black/30"
-                      : "bg-white/90 border-slate-200/80 shadow-xl shadow-slate-300/30",
-                    prompt && (isDark ? "ring-1 ring-violet-500/40" : "ring-1 ring-violet-400/40")
+                      ? 'bg-slate-900/70 border-white/10 shadow-2xl shadow-black/40'
+                      : 'bg-white/95 border-slate-200 shadow-2xl shadow-slate-900/10',
+                    prompt && (isDark ? 'ring-2 ring-violet-500/40 border-violet-500/30' : 'ring-2 ring-violet-400/30 border-violet-300/60')
                   )}
                 >
-                  <div className="px-4 pt-3 pb-0">
+                  <div className="px-5 sm:px-6 pt-5 sm:pt-6 pb-2">
                     <textarea
                       ref={inputRef}
                       value={prompt}
@@ -1062,22 +1027,22 @@ export default function HomePage() {
                       onKeyDown={handleKeyDown}
                       placeholder={typedText || (
                         buildTarget === 'mobile'
-                          ? `Ask Webstew to build a mobile app...`
+                          ? `Describe the app you want to build…`
                           : buildTarget === 'webapp'
-                            ? `Ask Webstew to build a web app...`
-                            : `Ask Webstew to build a website for...`
+                            ? `Describe the web app you want to build…`
+                            : `Describe the website you want to build…`
                       )}
-                      rows={1}
+                      rows={3}
                       className={cn(
-                        "w-full resize-none bg-transparent text-base leading-snug focus:outline-none min-h-[44px]",
+                        'w-full resize-none bg-transparent text-lg sm:text-xl leading-relaxed focus:outline-none min-h-[88px] sm:min-h-[112px]',
                         isDark
-                          ? "text-white placeholder-slate-500"
-                          : "text-slate-900 placeholder-slate-400"
+                          ? 'text-white placeholder-slate-500'
+                          : 'text-slate-900 placeholder-slate-400'
                       )}
                     />
                   </div>
 
-                  <div className="flex items-center justify-between px-3 pb-3">
+                  <div className="flex items-center justify-between gap-3 px-4 sm:px-5 pb-4 sm:pb-5">
                     {/* Build target dropdown (Lovable pattern) */}
                     <div className="relative">
                       <select
@@ -1085,20 +1050,17 @@ export default function HomePage() {
                         onChange={(e) => setBuildTarget(e.target.value as typeof buildTarget)}
                         aria-label="Build target"
                         className={cn(
-                          "appearance-none pl-2.5 pr-8 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors",
+                          'appearance-none pl-3 pr-9 py-2 rounded-xl text-sm font-medium cursor-pointer transition-colors',
                           isDark
-                            ? "bg-white/5 hover:bg-white/10 text-white border border-white/10"
-                            : "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200"
+                            ? 'bg-white/5 hover:bg-white/10 text-white border border-white/10'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200'
                         )}
                       >
                         <option value="website">🌐  Website</option>
                         <option value="webapp">⚛️  Web App</option>
                         <option value="mobile">📱  Mobile App</option>
                       </select>
-                      <ChevronDown className={cn(
-                        "absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none",
-                        "text-muted-foreground"
-                      )} />
+                      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none text-muted-foreground" />
                     </div>
 
                     <button
@@ -1106,40 +1068,17 @@ export default function HomePage() {
                       disabled={!prompt.trim() || isTransitioning}
                       aria-label="Build it"
                       className={cn(
-                        "flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-200",
+                        'flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200',
                         prompt.trim()
-                          ? "bg-gradient-to-br from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white shadow-md shadow-violet-500/30 hover:scale-105"
+                          ? 'bg-gradient-to-br from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white shadow-lg shadow-violet-500/40 hover:scale-105 active:scale-100'
                           : isDark
-                            ? "bg-white/5 text-slate-600 cursor-not-allowed"
-                            : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                            ? 'bg-white/5 text-slate-600 cursor-not-allowed'
+                            : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                       )}
                     >
                       {isTransitioning ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
                     </button>
                   </div>
-                </motion.div>
-
-                {/* Example prompts — small soft pills, Replit pattern */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.2 }}
-                  className="mt-4 flex flex-wrap justify-center gap-2"
-                >
-                  {examplePromptsByTarget[buildTarget].slice(0, 4).map((ex) => (
-                    <button
-                      key={ex}
-                      onClick={() => { setPrompt(ex); inputRef.current?.focus() }}
-                      className={cn(
-                        "px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
-                        isDark
-                          ? "bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/10"
-                          : "bg-slate-50 hover:bg-white text-slate-600 hover:text-slate-900 border border-slate-200"
-                      )}
-                    >
-                      {ex.length > 50 ? ex.slice(0, 48) + '…' : ex}
-                    </button>
-                  ))}
                 </motion.div>
 
 
@@ -1235,7 +1174,6 @@ export default function HomePage() {
                 </div>
               </div>
             </motion.section>
-
             {/* Live preview — scroll-driven takeover. Section is 200vh so
                 the sticky-pin window is ~100vh of scroll, giving the
                 fullscreen-hold → transition → detached-hold phases room to
@@ -1264,6 +1202,7 @@ export default function HomePage() {
                     can't combine -translate-x-1/2 with framer-motion's `y`
                     style — framer rewrites the whole transform string and
                     clobbers the Tailwind translate, pushing the label right. */}
+                {/* Section eyebrow — fades out when preview takes over. */}
                 <div className="absolute top-[2vh] sm:top-[3vh] inset-x-0 z-20 flex justify-center px-4 pointer-events-none">
                   <motion.div
                     style={{ opacity: previewLabelOpacity, y: previewLabelY }}
@@ -1278,10 +1217,7 @@ export default function HomePage() {
                   </motion.div>
                 </div>
 
-                {/* Pause-phase scroll prompt — sits just below the title and
-                    invites the user to keep scrolling so the morph begins.
-                    Fades in with the title pause window and fades out as the
-                    card emerges. */}
+                {/* Scroll prompt — fades in during the pre-takeover pause. */}
                 <div className="absolute top-[7vh] sm:top-[8vh] inset-x-0 z-20 flex justify-center px-4 pointer-events-none">
                   <motion.div
                     style={{ opacity: previewScrollPromptOpacity }}
@@ -1345,16 +1281,17 @@ export default function HomePage() {
                   <AnimatePresence initial={false} mode="popLayout">
                     <motion.div
                       key={demoIdx}
-                      initial={{ opacity: 0, scale: 1.03 }}
+                      initial={{ opacity: 0, scale: 1.02 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.98 }}
-                      transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+                      exit={{ opacity: 0, scale: 0.99 }}
+                      transition={{ duration: 1.0, ease: [0.22, 1, 0.36, 1] }}
                       style={{ paddingTop: iframeTopInset }}
                       className="absolute inset-0"
                     >
                       <iframe
                         srcDoc={DEMO_SITES[demoIdx].html}
                         sandbox="allow-scripts"
+                        loading="lazy"
                         className="w-full h-full block border-0"
                         title={`Demo: ${DEMO_SITES[demoIdx].label}`}
                         scrolling="yes"
@@ -1505,40 +1442,18 @@ export default function HomePage() {
                     already telegraphs the state and the text was crowding
                     the caption row. */}
 
-                {/* Prompt caption — sits under the card and pushes down as
-                    the card grows. Position is driven by previewCaptionBottom
-                    so it stays tucked just below the card's bottom edge
-                    through every device state, then slides off-screen as
-                    fullscreen takes over (opacity also fades by then). */}
-                <motion.div
-                  style={{ opacity: previewCaptionOpacity, bottom: previewCaptionBottom }}
-                  className="absolute left-1/2 -translate-x-1/2 z-20 px-6 max-w-[92vw]"
-                >
-                  <div className={cn(
-                    'flex items-center gap-3 px-5 py-3 rounded-full border shadow-lg backdrop-blur-md',
-                    isDark ? 'bg-slate-900/70 border-white/10' : 'bg-white/80 border-slate-200'
-                  )}>
-                    <div className={cn(
-                      'shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs',
-                      isDark ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-100 text-violet-600'
-                    )}>
-                      ✦
-                    </div>
-                    <div className={cn('text-sm font-mono italic truncate', isDark ? 'text-slate-300' : 'text-slate-700')}>
-                      &ldquo;{DEMO_SITES[demoIdx].prompt}&rdquo;
-                    </div>
-                  </div>
-                </motion.div>
+                {/* Prompt-caption bubble removed — it overlapped iframe
+                    content as the card resized. The preview is the message. */}
 
               </div>
             </section>
 
-            {/* Stats strip — sits BEHIND (z-0) the preview's pinned sticky
-                (z-10) but is pulled UP via -mt so its content layout
-                coincides with the preview section's bottom 100vh. During
-                pin the sticky covers it; as the sticky scrolls up post-pin
-                the stat strip is revealed naturally with no white gap. */}
-            <motion.section initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-50px" }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} className="relative z-0 -mt-[100vh] pt-[100vh] px-6 pb-20 bg-background">
+
+            {/* Stats strip — renders normally now that the preview has
+                moved above the hero. Previous -mt-[100vh] was a layout
+                hack to overlap the preview's sticky-pin section that
+                used to sit directly above. */}
+            <motion.section initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-50px" }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} className="relative z-0 px-6 py-20 bg-background">
               <div className={cn(
                 "max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-px overflow-hidden rounded-3xl border",
                 "bg-foreground/[0.04] border-border"
@@ -1835,19 +1750,18 @@ export default function HomePage() {
               </div>
             </motion.section>
 
-            {/* Recipe templates — Lovable's "Discover templates" pattern.
-                Heading left, "View all" on right. Clean cards with image on
-                top, name + description BELOW (not overlaid). 4-col grid on
-                desktop, 2-col on tablet, 1-col on mobile. */}
+            {/* Templates section — image-top cards with title + sub below.
+                4-col desktop, 2-col tablet, 1-col mobile. Tighter on phone
+                so visitors aren't dragged through whitespace. */}
             <motion.section
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-100px" }}
               transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-              className="px-6 py-24"
+              className="px-4 sm:px-6 py-12 sm:py-20"
             >
               <div className="max-w-6xl mx-auto">
-                <div className="flex items-end justify-between mb-10 gap-4">
+                <div className="flex items-end justify-between mb-6 sm:mb-10 gap-4">
                   <div>
                     <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-2 text-foreground">
                       Start from a template.
@@ -1902,14 +1816,21 @@ export default function HomePage() {
                       className="group text-left"
                     >
                       <div className={cn(
-                        "aspect-[4/3] rounded-2xl overflow-hidden border mb-3 transition-shadow",
-                        isDark ? "border-white/10 group-hover:border-white/20" : "border-slate-200 group-hover:shadow-lg"
+                        'aspect-[4/3] rounded-2xl overflow-hidden border mb-3 transition-shadow relative',
+                        isDark ? 'border-white/10 group-hover:border-white/20 bg-slate-800' : 'border-slate-200 group-hover:shadow-lg bg-slate-100'
                       )}>
                         <img
                           src={p.img}
                           alt={p.title}
                           loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          onError={(e) => {
+                            // Unsplash CDN flake → swap to /api/media (Pexels)
+                            const el = e.currentTarget
+                            const fallback = `/api/media?q=${encodeURIComponent(p.title)}/800/600`
+                            if (el.src !== fallback) el.src = fallback
+                          }}
                         />
                       </div>
                       <h3 className={cn(

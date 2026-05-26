@@ -52,6 +52,11 @@ export default function IntegrationsPage() {
       }
       const data = await res.json()
       setItems(data.items || [])
+      // The route returns 200 + a `warning` field when Composio itself is
+      // temporarily unreachable — show it as a soft notice instead of a
+      // hard error so users still see the catalog and don't think the
+      // page is broken.
+      if (data.warning) setFlash(data.warning)
     } catch (e: any) {
       setErr(e?.message || 'Failed to load integrations')
     } finally {

@@ -51,15 +51,143 @@ const baseHead = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="v
 //   deterministic Picsum URL on its own if Pexels is unavailable, so
 //   this never breaks.
 // PICSUM stays as the texture/random helper for non-topical imagery.
-// UNSPLASH is for HERO images with a specific look — stable photo IDs.
+// Image helpers — ALL route through our /api/media proxy now. Direct
+// third-party hits (images.unsplash.com photo IDs, i.pravatar.cc, picsum)
+// were intermittently failing in iframe srcDoc renders (parallel image
+// load + cross-origin rate limits). Pexels-backed proxy is stable + cached.
 const MEDIA_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
 const PEXELS = (q: string, w: number, h: number) =>
   `${MEDIA_ORIGIN}/api/media?q=${encodeURIComponent(q)}&w=${w}&h=${h}`
 const PICSUM = (seed: string, w: number, h: number) =>
-  `https://picsum.photos/seed/${seed}/${w}/${h}`
-const UNSPLASH = (id: string, w: number, h?: number) =>
-  `https://images.unsplash.com/photo-${id}?w=${w}${h ? `&h=${h}&fit=crop` : ''}&q=70&auto=format`
-const AVATAR = (n: number) => `https://i.pravatar.cc/100?img=${n}`
+  // Route picsum-style seed queries to the same proxy. Seed becomes the
+  // search keyword so the resulting photo still tracks the demo's intent.
+  `${MEDIA_ORIGIN}/api/media?q=${encodeURIComponent(seed)}&w=${w}&h=${h}`
+const UNSPLASH = (id: string, w: number, h?: number) => {
+  // Keep the photo-id signature so call sites don't need to change. The
+  // id-to-keyword map covers the demo HEROes we actually use; anything
+  // not in the map falls back to a generic "modern interior" keyword
+  // (visually compatible with a SaaS/portfolio/store hero).
+  const ID_TO_KEYWORD: Record<string, string> = {
+    '1551288049-bebda4e38f71': 'analytics dashboard purple',
+  }
+  const q = ID_TO_KEYWORD[id] || 'modern interior'
+  return `${MEDIA_ORIGIN}/api/media?q=${encodeURIComponent(q)}&w=${w}${h ? `&h=${h}` : ''}`
+}
+const AVATAR = (n: number) =>
+  // pravatar.cc was timing out in iframes ~10% of the time. Route through
+  // /api/media with a "portrait" query seeded by index so the same idx
+  // returns a consistent photo.
+  `${MEDIA_ORIGIN}/api/media?q=portrait${n}&w=120&h=120`
+
+// Webstew "title slide" — rendered before each real demo so the rotation
+// feels like a presentation: visitor watches a prompt get typed, then the
+// site that prompt would build appears. `typedPrompt` is the actual
+// prompt string for the demo coming next; the opener types it
+// character-by-character inside the iframe via inline JS so each cycle
+// looks like a real user session. `phase` controls the visual state:
+//   'typing'    — caret blinking, send button idle
+//   'building'  — send pulsed, loading dots, "Building…" badge
+// The HTML is self-contained (no external JS) so srcDoc renders cleanly.
+export function makeWebstewOpener(typedPrompt: string, phase: 'typing' | 'building' = 'typing'): string {
+  // Escape for embedding inside a JS string literal in the HTML below.
+  const safePrompt = typedPrompt
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n')
+    .replace(/</g, '\\u003c')
+  const isBuilding = phase === 'building'
+  return `${baseHead}<body class="bg-[#0a0612] text-white overflow-hidden">
+<div class="relative min-h-screen flex flex-col">
+  <div class="absolute inset-0 pointer-events-none">
+    <div class="absolute -top-32 -left-20 w-[42rem] h-[42rem] rounded-full blur-[120px] bg-violet-600/30"></div>
+    <div class="absolute top-1/3 -right-32 w-[36rem] h-[36rem] rounded-full blur-[120px] bg-fuchsia-500/25"></div>
+    <div class="absolute bottom-0 left-1/4 w-[28rem] h-[28rem] rounded-full blur-[120px] bg-amber-400/15"></div>
+  </div>
+  <nav class="relative z-10 px-4 sm:px-8 py-4 sm:py-5 flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-base sm:text-lg shadow-lg shadow-violet-900/40">🍲</div>
+      <span class="font-bold text-base sm:text-lg tracking-tight">Webstew</span>
+    </div>
+    <div class="hidden md:flex gap-6 text-sm text-slate-300">
+      <span>Templates</span><span>Community</span><span>Pricing</span>
+    </div>
+    <button class="px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg bg-white text-slate-900 text-[11px] sm:text-sm font-semibold whitespace-nowrap">Start free</button>
+  </nav>
+  <main class="relative z-10 flex-1 flex flex-col items-center justify-center px-4 sm:px-8 py-4 sm:py-8 text-center">
+    <h1 class="text-4xl sm:text-6xl md:text-7xl font-bold tracking-[-0.03em] leading-[0.95] mb-1 sm:mb-2">
+      Build a
+      <span class="block serif italic font-normal bg-gradient-to-br from-violet-200 via-fuchsia-300 to-cyan-200 bg-clip-text text-transparent" style="font-size:1.15em;line-height:0.95">website.</span>
+    </h1>
+    <div class="w-full max-w-xl mt-5 sm:mt-7 rounded-2xl border-2 ${isBuilding ? 'border-violet-500/60 ring-2 ring-violet-500/30' : 'border-violet-500/30 ring-2 ring-violet-500/20'} bg-slate-900/70 backdrop-blur-xl shadow-2xl shadow-black/40">
+      <div class="px-4 sm:px-5 pt-4 pb-2 text-left">
+        <div class="text-base sm:text-lg text-white leading-relaxed min-h-[3.5em] flex items-start">
+          <span id="typed-prompt"></span><span id="caret" class="inline-block w-[2px] h-5 bg-violet-400 ml-0.5 align-middle"></span>
+        </div>
+      </div>
+      <div class="flex items-center justify-between gap-3 px-3 sm:px-4 pb-3 sm:pb-4">
+        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-xs">
+          🌐 <span class="font-medium">Website</span>
+        </div>
+        <div id="send-btn" class="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 flex items-center justify-center text-white shadow-lg shadow-violet-500/40 ${isBuilding ? 'scale-95 opacity-80' : ''}">
+          ${isBuilding
+            ? '<svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 12a8 8 0 018-8" /></svg>'
+            : '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>'}
+        </div>
+      </div>
+    </div>
+    <div class="mt-6 sm:mt-10 flex flex-wrap items-center justify-center gap-x-5 sm:gap-x-8 gap-y-2 opacity-50">
+      <span class="text-[11px] sm:text-xs uppercase tracking-[0.2em] font-semibold mr-1">Built with</span>
+      <span class="text-xs sm:text-sm font-bold">Next.js</span>
+      <span class="text-xs sm:text-sm font-bold">React</span>
+      <span class="text-xs sm:text-sm font-bold">Astro</span>
+      <span class="text-xs sm:text-sm font-bold">Expo</span>
+      <span class="text-xs sm:text-sm font-bold">Tailwind</span>
+    </div>
+  </main>
+  <div class="relative z-10 px-4 sm:px-8 pb-4 sm:pb-6 flex justify-center">
+    <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[10px] sm:text-[11px] text-slate-400">
+      <span class="relative flex h-1.5 w-1.5">
+        <span class="absolute inline-flex h-full w-full rounded-full ${isBuilding ? 'bg-violet-400' : 'bg-emerald-400'} opacity-75 animate-ping"></span>
+        <span class="relative inline-flex rounded-full h-1.5 w-1.5 ${isBuilding ? 'bg-violet-500' : 'bg-emerald-500'}"></span>
+      </span>
+      <span class="uppercase tracking-[0.18em] font-semibold">${isBuilding ? 'Building' : 'Live'}</span>
+      <span class="opacity-40">·</span>
+      <span id="status-text">${isBuilding ? 'Generating with AI…' : 'One prompt → real production code'}</span>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var p='${safePrompt}';
+  var phase='${phase}';
+  var el=document.getElementById('typed-prompt');
+  var caret=document.getElementById('caret');
+  if(phase==='building'){
+    if(el)el.textContent=p;
+    if(caret)caret.style.display='none';
+    return;
+  }
+  // Typewriter — types over ~3.2s regardless of prompt length so the
+  // timing matches the parent's stage timer.
+  var i=0;
+  // Type the whole prompt in ~2.4s — leaves ~0.4s of "done typing" pause
+  // before the parent flips us into the building state.
+  var stepMs=Math.max(15,Math.min(60,Math.round(2400/p.length)));
+  function tick(){
+    if(!el)return;
+    i++;
+    el.textContent=p.slice(0,i);
+    if(i<p.length)setTimeout(tick,stepMs);
+  }
+  setTimeout(tick,200);
+  // Blink caret.
+  if(caret){
+    setInterval(function(){caret.style.opacity=caret.style.opacity==='0'?'1':'0';},520);
+  }
+})();
+</script>
+</body></html>`
+}
 
 export const DEMO_SITES: DemoSite[] = [
   {
