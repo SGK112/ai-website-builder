@@ -86,6 +86,7 @@ import {
   Hammer,
   Rocket,
   ShoppingBag,
+  Share,
   Cloud,
   Crosshair,
   Target,
@@ -10759,56 +10760,115 @@ npx eas build --platform all
           </div>
         )}
 
-        {/* "What's next" coach — appears once after the first successful
-            build of each project. Single horizontal strip above the
-            preview with the three actions that actually take a project
-            from "built" to "selling": deploy, custom domain, publish to
-            community. Dismissed per-project. Hidden during generation so
-            it doesn't compete with the live build animation. */}
-        {!whatsNextDismissed && !isGenerating && !isThinking && (html.length > 100 || Object.keys(vfsFiles).length > 0) && (
+        {/* "What's next" coach — morphs based on stage:
+            • Pre-deploy: Ship it · Connect domain · Sell
+            • Post-deploy: ✓ Live at URL · Copy · Share · Connect domain · Sell
+            Closes the Create→Ship→Sell loop with a single strip that
+            reacts to the user's actual progress instead of a static CTA. */}
+        {(!whatsNextDismissed || (deployStatus === 'success' && deployUrl)) && !isGenerating && !isThinking && (html.length > 100 || Object.keys(vfsFiles).length > 0) && (
           <div className={cn(
             'border-b px-3 sm:px-5 py-3 flex items-center gap-2 sm:gap-3 overflow-x-auto scrollbar-hide',
             isDark ? 'border-white/[0.06] bg-gradient-to-r from-violet-950/20 to-fuchsia-950/10' : 'border-slate-200 bg-gradient-to-r from-violet-50 to-pink-50'
           )}>
-            <div className="hidden sm:flex items-center gap-2 shrink-0 pr-2 border-r border-white/10">
-              <Sparkles className={cn('w-4 h-4', isDark ? 'text-violet-400' : 'text-violet-600')} />
-              <span className={cn('text-[12px] font-semibold', isDark ? 'text-white' : 'text-slate-900')}>What&apos;s next?</span>
-            </div>
-            <button
-              onClick={() => {
-                setActivePanel('deploy')
-                setSidebarCollapsed(false)
-              }}
-              className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white text-[12px] font-medium transition-colors"
-            >
-              <Rocket className="w-3.5 h-3.5" />
-              <span>Ship it</span>
-            </button>
-            <button
-              onClick={() => {
-                setActivePanel('deploy')
-                setSidebarCollapsed(false)
-                // CustomDomainCard lives inside the deploy panel — opening
-                // it scrolls naturally into view.
-              }}
-              className={cn(
-                'shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors',
-                isDark ? 'bg-white/[0.06] hover:bg-white/10 text-zinc-200' : 'bg-white border border-slate-200 hover:bg-slate-50 text-slate-700'
-              )}
-            >
-              <LinkIcon className="w-3.5 h-3.5" />
-              <span className="whitespace-nowrap">Connect domain</span>
-            </button>
-            <button
-              onClick={() => setShowPublishModal(true)}
-              className={cn(
-                'shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors',
-                isDark ? 'bg-white/[0.06] hover:bg-white/10 text-zinc-200' : 'bg-white border border-slate-200 hover:bg-slate-50 text-slate-700'
-              )}
-            >
-              <ShoppingBag className="w-3.5 h-3.5" />
-              <span className="whitespace-nowrap">Sell on community</span>
-            </button>
+            {deployStatus === 'success' && deployUrl ? (
+              <>
+                {/* Live-deployed badge + the URL itself — clicking opens it.
+                    Truncates host on mobile so the row doesn't overflow. */}
+                <a
+                  href={deployUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cn(
+                    'shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors max-w-[200px] sm:max-w-none',
+                    isDark ? 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                  )}
+                  title={deployUrl}
+                >
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="whitespace-nowrap truncate">Live · {(() => { try { return new URL(deployUrl).host } catch { return deployUrl } })()}</span>
+                </a>
+                <button
+                  onClick={async () => {
+                    try { await navigator.clipboard.writeText(deployUrl); addToast('success', 'URL copied') } catch {}
+                  }}
+                  className={cn(
+                    'shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors',
+                    isDark ? 'bg-white/[0.06] hover:bg-white/10 text-zinc-200' : 'bg-white border border-slate-200 hover:bg-slate-50 text-slate-700'
+                  )}
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copy</span>
+                </button>
+                <button
+                  onClick={async () => {
+                    const navAny = navigator as any
+                    if (navAny.share) {
+                      try { await navAny.share({ title: projectName || 'My site', url: deployUrl }) } catch {}
+                    } else {
+                      try { await navigator.clipboard.writeText(deployUrl); addToast('success', 'URL copied — paste it anywhere') } catch {}
+                    }
+                  }}
+                  className={cn(
+                    'shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors',
+                    isDark ? 'bg-white/[0.06] hover:bg-white/10 text-zinc-200' : 'bg-white border border-slate-200 hover:bg-slate-50 text-slate-700'
+                  )}
+                >
+                  <Share className="w-3.5 h-3.5" />
+                  <span>Share</span>
+                </button>
+                <button
+                  onClick={() => { setActivePanel('deploy'); setSidebarCollapsed(false) }}
+                  className={cn(
+                    'shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors',
+                    isDark ? 'bg-white/[0.06] hover:bg-white/10 text-zinc-200' : 'bg-white border border-slate-200 hover:bg-slate-50 text-slate-700'
+                  )}
+                >
+                  <LinkIcon className="w-3.5 h-3.5" />
+                  <span className="whitespace-nowrap">Custom domain</span>
+                </button>
+                <button
+                  onClick={() => setShowPublishModal(true)}
+                  className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white text-[12px] font-medium transition-colors"
+                >
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                  <span className="whitespace-nowrap">Sell it</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="hidden sm:flex items-center gap-2 shrink-0 pr-2 border-r border-white/10">
+                  <Sparkles className={cn('w-4 h-4', isDark ? 'text-violet-400' : 'text-violet-600')} />
+                  <span className={cn('text-[12px] font-semibold', isDark ? 'text-white' : 'text-slate-900')}>What&apos;s next?</span>
+                </div>
+                <button
+                  onClick={() => { setActivePanel('deploy'); setSidebarCollapsed(false) }}
+                  className="shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white text-[12px] font-medium transition-colors"
+                >
+                  <Rocket className="w-3.5 h-3.5" />
+                  <span>Ship it</span>
+                </button>
+                <button
+                  onClick={() => { setActivePanel('deploy'); setSidebarCollapsed(false) }}
+                  className={cn(
+                    'shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors',
+                    isDark ? 'bg-white/[0.06] hover:bg-white/10 text-zinc-200' : 'bg-white border border-slate-200 hover:bg-slate-50 text-slate-700'
+                  )}
+                >
+                  <LinkIcon className="w-3.5 h-3.5" />
+                  <span className="whitespace-nowrap">Connect domain</span>
+                </button>
+                <button
+                  onClick={() => setShowPublishModal(true)}
+                  className={cn(
+                    'shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors',
+                    isDark ? 'bg-white/[0.06] hover:bg-white/10 text-zinc-200' : 'bg-white border border-slate-200 hover:bg-slate-50 text-slate-700'
+                  )}
+                >
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                  <span className="whitespace-nowrap">Sell on community</span>
+                </button>
+              </>
+            )}
             <div className="flex-1" />
             <button
               onClick={() => {
