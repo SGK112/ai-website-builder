@@ -33,7 +33,18 @@ export async function POST(req: NextRequest) {
 
   // Compute the absolute callback URL the user's browser will be sent to after
   // they complete OAuth at the provider. Composio appends connectedAccountId.
-  const origin = req.nextUrl.origin
+  //
+  // Prefer NEXTAUTH_URL / NEXT_PUBLIC_SITE_URL over req.nextUrl.origin so we
+  // never hand Composio an internal Render hostname (e.g. localhost:5001) when
+  // the request is proxied through Cloudflare without rewriting Host/
+  // X-Forwarded-* headers. req.nextUrl.origin is a last-resort fallback only
+  // for local dev where neither env is set.
+  const canonicalOrigin =
+    process.env.NEXTAUTH_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    req.nextUrl.origin
+  // Strip any trailing slash so the joined URL is well-formed.
+  const origin = canonicalOrigin.replace(/\/+$/, '')
   const callbackUrl = `${origin}/api/integrations/callback?toolkit=${encodeURIComponent(slug)}`
 
   try {
