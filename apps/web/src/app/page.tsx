@@ -548,9 +548,6 @@ export default function HomePage() {
     }
   }
 
-  // Kept for backwards-compat with any inline call sites further down the file.
-  const navigateToWorkspace = (projectPrompt: string) => navigateToBuilder(projectPrompt, 'website')
-
   // App Builder chooser — open the workspace already set to the picked
   // build target. Website is anon-accessible; the app targets are gated,
   // so route those through /signup when the visitor isn't signed in.
@@ -600,7 +597,7 @@ export default function HomePage() {
       }
       return
     }
-    navigateToWorkspace(template.prompt)
+    navigateToBuilder(template.prompt, 'website')
   }
 
   return (
@@ -1283,7 +1280,7 @@ export default function HomePage() {
                       'text-[10px] sm:text-xs uppercase tracking-[0.18em] sm:tracking-[0.28em] font-semibold text-center sm:whitespace-nowrap',
                       isDark ? 'text-violet-300/80' : 'text-violet-600/80'
                     )}>
-                      Live Preview · Made with Webstew AI
+                      Made with Webstew
                     </p>
                   </motion.div>
                 </div>
@@ -1301,7 +1298,7 @@ export default function HomePage() {
                       'text-[10px] uppercase tracking-[0.28em] font-medium',
                       isDark ? 'text-white/55' : 'text-slate-600/70'
                     )}>
-                      Keep scrolling to expand
+                      Scroll
                     </span>
                     <motion.span
                       animate={{ y: [0, 4, 0] }}
@@ -1611,44 +1608,30 @@ export default function HomePage() {
             >
               <div className="max-w-6xl mx-auto">
                 <div className="text-center mb-12">
-                  <h2 className={cn(
-                    "text-3xl md:text-5xl font-bold tracking-tight leading-[1.15] pb-2",
-                    "text-foreground"
-                  )}>
-                    Cooking up
-                    <span
-                      className={cn(
-                        "italic font-normal ml-3 bg-clip-text text-transparent inline-block pb-1",
-                        isDark
-                          ? "bg-gradient-to-r from-amber-200 to-pink-300"
-                          : "bg-gradient-to-r from-orange-500 to-pink-500"
-                      )}
-                      style={{ fontFamily: 'var(--font-playfair), Georgia, serif' }}
-                    >
-                      web ideas.
-                    </span>
+                  <h2 className="text-3xl md:text-5xl font-bold tracking-tight leading-[1.15] pb-2 text-foreground">
+                    Built to ship.
                   </h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {[
                     {
                       title: 'Code',
-                      sub: 'Mise en place · six frameworks ready to go',
-                      body: 'Tailwind, TypeScript, Next.js, React, Astro, Expo — all prepped, seasoned, and plated. Export the source. The recipe is yours.',
+                      sub: 'Six frameworks. Own the source.',
+                      body: 'Next.js, React, Astro, Expo, Tailwind, TypeScript. Export and deploy anywhere — your code, your decision.',
                       icon: <Code2 className="w-7 h-7" />,
                       grad: 'from-violet-500 to-fuchsia-500',
                     },
                     {
                       title: 'Design',
-                      sub: 'Plated to look like a Michelin restaurant',
-                      body: 'Modern typography, glass, gradients, intentional whitespace. Polished enough to serve straight to customers without a redesign pass.',
+                      sub: 'Production-ready, no redesign pass.',
+                      body: 'Modern typography, glass, gradients, real whitespace. Customer-facing quality the moment it lands.',
                       icon: <Palette className="w-7 h-7" />,
                       grad: 'from-pink-500 to-amber-500',
                     },
                     {
                       title: 'Media',
-                      sub: 'Garnishes · images, video, voice — all in-pot',
-                      body: 'Hero photography, product shots, short clips, voiceovers — generated in-flow and dropped right into what you’re building.',
+                      sub: 'Images, video, voice — generated in-flow.',
+                      body: 'Hero photography, product shots, short clips, voiceovers. No swap to another tool, no copy-paste between tabs.',
                       icon: <ImageIcon className="w-7 h-7" />,
                       grad: 'from-emerald-500 to-cyan-500',
                     },
@@ -1679,28 +1662,8 @@ export default function HomePage() {
             <motion.section initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} className="px-6 py-24">
               <div className="max-w-6xl mx-auto">
                 <div className="text-center mb-12">
-                  <p className={cn(
-                    "text-xs uppercase tracking-[0.25em] mb-3 font-semibold",
-                    isDark ? "text-violet-300/80" : "text-violet-600/80"
-                  )}>
-                    On the menu
-                  </p>
-                  <h2 className={cn(
-                    "text-3xl md:text-5xl font-bold mb-4 tracking-tight leading-[1.15] pb-2",
-                    "text-foreground"
-                  )}>
-                    Order what you want.
-                    <span
-                      className={cn(
-                        "italic font-normal ml-3 bg-clip-text text-transparent inline-block pb-1",
-                        isDark
-                          ? "bg-gradient-to-r from-amber-200 to-pink-300"
-                          : "bg-gradient-to-r from-orange-500 to-pink-500"
-                      )}
-                      style={{ fontFamily: 'var(--font-playfair), Georgia, serif' }}
-                    >
-                      Webstew cooks it.
-                    </span>
+                  <h2 className="text-3xl md:text-5xl font-bold mb-4 tracking-tight leading-[1.15] pb-2 text-foreground">
+                    One prompt. Four targets.
                   </h2>
                 </div>
 
@@ -1843,36 +1806,16 @@ export default function HomePage() {
             <motion.section initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} className="px-6 py-24">
               <div className="max-w-5xl mx-auto">
                 <div className="text-center mb-14">
-                  <p className={cn(
-                    "text-xs uppercase tracking-[0.25em] mb-3 font-semibold",
-                    isDark ? "text-violet-300/80" : "text-violet-600/80"
-                  )}>
-                    The recipe
-                  </p>
-                  <h2 className={cn(
-                    "text-3xl md:text-5xl font-bold tracking-tight leading-[1.15] pb-2",
-                    "text-foreground"
-                  )}>
-                    Prep, simmer,
-                    <span
-                      className={cn(
-                        "italic font-normal ml-3 bg-clip-text text-transparent inline-block pb-1",
-                        isDark
-                          ? "bg-gradient-to-r from-amber-200 to-pink-300"
-                          : "bg-gradient-to-r from-orange-500 to-pink-500"
-                      )}
-                      style={{ fontFamily: 'var(--font-playfair), Georgia, serif' }}
-                    >
-                      serve.
-                    </span>
+                  <h2 className="text-3xl md:text-5xl font-bold tracking-tight leading-[1.15] pb-2 text-foreground">
+                    How it works.
                   </h2>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {[
-                    { num: '01', title: 'Prep', body: 'Tell Webstew what you’re making. Plain English. As specific or as loose as you like.' },
-                    { num: '02', title: 'Simmer', body: 'AI gets to work — Tailwind, TypeScript, React, Expo. Real production code, in under a minute.' },
-                    { num: '03', title: 'Serve', body: 'Plate it up. Preview, refine with chat, export the source, deploy anywhere you like.' },
+                    { num: '01', title: 'Describe', body: 'Plain English — as specific or as loose as you like.' },
+                    { num: '02', title: 'Generate', body: 'Production code in under a minute. Next.js, React, Astro, or Expo.' },
+                    { num: '03', title: 'Ship',     body: 'Preview, refine in chat, export the source, deploy anywhere.' },
                   ].map((step) => (
                     <div
                       key={step.num}
@@ -1926,17 +1869,11 @@ export default function HomePage() {
               <div className="max-w-6xl mx-auto">
                 <div className="flex items-end justify-between mb-10 gap-4">
                   <div>
-                    <h2 className={cn(
-                      "text-4xl md:text-5xl font-bold tracking-tight mb-2",
-                      "text-foreground"
-                    )}>
-                      Discover recipes
+                    <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-2 text-foreground">
+                      Start from a template.
                     </h2>
-                    <p className={cn(
-                      "text-base md:text-lg",
-                      "text-muted-foreground"
-                    )}>
-                      Order from a template, customize anything you taste.
+                    <p className="text-base md:text-lg text-muted-foreground">
+                      Pick a starting point. Customize anything in chat.
                     </p>
                   </div>
                   <a
@@ -1974,7 +1911,7 @@ export default function HomePage() {
                         if (p.libId) {
                           router.push(`/workspace?templateId=${encodeURIComponent(p.libId)}`)
                         } else {
-                          navigateToWorkspace(`Build me a ${p.title.toLowerCase()} — ${p.sub.toLowerCase()}`)
+                          navigateToBuilder(`Build me a ${p.title.toLowerCase()} — ${p.sub.toLowerCase()}`, 'website')
                         }
                       }}
                       initial={{ opacity: 0, y: 16 }}
@@ -2160,36 +2097,8 @@ export default function HomePage() {
               className="px-6 pb-24 pt-12"
             >
               <div className="max-w-2xl mx-auto text-center">
-                <p className={cn(
-                  "text-xs uppercase tracking-[0.25em] mb-3 font-semibold",
-                  isDark ? "text-violet-300/80" : "text-violet-600/80"
-                )}>
-                  Webstew AI Builder
-                </p>
-                <h2 className={cn(
-                  // `leading-[1.2] pb-3` — italic Playfair "?" descender
-                  // was getting clipped by bg-clip-text on the inline span.
-                  // Loosening line-height + adding pb gives the glyph room.
-                  "text-5xl md:text-6xl font-bold tracking-tight leading-[1.2] mb-8 pb-3",
-                  "text-foreground"
-                )}>
-                  Ready to
-                  <span
-                    className={cn(
-                      // pb-3 pr-2: italic glyphs lean RIGHT and the "?" curl
-                      // descends BELOW the baseline. bg-clip-text clips paint
-                      // to the box edge, so without horizontal + vertical
-                      // padding the right-lean and the descender get
-                      // clipped to nothing. Don't go below these values.
-                      "italic font-normal ml-3 bg-clip-text text-transparent inline-block pb-3 pr-2",
-                      isDark
-                        ? "bg-gradient-to-br from-amber-200 to-pink-300"
-                        : "bg-gradient-to-br from-orange-500 to-pink-500"
-                    )}
-                    style={{ fontFamily: 'var(--font-playfair), Georgia, serif' }}
-                  >
-                    cook?
-                  </span>
+                <h2 className="text-5xl md:text-6xl font-bold tracking-tight leading-[1.2] mb-8 pb-2 text-foreground">
+                  Start building.
                 </h2>
 
                 {/* Same input component as the hero — animated typewriter,
