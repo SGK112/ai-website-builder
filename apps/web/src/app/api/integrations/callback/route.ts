@@ -10,7 +10,17 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: NextRequest) {
   const toolkit = req.nextUrl.searchParams.get('toolkit') || ''
   const error = req.nextUrl.searchParams.get('error') || ''
-  const target = new URL('/integrations', req.nextUrl.origin)
+  // Same canonical-origin precedence as /api/integrations/connect — when
+  // the request is proxied through Cloudflare without correct Host/
+  // X-Forwarded-* headers, req.nextUrl.origin can resolve to the internal
+  // Render hostname (localhost:5001), which then becomes the user's final
+  // landing URL → "This site can't provide a secure connection".
+  const canonicalOrigin =
+    process.env.NEXTAUTH_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    req.nextUrl.origin
+  const origin = canonicalOrigin.replace(/\/+$/, '')
+  const target = new URL('/integrations', origin)
   if (error) {
     target.searchParams.set('error', error)
   } else if (toolkit) {
