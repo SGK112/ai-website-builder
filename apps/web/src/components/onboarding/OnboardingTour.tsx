@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, ChevronRight, ChevronLeft, Sparkles, Zap, Palette, Rocket, Code2, Upload, Layout, MessageSquare, Wand2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTheme } from '@/context/ThemeContext'
 
 interface TourStep {
   id: string
@@ -108,6 +109,8 @@ interface OnboardingTourProps {
 }
 
 export function OnboardingTour({ isOpen, onClose, onComplete, skillLevel = 'no-code' }: OnboardingTourProps) {
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
   const activeIds = tourStepsByLevel[skillLevel] ?? tourStepsByLevel['no-code']
   const steps = tourSteps.filter(s => activeIds.includes(s.id))
   const [step, setStep] = useState(0)
@@ -330,52 +333,61 @@ export function OnboardingTour({ isOpen, onClose, onComplete, skillLevel = 'no-c
             }}
           >
             <div className={cn(
-              "bg-zinc-900/95 backdrop-blur-xl border rounded-2xl shadow-2xl overflow-hidden",
-              current.highlight ? "border-violet-500/50" : "border-zinc-700/80"
+              'backdrop-blur-xl border rounded-2xl shadow-2xl overflow-hidden',
+              isDark ? 'bg-zinc-900/95' : 'bg-white/95',
+              current.highlight
+                ? 'border-violet-500/50'
+                : isDark ? 'border-zinc-700/80' : 'border-slate-200'
             )}>
               {/* Header with icon */}
               <div className={cn(
-                "px-5 py-4 flex items-start gap-4",
-                current.highlight && "bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10"
+                'px-5 py-4 flex items-start gap-4',
+                current.highlight && (isDark
+                  ? 'bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10'
+                  : 'bg-gradient-to-r from-violet-50 to-fuchsia-50')
               )}>
                 <div className={cn(
-                  "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0",
+                  'w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0',
                   current.highlight
-                    ? "bg-gradient-to-br from-violet-500 to-fuchsia-500"
-                    : "bg-violet-500/20"
+                    ? 'bg-gradient-to-br from-violet-500 to-fuchsia-500'
+                    : isDark ? 'bg-violet-500/20' : 'bg-violet-100'
                 )}>
                   <Icon className={cn(
-                    "w-6 h-6",
-                    current.highlight ? "text-white" : "text-violet-400"
+                    'w-6 h-6',
+                    current.highlight ? 'text-white' : isDark ? 'text-violet-400' : 'text-violet-600'
                   )} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-lg font-semibold text-white truncate">
+                    <h3 className={cn('text-lg font-semibold truncate', isDark ? 'text-white' : 'text-slate-900')}>
                       {current.title}
                     </h3>
                     <button
                       onClick={skip}
-                      className="p-1 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
+                      className={cn(
+                        'p-1 rounded-lg transition-colors',
+                        isDark ? 'hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300' : 'hover:bg-slate-100 text-slate-400 hover:text-slate-700'
+                      )}
+                      aria-label="Skip tour"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
-                  <p className="text-sm text-violet-400 font-medium mt-0.5">
+                  <p className={cn('text-sm font-medium mt-0.5', isDark ? 'text-violet-400' : 'text-violet-600')}>
                     {current.tip}
                   </p>
                 </div>
               </div>
 
               {/* Description */}
-              <div className="px-5 py-3 border-t border-zinc-800/50">
-                <p className="text-sm text-zinc-300 leading-relaxed">
+              <div className={cn('px-5 py-3 border-t', isDark ? 'border-zinc-800/50' : 'border-slate-200')}>
+                <p className={cn('text-sm leading-relaxed', isDark ? 'text-zinc-300' : 'text-slate-600')}>
                   {current.description}
                 </p>
               </div>
 
               {/* Footer with navigation */}
-              <div className="px-5 py-3 bg-zinc-800/30 flex items-center justify-between">
+              <div className={cn('px-5 py-3 flex items-center justify-between', isDark ? 'bg-zinc-800/30' : 'bg-slate-50')}>
                 <div className="flex items-center gap-3">
                   {/* Progress dots */}
                   <div className="flex gap-1.5">
@@ -384,17 +396,18 @@ export function OnboardingTour({ isOpen, onClose, onComplete, skillLevel = 'no-c
                         key={i}
                         onClick={() => setStep(i)}
                         className={cn(
-                          "h-1.5 rounded-full transition-all duration-300",
+                          'h-1.5 rounded-full transition-all duration-300',
                           i === step
-                            ? "bg-violet-500 w-6"
+                            ? 'bg-violet-500 w-6'
                             : i < step
-                              ? "bg-violet-500/50 w-1.5"
-                              : "bg-zinc-600 w-1.5 hover:bg-zinc-500"
+                              ? 'bg-violet-500/50 w-1.5'
+                              : isDark ? 'bg-zinc-600 w-1.5 hover:bg-zinc-500' : 'bg-slate-300 w-1.5 hover:bg-slate-400'
                         )}
+                        aria-label={`Go to step ${i + 1}`}
                       />
                     ))}
                   </div>
-                  <span className="text-xs text-zinc-500 font-mono">
+                  <span className={cn('text-xs font-mono', isDark ? 'text-zinc-500' : 'text-slate-500')}>
                     {step + 1} of {steps.length}
                   </span>
                 </div>
@@ -403,7 +416,10 @@ export function OnboardingTour({ isOpen, onClose, onComplete, skillLevel = 'no-c
                   {step > 0 && (
                     <button
                       onClick={prev}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-zinc-700/50 transition-colors"
+                      className={cn(
+                        'flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm transition-colors',
+                        isDark ? 'text-zinc-400 hover:text-white hover:bg-zinc-700/50' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
+                      )}
                     >
                       <ChevronLeft className="w-4 h-4" />
                       Back
@@ -412,13 +428,13 @@ export function OnboardingTour({ isOpen, onClose, onComplete, skillLevel = 'no-c
                   <button
                     onClick={next}
                     className={cn(
-                      "flex items-center gap-1 px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
+                      'flex items-center gap-1 px-4 py-1.5 rounded-lg text-sm font-medium transition-all',
                       isLastStep
-                        ? "bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:opacity-90"
-                        : "bg-violet-500 text-white hover:bg-violet-400"
+                        ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:opacity-90'
+                        : 'bg-violet-500 text-white hover:bg-violet-400'
                     )}
                   >
-                    {isLastStep ? "Let's Build!" : "Next"}
+                    {isLastStep ? "Let's Build!" : 'Next'}
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -428,7 +444,7 @@ export function OnboardingTour({ isOpen, onClose, onComplete, skillLevel = 'no-c
             {/* Arrow pointing to target */}
             {current.position !== 'center' && (
               <div
-                className="absolute w-3 h-3 bg-zinc-900 border-zinc-700"
+                className={cn('absolute w-3 h-3 border', isDark ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-slate-200')}
                 style={{
                   ...getArrowStyle(),
                   borderWidth: current.position === 'top' || current.position === 'left'
@@ -448,9 +464,14 @@ export function OnboardingTour({ isOpen, onClose, onComplete, skillLevel = 'no-c
           >
             <button
               onClick={skip}
-              className="text-xs text-zinc-400 hover:text-zinc-200 px-3 py-1.5 rounded-full bg-zinc-900/80 backdrop-blur border border-zinc-800 hover:border-zinc-700 transition-colors"
+              className={cn(
+                'text-xs px-3 py-1.5 rounded-full backdrop-blur border transition-colors',
+                isDark
+                  ? 'text-zinc-400 hover:text-zinc-200 bg-zinc-900/80 border-zinc-800 hover:border-zinc-700'
+                  : 'text-slate-500 hover:text-slate-800 bg-white/90 border-slate-200 hover:border-slate-300'
+              )}
             >
-              Press <kbd className="px-1.5 py-0.5 rounded bg-zinc-800 font-mono">ESC</kbd> to skip tour
+              Press <kbd className={cn('px-1.5 py-0.5 rounded font-mono', isDark ? 'bg-zinc-800' : 'bg-slate-200 text-slate-700')}>ESC</kbd> to skip tour
             </button>
           </motion.div>
         </>
