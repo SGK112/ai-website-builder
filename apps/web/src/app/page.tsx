@@ -336,13 +336,6 @@ export default function HomePage() {
     [0.20, 0.26, 0.36, 0.42],
     [0, 1, 1, 0]
   )
-  // Hint that appears once fullscreen is held — invites users to actually
-  // scroll inside the iframe and explore the demo before they leave.
-  const previewHintOpacity = useTransform(
-    smoothProgress,
-    [0.72, 0.74, 0.78, 0.80],
-    [0, 1, 1, 0]
-  )
   const chromeOpacity = useTransform(
     smoothProgress,
     [0.56, 0.58, 0.66, 0.69],
@@ -1537,19 +1530,6 @@ export default function HomePage() {
                   </div>
                 </motion.div>
 
-                {/* Fullscreen-dwell hint — invites users to actually explore
-                    the demo (scroll inside the iframe) before scrolling out. */}
-                <motion.div
-                  style={{ opacity: previewHintOpacity }}
-                  className="absolute bottom-[4vh] left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 pointer-events-none"
-                >
-                  <span className={cn(
-                    'text-[10px] uppercase tracking-[0.32em] font-semibold backdrop-blur-sm px-3 py-1.5 rounded-full',
-                    isDark ? 'text-white/90 bg-black/30' : 'text-slate-900/90 bg-white/40'
-                  )}>
-                    Look around · Keep scrolling to continue
-                  </span>
-                </motion.div>
               </div>
             </section>
 
