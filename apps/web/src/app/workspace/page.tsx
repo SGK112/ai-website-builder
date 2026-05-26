@@ -9779,7 +9779,7 @@ npx eas build --platform all
                   : <X className="w-5 h-5" />}
               </button>
               <div className="flex items-center gap-1.5 pl-1">
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-base shadow-md shadow-violet-900/40">
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-base">
                   🍲
                 </div>
                 <span className={cn('text-[15px] font-bold', isDark ? 'text-white' : 'text-slate-900')}>
@@ -9798,7 +9798,7 @@ npx eas build --platform all
                   "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
                   historyIndex > 0
                     ? isDark ? "text-zinc-300 hover:bg-white/5" : "text-slate-700 hover:bg-slate-100"
-                    : "text-zinc-700 opacity-40"
+                    : isDark ? "text-zinc-700 opacity-40" : "text-slate-400 opacity-50"
                 )}
                 aria-label="Undo"
               >
@@ -9811,7 +9811,7 @@ npx eas build --platform all
                   "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
                   historyIndex < history.length - 1
                     ? isDark ? "text-zinc-300 hover:bg-white/5" : "text-slate-700 hover:bg-slate-100"
-                    : "text-zinc-700 opacity-40"
+                    : isDark ? "text-zinc-700 opacity-40" : "text-slate-400 opacity-50"
                 )}
                 aria-label="Redo"
               >
