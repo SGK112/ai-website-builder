@@ -2688,8 +2688,6 @@ function WorkspaceContent() {
       // brand new build. Clear any leftover HTML so generation fires in
       // fresh-build mode (no currentHtml = no "surgical editor" mode).
       setHtml('')
-      // Show the prompt in the chat so the user sees what's being built.
-      setChatMessages([{ role: 'user', content: promptFromUrl }])
       // `target` carries over from the landing page's webapp / mobile picks.
       // Non-website targets build into this same workspace via the
       // multi-target path — one surface, not two.
@@ -2698,18 +2696,24 @@ function WorkspaceContent() {
         rawTarget === 'expo' || rawTarget === 'nextjs' || rawTarget === 'react' || rawTarget === 'astro'
           ? rawTarget
           : 'website'
-      // Fire generation immediately — this is the user's request from the landing page.
-      // useEffect callbacks can't be async; catch the promise so a generation failure
-      // surfaces in the terminal/toast (via the handler's own try/catch) without
-      // becoming an unhandled rejection.
       if (urlTarget !== 'website') {
+        // Multi-target builds (Expo / Next / React / Astro) skip the Stew
+        // Planner — the multi-target generator has its own prompt shape
+        // and the planner doesn't author those projects.
         setBuildTarget(urlTarget)
+        setChatMessages([{ role: 'user', content: promptFromUrl }])
         void handleGenerateMultiTarget(urlTarget, promptFromUrl).catch((e) => {
           console.error('[workspace] URL-prompt multi-target generation failed:', e)
         })
       } else {
-        void handleGenerate(promptFromUrl, undefined, { fresh: true }).catch((e) => {
-          console.error('[workspace] URL-prompt generation failed:', e)
+        // Website target — route through handleChatMessage so thin prompts
+        // hit the Stew Planner (interview → drafted prompt → approval) the
+        // same way mobile quick-start cards do. Previously the landing
+        // page bypassed the planner and dropped users straight into a
+        // half-baked generation. handleChatMessage itself adds the user
+        // message to chatMessages, so no need to seed it here.
+        void handleChatMessage(promptFromUrl).catch((e) => {
+          console.error('[workspace] URL-prompt chat-message failed:', e)
         })
       }
     } else {
