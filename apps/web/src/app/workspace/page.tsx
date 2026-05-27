@@ -3456,41 +3456,105 @@ function WorkspaceContent() {
     }
   }
 
-  const loadProject = (project: Project & { pages?: ProjectPage[]; activePageId?: string }) => {
-    setCurrentProject(project)
-    setProjectName(project.name)
-    setHtml(project.html)
-    setEnvVars(project.envVars)
-    setSkillLevel(project.skillLevel)
-    if (project.skillLevel === 'full-stack') setViewMode('code')
-    else if (project.skillLevel === 'low-code') setViewMode('split')
+  const loadProject = async (project: Project & { pages?: ProjectPage[]; activePageId?: string }) => {
+    // The list endpoint (/api/projects) strips file content to keep the
+    // listing payload small — so the `project` we get from the dropdown
+    // has empty html/files. Fetch the full record on click; fall back to
+    // the in-memory version if the detail fetch fails (offline / local-
+    // only project). This was the "0.0 KB / empty preview" bug.
+    let full: Project & { pages?: ProjectPage[]; activePageId?: string } = project
+    const looksLightweight =
+      (!project.html || project.html.length === 0) &&
+      (!project.vfsFiles || Object.keys(project.vfsFiles).length === 0)
+    if (looksLightweight && project.id && session?.user) {
+      try {
+        addTerminalLine('info', `Loading ${project.name}…`)
+        const res = await fetch(`/api/projects/${encodeURIComponent(project.id)}`, { cache: 'no-store' })
+        if (res.ok) {
+          const data = await res.json()
+          const p = data?.project || data
+          if (p) {
+            // Reconstruct VFS + sidecars the same way the bulk loader does.
+            const vfsFromFiles: Record<string, string> = {}
+            let restoredTarget: BuildTarget | undefined
+            let restoredPages: ProjectPage[] | undefined
+            let restoredActivePageId: string | undefined
+            for (const f of (p.files || [])) {
+              if (f.path === '_webstew_meta.json') {
+                try { restoredTarget = JSON.parse(f.content).buildTarget } catch {}
+              } else if (f.path === '_webstew_pages.json') {
+                try {
+                  const parsed = JSON.parse(f.content)
+                  if (Array.isArray(parsed?.pages)) {
+                    restoredPages = parsed.pages
+                    restoredActivePageId = parsed.activePageId
+                  }
+                } catch {}
+              } else if (f.path !== 'index.html') {
+                vfsFromFiles[f.path] = f.content
+              }
+            }
+            // The /api/projects/[id] route also returns the multi-page
+            // tree from the `pages` collection. Use it when present —
+            // sidecar files are the legacy storage path.
+            if (Array.isArray(p.pages) && p.pages.length > 0 && !restoredPages) {
+              restoredPages = p.pages.map((page: any) => ({
+                id: page.id,
+                name: page.name,
+                slug: page.slug,
+                isHome: !!page.isHome,
+                html: page.html || '',
+              }))
+              const home = restoredPages?.find((pg: any) => pg.isHome)
+              restoredActivePageId = home?.id || restoredPages?.[0]?.id
+            }
+            full = {
+              ...project,
+              html: p.html || '',
+              envVars: p.envVars || project.envVars || [],
+              ...(Object.keys(vfsFromFiles).length > 0 && { vfsFiles: vfsFromFiles, buildTarget: restoredTarget }),
+              ...(restoredPages && restoredPages.length > 0 && { pages: restoredPages, activePageId: restoredActivePageId }),
+            }
+          }
+        }
+      } catch (e: any) {
+        console.warn('[loadProject] detail fetch failed, using lightweight version:', e?.message || e)
+      }
+    }
+
+    setCurrentProject(full)
+    setProjectName(full.name)
+    setHtml(full.html)
+    setEnvVars(full.envVars)
+    setSkillLevel(full.skillLevel)
+    if (full.skillLevel === 'full-stack') setViewMode('code')
+    else if (full.skillLevel === 'low-code') setViewMode('split')
     else setViewMode('preview')
 
     // Restore multi-target VFS if present. The buildTarget is stored either
     // directly on the project (local save) or in _webstew_meta.json (cloud).
-    if (project.vfsFiles && Object.keys(project.vfsFiles).length > 0) {
-      setVfsFiles(project.vfsFiles)
-      if (project.buildTarget) setBuildTarget(project.buildTarget)
+    if (full.vfsFiles && Object.keys(full.vfsFiles).length > 0) {
+      setVfsFiles(full.vfsFiles)
+      if (full.buildTarget) setBuildTarget(full.buildTarget)
     } else {
       setVfsFiles({})
       setBuildTarget('website')
     }
     // Restore multi-page tree for HTML projects with sibling pages.
-    // _webstew_pages.json sidecar is decoded above and surfaces on project.pages.
-    if (project.pages && project.pages.length > 0) {
-      setPages(project.pages)
-      if (project.activePageId && project.pages.some(p => p.id === project.activePageId)) {
-        setActivePageId(project.activePageId)
+    if (full.pages && full.pages.length > 0) {
+      setPages(full.pages)
+      if (full.activePageId && full.pages.some(p => p.id === full.activePageId)) {
+        setActivePageId(full.activePageId)
       }
     } else {
-      setPages([{ id: 'home', name: 'Home', slug: 'index', html: project.html || '', isHome: true }])
+      setPages([{ id: 'home', name: 'Home', slug: 'index', html: full.html || '', isHome: true }])
       setActivePageId('home')
     }
     setPreviewBumpKey(k => k + 1)
 
     setHasInitialized(true)
-    addTerminalLine('info', `Loaded project: ${project.name}`)
-    addConsoleLog('info', `Project loaded: ${project.name}`)
+    addTerminalLine('info', `Loaded project: ${full.name}`)
+    addConsoleLog('info', `Project loaded: ${full.name}`)
     setShowProjectsDropdown(false)
   }
 
