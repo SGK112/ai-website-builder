@@ -2717,16 +2717,29 @@ function WorkspaceContent() {
         })
       }
     } else {
-      // No prompt/project/template/listing — but the home "App Builder"
-      // chooser may have sent a bare `?target=`. Open the workspace already
-      // in that build mode so the target tab is pre-selected and the user's
-      // first chat prompt builds for it. Website is the default, so only the
-      // app targets need handling. Clear the param so a later UI target
-      // switch survives a reload.
+      // No prompt yet — but the home "App Builder" chooser may have sent a
+      // bare `?target=`. Set the build mode AND fire the Stew Planner with
+      // a thin intent message so the user gets the interview → drafted
+      // prompt → approval flow instead of being dumped into an empty
+      // workspace with no guidance. Same behavior whether they picked the
+      // target from desktop App Builder or mobile quick-start.
       const rawTarget = searchParams.get('target')
       if (rawTarget === 'expo' || rawTarget === 'nextjs' || rawTarget === 'react' || rawTarget === 'astro') {
         setBuildTarget(rawTarget)
         router.replace('/workspace', { scroll: false })
+        loadedFromUrlRef.current = true
+        const seed =
+          rawTarget === 'expo'   ? 'I want to build a mobile app for iOS and Android.' :
+          rawTarget === 'react'  ? 'I want to build a web app.' :
+          rawTarget === 'nextjs' ? 'I want to build a web app.' :
+                                   'I want to build a website.'
+        // Defer so React commits the build-target before we send into
+        // the chat handler (handleChatMessage reads buildTarget).
+        setTimeout(() => {
+          void handleChatMessage(seed).catch((e) => {
+            console.error('[workspace] target-only seed failed:', e)
+          })
+        }, 0)
       }
       setHasInitialized(true)
     }
