@@ -3716,6 +3716,35 @@ function WorkspaceContent() {
     }
   }
 
+  // Owl self-heal for the interactive edit path. The one-shot generate route
+  // already validates+repairs server-side, but agent edits didn't — so a bad
+  // multi-file edit could ship broken JS/truncated HTML. After an edit settles
+  // we run the owl (/api/builder/owl-fix); if it can fix the issues we apply
+  // the repair, else we surface them honestly. Best-effort, never blocks.
+  const owlHealingRef = useRef(false)
+  const runOwlSelfHeal = async (currentHtml: string) => {
+    if (buildTarget !== 'website' || !currentHtml || currentHtml.length < 50 || owlHealingRef.current) return
+    owlHealingRef.current = true
+    try {
+      const res = await fetch('/api/builder/owl-fix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html: currentHtml, model: selectedModel.provider !== 'auto' ? selectedModel.id : undefined }),
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      if (data.fixed && data.html) {
+        setHtml(data.html)
+        addToHistory(data.html, '🦉 Owl auto-fix')
+        addTerminalLine('success', `🦉 Owl auto-fixed ${data.issues?.length || 0} code issue(s)`)
+        addConsoleLog('info', 'Owl self-heal applied after agent edit')
+      } else if (!data.ok && Array.isArray(data.remaining) && data.remaining.length > 0) {
+        addTerminalLine('error', `🦉 Owl flagged ${data.remaining.length} issue(s) the edit left behind — re-run if the preview looks off`)
+      }
+    } catch { /* self-heal is best-effort — never block the edit */ }
+    finally { owlHealingRef.current = false }
+  }
+
   // The WebstewDB client snippet the user drops into their site to talk to the
   // managed backend (data CRUD + auth) — no SDK install, just an apiKey.
   const backendSnippet = (info: { appId: string; apiKey: string }) => {
@@ -6355,6 +6384,10 @@ ${html}
         setHtml(committedHtml)
         addToHistory(committedHtml, 'AI Edit: ' + message.slice(0, 60))
         addToast('success', 'Dish is up. 🍽️')
+        // Owl self-heal: validate the edited HTML and auto-repair if the agent
+        // left broken JS / unclosed tags behind. Best-effort, runs after the
+        // commit so the preview shows immediately then quietly corrects.
+        void runOwlSelfHeal(committedHtml)
       }
       setConversationIntent(null)
 
