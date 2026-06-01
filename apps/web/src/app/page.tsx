@@ -1070,10 +1070,10 @@ export default function HomePage() {
                       className={cn(
                         'flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200',
                         prompt.trim()
-                          ? 'bg-gradient-to-br from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white shadow-lg shadow-violet-500/40 hover:scale-105 active:scale-100'
+                          ? 'bg-gradient-to-br from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white shadow-lg shadow-emerald-500/40 hover:scale-105 active:scale-100'
                           : isDark
-                            ? 'bg-white/5 text-slate-600 cursor-not-allowed'
-                            : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                            ? 'bg-emerald-500/15 text-emerald-400 cursor-not-allowed'
+                            : 'bg-emerald-50 text-emerald-500 cursor-not-allowed'
                       )}
                     >
                       {isTransitioning ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
@@ -1884,7 +1884,7 @@ export default function HomePage() {
                   The ingredients to
                   <span
                     className={cn(
-                      "italic font-normal ml-3 bg-clip-text text-transparent inline-block pb-3 pr-2",
+                      "italic font-normal ml-3 bg-clip-text text-transparent inline-block leading-[1.4] pb-5 pr-2",
                       isDark
                         ? "bg-gradient-to-r from-amber-200 to-pink-300"
                         : "bg-gradient-to-r from-orange-500 to-pink-500"
@@ -2065,10 +2065,10 @@ export default function HomePage() {
                       className={cn(
                         "flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-200",
                         prompt.trim()
-                          ? "bg-gradient-to-br from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white shadow-md shadow-violet-500/30 hover:scale-105"
+                          ? "bg-gradient-to-br from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white shadow-md shadow-emerald-500/30 hover:scale-105"
                           : isDark
-                            ? "bg-white/5 text-slate-600 cursor-not-allowed"
-                            : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                            ? "bg-emerald-500/15 text-emerald-400 cursor-not-allowed"
+                            : "bg-emerald-50 text-emerald-500 cursor-not-allowed"
                       )}
                     >
                       {isTransitioning ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
@@ -2120,7 +2120,6 @@ export default function HomePage() {
                       <span className="text-violet-500 font-bold">Ai</span> Website Builder
                     </span>
                   </span>
-                  <span className={cn("text-xs", isDark ? "text-slate-600" : "text-slate-400")}>· AI website builder</span>
                 </div>
                 <div className="flex items-center gap-x-5 gap-y-2 flex-wrap justify-center sm:justify-end">
                   <a href="/grader" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Site Grader</a>
