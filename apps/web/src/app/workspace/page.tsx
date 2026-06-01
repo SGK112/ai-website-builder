@@ -2608,6 +2608,7 @@ function WorkspaceContent() {
     const projectId = searchParams.get('project')
     const templateId = searchParams.get('templateId')
     const listingId = searchParams.get('listingId')
+    const remixSlug = searchParams.get('remix')
 
     if (projectId) {
       // Mark before loading so the autosave-restore effect later in the file
@@ -2654,6 +2655,36 @@ function WorkspaceContent() {
         addToast('error', `Template "${templateId}" not found`)
       }
       setHasInitialized(true)
+    } else if (remixSlug) {
+      // Remix a published webstew.app site — fork its files into a fresh draft.
+      // Public source (the site is already public), loaded like a template.
+      loadedFromUrlRef.current = true
+      ;(async () => {
+        try {
+          const res = await fetch(`/api/remix?slug=${encodeURIComponent(remixSlug)}`, { cache: 'no-store' })
+          const json = await res.json().catch(() => ({}))
+          if (!res.ok || !json?.html) {
+            addToast('error', json?.error || 'Could not load that site to remix')
+            router.replace('/workspace', { scroll: false })
+            return
+          }
+          router.replace('/workspace', { scroll: false })
+          try { localStorage.setItem('webstew-onboarding-complete', 'true') } catch {}
+          setHasCompletedOnboarding(true)
+          setBuildTarget('website')
+          setHtml(json.html)
+          setProjectName(json.name || 'Remixed site')
+          setChatMessages([
+            { role: 'assistant', content: `Forked **${json.name || remixSlug}** into a fresh draft — it's all yours. Tell me what to change and I'll edit it directly.` },
+          ])
+          addToast('success', 'Remixed — make it your own.')
+        } catch {
+          addToast('error', 'Remix failed — try again')
+          router.replace('/workspace', { scroll: false })
+        } finally {
+          setHasInitialized(true)
+        }
+      })()
     } else if (listingId) {
       // Marketplace deep-link — buyer hit "Open in workspace" from /library
       // or /listings/[id]. API gates html on ownership, so if the viewer
@@ -2851,6 +2882,7 @@ function WorkspaceContent() {
       && !searchParams.get('project')
       && !searchParams.get('templateId')
       && !searchParams.get('listingId')
+      && !searchParams.get('remix')
       // ALSO skip autosave-restore when the user arrived from the App
       // Builder target picker. ?target= alone means "I want to start a
       // fresh build for this target" — restoring an old website autosave
@@ -9613,6 +9645,16 @@ npx eas build --platform all
                     <p className={cn("text-[10px] mt-1", isDark ? "text-emerald-400/60" : "text-emerald-600/70")}>
                       No GitHub or Render needed. Re-publish anytime — same URL.
                     </p>
+                    {publishPath && (
+                      <a
+                        href={`/workspace?remix=${encodeURIComponent(publishPath.replace('/s/', ''))}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={cn("inline-block mt-1 text-[10px] underline", isDark ? "text-emerald-300/70 hover:text-emerald-300" : "text-emerald-700 hover:text-emerald-800")}
+                      >
+                        Remix this as a new draft →
+                      </a>
+                    )}
                   </div>
                 )}
 
