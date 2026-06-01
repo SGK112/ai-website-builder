@@ -2129,6 +2129,9 @@ function WorkspaceContent() {
   const [isPublishing, setIsPublishing] = useState(false)
   const [publishUrl, setPublishUrl] = useState<string | null>(null)
   const [publishPath, setPublishPath] = useState<string | null>(null)
+  // Managed backend (one-click DB + auth) state.
+  const [isProvisioningBackend, setIsProvisioningBackend] = useState(false)
+  const [backendInfo, setBackendInfo] = useState<{ appId: string; apiKey: string; baseUrl: string } | null>(null)
 
   const [shareModalOpen, setShareModalOpen] = useState(false)
   // Share preview state — anon-friendly /preview/<token> link (7-day TTL).
@@ -3642,6 +3645,61 @@ function WorkspaceContent() {
     } finally {
       setIsSharingPreview(false)
     }
+  }
+
+  // One-click managed backend: provisions a key-scoped DB + auth for this app
+  // (no Supabase project, no setup) and surfaces the embed snippet.
+  const provisionBackend = async () => {
+    if (!session?.user) {
+      setSignupNudge({ show: true, reason: 'deploy-render' })
+      return
+    }
+    setIsProvisioningBackend(true)
+    try {
+      const res = await fetch('/api/backend/provision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: projectName, projectId: currentProject?.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Backend provisioning failed')
+      setBackendInfo({ appId: data.appId, apiKey: data.apiKey, baseUrl: data.baseUrl })
+      addTerminalLine('success', `🗄️ Backend ready — appId ${data.appId}`)
+      addConsoleLog('success', `Managed backend provisioned: ${data.baseUrl}`)
+      addToast('success', data.existing ? 'Backend already provisioned' : 'Backend provisioned — DB + auth ready')
+    } catch (e: any) {
+      addToast('error', e?.message || 'Backend provisioning failed')
+    } finally {
+      setIsProvisioningBackend(false)
+    }
+  }
+
+  // The WebstewDB client snippet the user drops into their site to talk to the
+  // managed backend (data CRUD + auth) — no SDK install, just an apiKey.
+  const backendSnippet = (info: { appId: string; apiKey: string }) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.webstew.net'
+    return `<script>
+window.WebstewDB = (function () {
+  var BASE = "${origin}/api/backend/${info.appId}";
+  var KEY = "${info.apiKey}";
+  function req(method, path, body) {
+    return fetch(BASE + path, {
+      method: method,
+      headers: { "Content-Type": "application/json", "x-webstew-key": KEY },
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) { return r.json(); });
+  }
+  return {
+    list:   function (c)      { return req("GET", "/" + c); },
+    get:    function (c, id)  { return req("GET", "/" + c + "?id=" + id); },
+    create: function (c, doc) { return req("POST", "/" + c, doc); },
+    update: function (c, id, doc) { return req("PUT", "/" + c + "?id=" + id, doc); },
+    remove: function (c, id)  { return req("DELETE", "/" + c + "?id=" + id); },
+    signup: function (email, password) { return req("POST", "/auth", { action: "signup", email: email, password: password }); },
+    login:  function (email, password) { return req("POST", "/auth", { action: "login", email: email, password: password }); }
+  };
+})();
+<\/script>`
   }
 
   // Go Live — instant, key-free publish to {slug}.webstew.app. Stores the
@@ -9505,6 +9563,39 @@ npx eas build --platform all
                       </div>
                     </div>
                   </button>
+                  {/* Add a backend — one-click managed DB + auth, no Supabase setup */}
+                  <button
+                    onClick={provisionBackend}
+                    disabled={isProvisioningBackend}
+                    title="Provision a managed database + auth for this app — no accounts, no setup"
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left group",
+                      isProvisioningBackend
+                        ? isDark ? "bg-white/[0.02] border-white/[0.05] opacity-50 cursor-not-allowed" : "bg-slate-100 border-slate-200 opacity-50 cursor-not-allowed"
+                        : isDark ? "bg-cyan-500/10 border-cyan-400/30 hover:bg-cyan-500/15" : "bg-cyan-50 border-cyan-200 hover:bg-cyan-100"
+                    )}
+                  >
+                    {isProvisioningBackend ? <Loader2 className="w-5 h-5 animate-spin text-cyan-400" /> : <Database className={cn("w-5 h-5", isDark ? "text-cyan-400" : "text-cyan-600")} />}
+                    <div className="flex-1">
+                      <div className={cn("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>{backendInfo ? 'Backend ready' : 'Add a backend'}</div>
+                      <div className={cn("text-[10px]", isDark ? "text-zinc-500" : "text-slate-500")}>
+                        {isProvisioningBackend ? 'Provisioning…' : backendInfo ? 'Database + auth · snippet below' : 'Database + auth in one click — no Supabase setup'}
+                      </div>
+                    </div>
+                  </button>
+                  {backendInfo && (
+                    <div className={cn("p-3 rounded-lg border text-[11px] space-y-2", isDark ? "bg-cyan-500/5 border-cyan-500/20" : "bg-cyan-50 border-cyan-200")}>
+                      <div className={cn("font-medium", isDark ? "text-cyan-300" : "text-cyan-800")}>Embed this once in your site:</div>
+                      <pre className={cn("p-2 rounded overflow-x-auto whitespace-pre-wrap break-all text-[10px] leading-snug", isDark ? "bg-black/40 text-zinc-300" : "bg-white text-slate-700 border border-slate-200")}>{backendSnippet(backendInfo)}</pre>
+                      <button
+                        onClick={async () => { try { await navigator.clipboard.writeText(backendSnippet(backendInfo)); addToast('success', 'Snippet copied') } catch {} }}
+                        className={cn("px-2 py-1 rounded text-[10px] font-medium", isDark ? "bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" : "bg-cyan-100 text-cyan-700 hover:bg-cyan-200")}
+                      >Copy snippet</button>
+                      <p className={cn("text-[10px]", isDark ? "text-zinc-500" : "text-slate-500")}>
+                        Then call <code>WebstewDB.create(&apos;todos&apos;, {'{...}'})</code>, <code>.list()</code>, <code>.login()</code>, etc.
+                      </p>
+                    </div>
+                  )}
                   {/* Share / Proposal — opens modal with QR code + proposal mode */}
                   <button
                     onClick={() => setShareModalOpen(true)}
