@@ -5,7 +5,6 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import {
-  Users,
   MessageSquare,
   Heart,
   Bookmark,
@@ -34,7 +33,6 @@ import {
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/context/ThemeContext'
 import { StarryNight, SunriseBackground } from '@/components/landing/BackgroundEffects'
-import { WebstewLogo } from '@/components/brand/WebstewLogo'
 import { FeedbackBoard } from '@/components/community/FeedbackBoard'
 import { DEMO_SITES } from '@/lib/demo-sites'
 
@@ -324,38 +322,9 @@ export default function CommunityPage() {
         {isDark ? <StarryNight /> : <SunriseBackground />}
       </div>
 
-      {/* Header — sticky on top, with safe-area reservation so PWAs paint
-          the notch correctly. The breadcrumb chevron + "Community" label
-          are hidden below sm so the bar doesn't overflow on phone widths. */}
-      <header className={cn(
-        'sticky top-0 z-50 border-b backdrop-blur-xl pt-safe',
-        isDark ? 'bg-black/50 border-white/10' : 'bg-white/80 border-zinc-200'
-      )}>
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-            <WebstewLogo href="/" size="sm" isDark={isDark} />
-            <ChevronRight className="hidden sm:block w-4 h-4 text-slate-500 dark:text-zinc-500" />
-            <div className="hidden sm:flex items-center gap-2">
-              <Users className={isDark ? 'w-4 h-4 text-violet-400' : 'w-4 h-4 text-orange-500'} />
-              <span className="font-medium">Community</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/workspace"
-              className={cn(
-                'flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                isDark
-                  ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:shadow-lg hover:shadow-violet-500/25'
-                  : 'bg-gradient-to-r from-orange-400 to-pink-500 text-white hover:shadow-lg hover:shadow-orange-500/25'
-              )}
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Create</span>
-            </Link>
-          </div>
-        </div>
-      </header>
+      {/* No local header — the global WorkspaceNav (from ClientLayout) already
+          provides nav + Create. The hero below labels the page, so a second
+          sticky bar with its own Create button was pure duplication. */}
 
       {/* Hero Section */}
       <section className={cn(
