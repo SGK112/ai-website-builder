@@ -89,6 +89,24 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(`${canonicalBase}${pathname}${search}`, 301)
   }
 
+  // ── Published-site hosting ────────────────────────────────────────────────
+  // {slug}.webstew.app → serve the static site stored by /api/publish, via the
+  // /s/[slug] origin. This makes Webstew its own static host: instant Go Live
+  // with no GitHub repo, no Render service, no user keys. The /s/ path is
+  // public, so no auth gating applies to a visitor's site.
+  const PUBLISH_DOMAIN = process.env.NEXT_PUBLIC_PUBLISH_DOMAIN || 'webstew.app'
+  const bareHost = host.split(':')[0]
+  if (bareHost.endsWith('.' + PUBLISH_DOMAIN)) {
+    const slug = bareHost.slice(0, -(PUBLISH_DOMAIN.length + 1))
+    const RESERVED = new Set(['www', 'app', 'api', 'admin', 'mail', 'cdn', 'assets', 'static'])
+    const isInternal = pathname.startsWith('/s/') || pathname.startsWith('/_next') || pathname.startsWith('/api/')
+    if (slug && !slug.includes('.') && !RESERVED.has(slug) && !isInternal) {
+      const url = request.nextUrl.clone()
+      url.pathname = pathname === '/' ? `/s/${slug}` : `/s/${slug}${pathname}`
+      return NextResponse.rewrite(url)
+    }
+  }
+
   const isGatedPage = GATED_PAGE_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'))
   const isGatedApi = GATED_API_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'))
 

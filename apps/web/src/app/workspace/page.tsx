@@ -2125,6 +2125,10 @@ function WorkspaceContent() {
   const [deployStatus, setDeployStatus] = useState<'idle' | 'github' | 'render' | 'success' | 'error'>('idle')
   const [deployUrl, setDeployUrl] = useState<string | null>(null)
   const [deployError, setDeployError] = useState<string | null>(null)
+  // Instant-publish state (Go Live → {slug}.webstew.app, no GitHub/Render).
+  const [isPublishing, setIsPublishing] = useState(false)
+  const [publishUrl, setPublishUrl] = useState<string | null>(null)
+  const [publishPath, setPublishPath] = useState<string | null>(null)
 
   const [shareModalOpen, setShareModalOpen] = useState(false)
   // Share preview state — anon-friendly /preview/<token> link (7-day TTL).
@@ -2717,29 +2721,20 @@ function WorkspaceContent() {
         })
       }
     } else {
-      // No prompt yet — but the home "App Builder" chooser may have sent a
-      // bare `?target=`. Set the build mode AND fire the Stew Planner with
-      // a thin intent message so the user gets the interview → drafted
-      // prompt → approval flow instead of being dumped into an empty
-      // workspace with no guidance. Same behavior whether they picked the
-      // target from desktop App Builder or mobile quick-start.
+      // No prompt/project/template/listing — but the home "App Builder"
+      // chooser may have sent a bare `?target=`. Pre-select the target so
+      // the user's first chat prompt builds for it.
       const rawTarget = searchParams.get('target')
       if (rawTarget === 'expo' || rawTarget === 'nextjs' || rawTarget === 'react' || rawTarget === 'astro') {
         setBuildTarget(rawTarget)
-        router.replace('/workspace', { scroll: false })
+        // Mark this as a URL-sourced load BEFORE we strip ?target= from the
+        // address bar. The autosave-restore effect's `!searchParams.get('target')`
+        // guard is defeated by the router.replace below (it clears target on the
+        // next render), so the ref is the only reliable signal that prevents the
+        // old half-baked site from clobbering a fresh target pick — the loop the
+        // user kept hitting. See autosave-restore effect.
         loadedFromUrlRef.current = true
-        const seed =
-          rawTarget === 'expo'   ? 'I want to build a mobile app for iOS and Android.' :
-          rawTarget === 'react'  ? 'I want to build a web app.' :
-          rawTarget === 'nextjs' ? 'I want to build a web app.' :
-                                   'I want to build a website.'
-        // Defer so React commits the build-target before we send into
-        // the chat handler (handleChatMessage reads buildTarget).
-        setTimeout(() => {
-          void handleChatMessage(seed).catch((e) => {
-            console.error('[workspace] target-only seed failed:', e)
-          })
-        }, 0)
+        router.replace('/workspace', { scroll: false })
       }
       setHasInitialized(true)
     }
@@ -2848,6 +2843,12 @@ function WorkspaceContent() {
       && !searchParams.get('project')
       && !searchParams.get('templateId')
       && !searchParams.get('listingId')
+      // ALSO skip autosave-restore when the user arrived from the App
+      // Builder target picker. ?target= alone means "I want to start a
+      // fresh build for this target" — restoring an old website autosave
+      // here is the loop the user keeps hitting (lands on /workspace?
+      // target=expo and sees their previous half-baked site reload).
+      && !searchParams.get('target')
     ) {
       const autoSaved = localStorage.getItem('webstew-autosave')
       if (autoSaved) {
@@ -3640,6 +3641,81 @@ function WorkspaceContent() {
       addConsoleLog('error', msg)
     } finally {
       setIsSharingPreview(false)
+    }
+  }
+
+  // Go Live — instant, key-free publish to {slug}.webstew.app. Stores the
+  // static files on Webstew's own host (/api/publish → /s/[slug]); no GitHub
+  // repo, no Render service, no cold start. Website target only for now —
+  // app targets (React/Astro/Next) need a build step the managed builder
+  // doesn't run server-side yet, so those keep Export / Deploy.
+  const publishInstant = async () => {
+    if (!session?.user) {
+      setSignupNudge({ show: true, reason: 'deploy-render' })
+      return
+    }
+    if (!html.trim()) {
+      addToast('error', 'Nothing to publish yet — build a site first')
+      return
+    }
+    if (buildTarget !== 'website') {
+      addToast('error', 'Instant publish is for websites. For app targets, use Deploy or Export.')
+      return
+    }
+
+    setIsPublishing(true)
+    try {
+      // Same multi-page assembly as deployToRender: each non-empty page → its
+      // own .html file, home → index.html.
+      const pagesSnapshot = pages
+        .map(p => (p.id === activePageId ? { ...p, html } : p))
+        .filter(p => p.html && p.html.trim().length > 0)
+      const wrapPage = (body: string, title: string) => {
+        const isFullDoc = /<!doctype|<html\b/i.test(body.trimStart())
+        if (isFullDoc) return body
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>body{font-family:'Inter',sans-serif;margin:0}</style>
+</head>
+<body>
+${body}
+</body>
+</html>`
+      }
+      const files = pagesSnapshot.length > 0
+        ? pagesSnapshot.map(p => ({
+            path: p.isHome ? 'index.html' : `${p.slug}.html`,
+            content: wrapPage(p.html, p.isHome ? projectName : `${p.name} — ${projectName}`),
+          }))
+        : [{ path: 'index.html', content: wrapPage(html, projectName) }]
+
+      addTerminalLine('info', `🌐 Publishing ${files.length} page${files.length === 1 ? '' : 's'} to webstew.app…`)
+      const res = await fetch('/api/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: projectName, files, projectId: currentProject?.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Publish failed')
+
+      setPublishUrl(data.url)
+      setPublishPath(data.path)
+      addTerminalLine('success', `✅ Live at ${data.url}`)
+      addConsoleLog('success', `Published: ${data.url} (${data.pages} page${data.pages === 1 ? '' : 's'})`)
+      addToast('success', 'Published — your site is live!')
+      try { await navigator.clipboard.writeText(data.url) } catch { /* clipboard blocked — URL still shown */ }
+    } catch (e: any) {
+      const msg = e?.message || 'Publish failed'
+      addTerminalLine('error', `❌ ${msg}`)
+      addToast('error', msg)
+    } finally {
+      setIsPublishing(false)
     }
   }
 
@@ -9383,8 +9459,52 @@ npx eas build --platform all
                   </div>
                 )}
 
+                {/* Instant publish success — live URL on webstew.app */}
+                {publishUrl && (
+                  <div className={cn(
+                    "p-3 rounded-lg border",
+                    isDark ? "bg-emerald-500/10 border-emerald-500/25" : "bg-emerald-50 border-emerald-200"
+                  )}>
+                    <div className={cn("flex items-center gap-2 text-sm font-medium mb-1", isDark ? "text-emerald-400" : "text-emerald-700")}>
+                      <CheckCircle2 className="w-4 h-4" />
+                      Live now — instant publish
+                    </div>
+                    <a
+                      href={publishPath || publishUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={cn("text-xs underline break-all", isDark ? "text-emerald-300/80 hover:text-emerald-300" : "text-emerald-700 hover:text-emerald-800")}
+                    >
+                      {publishUrl}
+                    </a>
+                    <p className={cn("text-[10px] mt-1", isDark ? "text-emerald-400/60" : "text-emerald-600/70")}>
+                      No GitHub or Render needed. Re-publish anytime — same URL.
+                    </p>
+                  </div>
+                )}
+
                 {/* Actions */}
                 <div className="space-y-2 pt-2">
+                  {/* Go Live — instant, key-free publish to {slug}.webstew.app. Primary CTA. */}
+                  <button
+                    onClick={publishInstant}
+                    disabled={isPublishing || !html.trim() || buildTarget !== 'website'}
+                    title={buildTarget !== 'website' ? 'Instant publish supports website projects. Use Deploy for app targets.' : 'Publish instantly to a webstew.app URL'}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left shadow-md",
+                      isPublishing || !html.trim() || buildTarget !== 'website'
+                        ? isDark ? "bg-white/[0.04] text-zinc-500 opacity-70 cursor-not-allowed" : "bg-slate-200 text-slate-400 opacity-70 cursor-not-allowed"
+                        : "bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white"
+                    )}
+                  >
+                    {isPublishing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Rocket className="w-5 h-5" />}
+                    <div className="flex-1">
+                      <div className="text-sm font-semibold">Go Live — instant & free</div>
+                      <div className="text-[10px] opacity-90">
+                        {isPublishing ? 'Publishing…' : buildTarget !== 'website' ? 'Websites only — use Deploy for apps' : 'Get a shareable webstew.app URL in seconds — no accounts'}
+                      </div>
+                    </div>
+                  </button>
                   {/* Share / Proposal — opens modal with QR code + proposal mode */}
                   <button
                     onClick={() => setShareModalOpen(true)}
