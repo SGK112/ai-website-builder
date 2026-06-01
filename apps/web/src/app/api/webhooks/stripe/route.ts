@@ -7,6 +7,7 @@ import { getStripe, getPlanCredits, type PlanId } from '@/lib/stripe'
 import { connectDB } from '@/lib/db'
 import { User } from '@ai-website-builder/database'
 import clientPromise from '@/lib/mongodb'
+import { registerDomain, autoConfigureDns } from '@/lib/domains'
 
 // Marketplace collections (template_purchases, marketplace_purchases,
 // community_posts, payouts_log) live in the dedicated 'ai-website-builder'
@@ -92,6 +93,55 @@ export async function POST(req: NextRequest) {
     switch (event.type) {
       case 'checkout.session.completed': {
         const sess: any = event.data.object
+
+        // Domain purchase → register + auto-DNS to the user's published site.
+        // Stripe confirms money moved; registration only happens here.
+        if (sess?.metadata?.type === 'domain_purchase') {
+          try {
+            const domain = String(sess.metadata.domain || '')
+            const userId = String(sess.metadata.userId || '')
+            const projectId = sess.metadata.projectId ? String(sess.metadata.projectId) : null
+            const db = await getMarketplaceDb()
+            if (db && domain) {
+              // Idempotent: only fulfill an order that's still pending.
+              const order = await db.collection('domain_orders').findOne({ stripeSessionId: sess.id })
+              if (order && order.status === 'pending') {
+                // Point DNS at wherever the site is served: the managed publish
+                // subdomain if it exists, else the canonical app host.
+                let target = 'www.webstew.net'
+                if (projectId) {
+                  const pub = await db.collection('published_sites').findOne({ userId, projectId }, { projection: { slug: 1 } })
+                  if (pub?.slug) target = `${pub.slug}.webstew.app`
+                }
+                const reg = await registerDomain(domain)
+                const dns = await autoConfigureDns(domain, target)
+                await db.collection('domain_orders').updateOne(
+                  { stripeSessionId: sess.id },
+                  { $set: {
+                      status: reg.ok ? (reg.mock ? 'registered_mock' : 'registered') : 'register_failed',
+                      registrar: reg,
+                      dns,
+                      target,
+                      paidAt: new Date(),
+                      updatedAt: new Date(),
+                  } },
+                )
+                // Attach the custom domain to the published site so it can be
+                // served once DNS propagates.
+                if (projectId) {
+                  await db.collection('published_sites').updateOne(
+                    { userId, projectId },
+                    { $set: { customDomain: domain, customDomainTarget: target, updatedAt: new Date() } },
+                  )
+                }
+                console.log(`[domains] purchased ${domain} → ${target} (mock=${reg.mock})`)
+              }
+            }
+          } catch (e: any) {
+            console.error('[domains] checkout.completed handler:', e?.message || e)
+          }
+          break
+        }
 
         // Platform-owned template purchase (BUILTIN_TEMPLATES on /templates).
         // Different from marketplace listings — no Connect destination, the

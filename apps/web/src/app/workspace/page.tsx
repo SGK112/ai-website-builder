@@ -2132,6 +2132,11 @@ function WorkspaceContent() {
   // Managed backend (one-click DB + auth) state.
   const [isProvisioningBackend, setIsProvisioningBackend] = useState(false)
   const [backendInfo, setBackendInfo] = useState<{ appId: string; apiKey: string; baseUrl: string } | null>(null)
+  // Domain search + buy state.
+  const [domainQuery, setDomainQuery] = useState('')
+  const [domainResults, setDomainResults] = useState<Array<{ domain: string; available: boolean; priceCents: number; premium: boolean }>>([])
+  const [isSearchingDomain, setIsSearchingDomain] = useState(false)
+  const [domainSearched, setDomainSearched] = useState(false)
 
   const [shareModalOpen, setShareModalOpen] = useState(false)
   // Share preview state — anon-friendly /preview/<token> link (7-day TTL).
@@ -3671,6 +3676,43 @@ function WorkspaceContent() {
       addToast('error', e?.message || 'Backend provisioning failed')
     } finally {
       setIsProvisioningBackend(false)
+    }
+  }
+
+  // Domain search — availability + pricing for the in-app buy flow.
+  const searchDomain = async () => {
+    const q = domainQuery.trim()
+    if (q.length < 2) { addToast('error', 'Type at least 2 characters'); return }
+    if (!session?.user) { setSignupNudge({ show: true, reason: 'deploy-render' }); return }
+    setIsSearchingDomain(true)
+    setDomainSearched(true)
+    try {
+      const res = await fetch(`/api/domains/search?q=${encodeURIComponent(q)}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Search failed')
+      setDomainResults(data.results || [])
+    } catch (e: any) {
+      addToast('error', e?.message || 'Domain search failed')
+      setDomainResults([])
+    } finally {
+      setIsSearchingDomain(false)
+    }
+  }
+
+  // Buy a domain — Stripe Checkout; on success the webhook registers it and
+  // auto-points DNS at this project's site.
+  const buyDomain = async (domain: string) => {
+    try {
+      const res = await fetch('/api/domains/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain, projectId: currentProject?.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Checkout failed')
+      if (data.url) window.location.href = data.url
+    } catch (e: any) {
+      addToast('error', e?.message || 'Could not start checkout')
     }
   }
 
@@ -9596,6 +9638,59 @@ npx eas build --platform all
                       </p>
                     </div>
                   )}
+                  {/* Buy a domain — search availability, buy via Stripe, auto-DNS */}
+                  <div className={cn("p-3 rounded-xl border space-y-2", isDark ? "bg-white/[0.02] border-white/[0.07]" : "bg-white border-slate-200")}>
+                    <div className={cn("flex items-center gap-2 text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>
+                      <Globe className={cn("w-4 h-4", isDark ? "text-amber-400" : "text-amber-500")} />
+                      Get a custom domain
+                    </div>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={domainQuery}
+                        onChange={(e) => setDomainQuery(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') searchDomain() }}
+                        placeholder="yourbrand"
+                        className={cn(
+                          "flex-1 min-w-0 px-3 py-1.5 rounded-lg text-xs focus:outline-none focus:border-amber-500/50",
+                          isDark ? "bg-white/[0.03] border border-white/[0.08] text-white placeholder-zinc-600" : "bg-slate-100 border border-slate-200 text-slate-900 placeholder-slate-400"
+                        )}
+                      />
+                      <button
+                        onClick={searchDomain}
+                        disabled={isSearchingDomain}
+                        className={cn("px-3 py-1.5 rounded-lg text-xs font-medium", isDark ? "bg-amber-500/20 text-amber-300 hover:bg-amber-500/30" : "bg-amber-100 text-amber-700 hover:bg-amber-200", isSearchingDomain && "opacity-60 cursor-not-allowed")}
+                      >
+                        {isSearchingDomain ? '…' : 'Search'}
+                      </button>
+                    </div>
+                    {domainSearched && !isSearchingDomain && domainResults.length === 0 && (
+                      <p className={cn("text-[10px]", isDark ? "text-zinc-500" : "text-slate-500")}>No results — try another name.</p>
+                    )}
+                    <div className="space-y-1">
+                      {domainResults.map((r) => (
+                        <div key={r.domain} className={cn("flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-xs", isDark ? "bg-white/[0.03]" : "bg-slate-50")}>
+                          <span className={cn("font-mono truncate", isDark ? "text-zinc-200" : "text-slate-700")}>{r.domain}</span>
+                          <span className="flex items-center gap-2 shrink-0">
+                            <span className={cn(isDark ? "text-zinc-400" : "text-slate-500")}>${(r.priceCents / 100).toFixed(2)}/yr</span>
+                            {r.available ? (
+                              <button
+                                onClick={() => buyDomain(r.domain)}
+                                className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:from-emerald-400 hover:to-green-500"
+                              >Buy</button>
+                            ) : (
+                              <span className={cn("text-[10px]", isDark ? "text-zinc-600" : "text-slate-400")}>taken</span>
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {domainResults.length > 0 && (
+                      <p className={cn("text-[10px]", isDark ? "text-zinc-600" : "text-slate-500")}>
+                        Buying auto-points DNS at your site — no registrar steps.
+                      </p>
+                    )}
+                  </div>
                   {/* Share / Proposal — opens modal with QR code + proposal mode */}
                   <button
                     onClick={() => setShareModalOpen(true)}
