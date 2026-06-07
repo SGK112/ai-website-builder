@@ -148,6 +148,7 @@ export default function DataStudioPage() {
           </section>
 
           <SecretsSection overview={overview} qs={qs} reload={loadOverview} />
+          <ActionsSection appId={overview.appId} qs={qs} />
         </main>
       </div>
     </Shell>
@@ -228,6 +229,78 @@ function SecretsSection({ overview, qs, reload }: { overview: Overview; qs: () =
         <button onClick={add} disabled={busy || !key || !value} className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-500 disabled:opacity-50">Add</button>
       </div>
       {err && <p className="mt-1 text-[11px] text-red-400">{err}</p>}
+    </section>
+  )
+}
+
+interface ActionDef { name: string; method: string; url: string; headers: Record<string, string>; forwardBody: boolean }
+
+function ActionsSection({ appId, qs }: { appId: string; qs: () => string }) {
+  const [actions, setActions] = useState<ActionDef[]>([])
+  const [name, setName] = useState('')
+  const [method, setMethod] = useState('POST')
+  const [url, setUrl] = useState('')
+  const [headersText, setHeadersText] = useState('{\n  "Authorization": "Bearer {{OPENAI_API_KEY}}"\n}')
+  const [err, setErr] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const load = useCallback(async () => {
+    const r = await fetch(`/api/backend/admin/actions?${qs()}`)
+    const d = await r.json()
+    if (r.ok) setActions(d.actions || [])
+  }, [qs])
+  useEffect(() => { load() }, [load])
+
+  const add = async () => {
+    setBusy(true); setErr(null)
+    let headers: any = {}
+    try { headers = headersText.trim() ? JSON.parse(headersText) : {} } catch { setErr('Headers must be valid JSON'); setBusy(false); return }
+    try {
+      const r = await fetch(`/api/backend/admin/actions?${qs()}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, method, url, headers }),
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error || 'Failed')
+      setName(''); setUrl(''); load()
+    } catch (e: any) { setErr(e?.message || 'Failed') } finally { setBusy(false) }
+  }
+  const remove = async (n: string) => {
+    if (!confirm(`Delete action ${n}?`)) return
+    await fetch(`/api/backend/admin/actions?${qs()}&name=${encodeURIComponent(n)}`, { method: 'DELETE' }); load()
+  }
+
+  return (
+    <section>
+      <h2 className="mb-1 text-sm font-medium text-zinc-200">Server actions</h2>
+      <p className="mb-3 text-[11px] text-zinc-500">
+        Named outbound calls that run server-side with your secrets injected (via <code>{'{{SECRET_NAME}}'}</code> in url/headers).
+        Call from your app: <code>WebstewDB.action(&apos;{actions[0]?.name || 'name'}&apos;, {'{...}'})</code>. Secrets never reach the browser.
+      </p>
+      <div className="space-y-1.5">
+        {actions.map((a) => (
+          <div key={a.name} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-xs">
+            <span className="font-mono text-zinc-300"><span className="text-violet-300">{a.method}</span> {a.name}</span>
+            <span className="flex items-center gap-3">
+              <span className="max-w-[260px] truncate font-mono text-zinc-600">{a.url}</span>
+              <button onClick={() => remove(a.name)} className="text-zinc-500 hover:text-red-400">remove</button>
+            </span>
+          </div>
+        ))}
+        {actions.length === 0 && <p className="text-[11px] text-zinc-600">No actions yet.</p>}
+      </div>
+      <div className="mt-3 grid grid-cols-[110px_90px_1fr] gap-2">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="send-email" className="rounded-lg bg-white/[0.03] px-3 py-1.5 font-mono text-xs text-white outline-none ring-1 ring-white/10 placeholder-zinc-600" />
+        <select value={method} onChange={(e) => setMethod(e.target.value)} className="rounded-lg bg-white/[0.03] px-2 py-1.5 text-xs text-white outline-none ring-1 ring-white/10">
+          {['POST', 'GET', 'PUT', 'PATCH', 'DELETE'].map((m) => <option key={m} className="bg-zinc-900">{m}</option>)}
+        </select>
+        <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://api.openai.com/v1/chat/completions" className="rounded-lg bg-white/[0.03] px-3 py-1.5 font-mono text-xs text-white outline-none ring-1 ring-white/10 placeholder-zinc-600" />
+      </div>
+      <textarea value={headersText} onChange={(e) => setHeadersText(e.target.value)} rows={3} className="mt-2 w-full rounded-lg bg-white/[0.03] p-2 font-mono text-[11px] text-zinc-200 outline-none ring-1 ring-white/10" />
+      <div className="mt-2 flex items-center gap-2">
+        <button onClick={add} disabled={busy || !name || !url} className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-500 disabled:opacity-50">Save action</button>
+        {err && <span className="text-[11px] text-red-400">{err}</span>}
+      </div>
     </section>
   )
 }

@@ -3914,7 +3914,10 @@ window.WebstewDB = (function () {
     update: function (c, id, doc) { return req("PUT", "/" + c + "?id=" + id, doc); },
     remove: function (c, id)  { return req("DELETE", "/" + c + "?id=" + id); },
     signup: function (email, password) { return req("POST", "/auth", { action: "signup", email: email, password: password }); },
-    login:  function (email, password) { return req("POST", "/auth", { action: "login", email: email, password: password }); }
+    login:  function (email, password) { return req("POST", "/auth", { action: "login", email: email, password: password }); },
+    // Server action — runs a predefined outbound call server-side with your
+    // secrets injected (configure in Data Studio). Secrets never reach the browser.
+    action: function (name, body) { return req("POST", "/actions/" + name, body || {}); }
   };
 })();
 <\/script>`
