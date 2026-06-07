@@ -62,6 +62,17 @@ export interface IProject extends Document {
     schemas: Record<string, CmsSchema>
     items: Record<string, Record<string, CmsItem>>
   }
+  // Collaborators — users this project is shared with (beyond the owner).
+  // userId is captured when the invitee already has an account; otherwise the
+  // invite is pending and matched by email on their next session. Role gates
+  // write access: 'editor' can edit, 'viewer' is read-only. The owner is
+  // always `userId` above and is never listed here.
+  collaborators?: Array<{
+    userId?: string | null
+    email: string
+    role: 'editor' | 'viewer'
+    addedAt: Date
+  }>
   createdAt: Date
   updatedAt: Date
 }
@@ -150,6 +161,15 @@ const projectSchema = new Schema<IProject>(
     // CMS — see IProject.cms for shape. Mixed so we can evolve fields without
     // a schema migration; validation happens at the API layer.
     cms: { type: Schema.Types.Mixed, default: undefined },
+    // Sharing — see IProject.collaborators.
+    collaborators: [
+      {
+        userId: { type: String, default: null },
+        email: { type: String, required: true },
+        role: { type: String, enum: ['editor', 'viewer'], default: 'editor' },
+        addedAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   {
     timestamps: true,
@@ -159,5 +179,8 @@ const projectSchema = new Schema<IProject>(
 projectSchema.index({ userId: 1, status: 1 })
 projectSchema.index({ userId: 1, type: 1 })
 projectSchema.index({ createdAt: -1 })
+// Sharing lookups — "projects shared with me" by account id or pending email.
+projectSchema.index({ 'collaborators.userId': 1 })
+projectSchema.index({ 'collaborators.email': 1 })
 
 export const Project = mongoose.models.Project || mongoose.model<IProject>('Project', projectSchema)

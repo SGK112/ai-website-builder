@@ -17,8 +17,21 @@ export async function GET(req: NextRequest) {
 
     await connectDB()
 
-    // Only show user's own projects
-    const query = { userId: session.user.id }
+    // Own projects + projects shared with this user (by account id or by the
+    // email a pending invite was sent to). Owner match also accepts the
+    // ObjectId form since older docs cast userId differently.
+    const email = (session.user.email || '').toLowerCase()
+    const ownerOr: any[] = [{ userId: session.user.id }]
+    if (mongoose.Types.ObjectId.isValid(session.user.id)) {
+      ownerOr.push({ userId: new mongoose.Types.ObjectId(session.user.id) })
+    }
+    const query: any = {
+      $or: [
+        ...ownerOr,
+        { 'collaborators.userId': session.user.id },
+        ...(email ? [{ 'collaborators.email': email }] : []),
+      ],
+    }
 
     const projects = await Project.find(query)
       .sort({ updatedAt: -1 })
@@ -26,7 +39,20 @@ export async function GET(req: NextRequest) {
       .select('-files.content') // Exclude large file contents from list
       .lean()
 
-    return NextResponse.json({ projects })
+    // Tag each with the caller's role so the UI can show "Shared" + gate edits.
+    const tagged = projects.map((p: any) => {
+      const ownerId = p.userId?.toString?.() || String(p.userId || '')
+      let role: 'owner' | 'editor' | 'viewer' = 'owner'
+      if (ownerId !== session.user!.id) {
+        const c = (p.collaborators || []).find(
+          (x: any) => (x.userId && String(x.userId) === session.user!.id) || (email && String(x.email || '').toLowerCase() === email),
+        )
+        role = c?.role === 'viewer' ? 'viewer' : 'editor'
+      }
+      return { ...p, role }
+    })
+
+    return NextResponse.json({ projects: tagged })
   } catch (error) {
     console.error('GET projects error:', error)
     return NextResponse.json(

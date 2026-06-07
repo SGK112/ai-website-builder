@@ -5,6 +5,7 @@ import { connectDB } from '@/lib/db'
 import { getClient } from '@/lib/mongodb'
 import { Project, IProject } from '@ai-website-builder/database'
 import mongoose from 'mongoose'
+import { resolveProjectAccess, canEdit } from '@/lib/project-access'
 
 // Lean project document type
 interface LeanProject {
@@ -30,21 +31,18 @@ export async function GET(
     }
 
     const session = await getServerSession(authOptions)
-    await connectDB()
+    const mongooseConn = await connectDB()
+    const accessDb = mongooseConn.connection.db
+    if (!accessDb) return NextResponse.json({ error: 'DB not connected' }, { status: 500 })
 
-    const project = await Project.findById(params.id).lean() as LeanProject | null
-
+    // Access control: owner, collaborator (editor/viewer), or public.
+    const { project, role } = await resolveProjectAccess(
+      accessDb, params.id, session?.user?.id, session?.user?.email,
+    )
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 })
     }
-
-    // Access control: Allow if user owns the project OR project is public
-    // userId is stored as ObjectId, session.user.id is the string representation
-    const projectUserId = project.userId?.toString?.() || String(project.userId || '')
-    const isOwner = session?.user?.id && projectUserId === session.user.id
-    const isPublic = project.isPublic === true || project.status === 'published'
-
-    if (!isOwner && !isPublic) {
+    if (!role) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
@@ -71,7 +69,8 @@ export async function GET(
       project: {
         ...project,
         pages: formattedPages,
-      }
+      },
+      role,
     })
   } catch (error) {
     console.error('GET project error:', error)
@@ -120,8 +119,16 @@ export async function PATCH(
       return NextResponse.json({ error: 'DB not connected' }, { status: 500 })
     }
     const { ObjectId } = await import('mongodb')
+
+    // Owner OR editor collaborator may write; viewers are read-only.
+    const { project: target, role } = await resolveProjectAccess(db, params.id, session.user.id, session.user.email)
+    if (!target) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    if (!canEdit(role)) {
+      return NextResponse.json({ error: role === 'viewer' ? 'You have view-only access to this project.' : 'Access denied' }, { status: 403 })
+    }
+
     const result = await db.collection('projects').findOneAndUpdate(
-      { _id: new ObjectId(params.id), userId: new mongoose.Types.ObjectId(session.user.id) },
+      { _id: new ObjectId(params.id) },
       { $set: updates },
       { returnDocument: 'after' }
     )

@@ -176,6 +176,7 @@ import { CustomDomainCard } from '@/components/builder/CustomDomainCard'
 import { PublishToCommunityModal } from '@/components/builder/PublishToCommunityModal'
 import { SiteGraderModal } from '@/components/builder/SiteGraderModal'
 import { ShareProposalModal } from '@/components/builder/ShareProposalModal'
+import { CollaboratorsModal } from '@/components/CollaboratorsModal'
 import { InlineUpgradeModal } from '@/components/builder/InlineUpgradeModal'
 import { SectionChat, type ChatSubmitPayload } from '@/components/builder/SectionChat'
 import { StewPlannerChat } from '@/components/builder/StewPlannerChat'
@@ -2229,6 +2230,7 @@ function WorkspaceContent() {
   const [connectedDomain, setConnectedDomain] = useState<{ domain: string; dnsRecords: Array<{ type: string; name: string; value: string; note?: string }>; message: string } | null>(null)
 
   const [shareModalOpen, setShareModalOpen] = useState(false)
+  const [collabModalOpen, setCollabModalOpen] = useState(false)
   // Share preview state — anon-friendly /preview/<token> link (7-day TTL).
   // Skips the GitHub+Render bake; serves the snapshot from Mongo with a
   // Webstew-branded footer so every share is also a referral surface.
@@ -10017,6 +10019,21 @@ npx eas build --platform all
                       </p>
                     </div>
                   )}
+                  {/* Share / invite collaborators — editor/viewer roles */}
+                  <button
+                    onClick={() => {
+                      if (!currentProject?.id) { addToast('error', 'Save the project first to invite collaborators'); return }
+                      setCollabModalOpen(true)
+                    }}
+                    className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left",
+                      isDark ? "bg-white/[0.02] border-white/[0.07] hover:bg-white/[0.05]" : "bg-white border-slate-200 hover:bg-slate-50")}
+                  >
+                    <Share2 className={cn("w-5 h-5", isDark ? "text-violet-400" : "text-violet-600")} />
+                    <div className="flex-1">
+                      <div className={cn("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>Share &amp; invite</div>
+                      <div className={cn("text-[10px]", isDark ? "text-zinc-500" : "text-slate-500")}>Add teammates or clients as editors or viewers</div>
+                    </div>
+                  </button>
                   {/* Buy a domain — search availability, buy via Stripe, auto-DNS */}
                   <div className={cn("p-3 rounded-xl border space-y-2", isDark ? "bg-white/[0.02] border-white/[0.07]" : "bg-white border-slate-200")}>
                     <div className={cn("flex items-center gap-2 text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>
@@ -12181,6 +12198,14 @@ npx eas build --platform all
         projectName={projectName}
         isDark={isDark}
         userEmail={session?.user?.email ?? undefined}
+      />
+
+      <CollaboratorsModal
+        open={collabModalOpen}
+        onClose={() => setCollabModalOpen(false)}
+        projectId={currentProject?.id || null}
+        isDark={isDark}
+        ownerEmail={session?.user?.email ?? undefined}
       />
 
       <InlineUpgradeModal
