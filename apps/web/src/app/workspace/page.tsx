@@ -2231,6 +2231,7 @@ function WorkspaceContent() {
 
   const [shareModalOpen, setShareModalOpen] = useState(false)
   const [collabModalOpen, setCollabModalOpen] = useState(false)
+  const [isPullingGit, setIsPullingGit] = useState(false)
   // Share preview state — anon-friendly /preview/<token> link (7-day TTL).
   // Skips the GitHub+Render bake; serves the snapshot from Mongo with a
   // Webstew-branded footer so every share is also a referral surface.
@@ -3876,6 +3877,34 @@ function WorkspaceContent() {
       addToast('error', e?.message || 'Could not connect domain')
     } finally {
       setIsConnectingDomain(false)
+    }
+  }
+
+  // Pull from GitHub — the GitHub→Webstew half of two-way sync. Fetches the
+  // linked (or deployed) repo's files back into the project and reloads the
+  // workspace from the refreshed record. Auto-sync on push is wired via
+  // /api/github/connect + the webhook; this is the manual pull.
+  const pullFromGitHub = async () => {
+    if (!currentProject?.id) { addToast('error', 'Save & deploy to GitHub first, then you can pull changes back'); return }
+    setIsPullingGit(true)
+    try {
+      addTerminalLine('info', '⬇️ Pulling latest from GitHub…')
+      const res = await fetch('/api/github/pull', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: currentProject.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Pull failed')
+      addTerminalLine('success', `✅ Synced ${data.count} file${data.count === 1 ? '' : 's'} from ${data.repo}`)
+      addToast('success', `Pulled ${data.count} file${data.count === 1 ? '' : 's'} from GitHub`)
+      // Reload the workspace from the freshly-pulled project (force the detail
+      // refetch by blanking the in-memory file state first).
+      await loadProject({ ...currentProject, html: '', vfsFiles: {} } as any)
+    } catch (e: any) {
+      addToast('error', e?.message || 'Pull failed')
+      addTerminalLine('error', `❌ ${e?.message || 'GitHub pull failed'}`)
+    } finally {
+      setIsPullingGit(false)
     }
   }
 
@@ -10032,6 +10061,21 @@ npx eas build --platform all
                     <div className="flex-1">
                       <div className={cn("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>Share &amp; invite</div>
                       <div className={cn("text-[10px]", isDark ? "text-zinc-500" : "text-slate-500")}>Add teammates or clients as editors or viewers</div>
+                    </div>
+                  </button>
+                  {/* Pull from GitHub — two-way sync (edits on GitHub → here) */}
+                  <button
+                    onClick={pullFromGitHub}
+                    disabled={isPullingGit}
+                    title="Sync changes made on GitHub back into this project"
+                    className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left",
+                      isPullingGit ? "opacity-60 cursor-not-allowed" : "",
+                      isDark ? "bg-white/[0.02] border-white/[0.07] hover:bg-white/[0.05]" : "bg-white border-slate-200 hover:bg-slate-50")}
+                  >
+                    {isPullingGit ? <Loader2 className="w-5 h-5 animate-spin text-zinc-400" /> : <Github className={cn("w-5 h-5", isDark ? "text-zinc-300" : "text-slate-700")} />}
+                    <div className="flex-1">
+                      <div className={cn("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>Pull from GitHub</div>
+                      <div className={cn("text-[10px]", isDark ? "text-zinc-500" : "text-slate-500")}>{isPullingGit ? 'Syncing…' : 'Two-way sync — bring GitHub edits back into this project'}</div>
                     </div>
                   </button>
                   {/* Buy a domain — search availability, buy via Stripe, auto-DNS */}
