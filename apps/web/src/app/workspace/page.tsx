@@ -12044,15 +12044,32 @@ npx eas build --platform all
                       </p>
                     </div>
                     <div className="px-3 pb-6 grid gap-2">
+                      {/* Fastest path — start from a ready-made template and
+                          customize it in chat. No waiting on a from-scratch
+                          build. This is the recommended way in. */}
+                      <button
+                        onClick={() => { setActivePanel('templates'); setSidebarCollapsed(false) }}
+                        className={cn(
+                          'flex items-center gap-3 p-4 rounded-2xl border transition text-left',
+                          isDark
+                            ? 'bg-gradient-to-r from-violet-600/20 to-fuchsia-600/15 border-violet-500/40 active:from-violet-600/30'
+                            : 'bg-gradient-to-r from-violet-50 to-fuchsia-50 border-violet-200 active:from-violet-100 shadow-sm'
+                        )}
+                      >
+                        <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white">✨</div>
+                        <div className="flex-1 min-w-0">
+                          <div className={cn('font-semibold text-[15px]', isDark ? 'text-white' : 'text-slate-900')}>Start from a template</div>
+                          <div className={cn('text-[12px]', isDark ? 'text-violet-300/80' : 'text-violet-600')}>Fastest — pick one, then customize it</div>
+                        </div>
+                      </button>
+                      <div className={cn('text-[11px] font-medium uppercase tracking-wide pt-2 pb-0.5', isDark ? 'text-zinc-600' : 'text-slate-400')}>Or build from scratch</div>
                       {(QUICKSTART_INTENTS).map((c) => (
                         <button
                           key={c.id}
                           onClick={() => {
-                            // Tap a card → set target → open drawer → seed
-                            // a thin intent message. handleChatMessage
-                            // routes thin prompts into the Stew Planner,
-                            // which asks the right questions, drafts the
-                            // prompt, and shows the draft for approval.
+                            // Tap a card → set target → open the chat drawer →
+                            // build immediately from the thin intent (no
+                            // interview; the user refines from the first draft).
                             setBuildTarget(c.target as BuildTarget)
                             setSidebarCollapsed(false)
                             void handleChatMessage(c.seed)
