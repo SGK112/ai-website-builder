@@ -107,6 +107,8 @@ IMAGES — for any image you ADD to a generated site, ALWAYS use the /api/media 
   - Product: <img src="/api/media?q=minimalist+leather+wallet&w=800&h=600">
 When the user provides their OWN image URL they want stored permanently, call upload_image(sourceUrl) to copy it to Cloudinary; then use the returned URL. Skip upload_image for /api/media, pravatar, or already-cloudinary URLs.
 
+LOGOS / BRAND GRAPHICS — when the user asks for a LOGO, brand mark, icon, favicon, or a custom illustration (not a stock photo), use generate_logo(prompt, shape) — NOT /api/media (that's stock photography). Write a rich prompt (business name as text if a wordmark, style, colors, 'transparent background' for logos). Then PLACE the returned url: swap the header text/logo for an <img>, and add a favicon <link rel="icon">. shape: 'square' for logos/icons/favicons, 'wide' for hero banners.
+
 THIRD-PARTY INTEGRATIONS — the user can connect Gmail, Slack, HubSpot, Notion, Sheets, etc. at /integrations. Use them when:
 - The user says "send a Slack message about X", "email me when Y", "add this lead to my HubSpot", "save these to a Google Sheet".
 - Flow: (1) list_integrations to see what's connected — if the service isn't in the result, tell the user to connect it first and stop. (2) list_integration_actions(toolkit) to see available verbs. (3) run_integration_action(action, args) to do the thing.

@@ -2219,6 +2219,10 @@ function WorkspaceContent() {
   const [domainResults, setDomainResults] = useState<Array<{ domain: string; available: boolean; priceCents: number; premium: boolean }>>([])
   const [isSearchingDomain, setIsSearchingDomain] = useState(false)
   const [domainSearched, setDomainSearched] = useState(false)
+  // Bring-your-own-domain (connect a domain the user already owns).
+  const [ownDomainInput, setOwnDomainInput] = useState('')
+  const [isConnectingDomain, setIsConnectingDomain] = useState(false)
+  const [connectedDomain, setConnectedDomain] = useState<{ domain: string; dnsRecords: Array<{ type: string; name: string; value: string; note?: string }>; message: string } | null>(null)
 
   const [shareModalOpen, setShareModalOpen] = useState(false)
   // Share preview state — anon-friendly /preview/<token> link (7-day TTL).
@@ -3827,6 +3831,35 @@ function WorkspaceContent() {
       if (data.url) window.location.href = data.url
     } catch (e: any) {
       addToast('error', e?.message || 'Could not start checkout')
+    }
+  }
+
+  // Connect a domain the user ALREADY owns to their published site. Publishes
+  // first if needed, then attaches it (Render) + returns DNS records to set.
+  const connectOwnedDomain = async () => {
+    const domain = ownDomainInput.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '')
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) { addToast('error', 'Enter a valid domain like yourbrand.com'); return }
+    if (!session?.user) { setSignupNudge({ show: true, reason: 'deploy-render' }); return }
+    // Make sure there's a published site to attach to — publish first if not.
+    if (!publishUrl) {
+      await publishInstant()
+      if (!publishUrl && !html.trim()) return
+    }
+    setIsConnectingDomain(true)
+    try {
+      const res = await fetch('/api/publish/custom-domain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain, projectId: currentProject?.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Connect failed')
+      setConnectedDomain({ domain, dnsRecords: data.dnsRecords || [], message: data.message || '' })
+      addToast('success', `Connected ${domain} — add the DNS records to finish.`)
+    } catch (e: any) {
+      addToast('error', e?.message || 'Could not connect domain')
+    } finally {
+      setIsConnectingDomain(false)
     }
   }
 
@@ -6424,6 +6457,7 @@ ${html}
               else if (n === 'read_file') toolStatus = p ? `Reading ${p}…` : 'Reading file…'
               else if (n === 'write_file') toolStatus = p ? `Editing ${p}…` : 'Editing file…'
               else if (n === 'delete_file') toolStatus = p ? `Deleting ${p}…` : 'Deleting file…'
+              else if (n === 'generate_logo') toolStatus = 'Designing a logo…'
               else if (n === 'done') toolStatus = ''
               else toolStatus = `Running ${n}…`
               flushAssistant(renderProgress())
@@ -9966,6 +10000,47 @@ npx eas build --platform all
                         Buying auto-points DNS at your site — no registrar steps.
                       </p>
                     )}
+
+                    {/* Already own a domain? Connect it (BYO). */}
+                    <div className={cn("pt-2 mt-1 border-t", isDark ? "border-white/[0.06]" : "border-slate-200")}>
+                      <div className={cn("text-[10px] mb-1.5", isDark ? "text-zinc-500" : "text-slate-500")}>Already own a domain? Connect it:</div>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          value={ownDomainInput}
+                          onChange={(e) => setOwnDomainInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') connectOwnedDomain() }}
+                          placeholder="yourbrand.com"
+                          className={cn(
+                            "flex-1 min-w-0 px-3 py-1.5 rounded-lg text-xs focus:outline-none focus:border-amber-500/50",
+                            isDark ? "bg-white/[0.03] border border-white/[0.08] text-white placeholder-zinc-600" : "bg-slate-100 border border-slate-200 text-slate-900 placeholder-slate-400"
+                          )}
+                        />
+                        <button
+                          onClick={connectOwnedDomain}
+                          disabled={isConnectingDomain}
+                          className={cn("px-3 py-1.5 rounded-lg text-xs font-medium", isDark ? "bg-white/[0.06] text-zinc-200 hover:bg-white/[0.1]" : "bg-slate-200 text-slate-700 hover:bg-slate-300", isConnectingDomain && "opacity-60 cursor-not-allowed")}
+                        >
+                          {isConnectingDomain ? '…' : 'Connect'}
+                        </button>
+                      </div>
+                      {connectedDomain && (
+                        <div className={cn("mt-2 p-2 rounded-lg text-[10px] space-y-1.5", isDark ? "bg-emerald-500/5 border border-emerald-500/20" : "bg-emerald-50 border border-emerald-200")}>
+                          <div className={cn("font-medium", isDark ? "text-emerald-300" : "text-emerald-700")}>
+                            {connectedDomain.domain} connected — add these DNS records at your registrar:
+                          </div>
+                          {connectedDomain.dnsRecords.map((r, i) => (
+                            <div key={i} className={cn("font-mono flex flex-wrap gap-x-2", isDark ? "text-zinc-300" : "text-slate-700")}>
+                              <span className="font-semibold">{r.type}</span>
+                              <span>{r.name}</span>
+                              <span className="opacity-60">→</span>
+                              <span className="break-all">{r.value}</span>
+                            </div>
+                          ))}
+                          <div className={cn(isDark ? "text-zinc-500" : "text-slate-500")}>Goes live with HTTPS once DNS resolves (usually minutes).</div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   {/* Share / Proposal — opens modal with QR code + proposal mode */}
                   <button

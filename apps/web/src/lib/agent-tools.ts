@@ -309,6 +309,26 @@ export const TOOLS: Anthropic.Messages.Tool[] = [
     },
   },
   {
+    name: 'generate_logo',
+    description:
+      "Generate a custom logo (or any brand graphic) from a text description and get back a " +
+      "durable hosted image URL you can drop straight into the site. Use this when the user asks " +
+      "for a logo, brand mark, icon, hero illustration, or favicon. WRITE A RICH PROMPT: include " +
+      "the business name to render as text if they want a wordmark, the style (minimal flat, " +
+      "gradient, vintage badge, mascot, monogram), colors, and 'transparent background' / 'on " +
+      "white' as needed. After you get the { url }, PLACE it: put it in the header <img> (and " +
+      "swap any text logo), set it as the favicon (<link rel=icon>), and/or use it where the user " +
+      "asked. Returns { url, publicId }.",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        prompt: { type: 'string', description: 'Rich description of the logo/graphic to generate (style, colors, any text to render, background).' },
+        shape: { type: 'string', enum: ['square', 'wide', 'tall'], description: 'Aspect ratio. square (1:1) for logos/icons/favicons, wide (16:9) for banners/heroes, tall (9:16) for posters. Default square.' },
+      },
+      required: ['prompt'],
+    },
+  },
+  {
     name: 'done',
     description:
       'Signal that the user-requested task is complete. Call this ONCE at the end ' +
@@ -563,6 +583,64 @@ export async function executeTool(
           return { ok: true, content: JSON.stringify({ url: data.secure_url, publicId: data.public_id }) }
         } catch (e: any) {
           return { ok: false, content: `upload_image error: ${e?.message || e}` }
+        }
+      }
+      case 'generate_logo': {
+        const prompt = String(input?.prompt || '').trim()
+        if (!prompt) return { ok: false, content: 'prompt required' }
+        const replicateToken = process.env.REPLICATE_API_TOKEN
+        if (!replicateToken) {
+          return { ok: false, content: 'Image generation unavailable (REPLICATE_API_TOKEN not set). Ask the user to add it, or use an /api/media image instead.' }
+        }
+        const shape = String(input?.shape || 'square')
+        const aspect_ratio = shape === 'wide' ? '16:9' : shape === 'tall' ? '9:16' : '1:1'
+        try {
+          // Generate with Flux Schnell (fast, high quality) via Replicate.
+          const create = await fetch('https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${replicateToken}`, 'Content-Type': 'application/json', Prefer: 'wait' },
+            body: JSON.stringify({ input: { prompt, aspect_ratio, output_format: 'png', num_outputs: 1 } }),
+          })
+          let pred = await create.json()
+          if (!create.ok) return { ok: false, content: `Image generation failed: ${pred?.detail || JSON.stringify(pred).slice(0, 200)}` }
+          // Poll if not already complete (Prefer: wait usually resolves inline).
+          let tries = 0
+          while (pred?.status && pred.status !== 'succeeded' && pred.status !== 'failed' && tries < 20) {
+            await new Promise(r => setTimeout(r, 1500))
+            const poll = await fetch(pred.urls.get, { headers: { Authorization: `Bearer ${replicateToken}` } })
+            pred = await poll.json()
+            tries++
+          }
+          if (pred?.status !== 'succeeded') return { ok: false, content: `Image generation did not complete (status=${pred?.status || 'unknown'}).` }
+          const genUrl = Array.isArray(pred.output) ? pred.output[0] : pred.output
+          if (!genUrl) return { ok: false, content: 'Image generation returned no output.' }
+
+          // Persist to Cloudinary so the URL is durable (Replicate URLs expire).
+          const cloud = process.env.CLOUDINARY_CLOUD_NAME
+          const key = process.env.CLOUDINARY_API_KEY
+          const secret = process.env.CLOUDINARY_API_SECRET
+          if (cloud && key && secret && vfs.cms?.userId) {
+            try {
+              const timestamp = Math.floor(Date.now() / 1000)
+              const publicId = `logo-${timestamp}`
+              const folder = `webstew/${vfs.cms.userId}`
+              const paramsToSign = `folder=${folder}&public_id=${publicId}&timestamp=${timestamp}${secret}`
+              const crypto = await import('crypto')
+              const signature = crypto.createHash('sha1').update(paramsToSign).digest('hex')
+              const form = new URLSearchParams()
+              form.set('file', genUrl); form.set('api_key', key); form.set('timestamp', String(timestamp))
+              form.set('signature', signature); form.set('public_id', publicId); form.set('folder', folder)
+              const up = await fetch(`https://api.cloudinary.com/v1_1/${cloud}/image/upload`, { method: 'POST', body: form })
+              const data = await up.json()
+              if (up.ok && data.secure_url) {
+                return { ok: true, content: JSON.stringify({ url: data.secure_url, publicId: data.public_id }) }
+              }
+            } catch { /* fall through to the raw Replicate URL */ }
+          }
+          // No Cloudinary — return the Replicate URL (works now; may expire later).
+          return { ok: true, content: JSON.stringify({ url: genUrl, publicId: null, note: 'Cloudinary not configured — URL may expire; consider upload_image to persist.' }) }
+        } catch (e: any) {
+          return { ok: false, content: `generate_logo error: ${e?.message || e}` }
         }
       }
       case 'list_integrations': {
