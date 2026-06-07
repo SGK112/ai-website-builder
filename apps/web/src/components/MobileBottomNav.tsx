@@ -59,11 +59,22 @@ export function MobileBottomNav() {
     return () => mq.removeEventListener('change', apply)
   }, [])
 
+  const visible = !!session?.user?.id && isMobile && SHOW_ON.some((re) => re.test(pathname))
+
+  // Publish the bar's height as --bottom-nav-h so pages can pad their content
+  // (and floating chat input / toasts) above it. Without this the var defaults
+  // to 0 and the 56px fixed bar covers the bottom of the screen — the
+  // "can't see anything at the bottom" bug. 56px bar + the safe-area inset.
+  useEffect(() => {
+    const root = document.documentElement
+    if (visible) root.style.setProperty('--bottom-nav-h', 'calc(56px + env(safe-area-inset-bottom, 0px))')
+    else root.style.setProperty('--bottom-nav-h', '0px')
+    return () => root.style.setProperty('--bottom-nav-h', '0px')
+  }, [visible])
+
   // Only signed-in users get the tab nav. Marketing pages (anon) keep the
   // sales-oriented top nav.
-  if (!session?.user?.id) return null
-  if (!isMobile) return null
-  if (!SHOW_ON.some((re) => re.test(pathname))) return null
+  if (!visible) return null
 
   return (
     <nav
