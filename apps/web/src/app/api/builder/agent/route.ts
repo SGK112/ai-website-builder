@@ -527,7 +527,12 @@ export async function POST(req: NextRequest) {
         while (iterations < maxIterations && doneSummary == null && !aborted) {
           iterations++
 
-          const response: Anthropic.Messages.Message = await client.messages.create({
+          // Use the streaming API (.stream().finalMessage()) rather than a
+          // blocking create(): at max_tokens=32K the SDK refuses a non-stream
+          // call ("Streaming is required for operations that may take longer
+          // than 10 minutes"). finalMessage() still resolves to the complete
+          // Message, so the loop below is unchanged.
+          const response: Anthropic.Messages.Message = await client.messages.stream({
             model,
             // 32K output budget. 16K was too tight for multi-page builds:
             // writing several full HTML pages in one turn blew the cap
@@ -540,7 +545,7 @@ export async function POST(req: NextRequest) {
             system: systemPrompt,
             tools: TOOLS,
             messages,
-          })
+          }).finalMessage()
           // Accumulate usage — trackUsage is called once at end-of-stream.
           totalInputTokens  += response.usage?.input_tokens  || 0
           totalOutputTokens += response.usage?.output_tokens || 0
