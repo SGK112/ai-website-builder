@@ -288,6 +288,16 @@ export async function POST(req: NextRequest) {
           } catch {}
         }
         try { controller.enqueue(encoder.encode(`: connected\n\n`)) } catch {}
+        // Heartbeat — the bridge can now run a build up to ~270s, and Claude
+        // Code can go quiet between turns. Flush an SSE comment every 15s so
+        // Cloudflare / Render's edge doesn't idle-kill the response body during
+        // a long-but-healthy build (matches the direct branch's heartbeat).
+        let bridgeHeartbeat: ReturnType<typeof setInterval> | null = setInterval(() => {
+          try { controller.enqueue(encoder.encode(`: ping\n\n`)) } catch {
+            if (bridgeHeartbeat) { clearInterval(bridgeHeartbeat); bridgeHeartbeat = null }
+          }
+        }, 15000)
+        const stopHeartbeat = () => { if (bridgeHeartbeat) { clearInterval(bridgeHeartbeat); bridgeHeartbeat = null } }
         try {
           for await (const chunk of stream) {
             // Persist BEFORE forwarding so even if the SSE client
@@ -310,6 +320,7 @@ export async function POST(req: NextRequest) {
         } catch (e: any) {
           send('error', { message: e?.message || 'Bridge stream failed' })
         } finally {
+          stopHeartbeat()
           try { controller.close() } catch {}
         }
       },
