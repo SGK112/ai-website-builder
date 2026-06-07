@@ -1,6 +1,6 @@
 {
   "name": "@webstew/bridge",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Local bridge — run Webstew workspace AI against your Claude Code Pro/Max subscription instead of API credits.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

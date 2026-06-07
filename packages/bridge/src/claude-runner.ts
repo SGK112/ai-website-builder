@@ -135,19 +135,32 @@ export async function runClaudeOnce(opts: RunOpts): Promise<void> {
     else opts.signal.addEventListener('abort', onAbort, { once: true })
   }
 
-  // Timeout safety: if the claude process hangs for >90s (likely waiting
-  // on stdin for a permission prompt due to unsupported --permission-mode
-  // flag), kill it and emit an error.
-  const processTimeout = setTimeout(() => {
-    if (!child.killed) {
-      stderr += '\n[bridge] Process hung for 90s, killing.'
-      try { child.kill('SIGKILL') } catch {}
-    }
-  }, 90_000)
-
   let stderr = ''
   let stdoutTail = ''
   let lastStdoutAt = Date.now()
+  const startedAt = Date.now()
+
+  // Watchdog: kill claude ONLY when it goes SILENT (truly hung — e.g. waiting
+  // on a stdin permission prompt), not while it's actively streaming. The old
+  // fixed 90s timer killed Claude mid-task on anything substantial (a real
+  // multi-file edit, or "create 5 pages") BEFORE it wrote any files — so the
+  // diff was empty and the preview never changed. We reset the clock on every
+  // stdout chunk; a generous hard cap (kept under the server route's 300s
+  // maxDuration) guards against a genuinely pathological run.
+  const IDLE_MS = 120_000
+  const HARD_CAP_MS = 270_000
+  const watchdog = setInterval(() => {
+    if (child.killed) return
+    const now = Date.now()
+    if (now - lastStdoutAt > IDLE_MS) {
+      stderr += `\n[bridge] No output for ${Math.round(IDLE_MS / 1000)}s — assuming hung, killing.`
+      try { child.kill('SIGKILL') } catch {}
+    } else if (now - startedAt > HARD_CAP_MS) {
+      stderr += `\n[bridge] Exceeded ${Math.round(HARD_CAP_MS / 1000)}s hard cap, killing.`
+      try { child.kill('SIGKILL') } catch {}
+    }
+  }, 5_000)
+
   child.stderr.on('data', (b) => { stderr += b.toString() })
   // Mirror stdout to a tail buffer too — when claude exits 1 with no
   // stderr, the error is often a single non-JSON line on stdout that
@@ -176,7 +189,7 @@ export async function runClaudeOnce(opts: RunOpts): Promise<void> {
   // 5. Process exit.
   const exitCode: number = await new Promise((res) => {
     child.on('close', (c) => {
-      clearTimeout(processTimeout)
+      clearInterval(watchdog)
       res(c ?? 1)
     })
   })
