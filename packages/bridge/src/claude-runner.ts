@@ -278,6 +278,23 @@ async function emitEventFromClaude(
 // ── Filesystem helpers ────────────────────────────────────────────────
 
 function writeVfs(root: string, files: Record<string, string>): void {
+  // Make the workspace dir an EXACT mirror of the current project. The dir is
+  // persistent per project, so without this it accumulates stale files across
+  // turns — e.g. after "convert this site to an app", the React Native files
+  // (App.tsx, src/theme.ts) linger; on the next edit Claude Code sees BOTH the
+  // current HTML and the dead RN files, edits the wrong ones, and reports
+  // "Done" while the preview never changes. Delete anything not in the incoming
+  // set first, so Claude only ever reads the real, current project.
+  const incoming = new Set(
+    Object.keys(files).map((r) => sanitizeRel(r)).filter((r): r is string => !!r),
+  )
+  // snapshotDir already skips dotfiles (.git etc.) and bridge-owned files.
+  for (const rel of snapshotDir(root).keys()) {
+    if (incoming.has(rel)) continue
+    if (rel.startsWith('node_modules' + path.sep) || rel === 'node_modules') continue
+    try { fs.rmSync(path.join(root, rel)) } catch { /* best effort */ }
+  }
+
   for (const [rel, contents] of Object.entries(files)) {
     const safe = sanitizeRel(rel)
     if (!safe) continue
@@ -285,6 +302,27 @@ function writeVfs(root: string, files: Record<string, string>): void {
     fs.mkdirSync(path.dirname(full), { recursive: true })
     fs.writeFileSync(full, contents)
   }
+
+  // Prune now-empty directories left behind by deletions so stale folders
+  // (e.g. an emptied `src/screens/`) don't confuse the next read.
+  pruneEmptyDirs(root)
+}
+
+// Remove empty directories depth-first, keeping the root + dotfile dirs.
+function pruneEmptyDirs(root: string): void {
+  if (!fs.existsSync(root)) return
+  const walk = (dir: string): void => {
+    let entries: fs.Dirent[]
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch { return }
+    for (const ent of entries) {
+      if (ent.isDirectory() && !ent.name.startsWith('.') && ent.name !== 'node_modules') {
+        const full = path.join(dir, ent.name)
+        walk(full)
+        try { if (fs.readdirSync(full).length === 0) fs.rmdirSync(full) } catch { /* not empty / gone */ }
+      }
+    }
+  }
+  walk(root)
 }
 
 // Filenames the bridge writes for its own bookkeeping. Excluded from
