@@ -1601,6 +1601,10 @@ function WorkspaceContent() {
         if (cancelled) return
 
         const planLimitCredits = data?.limits?.monthlyCredits ?? data?.limits?.credits ?? 100
+        // Unlimited plans (enterprise/admin) report monthlyCredits = -1. The
+        // old math did max(0, -1 - used) = 0 and falsely showed "out of
+        // credits" forever. Unlimited → never nudge.
+        if (planLimitCredits < 0) return
         const usedThisMonth = data?.month?.credits ?? ((data?.month?.generations || 0) * 10)
         const remaining = Math.max(0, planLimitCredits - usedThisMonth)
 
@@ -3030,7 +3034,10 @@ function WorkspaceContent() {
     // loadedFromUrlRef means a prompt was injected from the landing page — generation
     // will fire immediately, so skip the idle-timer path. The post-generation code
     // in handleGenerate shows the tour after the first build completes instead.
-    if (!hasSeenOnboarding && hasInitialized && !loadedFromUrlRef.current && !isMidGeneration) {
+    // Mobile: skip the skill-picker + 7-step tour entirely. On a phone these
+    // modals cover the whole screen and read as "broken/confusing" before the
+    // user has done anything. Mobile gets the clean picker → tap → build path.
+    if (!hasSeenOnboarding && hasInitialized && !loadedFromUrlRef.current && !isMidGeneration && !isMobile) {
       const timer = setTimeout(() => {
         if (!isGenerating && html.length === 0) {
           // Show skill picker first if they haven't chosen a level yet
@@ -3046,7 +3053,7 @@ function WorkspaceContent() {
     if (hasSeenOnboarding) {
       setHasCompletedOnboarding(true)
     }
-  }, [hasInitialized, searchParams, isGenerating, html])
+  }, [hasInitialized, searchParams, isGenerating, html, isMobile])
 
   // Save onboarding completion
   const handleOnboardingComplete = () => {
@@ -6309,17 +6316,11 @@ ${html}
           setActivePageId('home')
           setPreviewBumpKey((k) => k + 1)
         }
-        // Thin fresh-build prompt → interview the user via the Stew Planner
-        // before building blind. Rich, fully-specified prompts skip straight
-        // to the generator. The message just added to chatMessages becomes
-        // the interview's lead-in; the planner conversation lives separately.
-        if (!isRichPrompt(message)) {
-          setPlannerActive(true)
-          setPlannerPlan({})
-          setPlannerSuggestions([])
-          await handlePlannerTurn(message, [], {})
-          return
-        }
+        // One predictable path: build immediately. The clarifying interview
+        // (Stew Planner) added a confusing delay on thin prompts — users
+        // would rather see something and refine it than answer questions
+        // before anything appears. Thin prompts still produce a real first
+        // draft the user can iterate on in chat.
         await handleGenerate(message, undefined, { fresh: true })
         return
       }

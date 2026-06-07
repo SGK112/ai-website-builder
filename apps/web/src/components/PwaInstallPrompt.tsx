@@ -56,9 +56,12 @@ export function PwaInstallPrompt() {
     const visits = (parseInt(localStorage.getItem(VISIT_KEY) || '0', 10) || 0) + 1
     localStorage.setItem(VISIT_KEY, String(visits))
 
+    // Never nag inside the builder — the prompt floats over the workspace UI
+    // (chat input, bottom nav) and reads as clutter mid-build. Only offer it
+    // on marketing/landing pages, and only to repeat visitors.
     const onWorkspace = window.location.pathname.startsWith('/workspace')
     const repeatVisitor = visits >= 2
-    const eligible = onWorkspace || repeatVisitor
+    const eligible = repeatVisitor && !onWorkspace
 
     // Android / Chromium path — handed a real event we can replay.
     const onBefore = (e: Event) => {
