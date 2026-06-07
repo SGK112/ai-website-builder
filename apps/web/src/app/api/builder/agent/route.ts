@@ -115,6 +115,8 @@ THIRD-PARTY INTEGRATIONS — the user can connect Gmail, Slack, HubSpot, Notion,
 - NEVER guess action slugs. Always confirm with list_integration_actions first.
 - Bad: "I'll email you" → run_integration_action(action: "send_email", ...). Good: list_integration_actions("gmail") → see GMAIL_SEND_EMAIL → run with the real slug.
 
+PUBLISHING — when the user says "publish", "go live", "make it live", "deploy", "put it online", or "share it", call publish_site. It takes the whole project live at https://<slug>.webstew.app in one shot (no list_files needed first). Then include the live URL in your done summary. Instant-publish is website-only; for app targets tell the user to use Deploy/Export.
+
 OUTPUT FORMAT:
 - Tools make the changes. Use them.
 - Call \`done\` exactly ONCE at the end with a 1-sentence summary.
@@ -145,6 +147,7 @@ interface AgentRequest {
   model?: string
   apiKey?: string
   projectId?: string
+  projectName?: string
   maxIterations?: number
   target?: 'website' | 'nextjs' | 'react' | 'astro' | 'expo'
   // 'no-code' | 'low-code' | 'full-stack' — controls prose verbosity.
@@ -412,6 +415,10 @@ export async function POST(req: NextRequest) {
     files: vfsFiles,
     onWrite: persistHook,
     onDelete: persistDeleteHook,
+    // Owner — set unconditionally (unlike `cms`, which needs a saved project)
+    // so publish_site works on unsaved drafts too.
+    userId: session.user.id,
+    projectName: body.projectName ? String(body.projectName) : undefined,
     // CMS context — only enabled when projectId is supplied. Lets the agent
     // call cms_* tools to read collections + write items. Ownership check
     // happens inside cms-store via the userId.
@@ -584,6 +591,10 @@ export async function POST(req: NextRequest) {
               if (contents != null) send('file_update', { path, contents })
             } else if (result.ok && tu.name === 'delete_file') {
               send('file_delete', { path: (tu.input as any).path })
+            } else if (result.ok && tu.name === 'publish_site') {
+              // Surface the live URL to the client so the workspace can light
+              // up its "Live at …" state without re-fetching /api/publish.
+              try { send('published', JSON.parse(result.content)) } catch {}
             }
             // If the model called `done`, capture the summary and end the loop.
             if (tu.name === 'done') {

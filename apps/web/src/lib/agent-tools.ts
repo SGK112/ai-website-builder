@@ -26,6 +26,7 @@ import {
   type CmsItem,
 } from '@/lib/cms'
 import { gradeHtml, gradeWebsite } from '@/lib/grader'
+import { publishSite } from '@/lib/publish'
 import {
   SUPPORTED_TOOLKITS,
   listUserConnections,
@@ -40,6 +41,13 @@ export interface AgentVfs {
   // Hooks for callers that want to persist (e.g., Mongo update). Optional.
   onWrite?: (path: string, contents: string) => Promise<void> | void
   onDelete?: (path: string) => Promise<void> | void
+  // The signed-in user. Set independently of `cms` so tools that only need
+  // an owner (publish_site) work for drafts too — `cms` is only wired when a
+  // saved projectId exists, but a draft still has an authenticated user.
+  userId?: string
+  // Human-readable project name — used as the default site name / slug seed
+  // when the agent publishes without naming the site explicitly.
+  projectName?: string
   // CMS context — when provided, the agent's cms_* tools become usable.
   // The agent can list/read/write content collections owned by this project.
   // Absent context = cms tools return "CMS not available in this session".
@@ -326,6 +334,24 @@ export const TOOLS: Anthropic.Messages.Tool[] = [
         shape: { type: 'string', enum: ['square', 'wide', 'tall'], description: 'Aspect ratio. square (1:1) for logos/icons/favicons, wide (16:9) for banners/heroes, tall (9:16) for posters. Default square.' },
       },
       required: ['prompt'],
+    },
+  },
+  {
+    name: 'publish_site',
+    description:
+      "Publish the CURRENT website live — instant, key-free, one-click. Takes every .html file " +
+      "in the project (index.html = home, <slug>.html = other pages) and serves them at " +
+      "https://<slug>.webstew.app. Use this when the user says 'publish', 'go live', 'make it " +
+      "live', 'deploy this', 'put it online', or 'share it'. Re-publishing the same project keeps " +
+      "the same URL. Only works for static website projects (not React/Astro/Next app targets). " +
+      "Returns { url, slug, pages }. After publishing, tell the user the live URL in your done " +
+      "summary. Do NOT call list_files first — publish_site already reads the whole VFS itself.",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        name: { type: 'string', description: "Optional site name (also seeds the slug). Defaults to the project name." },
+        slug: { type: 'string', description: "Optional preferred subdomain (lowercase-hyphenated). Ignored if already taken or if the project was published before (the existing slug is kept)." },
+      },
     },
   },
   {
@@ -734,6 +760,30 @@ export async function executeTool(
           return { ok: true, content: JSON.stringify(summary, null, 2) }
         } catch (e: any) {
           return { ok: false, content: `grade_site failed: ${e?.message || String(e)}` }
+        }
+      }
+      case 'publish_site': {
+        const userId = vfs.userId || vfs.cms?.userId
+        if (!userId) {
+          return { ok: false, content: 'Publishing requires a signed-in user. Ask the user to sign in, then try again.' }
+        }
+        // Pull every file out of the VFS. The publish layer validates that an
+        // index.html entry point exists and enforces the size ceiling.
+        const files = Object.entries(vfs.files).map(([path, content]) => ({ path, content: String(content ?? '') }))
+        if (!files.some(f => f.path === 'index.html')) {
+          return { ok: false, content: 'No index.html in this project — nothing to publish. (Instant-publish is for static website projects; app targets use Deploy/Export.)' }
+        }
+        const result = await publishSite({
+          userId,
+          name: String(input?.name || vfs.projectName || 'site'),
+          files,
+          requestedSlug: String(input?.slug || ''),
+          projectId: vfs.cms?.projectId || null,
+        })
+        if (!result.ok) return { ok: false, content: `Publish failed: ${result.error}` }
+        return {
+          ok: true,
+          content: JSON.stringify({ url: result.url, slug: result.slug, path: result.path, pages: result.pages }),
         }
       }
       case 'done': {

@@ -6345,6 +6345,9 @@ ${html}
             // content collections on this project. Persists file changes to
             // Mongo via the onWrite/onDelete hooks too. Skip if no saved project.
             projectId: currentProject?.id,
+            // Site name — seeds the slug when the agent publishes via the
+            // publish_site tool without an explicit name.
+            projectName,
             // Route through the user's Claude Code subscription only on the
             // bridge attempt; the failover attempt always runs server-side.
             useBridge: viaBridge || undefined,
@@ -6458,6 +6461,7 @@ ${html}
               else if (n === 'write_file') toolStatus = p ? `Editing ${p}…` : 'Editing file…'
               else if (n === 'delete_file') toolStatus = p ? `Deleting ${p}…` : 'Deleting file…'
               else if (n === 'generate_logo') toolStatus = 'Designing a logo…'
+              else if (n === 'publish_site') toolStatus = 'Publishing your site…'
               else if (n === 'done') toolStatus = ''
               else toolStatus = `Running ${n}…`
               flushAssistant(renderProgress())
@@ -6507,6 +6511,16 @@ ${html}
                   return next
                 })
                 wroteAnyFile = true
+              }
+            } else if (evtName === 'published') {
+              // The agent published the site via the publish_site tool. Light
+              // up the same "Live at …" state the manual Go Live button sets.
+              if (typeof payload?.url === 'string') {
+                setPublishUrl(payload.url)
+                if (typeof payload?.path === 'string') setPublishPath(payload.path)
+                addTerminalLine('success', `✅ Live at ${payload.url}`)
+                addConsoleLog('success', `Published: ${payload.url} (${payload.pages || 1} page${payload.pages === 1 ? '' : 's'})`)
+                addToast('success', 'Published — your site is live!')
               }
             } else if (evtName === 'workspace.switch_target') {
               // User already approved via permission modal. Clear the old
