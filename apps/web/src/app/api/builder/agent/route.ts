@@ -138,7 +138,8 @@ MULTI-PAGE WEBSITES (this project's target is "website"):
   • home → href="/"
   • other → href="/<slug>"   (e.g. href="/about", href="/services")
   The host serves "/about" from about.html automatically. When you ADD or REMOVE a page, update the nav on EVERY page so the menu stays in sync.
-- When the user asks for a multi-page site ("add an about page", "make a 4-page site for a dentist"), create ALL the pages as separate .html files in THIS turn and wire the nav across them before calling done. Don't stop after one page.`
+- When the user asks for a multi-page site ("add an about page", "make a 4-page site for a dentist"), create ALL the pages as separate .html files and wire the nav across them before calling done. Don't stop after one page.
+- PACING (important): there's a per-response output limit. Do NOT try to emit every page in a single response — write 2-3 pages per turn with separate write_file calls, let the turn end, then continue with the next pages on the following turn. The loop keeps going until you call done(), so building 5 pages over 2-3 turns is normal and correct. Trying to write them all at once truncates mid-file and loses work.`
 
 interface AgentRequest {
   prompt: string
@@ -528,13 +529,14 @@ export async function POST(req: NextRequest) {
 
           const response: Anthropic.Messages.Message = await client.messages.create({
             model,
-            // 16K covers a full-page HTML rewrite (typical generated sites are
-            // 3-8K tokens). 8K caused max_tokens stops mid-write_file on
-            // big SEO/auto-fix passes — the model would emit a partial
-            // tool_use and stop_reason would flip to 'max_tokens', breaking
-            // the loop without ever calling done(). Sonnet 4.6 supports up
-            // to 64K output if we ever need more.
-            max_tokens: 16000,
+            // 32K output budget. 16K was too tight for multi-page builds:
+            // writing several full HTML pages in one turn blew the cap
+            // mid-write_file, flipping stop_reason to 'max_tokens' and bailing
+            // with "output token cap hit" before any page landed. A single
+            // page is 3-8K tokens, so 32K comfortably fits 3-4 pages/turn and
+            // the loop finishes the rest across iterations. Sonnet/Opus 4.x
+            // support up to 64K if we ever need more.
+            max_tokens: 32000,
             system: systemPrompt,
             tools: TOOLS,
             messages,
