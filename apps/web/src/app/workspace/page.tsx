@@ -1349,6 +1349,10 @@ function WorkspaceContent() {
   // see the throttle effect below — binding srcDoc straight to `html`
   // reloaded the iframe once per streaming SSE delta.
   const [previewHtml, setPreviewHtml] = useState('')
+  // Runtime errors captured from the live preview iframe (window.onerror /
+  // unhandledrejection). Surfaced as a "Fix with AI" banner that feeds the
+  // error straight to the agent — the closed loop Lovable/Replit have.
+  const [previewErrors, setPreviewErrors] = useState<Array<{ message: string; line: number | null; stack: string | null; at: number }>>([])
   const [isGenerating, setIsGenerating] = useState(false)
   const [buildPhase, setBuildPhase] = useState<BuildPhase>('idle')
   const [currentSteps, setCurrentSteps] = useState<BuildStep[]>(buildSteps)
@@ -3358,6 +3362,16 @@ function WorkspaceContent() {
       if (previewWin && event.source !== previewWin) return
       if (event.data?.type === 'console') {
         addConsoleLog(event.data.level || 'log', event.data.message, 'iframe')
+      } else if (event.data?.type === 'webstew:preview-error') {
+        // A runtime error fired in the live preview. Stash the latest few so
+        // the user can one-click "Fix with AI" (feeds it to the agent).
+        const err = event.data.error
+        if (err?.message) {
+          setPreviewErrors(prev => {
+            if (prev.some(e => e.message === err.message)) return prev
+            return [...prev.slice(-4), { message: String(err.message), line: err.line ?? null, stack: err.stack ?? null, at: Date.now() }]
+          })
+        }
       } else if (event.data?.type === 'element-edited') {
         // Handle live edit from iframe
         const { oldContent, newContent, element } = event.data
@@ -4382,9 +4396,23 @@ ${html}
       window.parent.postMessage({ type: 'console', level, message: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') }, '*');
     };
   });
-  window.onerror = function(msg, url, line) {
+  window.onerror = function(msg, url, line, col, err) {
     window.parent.postMessage({ type: 'console', level: 'error', message: msg + ' (line ' + line + ')' }, '*');
+    // Structured runtime-error signal → parent shows a "Fix with AI" affordance.
+    window.parent.postMessage({ type: 'webstew:preview-error', error: {
+      message: String(msg), line: line || null, col: col || null,
+      stack: (err && err.stack) ? String(err.stack).slice(0, 1200) : null,
+    } }, '*');
   };
+  window.addEventListener('unhandledrejection', function(e) {
+    var reason = e && e.reason;
+    var message = reason && reason.message ? reason.message : String(reason);
+    window.parent.postMessage({ type: 'console', level: 'error', message: 'Unhandled promise rejection: ' + message }, '*');
+    window.parent.postMessage({ type: 'webstew:preview-error', error: {
+      message: 'Unhandled promise rejection: ' + message, line: null, col: null,
+      stack: (reason && reason.stack) ? String(reason.stack).slice(0, 1200) : null,
+    } }, '*');
+  });
 
   // ========== RIGHT-CLICK CONTEXT MENU (always active) ==========
   // Generate unique CSS selector for an element
@@ -6154,9 +6182,24 @@ ${html}
     }
   }
 
+  // Feed a captured preview runtime error to the agent as a fix request.
+  const fixPreviewError = () => {
+    if (previewErrors.length === 0 || isGenerating || isThinking) return
+    const latest = previewErrors[previewErrors.length - 1]
+    const detail = latest.stack
+      ? `${latest.message}\n\nStack:\n${latest.stack}`
+      : latest.line != null ? `${latest.message} (line ${latest.line})` : latest.message
+    handleChatMessage(
+      `The live preview is throwing a runtime error. Find the cause in the code and fix it — change only what's needed.\n\nError:\n${detail}`,
+    )
+  }
+
   // Handle conversational chat with AI assistant
   const handleChatMessage = async (message: string) => {
     if (!message.trim() || isGenerating || isThinking) return
+    // New turn — clear stale preview errors; they'll re-surface if the new
+    // code still throws.
+    setPreviewErrors([])
 
     // (Mobile auto-collapse-sidebar removed — was suspect for header+blank
     // +footer regression where streaming HTML stopped arriving after the
@@ -11818,6 +11861,36 @@ npx eas build --platform all
                       <ImagePlus className="w-10 h-10 text-violet-400 mx-auto mb-2" />
                       <p className="text-white font-medium">Drop to replace image</p>
                       <p className="text-zinc-400 text-xs mt-1">The first image will be replaced</p>
+                    </div>
+                  </div>
+                )}
+                {/* Runtime-error → AI fix loop. Captured from the live preview
+                    via window.onerror/unhandledrejection (website target's
+                    srcDoc injection). One click feeds it to the agent. */}
+                {buildTarget === 'website' && previewErrors.length > 0 && (
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-50 w-[min(92%,520px)]">
+                    <div className="rounded-xl border border-red-500/30 bg-zinc-900/95 backdrop-blur px-3 py-2.5 shadow-xl shadow-black/40">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[12px] font-medium text-red-300">
+                            {previewErrors.length > 1 ? `${previewErrors.length} runtime errors` : 'Runtime error'} in preview
+                          </div>
+                          <div className="text-[11px] text-zinc-400 truncate font-mono">{previewErrors[previewErrors.length - 1].message}</div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={fixPreviewError}
+                            disabled={isGenerating || isThinking}
+                            className="rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-50 px-2.5 py-1 text-[11px] font-semibold text-white flex items-center gap-1"
+                          >
+                            <Sparkles className="w-3 h-3" /> Fix with AI
+                          </button>
+                          <button onClick={() => setPreviewErrors([])} className="text-zinc-500 hover:text-zinc-300 p-1" title="Dismiss">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
