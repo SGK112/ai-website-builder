@@ -136,7 +136,34 @@ async function loadProfile(username: string): Promise<ProfileData | null> {
     .limit(60)
     .toArray()
 
-  if (posts.length === 0) return null
+  if (posts.length === 0) {
+    // No community listings under this handle yet. Rather than 404 a real
+    // member (e.g. someone who's built sites but never published to the
+    // community), fall back to their User doc and render a profile with an
+    // empty catalog. Only 404 when no such user exists at all. Username is
+    // the email-prefix, so match users whose email starts with "<handle>@".
+    const escaped = username.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&')
+    const userDoc = await db.collection('users').findOne(
+      { email: new RegExp('^' + escaped + '@', 'i') },
+      { projection: { bio: 1, tagline: 1, avatar: 1, name: 1 } }
+    )
+    if (!userDoc) return null
+    return {
+      username,
+      author: {
+        id: String(userDoc._id),
+        name: userDoc.name || username,
+        username,
+        avatar: userDoc.avatar,
+        bio: userDoc.bio || '',
+        tagline: userDoc.tagline || '',
+      },
+      listings: [],
+      totalViews: 0,
+      totalLikes: 0,
+      firstSeenAt: null,
+    }
+  }
 
   const first = posts[0]
 
@@ -288,11 +315,20 @@ export default async function PublicProfilePage({ params }: PageProps) {
           </div>
         </header>
 
-        {/* Listings grid */}
+        {/* Listings grid — or a friendly empty state for members who haven't
+            published to the community yet (so the profile doesn't look broken). */}
         <section>
           <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-4">
             Public sites
           </h2>
+          {data.listings.length === 0 ? (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-8 text-center">
+              <Sparkles className="w-6 h-6 text-violet-400 mx-auto mb-3" />
+              <p className="text-sm text-zinc-400">
+                No public sites yet — anything {data.author.name} publishes to the community will show up here.
+              </p>
+            </div>
+          ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {data.listings.map((l) => (
               <Link
@@ -330,6 +366,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
               </Link>
             ))}
           </div>
+          )}
         </section>
 
         {/* CTA — turn viewers into authors */}

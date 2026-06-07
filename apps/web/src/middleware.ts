@@ -107,6 +107,18 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // ── Bot/scanner probe short-circuit ───────────────────────────────────────
+  // Vulnerability scanners constantly hammer WordPress / PHP / dotfile paths
+  // (e.g. /wp-admin/install.php, /xmlrpc.php, /.env, /.git/config). This is a
+  // Next.js app — none of these exist, but the default 404 renders the full
+  // ~41KB app shell, so every bot probe burns real bandwidth. Return a bare
+  // 404 instead. Reached only AFTER the published-site rewrite above, so a
+  // user's *.webstew.app site is never affected. High-confidence patterns only.
+  if (/^\/(wp-admin|wp-login|wp-includes|wp-content|wordpress|xmlrpc\.php|\.env|\.git\b)/i.test(pathname)
+      || /\.php$/i.test(pathname)) {
+    return new NextResponse('Not Found', { status: 404, headers: { 'Cache-Control': 'public, max-age=86400' } })
+  }
+
   const isGatedPage = GATED_PAGE_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'))
   const isGatedApi = GATED_API_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'))
 

@@ -111,7 +111,11 @@ async function uploadToCloudinary(
   const uint8Array = new Uint8Array(buffer)
   const blob = new Blob([uint8Array], { type: mimeType })
   formData.append('file', blob, filename)
-  formData.append('upload_preset', 'ml_default') // You may need to configure this
+  // NOTE: do NOT send upload_preset here. This is a SIGNED upload (api_key +
+  // signature + timestamp). 'ml_default' is Cloudinary's *unsigned* preset;
+  // including it makes Cloudinary expect it inside the signature, but the
+  // signature below only covers folder+timestamp → "Invalid Signature".
+  // Signed uploads don't need a preset, so we omit it entirely.
 
   // Add folder based on project
   if (projectId) {
@@ -143,7 +147,7 @@ async function uploadToCloudinary(
   if (!response.ok) {
     const error = await response.text()
     console.error('Cloudinary error:', error)
-    throw new Error('Cloudinary upload failed')
+    throw new Error(`Cloudinary upload failed (${response.status}): ${error.slice(0, 300)}`)
   }
 
   const data = await response.json()
