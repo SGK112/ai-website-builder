@@ -9953,12 +9953,21 @@ npx eas build --platform all
                     <div className={cn("p-3 rounded-lg border text-[11px] space-y-2", isDark ? "bg-cyan-500/5 border-cyan-500/20" : "bg-cyan-50 border-cyan-200")}>
                       <div className={cn("font-medium", isDark ? "text-cyan-300" : "text-cyan-800")}>Embed this once in your site:</div>
                       <pre className={cn("p-2 rounded overflow-x-auto whitespace-pre-wrap break-all text-[10px] leading-snug", isDark ? "bg-black/40 text-zinc-300" : "bg-white text-slate-700 border border-slate-200")}>{backendSnippet(backendInfo)}</pre>
-                      <button
-                        onClick={async () => { try { await navigator.clipboard.writeText(backendSnippet(backendInfo)); addToast('success', 'Snippet copied') } catch {} }}
-                        className={cn("px-2 py-1 rounded text-[10px] font-medium", isDark ? "bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" : "bg-cyan-100 text-cyan-700 hover:bg-cyan-200")}
-                      >Copy snippet</button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={async () => { try { await navigator.clipboard.writeText(backendSnippet(backendInfo)); addToast('success', 'Snippet copied') } catch {} }}
+                          className={cn("px-2 py-1 rounded text-[10px] font-medium", isDark ? "bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" : "bg-cyan-100 text-cyan-700 hover:bg-cyan-200")}
+                        >Copy snippet</button>
+                        {/* Data Studio — view/edit the app's data + manage secrets */}
+                        <a
+                          href={`/backend?appId=${encodeURIComponent(backendInfo.appId)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={cn("px-2 py-1 rounded text-[10px] font-medium", isDark ? "bg-white/5 text-cyan-200 hover:bg-white/10" : "bg-slate-100 text-cyan-700 hover:bg-slate-200")}
+                        >Open Data Studio →</a>
+                      </div>
                       <p className={cn("text-[10px]", isDark ? "text-zinc-500" : "text-slate-500")}>
-                        Then call <code>WebstewDB.create(&apos;todos&apos;, {'{...}'})</code>, <code>.list()</code>, <code>.login()</code>, etc.
+                        Then call <code>WebstewDB.create(&apos;todos&apos;, {'{...}'})</code>, <code>.list()</code>, <code>.login()</code>, etc. · View data + add secrets in Data Studio.
                       </p>
                     </div>
                   )}
