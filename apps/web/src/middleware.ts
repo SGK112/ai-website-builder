@@ -107,6 +107,27 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // ── Custom-domain hosting ─────────────────────────────────────────────────
+  // A bought/connected custom domain (acme.com) is attached to the Render
+  // service and its DNS points here. Render only forwards a host to us once
+  // it's been added to the service, so any host that isn't one of ours is a
+  // real custom domain → serve its mapped published site via /sites/by-host
+  // (which looks up published_sites.customDomain === host). The whole domain
+  // shows ONLY the published site — never the Webstew app chrome.
+  const isWebstewHost =
+    bareHost === 'localhost' || bareHost === '127.0.0.1' ||
+    bareHost === 'webstew.net' || bareHost.endsWith('.webstew.net') ||
+    bareHost.endsWith('.' + PUBLISH_DOMAIN) || bareHost.endsWith('.onrender.com')
+  // Require a letter so bare IPs (Render health checks / direct-IP hits) are
+  // never rewritten — only real hostnames map to a custom-domain site.
+  if (!isWebstewHost && bareHost.includes('.') && /[a-z]/i.test(bareHost) &&
+      !pathname.startsWith('/_next') && !pathname.startsWith('/api/') &&
+      !pathname.startsWith('/s/') && !pathname.startsWith('/sites/by-host')) {
+    const url = request.nextUrl.clone()
+    url.pathname = pathname === '/' ? '/sites/by-host' : `/sites/by-host${pathname}`
+    return NextResponse.rewrite(url)
+  }
+
   // ── Bot/scanner probe short-circuit ───────────────────────────────────────
   // Vulnerability scanners constantly hammer WordPress / PHP / dotfile paths
   // (e.g. /wp-admin/install.php, /xmlrpc.php, /.env, /.git/config). This is a

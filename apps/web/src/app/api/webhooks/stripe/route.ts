@@ -8,6 +8,7 @@ import { connectDB } from '@/lib/db'
 import { User } from '@ai-website-builder/database'
 import clientPromise from '@/lib/mongodb'
 import { registerDomain, autoConfigureDns } from '@/lib/domains'
+import { attachDomainToSharedService } from '@/lib/render-domains'
 
 // Marketplace collections (template_purchases, marketplace_purchases,
 // community_posts, payouts_log) live in the dedicated 'ai-website-builder'
@@ -106,35 +107,35 @@ export async function POST(req: NextRequest) {
               // Idempotent: only fulfill an order that's still pending.
               const order = await db.collection('domain_orders').findOne({ stripeSessionId: sess.id })
               if (order && order.status === 'pending') {
-                // Point DNS at wherever the site is served: the managed publish
-                // subdomain if it exists, else the canonical app host.
-                let target = 'www.webstew.net'
-                if (projectId) {
-                  const pub = await db.collection('published_sites').findOne({ userId, projectId }, { projection: { slug: 1 } })
-                  if (pub?.slug) target = `${pub.slug}.webstew.app`
-                }
+                // One-click custom domain: register it, attach it to the shared
+                // Render service (so Render routes the Host to us + issues TLS),
+                // point DNS at the Render host, and stamp the published site with
+                // customDomain so /sites/by-host can serve it.
                 const reg = await registerDomain(domain)
-                const dns = await autoConfigureDns(domain, target)
+                const attach = await attachDomainToSharedService(domain)
+                const dns = await autoConfigureDns(domain, attach.target)
                 await db.collection('domain_orders').updateOne(
                   { stripeSessionId: sess.id },
                   { $set: {
                       status: reg.ok ? (reg.mock ? 'registered_mock' : 'registered') : 'register_failed',
                       registrar: reg,
+                      render: attach,
                       dns,
-                      target,
+                      target: attach.target,
                       paidAt: new Date(),
                       updatedAt: new Date(),
                   } },
                 )
-                // Attach the custom domain to the published site so it can be
-                // served once DNS propagates.
-                if (projectId) {
-                  await db.collection('published_sites').updateOne(
-                    { userId, projectId },
-                    { $set: { customDomain: domain, customDomainTarget: target, updatedAt: new Date() } },
-                  )
-                }
-                console.log(`[domains] purchased ${domain} → ${target} (mock=${reg.mock})`)
+                // Map the domain → the user's published site so the by-host
+                // route serves it. Prefer the project's published site; else the
+                // user's most recent one.
+                const pubFilter = projectId ? { userId, projectId } : { userId }
+                await db.collection('published_sites').updateOne(
+                  pubFilter,
+                  { $set: { customDomain: domain, customDomainTarget: attach.target, updatedAt: new Date() } },
+                  { sort: { updatedAt: -1 } } as any,
+                )
+                console.log(`[domains] purchased ${domain} → Render(${attach.target}) reg=${reg.ok} attach=${attach.ok} dns=${dns.ok} (mock reg=${reg.mock}/attach=${attach.mock})`)
               }
             }
           } catch (e: any) {
