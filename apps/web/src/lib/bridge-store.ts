@@ -360,7 +360,10 @@ export function dispatchToBridge(
 
   // Timeout safety — if bridge never picks up + responds within window,
   // emit an error and clean up so the agent route's SSE doesn't hang.
-  const timeoutMs = opts.timeoutMs ?? 180_000
+  // Must exceed the bridge runner's own hard cap (270s) so a long-but-healthy
+  // build (e.g. a multi-page site) isn't cut off here while Claude Code is
+  // still streaming. Kept under the route's 300s maxDuration.
+  const timeoutMs = opts.timeoutMs ?? 285_000
   const timeoutTimer = setTimeout(() => {
     if (done) return
     push({
