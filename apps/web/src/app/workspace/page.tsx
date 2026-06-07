@@ -1550,6 +1550,12 @@ function WorkspaceContent() {
     { id: 'home', name: 'Home', slug: 'index', html: '', isHome: true },
   ])
   const [activePageId, setActivePageId] = useState<string>('home')
+  // Index of the page tab currently being dragged (multi-page reorder). The
+  // ref mirrors the state synchronously so the drop handler reads the correct
+  // source index even when dragstart→drop fire in the same tick (state setters
+  // are async); the state drives the drag-opacity visual.
+  const [draggedPageIndex, setDraggedPageIndex] = useState<number | null>(null)
+  const draggedPageIndexRef = useRef<number | null>(null)
 
   // User-saved blocks library — sections/components plucked from generated sites
   // for reuse. Persists to localStorage so it survives reloads.
@@ -1759,6 +1765,82 @@ function WorkspaceContent() {
       addToast('success', `Added page "${trimmed}" — describe it in chat to generate`)
     }
   }, [pages, activePageId, html, syncPageNav])
+
+  // slug from a display name — same rules addNewPage uses.
+  const nameToSlug = (name: string) =>
+    name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+
+  // Commit a transformed pages list, re-sync nav links across all pages (so a
+  // rename / home-change / reorder updates every menu), and keep the live
+  // editor html in sync when the active page's html changed. Shared tail for
+  // renamePage / setHomePage. Mirrors syncNavAcrossPages' html-sync handling.
+  const commitPagesWithNav = useCallback((transformed: ProjectPage[], successMsg: string) => {
+    const meta = transformed.map(p => ({ name: p.name, slug: p.slug, isHome: p.isHome }))
+    const synced = transformed.map(p => ({ ...p, html: syncPageNav(p.html, meta, p.slug) }))
+    setPages(synced)
+    const newActive = synced.find(p => p.id === activePageId)
+    if (newActive && newActive.html !== html) {
+      setHtml(newActive.html)
+      const entry: HistoryEntry = { html: newActive.html, prompt: successMsg, timestamp: new Date() }
+      setHistory(prev => [...prev.slice(-29), entry])
+      setHistoryIndex(prev => Math.min(prev + 1, 29))
+    }
+    addToast('success', successMsg)
+  }, [activePageId, html, syncPageNav])
+
+  // Rename a page (and re-slug non-home pages). Home keeps slug 'index'.
+  const renamePage = useCallback((pageId: string, rawName: string) => {
+    const name = rawName.trim()
+    if (!name) return
+    const target = pages.find(p => p.id === pageId)
+    if (!target || name === target.name) return
+    let slug = target.slug
+    if (!target.isHome) {
+      const candidate = nameToSlug(name) || target.slug
+      slug = pages.some(p => p.id !== pageId && p.slug === candidate) ? target.slug : candidate
+    }
+    // Snapshot live editor html into the active page first.
+    const snapshot = pages.map(p => p.id === activePageId ? { ...p, html } : p)
+    const renamed = snapshot.map(p => p.id === pageId ? { ...p, name, slug } : p)
+    commitPagesWithNav(renamed, `Renamed to "${name}"`)
+  }, [pages, activePageId, html, commitPagesWithNav])
+
+  // Promote a page to home: it becomes isHome (slug 'index'); the old home is
+  // demoted to a normal page with a name-derived slug (so it stops colliding
+  // on index.html at publish time).
+  const setHomePage = useCallback((pageId: string) => {
+    const target = pages.find(p => p.id === pageId)
+    if (!target || target.isHome) return
+    const snapshot = pages.map(p => p.id === activePageId ? { ...p, html } : p)
+    const used = new Set(snapshot.filter(p => p.id !== pageId).map(p => p.slug))
+    const remapped = snapshot.map(p => {
+      if (p.id === pageId) return { ...p, isHome: true, slug: 'index' }
+      if (p.isHome) {
+        // Demote old home — give it a non-'index' slug derived from its name.
+        let s = nameToSlug(p.name) || 'home'
+        if (s === 'index') s = 'home'
+        while (used.has(s)) s = `${s}-1`
+        used.add(s)
+        return { ...p, isHome: false, slug: s }
+      }
+      return p
+    })
+    commitPagesWithNav(remapped, `"${target.name}" is now the home page`)
+  }, [pages, activePageId, html, commitPagesWithNav])
+
+  // Reorder pages (drag tabs). Purely structural — sets publish/tab order; nav
+  // menu order is left to the explicit "Sync nav" button so hand-tuned menus
+  // aren't clobbered on every drag.
+  const reorderPages = useCallback((fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return
+    setPages(prev => {
+      if (fromIndex < 0 || fromIndex >= prev.length || toIndex < 0 || toIndex >= prev.length) return prev
+      const next = [...prev]
+      const [moved] = next.splice(fromIndex, 1)
+      next.splice(toIndex, 0, moved)
+      return next
+    })
+  }, [])
 
   // ===== Saved blocks: load, persist, save, insert, delete =====
   useEffect(() => {
@@ -6167,9 +6249,28 @@ ${html}
         .map(m => ({ role: m.role as 'user' | 'assistant', content: typeof m.content === 'string' ? m.content : String(m.content || '') }))
         .filter(m => m.content.trim().length > 0)
 
+      // Map a page → its filename in the agent VFS. Home is always index.html;
+      // every other page is <slug>.html. This is the contract the agent route's
+      // WEBSITE_MULTIPAGE_GUIDE describes, and what reconcileWebsitePages below
+      // reverses when the agent's edits stream back.
+      const fileForPage = (p: ProjectPage) => (p.isHome ? 'index.html' : `${p.slug}.html`)
+      // For the website target, send ALL pages (not just the active one) so the
+      // agent can read, edit, create, and delete pages across the whole site.
+      // The active page uses the live editor `html` (may be newer than pages[].html
+      // until the next switch/save); siblings use their stored html.
       const agentFiles = buildTarget === 'website'
-        ? { 'index.html': html }
+        ? (pages.length > 0
+            ? Object.fromEntries(pages.map(p => [fileForPage(p), p.id === activePageId ? html : p.html]))
+            : { 'index.html': html })
         : vfsFiles
+      // Reverse lookup (filename → existing pageId) so streamed file_update /
+      // file_delete events can be routed to the right page. Computed from the
+      // pages snapshot at turn start; mutations are staged and applied post-turn.
+      const pageFileToId = new Map<string, string>()
+      if (buildTarget === 'website') {
+        for (const p of pages) pageFileToId.set(fileForPage(p), p.id)
+      }
+      const homePageId = pages.find(p => p.isHome)?.id || 'home'
       // ── Resilient agent turn ────────────────────────────────────────────
       // Runs one /api/builder/agent SSE turn. When the local bridge is asked
       // for (viaBridge) but drops (route 503s) or wedges (route emits an
@@ -6180,6 +6281,12 @@ ${html}
         '⚠️ Local bridge did not respond within 180s. Check that webstew-bridge connect … is running in your terminal.'
       let committedHtml: string | null = null
       let placeholderAdded = false
+      // Multi-page reconciliation accumulators (website target). Live across
+      // a bridge→API failover (both attempts write into the same maps; the
+      // successful attempt's events win). Applied once after the turn settles.
+      const pageEdits = new Map<string, string>()      // existing pageId → new html
+      const newPageFiles = new Map<string, string>()   // brand-new <slug>.html → html
+      const deletedPageIds = new Set<string>()         // existing pageId to remove
 
       const streamAgentTurn = async (
         viaBridge: boolean,
@@ -6244,6 +6351,11 @@ ${html}
         let toolStatus = ''
         let latestHtml: string | null = null
         let wroteAnyFile = false
+        // Website target renders ONE inline index.html via srcDoc. If the agent
+        // (esp. the bridge's full Claude Code session) splits work into sibling
+        // files the preview can't load, track them so we warn honestly instead
+        // of flashing a false "✅ Done".
+        const websiteDroppedPaths: string[] = []
 
         // Insert a placeholder assistant message we'll mutate as events
         // arrive — but only once. On a bridge→API failover we reuse the
@@ -6317,9 +6429,28 @@ ${html}
               flushAssistant(renderProgress())
             } else if (evtName === 'file_update') {
               if (typeof payload.contents === 'string' && typeof payload.path === 'string') {
-                if (buildTarget === 'website' && payload.path === 'index.html') {
-                  latestHtml = payload.contents
-                } else if (buildTarget !== 'website') {
+                if (buildTarget === 'website') {
+                  const path = String(payload.path).replace(/^\.?\//, '')
+                  if (/\.html?$/i.test(path)) {
+                    // Each .html file IS a page. Route it: the active page drives
+                    // the live preview (latestHtml → committed at turn end); other
+                    // existing pages are staged into pageEdits; an .html with no
+                    // matching page is a brand-new page the agent created.
+                    const existingId =
+                      pageFileToId.get(path) ||
+                      (path === 'index.html' ? homePageId : undefined)
+                    if (existingId === activePageId) {
+                      latestHtml = payload.contents
+                    } else if (existingId) {
+                      pageEdits.set(existingId, payload.contents)
+                    } else {
+                      newPageFiles.set(path, payload.contents)
+                    }
+                  } else {
+                    // Sibling CSS/JS/asset the single-file srcDoc preview can't load.
+                    websiteDroppedPaths.push(path)
+                  }
+                } else {
                   // Multi-file VFS update — apply immediately so the WebContainer
                   // preview HMR / file watcher picks up the change.
                   setVfsFiles(prev => ({ ...prev, [payload.path]: payload.contents }))
@@ -6327,7 +6458,15 @@ ${html}
                 wroteAnyFile = true
               }
             } else if (evtName === 'file_delete') {
-              if (buildTarget !== 'website' && typeof payload.path === 'string') {
+              if (buildTarget === 'website' && typeof payload.path === 'string') {
+                // Deleting <slug>.html removes that page (never the home page).
+                const path = String(payload.path).replace(/^\.?\//, '')
+                const id = pageFileToId.get(path)
+                if (id && id !== homePageId) {
+                  deletedPageIds.add(id)
+                  wroteAnyFile = true
+                }
+              } else if (buildTarget !== 'website' && typeof payload.path === 'string') {
                 setVfsFiles(prev => {
                   const next = { ...prev }
                   delete next[payload.path]
@@ -6377,8 +6516,21 @@ ${html}
               streamDone = true
               toolStatus = ''
               const summary = payload.summary || 'Done.'
-              const final = [textBuf.trim(), wroteAnyFile ? `✅ ${summary}` : summary]
-                .filter(Boolean).join('\n\n')
+              // Honesty guard: on the website target the agent may report
+              // success while every change it made went to sibling files the
+              // single-file srcDoc preview can't render. Don't claim "✅ Done"
+              // — name the files and tell the user how to make it stick.
+              // Only warn "nothing landed" when NO page changed at all — edits to
+              // a non-active page (pageEdits/newPageFiles/deletes) are real work
+              // even though latestHtml (the active page) stayed null.
+              const anyPageChange =
+                latestHtml != null || pageEdits.size > 0 || newPageFiles.size > 0 || deletedPageIds.size > 0
+              const droppedOnly =
+                buildTarget === 'website' && !anyPageChange && websiteDroppedPaths.length > 0
+              const note = droppedOnly
+                ? `⚠️ I edited ${websiteDroppedPaths.join(', ')}, but this site renders a single inline **index.html** — separate files don't show in the preview. Ask me to fold those changes directly into index.html.`
+                : (wroteAnyFile ? `✅ ${summary}` : summary)
+              const final = [textBuf.trim(), note].filter(Boolean).join('\n\n')
               flushAssistant(final || summary)
             } else if (evtName === 'error') {
               streamDone = true
@@ -6420,6 +6572,55 @@ ${html}
         // left broken JS / unclosed tags behind. Best-effort, runs after the
         // commit so the preview shows immediately then quietly corrects.
         void runOwlSelfHeal(committedHtml)
+      }
+
+      // ── Reconcile multi-page edits (website target) ──────────────────────
+      // The agent may have edited sibling pages, created new ones, or deleted
+      // pages. Fold all of that back into the pages[] state in one update so
+      // the page tabs, persistence, and publish all reflect the new structure.
+      if (buildTarget === 'website' && (pageEdits.size || newPageFiles.size || deletedPageIds.size)) {
+        setPages(prevPages => {
+          // 1. Apply edits to existing (non-active) pages. The active page's
+          //    edit already went through setHtml(committedHtml) above; mirror it
+          //    into its pages[] entry too so a later page-switch doesn't revert it.
+          let next = prevPages.map(p => {
+            if (pageEdits.has(p.id)) return { ...p, html: pageEdits.get(p.id)! }
+            if (p.id === activePageId && committedHtml) return { ...p, html: committedHtml }
+            return p
+          })
+          // 2. Remove deleted pages (never the home page).
+          if (deletedPageIds.size) {
+            next = next.filter(p => !(deletedPageIds.has(p.id) && !p.isHome))
+          }
+          // 3. Add brand-new pages the agent created.
+          let createdCount = 0
+          for (const [fname, contents] of newPageFiles) {
+            const slug = fname.replace(/\.html?$/i, '').toLowerCase()
+            if (slug === 'index' || next.some(p => p.slug === slug)) continue
+            const name = slug
+              .split('-')
+              .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+              .join(' ') || slug
+            next.push({
+              id: `page-${Date.now()}-${createdCount}`,
+              name,
+              slug,
+              html: contents,
+              isHome: false,
+            })
+            createdCount++
+          }
+          return next
+        })
+        const created = newPageFiles.size
+        const edited = pageEdits.size
+        const removed = deletedPageIds.size
+        const bits = [
+          created ? `added ${created} page${created === 1 ? '' : 's'}` : '',
+          edited ? `updated ${edited}` : '',
+          removed ? `removed ${removed}` : '',
+        ].filter(Boolean)
+        if (bits.length) addToast('success', `Pages: ${bits.join(', ')}.`)
       }
       setConversationIntent(null)
 
@@ -11168,31 +11369,59 @@ npx eas build --platform all
             "flex items-stretch gap-0 px-3 border-b overflow-x-auto",
             isDark ? "bg-zinc-950/80 border-white/5" : "bg-slate-50 border-slate-200"
           )}>
-            {pages.map(page => {
+            {pages.map((page, pageIndex) => {
               const active = page.id === activePageId
+              const dragging = draggedPageIndex === pageIndex
               return (
                 <div
                   key={page.id}
+                  draggable
+                  onDragStart={(e) => { draggedPageIndexRef.current = pageIndex; setDraggedPageIndex(pageIndex); e.dataTransfer.effectAllowed = 'move' }}
+                  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    const from = draggedPageIndexRef.current
+                    if (from !== null) reorderPages(from, pageIndex)
+                    draggedPageIndexRef.current = null
+                    setDraggedPageIndex(null)
+                  }}
+                  onDragEnd={() => { draggedPageIndexRef.current = null; setDraggedPageIndex(null) }}
                   className={cn(
-                    "group flex items-center gap-1 pl-3 pr-1 py-2 border-r first:border-l text-xs cursor-pointer transition-colors",
+                    "group flex items-center gap-1 pl-3 pr-1 py-2 border-r first:border-l text-xs cursor-pointer transition-colors select-none",
                     isDark ? "border-white/5" : "border-slate-200",
+                    dragging && "opacity-40",
                     active
                       ? (isDark ? "bg-zinc-900 text-white border-b-2 border-b-violet-500 -mb-px" : "bg-white text-slate-900 border-b-2 border-b-violet-600 -mb-px")
                       : (isDark ? "text-zinc-400 hover:bg-white/5 hover:text-white" : "text-slate-500 hover:bg-white hover:text-slate-900")
                   )}
                   onClick={() => switchToPage(page.id)}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation()
+                    const name = prompt(`Rename "${page.name}"`, page.name)
+                    if (name) renamePage(page.id, name)
+                  }}
+                  title="Drag to reorder · double-click to rename"
                 >
                   {page.isHome && <Home className="w-3 h-3 shrink-0" />}
                   <span className="font-medium">{page.name}</span>
                   <span className={cn("text-[10px] font-mono", isDark ? "text-zinc-600" : "text-slate-400")}>/{page.slug}</span>
                   {!page.isHome && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); deletePage(page.id) }}
-                      className="ml-1 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition"
-                      title={`Delete ${page.name}`}
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
+                    <>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setHomePage(page.id) }}
+                        className="ml-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-violet-500/20 text-zinc-500 hover:text-violet-400 transition"
+                        title={`Make "${page.name}" the home page`}
+                      >
+                        <Home className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deletePage(page.id) }}
+                        className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition"
+                        title={`Delete ${page.name}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </>
                   )}
                 </div>
               )

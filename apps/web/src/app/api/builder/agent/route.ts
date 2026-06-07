@@ -118,6 +118,24 @@ OUTPUT FORMAT:
 - Call \`done\` exactly ONCE at the end with a 1-sentence summary.
 - After calling done, the loop terminates — no further work possible. So don't call done prematurely OR delay it.`
 
+// Appended only for the static website target. Teaches the agent the
+// one-file-per-page model the workspace reconciles back into page tabs.
+const WEBSITE_MULTIPAGE_GUIDE = `
+
+MULTI-PAGE WEBSITES (this project's target is "website"):
+- This is a static multi-page site. EACH .html file is ONE PAGE.
+  • index.html  = the home page
+  • <slug>.html = every other page (about.html, services.html, contact.html, …)
+- ADD a page: write_file('<slug>.html', <a COMPLETE standalone HTML document>). Derive <slug> from the page name — lowercase, words joined by hyphens (e.g. "Our Team" → team.html).
+- EDIT a page: edit/write the matching file (index.html for home, <slug>.html otherwise).
+- DELETE a page: delete_file('<slug>.html'). You cannot delete index.html (the home page).
+- Each .html file is served independently, so it MUST be a full document: <!doctype html> … <head> … </head> … <body> … </body></html>. Repeat the shared <style>/CDN <link>/nav markup in every page so they look consistent.
+- NAVIGATION — critical: every page shares the same nav, and links point to siblings by PRETTY path WITHOUT the .html extension:
+  • home → href="/"
+  • other → href="/<slug>"   (e.g. href="/about", href="/services")
+  The host serves "/about" from about.html automatically. When you ADD or REMOVE a page, update the nav on EVERY page so the menu stays in sync.
+- When the user asks for a multi-page site ("add an about page", "make a 4-page site for a dentist"), create ALL the pages as separate .html files in THIS turn and wire the nav across them before calling done. Don't stop after one page.`
+
 interface AgentRequest {
   prompt: string
   files?: Record<string, string>
@@ -420,6 +438,7 @@ export async function POST(req: NextRequest) {
     SYSTEM_PROMPT_BASE +
     verbosityOverride +
     (body.target ? `\n\nPROJECT TYPE: ${body.target}` : '') +
+    (body.target === 'website' ? WEBSITE_MULTIPAGE_GUIDE : '') +
     (Object.keys(vfsFiles).length > 0
       ? `\n\nCURRENT FILE COUNT: ${Object.keys(vfsFiles).length} files. Call list_files() to see them.`
       : '\n\nNOTE: project has NO files yet. You may need to call write_file to create them from scratch.')
