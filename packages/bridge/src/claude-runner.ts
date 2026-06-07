@@ -406,7 +406,10 @@ buy (Stripe Connect, 30% platform fee). Read-only from chat.
 
 Working dir: this dir IS the project. No \`cd\`.
 ${target === 'website' || !target
-  ? '- One file: `index.html`. Tailwind via CDN, vanilla JS. Edit in place.'
+  ? '- **One `.html` file PER PAGE.** `index.html` = home; every other page is `<slug>.html` (`about.html`, `services.html`, `contact.html`, …). The workspace turns each `.html` file into a page tab, so adding `about.html` adds an About page. Don\'t rename or delete `index.html` (it\'s the home page).\n'
+    + '- **Each page is a COMPLETE standalone document** (`<!doctype html>` … `</html>`). Keep ALL CSS in an inline `<style>` and ALL JS in an inline `<script>` (Tailwind via CDN is fine). Repeat the shared nav + styles in every page so they stay consistent.\n'
+    + '- **NEVER create separate asset files** (`style.css`, `app.js`, images, etc.). The live preview renders each page as a standalone inline document and CANNOT load sibling assets — only `.html` pages are visible. A `style.css` you write is INVISIBLE; inline it instead.\n'
+    + '- **Nav links use pretty paths WITHOUT `.html`:** home → `href="/"`, others → `href="/<slug>"` (e.g. `/about`). When you add or remove a page, update the nav on EVERY page so the menu stays in sync.'
   : '- Multi-file. Run `Glob \"**/*\"` once if you don\'t know the layout.'}
 ${target === 'expo' ? `
 ## ⚠ EXPO — FILE WRITES ONLY, NO SHELL COMMANDS
