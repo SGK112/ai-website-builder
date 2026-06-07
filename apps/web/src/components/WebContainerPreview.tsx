@@ -988,9 +988,11 @@ function PhonePreviewModal(props: PhonePreviewModalProps) {
                 {isPhone ? (
                   <>
                     {/* Same-device path — the user is on their phone, no
-                        QR scanning needed. Snack's https URL is a
-                        universal link: iOS hands it to Expo Go (when
-                        installed) and runs the app full-screen. */}
+                        QR scanning needed. PRIMARY is the exp:// deep link,
+                        which hands the build straight to Webstew Preview /
+                        Expo Go in one tap (no Snack web page in between).
+                        The https URL is the fallback for when the app isn't
+                        installed yet — it shows Snack's install prompt. */}
                     <Smartphone className="w-10 h-10 text-violet-400 mb-3" />
                     <h3 className="text-white font-semibold text-center mb-1">Open right here</h3>
                     <p className="text-[12px] text-zinc-400 leading-relaxed mb-4 text-center max-w-xs">
@@ -998,19 +1000,26 @@ function PhonePreviewModal(props: PhonePreviewModalProps) {
                       <span className="text-white font-medium"> Webstew Preview</span>.
                     </p>
                     <a
+                      href={snackResult.expoGoUrl}
+                      className="w-full bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold px-4 py-3 rounded-xl flex items-center justify-center gap-2 transition shadow-lg shadow-violet-900/50"
+                    >
+                      <Smartphone className="w-4 h-4" />
+                      Open in Webstew Preview
+                    </a>
+                    <a
                       href={snackResult.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-full bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold px-4 py-3 rounded-xl flex items-center justify-center gap-2 transition shadow-lg shadow-violet-900/50"
+                      className="mt-2 w-full bg-white/5 hover:bg-white/10 text-zinc-200 text-[12px] font-medium px-3 py-2 rounded-lg flex items-center justify-center gap-1.5 transition"
                     >
-                      <ExternalLink className="w-4 h-4" />
-                      Open on this phone
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Open in browser instead
                     </a>
                     <button
                       onClick={copySnackLink}
-                      className="mt-2 w-full bg-white/5 hover:bg-white/10 text-zinc-200 text-[12px] font-medium px-3 py-2 rounded-lg flex items-center justify-center gap-1.5 transition"
+                      className="mt-2 text-[11px] text-zinc-500 hover:text-violet-300 flex items-center justify-center gap-1.5 transition"
                     >
-                      {linkCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      {linkCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                       {linkCopied ? 'Link copied' : 'Or send to someone'}
                     </button>
                   </>
