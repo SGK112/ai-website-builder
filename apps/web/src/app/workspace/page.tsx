@@ -5396,7 +5396,7 @@ ${html}
       // Gate on the DEFINITIVE 'unauthenticated' status, not just !session.user
       // — the latter is also true while useSession is still 'loading', which
       // would flash a "Sign up free" modal at already-logged-in users.
-      if (sessionStatus === 'unauthenticated' && !session?.user) {
+      if (sessionStatus === 'unauthenticated') {
         try {
           const alreadyNudged = sessionStorage.getItem('webstew-anon-nudged') === '1'
           if (!alreadyNudged) {
