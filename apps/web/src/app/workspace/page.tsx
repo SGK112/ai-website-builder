@@ -5393,7 +5393,10 @@ ${html}
       // Anon "first build" nudge — celebrate the win, ask them to claim
       // their account before they walk away. Once per browser session;
       // we don't want to nag every time they iterate.
-      if (!session?.user) {
+      // Gate on the DEFINITIVE 'unauthenticated' status, not just !session.user
+      // — the latter is also true while useSession is still 'loading', which
+      // would flash a "Sign up free" modal at already-logged-in users.
+      if (sessionStatus === 'unauthenticated' && !session?.user) {
         try {
           const alreadyNudged = sessionStorage.getItem('webstew-anon-nudged') === '1'
           if (!alreadyNudged) {
