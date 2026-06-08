@@ -329,6 +329,22 @@ const QUICKSTART_INTENTS: QuickstartIntent[] = [
   { id: 'app',     icon: '⚡', title: 'Web app',      sub: 'Dashboard, tools, SaaS',    target: 'react',   seed: 'I want to build a web app.' },
 ]
 
+// Does a fresh-build request clearly want MORE THAN ONE page? The one-shot
+// generator only ever produces a single index.html (its "multi-page awareness"
+// just links the nav), so we use this to schedule a follow-up agent pass that
+// actually creates the sibling pages. Tuned to avoid false positives — "a
+// landing page about coffee" mentions "about" but isn't multi-page.
+const PAGE_NOUNS = ['about', 'services', 'contact', 'pricing', 'faq', 'blog', 'gallery', 'portfolio', 'menu', 'team', 'products', 'testimonials', 'careers', 'shop']
+function detectMultiPageIntent(prompt: string): boolean {
+  const p = (prompt || '').toLowerCase()
+  if (/\b([2-9]|1[0-9])\s*-?\s*pages?\b/.test(p)) return true        // "4 page", "4-page", "5 pages"
+  if (/\bmulti[\s-]?page\b/.test(p)) return true
+  const hits = new Set(PAGE_NOUNS.filter((w) => new RegExp(`\\b${w}\\b`).test(p)))
+  if (/\bpages?\b/.test(p) && hits.size >= 2) return true            // "home, about, contact pages"
+  if (hits.size >= 3) return true                                    // a strong page list even without the word "page"
+  return false
+}
+
 interface Project {
   id: string
   name: string
@@ -2272,6 +2288,12 @@ function WorkspaceContent() {
   // when a request starts, aborted by the Stop button below the chat
   // input, and cleared when isThinking flips off.
   const agentAbortRef = useRef<AbortController | null>(null)
+  // When a fresh build asked for multiple pages, we stash the original prompt
+  // here. The one-shot generator builds the (high-quality) home page first;
+  // once it lands, an effect fires a follow-up agent pass that creates the
+  // remaining pages matching the home design — so "build a 4-page site"
+  // actually produces 4 pages instead of one with dead nav links.
+  const pendingMultiPageRef = useRef<string | null>(null)
   // Resolve callback for the auto-fix loop Promise. The grader's onAutoFix
   // returns a Promise; this ref holds the resolve so that when isThinking
   // transitions to false, the Promise resolves and the loop can re-grade.
@@ -6321,6 +6343,9 @@ ${html}
         // would rather see something and refine it than answer questions
         // before anything appears. Thin prompts still produce a real first
         // draft the user can iterate on in chat.
+        // Multi-page intent → after the home page lands, an effect (below)
+        // fires a follow-up pass that builds the rest of the pages.
+        pendingMultiPageRef.current = detectMultiPageIntent(message) ? message : null
         await handleGenerate(message, undefined, { fresh: true })
         return
       }
@@ -6784,6 +6809,30 @@ ${html}
       })
     }, 100)
   }
+
+  // Multi-page follow-up: once the one-shot home page has landed (html set,
+  // build settled), fire a single agent pass that creates the remaining pages
+  // matching it. Routes through handleChatMessage with html present, so it
+  // takes the agent (refine) path that genuinely writes sibling .html files.
+  useEffect(() => {
+    if (buildTarget !== 'website') return
+    if (!pendingMultiPageRef.current) return
+    if (!html || html.length < 200) return            // home build hasn't produced real content yet
+    if (isGenerating || isThinking) return            // wait for the home build to fully settle
+    const original = pendingMultiPageRef.current
+    pendingMultiPageRef.current = null                // clear FIRST so this fires exactly once
+    // Worded to route through the AGENT (refine) path — NOT the fresh-build
+    // regex, which would wipe the home page. So: no "build/make/create … site".
+    const followUp =
+      `Add the other pages as separate complete .html files — About, Services, Contact, or whatever fits (from my request: "${original.slice(0, 200)}"). ` +
+      `Reuse this home page's exact header/nav, footer, fonts, colours and style on every page; only the main content changes per page. Wire the shared nav across all pages with pretty paths (/about, /services, …), and make sure no nav link points to a missing page.`
+    // Tell the user this second pass is intentional (so the follow-up message
+    // doesn't read like a glitch), then fire it once the home state settles.
+    setChatMessages(prev => [...prev, { role: 'assistant', content: '🏗️ Home page is up — now building the rest of your pages to match…' }])
+    const t = setTimeout(() => { void handleChatMessage(followUp) }, 400)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [html, isGenerating, isThinking, buildTarget])
 
   // Image generation handler for conversational flow
   const handleImageGenerate = async (prompt: string) => {
