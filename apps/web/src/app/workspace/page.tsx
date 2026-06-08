@@ -3716,6 +3716,10 @@ function WorkspaceContent() {
             let restoredTarget: BuildTarget | undefined
             let restoredPages: ProjectPage[] | undefined
             let restoredActivePageId: string | undefined
+            // The home page's markup. Auto-save stores it in files['index.html']
+            // (NOT a top-level `html` field), so we MUST read it back from here —
+            // otherwise every auto-saved project loads blank ("no code yet").
+            let restoredHtml = ''
             for (const f of (p.files || [])) {
               if (f.path === '_webstew_meta.json') {
                 try { restoredTarget = JSON.parse(f.content).buildTarget } catch {}
@@ -3727,7 +3731,9 @@ function WorkspaceContent() {
                     restoredActivePageId = parsed.activePageId
                   }
                 } catch {}
-              } else if (f.path !== 'index.html') {
+              } else if (f.path === 'index.html') {
+                restoredHtml = f.content
+              } else {
                 vfsFromFiles[f.path] = f.content
               }
             }
@@ -3747,7 +3753,7 @@ function WorkspaceContent() {
             }
             full = {
               ...project,
-              html: p.html || '',
+              html: p.html || restoredHtml || '',
               envVars: p.envVars || project.envVars || [],
               ...(Object.keys(vfsFromFiles).length > 0 && { vfsFiles: vfsFromFiles, buildTarget: restoredTarget }),
               ...(restoredPages && restoredPages.length > 0 && { pages: restoredPages, activePageId: restoredActivePageId }),
