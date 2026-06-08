@@ -6875,6 +6875,32 @@ ${html}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [html, isGenerating, isThinking, buildTarget])
 
+  // "Your stew is cooked" email — when a build finishes while the user has
+  // stepped away (tab hidden), email them a link. Fires only on the
+  // generating→done transition, only when there's a real result, and never
+  // when the tab is visible (they can see it). Opt out via localStorage.
+  // Server-side throttles to 1/min and no-ops if the mailer isn't configured.
+  const prevGenRef = useRef(false)
+  useEffect(() => {
+    const was = prevGenRef.current
+    prevGenRef.current = isGenerating
+    if (!(was && !isGenerating)) return                                   // only on done transition
+    if (typeof document === 'undefined' || document.visibilityState !== 'hidden') return
+    if (!session?.user) return
+    try { if (localStorage.getItem('webstew-no-build-email') === '1') return } catch {}
+    const hasResult = (html?.trim().length || 0) > 0 || Object.keys(vfsFiles).length > 0
+    if (!hasResult) return
+    fetch('/api/builder/notify', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projectName: projectName || vfsProjectMeta?.name || 'your site',
+        url: publishUrl || undefined,
+        target: buildTarget,
+      }),
+    }).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGenerating])
+
   // Image generation handler for conversational flow
   const handleImageGenerate = async (prompt: string) => {
     setImageGenerating(true)

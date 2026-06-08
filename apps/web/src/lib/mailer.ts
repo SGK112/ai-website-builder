@@ -64,9 +64,28 @@ export interface SendMailArgs {
   text?: string
   html?: string
   replyTo?: string
-  // Overrides SMTP_FROM env when set — useful for "from this project's domain"
-  // sends once domain verification is wired up.
+  // Overrides the resolved from-address when set.
   from?: string
+  // Which verified sender to use. 'noreply' (default) for transactional/
+  // automated mail (build-done, etc.); 'help' for support correspondence the
+  // user can reply to. Resolved from RESEND_FROM_NOREPLY / RESEND_FROM_HELP.
+  kind?: 'noreply' | 'help'
+}
+
+// Resolve the From header. The env vars hold bare addresses
+// (noreply@webstew.net), so we wrap them with a display name unless they
+// already include one. Falls back to legacy RESEND_FROM, then a sane default.
+function resolveFrom(args: SendMailArgs): string {
+  if (args.from) return args.from
+  const wrap = (addr: string | undefined, name: string, fallback: string): string => {
+    const a = (addr || '').trim()
+    if (!a) return fallback
+    return a.includes('<') ? a : `${name} <${a}>`
+  }
+  if (args.kind === 'help') {
+    return wrap(process.env.RESEND_FROM_HELP, 'Webstew Support', process.env.RESEND_FROM || 'Webstew Support <help@webstew.net>')
+  }
+  return wrap(process.env.RESEND_FROM_NOREPLY, 'Webstew', process.env.RESEND_FROM || 'Webstew <noreply@webstew.net>')
 }
 
 export interface SendMailResult {
@@ -83,7 +102,7 @@ export interface SendMailResult {
 async function sendViaResend(args: SendMailArgs): Promise<SendMailResult> {
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) return { ok: false, reason: 'not-configured' }
-  const from = args.from || process.env.RESEND_FROM || 'Webstew <noreply@webstew.net>'
+  const from = resolveFrom(args)
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
