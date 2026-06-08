@@ -7987,10 +7987,13 @@ npx eas build --platform all
               {([
                 { id: 'build' as Panel, icon: Wand2, label: 'Build', color: 'violet', levels: ['no-code','low-code','full-stack'] },
                 { id: 'templates' as Panel, icon: Layout, label: 'Templates', tour: 'templates', color: 'blue', levels: ['no-code','low-code','full-stack'] },
-                { id: 'webstew' as Panel, icon: ChefHat, label: 'Stew', tour: 'webstew', color: 'orange', levels: ['no-code','low-code','full-stack'] },
+                // Stew (component library) + Video are power features — keep
+                // them out of the default no-code surface so the tab bar stays
+                // to the 5 essentials (Build, Templates, Files, Media, Ship).
+                { id: 'webstew' as Panel, icon: ChefHat, label: 'Stew', tour: 'webstew', color: 'orange', levels: ['low-code','full-stack'] },
                 { id: 'projects' as Panel, icon: FolderOpen, label: 'Files', color: 'emerald', levels: ['no-code','low-code','full-stack'] },
                 { id: 'images' as Panel, icon: ImageIcon, label: 'Media', color: 'pink', levels: ['no-code','low-code','full-stack'] },
-                { id: 'video' as Panel, icon: Film, label: 'Video', color: 'purple', levels: ['no-code','low-code','full-stack'] },
+                { id: 'video' as Panel, icon: Film, label: 'Video', color: 'purple', levels: ['low-code','full-stack'] },
                 { id: 'content' as Panel, icon: FileText, label: 'CMS', color: 'pink', levels: ['low-code','full-stack'] },
                 { id: 'integrations' as Panel, icon: Link2, label: 'Plugins', color: 'cyan', levels: ['low-code','full-stack'] },
                 { id: 'env' as Panel, icon: Variable, label: 'Env', color: 'yellow', levels: ['low-code','full-stack'] },
