@@ -102,7 +102,10 @@ export async function POST(req: NextRequest, { params }: { params: { postId: str
     { $inc: { credits: -price }, $set: { updatedAt: new Date() } },
     { returnDocument: 'after', projection: { credits: 1, email: 1, name: 1 } }
   )
-  if (!debit?.value) {
+  // mongodb driver v6: findOneAndUpdate returns the document DIRECTLY (no
+  // {value} wrapper). The old `debit?.value` was always undefined, so every
+  // purchase falsely returned "insufficient credits" — buyers couldn't buy.
+  if (!debit) {
     const user = await userDb.collection('users').findOne({ _id: buyerId }, { projection: { credits: 1 } })
     if (!user) return NextResponse.json({ error: 'Buyer not found' }, { status: 404 })
     return NextResponse.json(
@@ -148,7 +151,7 @@ export async function POST(req: NextRequest, { params }: { params: { postId: str
   return NextResponse.json({
     ok: true,
     purchased: true,
-    creditsRemaining: debit.value.credits,
+    creditsRemaining: debit.credits,
     html: listing.html || '',
     message: `Purchased "${listing.title}" for ${price} credits.`,
   })

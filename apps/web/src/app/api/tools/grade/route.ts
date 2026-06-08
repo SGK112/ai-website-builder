@@ -43,7 +43,9 @@ async function bumpDailyUsage(userId: string): Promise<{ ok: true; count: number
     { $inc: { count: 1 }, $setOnInsert: { userId, dayBucket, createdAt: new Date() }, $set: { updatedAt: new Date() } },
     { upsert: true, returnDocument: 'after' }
   )
-  const count: number = r?.value?.count ?? 1
+  // mongodb driver v6 returns the doc directly (no {value} wrapper); `r.value`
+  // was always undefined, so count defaulted to 1 and the daily cap never bit.
+  const count: number = r?.count ?? 1
   if (count > DAILY_LIMIT) {
     // Decrement back since we tipped over — keeps the counter honest if
     // a different user retries later.

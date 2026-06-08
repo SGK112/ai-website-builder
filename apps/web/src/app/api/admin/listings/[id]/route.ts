@@ -61,7 +61,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     },
     { returnDocument: 'after', projection: { html: 0 } }
   )
-  if (!r?.value) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // mongodb driver v6 returns the doc directly (no {value} wrapper); the old
+  // `r?.value` was always undefined, so every approve/reject 404'd and
+  // listings could never go live.
+  if (!r) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   await audit(`listing.${status}`, params.id, session.user!.email!, body.note)
 
@@ -70,7 +73,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   // Skip seed/dummy accounts (their email domain ends in @webstew.demo and
   // those mailboxes don't exist, would just bounce noise).
   if (status === 'approved' || status === 'rejected') {
-    const post: any = r.value
+    const post: any = r
     void (async () => {
       try {
         const authorId = post?.author?.id
@@ -117,7 +120,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     })()
   }
 
-  return NextResponse.json({ post: r.value })
+  return NextResponse.json({ post: r })
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {

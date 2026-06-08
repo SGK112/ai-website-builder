@@ -94,7 +94,11 @@ export async function POST(req: NextRequest) {
     },
     { returnDocument: 'after' }
   )
-  if (!debit?.value) {
+  // mongodb driver v6: findOneAndUpdate returns the document DIRECTLY (no
+  // {value} wrapper). The old `debit?.value` was always undefined, so every
+  // payout failed with 409 — AFTER the earnings were already decremented,
+  // meaning sellers could lose credits without getting paid.
+  if (!debit) {
     return NextResponse.json({ error: 'Balance changed mid-flight, please retry.' }, { status: 409 })
   }
 
@@ -137,7 +141,7 @@ export async function POST(req: NextRequest) {
       transferId: transfer.id,
       credits: requested,
       amountUsd: cents / 100,
-      balanceRemaining: (debit.value.marketplace_earnings_credits || 0),
+      balanceRemaining: (debit.marketplace_earnings_credits || 0),
     })
   } catch (e: any) {
     // Roll back the credit debit — transfer didn't go.
