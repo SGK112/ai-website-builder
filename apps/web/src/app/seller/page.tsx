@@ -28,8 +28,15 @@ export default function SellerDashboardPage() {
   const [authored, setAuthored] = useState<AuthoredSummary | null>(null)
 
   // Anonymous users can't have sales — redirect to sign-in with a return path.
+  // BUT only after the session has truly settled. useSession can briefly report
+  // 'unauthenticated' during hydration before the cookie-backed session warms
+  // up; redirecting on that flash bounced authenticated users to /login (which
+  // full-page-reloads back here), so the page "wouldn't open" without several
+  // clicks. Defer 700ms and cancel if we settle to authenticated.
   useEffect(() => {
-    if (status === 'unauthenticated') router.replace('/login?callbackUrl=/seller')
+    if (status !== 'unauthenticated') return
+    const t = setTimeout(() => { router.replace('/login?callbackUrl=/seller') }, 700)
+    return () => clearTimeout(t)
   }, [status, router])
 
   // Pull authored count from /api/library — same endpoint /library uses.
