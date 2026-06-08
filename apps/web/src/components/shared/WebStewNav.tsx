@@ -184,7 +184,7 @@ export function WebStewNav() {
                         </div>
                         <div className="p-2">
                           <Link
-                            href="/profile"
+                            href="/profile#profile"
                             onClick={() => setUserMenuOpen(false)}
                             className={cn(
                               'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
@@ -197,7 +197,7 @@ export function WebStewNav() {
                             Profile
                           </Link>
                           <Link
-                            href="/profile?tab=billing"
+                            href="/profile#billing"
                             onClick={() => setUserMenuOpen(false)}
                             className={cn(
                               'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
@@ -210,7 +210,7 @@ export function WebStewNav() {
                             Billing
                           </Link>
                           <Link
-                            href="/profile?tab=settings"
+                            href="/profile#settings"
                             onClick={() => setUserMenuOpen(false)}
                             className={cn(
                               'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',

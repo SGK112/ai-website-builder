@@ -11,11 +11,13 @@ interface ClientLayoutProps {
 export function ClientLayout({ children }: ClientLayoutProps) {
   const pathname = usePathname()
 
-  // Pages that should NOT have the workspace nav (pages with their own nav)
-  const hideNavPages = ['/', '/login', '/signup', '/auth', '/workspace', '/create']
-  const shouldHideNav = hideNavPages.some(page =>
-    pathname === page || pathname.startsWith('/auth/') || pathname.startsWith('/workspace') || pathname.startsWith('/create/')
-  )
+  // Pages that render their OWN nav (WebStewNav) — don't also paint the global
+  // WorkspaceNav on top of them, or you get a double header + logo (/profile,
+  // /templates did exactly that).
+  const ownNavPrefixes = ['/auth/', '/workspace', '/create/', '/profile', '/templates']
+  const hideNavExact = ['/', '/login', '/signup', '/auth', '/workspace', '/create', '/profile', '/templates']
+  const shouldHideNav =
+    hideNavExact.includes(pathname) || ownNavPrefixes.some((p) => pathname.startsWith(p))
 
   return (
     <>

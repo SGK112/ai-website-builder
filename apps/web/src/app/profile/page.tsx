@@ -195,7 +195,26 @@ export default function ProfilePage() {
   const isDark = theme === 'dark'
   const router = useRouter()
   const { data: session, status } = useSession()
-  const [activeTab, setActiveTab] = useState<'profile' | 'billing' | 'usage' | 'previews' | 'settings'>('profile')
+  // Active section is driven by the URL hash (#billing, #settings, …) so the
+  // avatar-menu links work — including same-page clicks, which fire
+  // 'hashchange'. Read the hash on mount, then listen for changes. (Avoids
+  // useSearchParams, which forced a two-pass render here and crashed the page.)
+  type ProfileTab = 'profile' | 'billing' | 'usage' | 'previews' | 'settings'
+  // Initialize to a STABLE value so SSR and first client render match (a hash-
+  // derived initial value caused a hydration mismatch). Read the hash after
+  // mount and on every hashchange — this is what makes the avatar-menu links
+  // (#billing, #settings) work, including same-page clicks.
+  const [activeTab, setActiveTab] = useState<ProfileTab>('profile')
+  useEffect(() => {
+    const tabs = ['profile', 'billing', 'usage', 'previews', 'settings']
+    const apply = () => {
+      const h = window.location.hash.replace('#', '')
+      if (tabs.includes(h)) setActiveTab(h as ProfileTab)
+    }
+    apply()
+    window.addEventListener('hashchange', apply)
+    return () => window.removeEventListener('hashchange', apply)
+  }, [])
   const [credits, setCredits] = useState<number | null>(null)
   const [actualPlan, setActualPlan] = useState<string>('free')
   const [portalLoading, setPortalLoading] = useState(false)
@@ -370,18 +389,20 @@ export default function ProfilePage() {
     ? 'Free forever'
     : `$${(currentPlanMeta.monthlyPrice / 100).toFixed(0)}/month`
 
-  // Usage stats from credits
-  const [usage] = useState<UsageStats>({
+  // Usage stats from credits. Plain consts — NOT useState — because they're
+  // never mutated, and crucially because they sit AFTER the `status ===
+  // 'loading'` early return above; a hook here runs on some renders but not
+  // others, which trips "Rendered more hooks than during the previous render"
+  // (React #310) the moment the session resolves loading→authenticated.
+  const usage: UsageStats = {
     buildsUsed: credits !== null ? Math.max(0, 100 - credits) / 10 : 0,
     buildsLimit: 10,
     storageUsed: 0.2,
     storageLimit: 1,
     apiCalls: 150,
     apiLimit: 500,
-  })
-
-  // Billing history
-  const [billingHistory] = useState<BillingHistory[]>([])
+  }
+  const billingHistory: BillingHistory[] = []
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
