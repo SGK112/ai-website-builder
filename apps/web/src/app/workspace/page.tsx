@@ -12903,13 +12903,22 @@ npx eas build --platform all
                               <button
                                 key={idx}
                                 onClick={() => {
-                                  const oldSrc = selectedMediaElement.src
-                                  const newHtml = html.replace(oldSrc, url)
-                                  if (newHtml !== html) {
-                                    setHtml(newHtml)
-                                    addToHistory(newHtml, 'Replaced image with Unsplash photo')
-                                    addTerminalLine('success', '✓ Image replaced.')
-                                    addToast('success', 'Image replaced.')
+                                  // Replace the selected image if there is one;
+                                  // otherwise insert it as a new image. The old
+                                  // code read selectedMediaElement.src with no
+                                  // null check and crashed when nothing was
+                                  // selected.
+                                  const oldSrc = selectedMediaElement?.src
+                                  if (oldSrc) {
+                                    const newHtml = html.replace(oldSrc, url)
+                                    if (newHtml !== html) {
+                                      setHtml(newHtml)
+                                      addToHistory(newHtml, 'Replaced image with stock photo')
+                                      addTerminalLine('success', '✓ Image replaced.')
+                                      addToast('success', 'Image replaced.')
+                                    }
+                                  } else {
+                                    insertImageIntoWebsite(url, 'Stock photo')
                                   }
                                   setShowMediaReplacer(false)
                                   setSelectedMediaElement(null)
