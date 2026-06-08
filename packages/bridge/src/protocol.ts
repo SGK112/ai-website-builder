@@ -114,6 +114,9 @@ export interface AgentRunRequest {
   /** Cap on tool-use iterations. Server passes the agent route's
    *  configured limit so bridge enforcement matches direct flow. */
   maxIterations?: number
+  /** This user's recent thumbs-down feedback notes. Folded into CLAUDE.md so
+   *  the bridge avoids repeating mistakes — parity with the direct path. */
+  feedbackNotes?: string[]
 }
 
 // ── Response: bridge → server (streamed chunks) ───────────────────────

@@ -66,7 +66,7 @@ export async function runClaudeOnce(opts: RunOpts): Promise<void> {
   //     project and behaves like the in-app agent does (Edit over
   //     Bash, /api/media for images, preserve scope, etc.). Re-written
   //     every request so the file stays in sync with prompt evolutions.
-  writeClaudeMd(workspaceDir, request.target)
+  writeClaudeMd(workspaceDir, request.target, request.feedbackNotes)
   // 1b. Materialize the VFS to disk.
   writeVfs(workspaceDir, request.files || {})
   // 2. Snapshot for diffing after the run.
@@ -388,7 +388,7 @@ function sanitizeRel(p: string): string | null {
 // gives. Without this, bridge claude is a generic Claude Code session
 // that doesn't know it's editing a live Webstew site preview, defaults
 // to Bash where Edit would do, and ignores Webstew's image proxy.
-function writeClaudeMd(root: string, target?: string): void {
+function writeClaudeMd(root: string, target?: string, feedbackNotes?: string[]): void {
   const targetLabel =
     target === 'nextjs' ? 'Next.js app'
     : target === 'react' ? 'Vite + React app'
@@ -608,8 +608,13 @@ If they say "hi" or ask a meta-question, answer briefly chef-style
 ("Ready to cook — what are we making?") and ask what they want to
 build/change. Don't invent edits.
 `
+  // Feedback parity with the direct path — fold the user's recent thumbs-down
+  // notes in so the chef stops repeating mistakes they've already flagged.
+  const fb = (feedbackNotes && feedbackNotes.length)
+    ? `\n\n## Learn from this user's feedback\nThey flagged these problems on past builds — do NOT repeat them:\n${feedbackNotes.map((n) => `- ${n}`).join('\n')}\n`
+    : ''
   try {
-    fs.writeFileSync(path.join(root, 'CLAUDE.md'), md)
+    fs.writeFileSync(path.join(root, 'CLAUDE.md'), md + fb)
   } catch {
     // Non-fatal — claude works without it, just less Webstew-aware.
   }

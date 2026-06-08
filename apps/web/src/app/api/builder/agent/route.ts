@@ -239,6 +239,10 @@ export async function POST(req: NextRequest) {
     // so the synthesized draft id never tries to write to a
     // nonexistent project doc.
     const bridgeWorkspaceId = body.projectId || `draft-${session.user.id}`
+    // Feedback parity with the direct path — pass this user's recent
+    // thumbs-down notes so the bridge's CLAUDE.md can fold them in.
+    let bridgeFeedbackNotes: string[] = []
+    try { bridgeFeedbackNotes = await getRecentNegativeNotes(session.user.id) } catch (e: any) { console.warn('[agent-bridge] feedback fetch failed:', e?.message) }
     const dispatched = dispatchToBridge(session.user.id, {
       prompt,
       files: body.files || {},
@@ -247,6 +251,7 @@ export async function POST(req: NextRequest) {
       target: body.target,
       projectId: bridgeWorkspaceId,
       maxIterations: body.maxIterations,
+      feedbackNotes: bridgeFeedbackNotes,
     })
     const { stream, cancel: cancelDispatch } = dispatched
 
