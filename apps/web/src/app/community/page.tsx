@@ -33,6 +33,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/context/ThemeContext'
 import { StarryNight, SunriseBackground } from '@/components/landing/BackgroundEffects'
+import { SitePreview } from '@/components/community/SitePreview'
 import { FeedbackBoard } from '@/components/community/FeedbackBoard'
 import { DEMO_SITES } from '@/lib/demo-sites'
 
@@ -48,6 +49,7 @@ interface Project {
     badge?: 'pro' | 'top' | 'new'
   }
   thumbnail: string
+  html?: string         // the real site markup → live preview on the card
   category: string
   likes: number
   views: number
@@ -79,6 +81,13 @@ const categories: Category[] = [
 // on /showcase/<slug> which iframes the actual HTML, and the author chip
 // links to /u/webstew (the synthesized Webstew Team profile). No fake
 // people, no dead loops. Drops out entirely once realProjects ≥ 6.
+// Compact stat formatting: 1234 -> "1.2K", 89000 -> "89K".
+function formatStat(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}K`
+  return String(n)
+}
+
 const DEMO_THUMBS: Record<string, string> = {
   saas: '/api/media?q=analytics%20dashboard%20saas&w=600&h=400',
   portfolio: '/api/media?q=creative%20portfolio%20designer&w=600&h=400',
@@ -190,6 +199,10 @@ export default function CommunityPage() {
   // post-launch while we're below ~6 approved listings.
   const [realProjects, setRealProjects] = useState<Project[]>([])
   const [loadingProjects, setLoadingProjects] = useState(true)
+  // Real showcase stats (replaces the fabricated 12.4K/5.2K/89K). Derived from
+  // the API total + the loaded page; the bar is hidden entirely when there's
+  // no real volume yet, rather than showing fake or sad-zero numbers.
+  const [stats, setStats] = useState<{ projects: number; creators: number; likes: number }>({ projects: 0, creators: 0, likes: 0 })
   // Pagination — start with 12, "Load more" reveals another 12 at a time.
   // Was previously a button with no onClick. Resets to 12 whenever the
   // category/search/sort changes so we're not stuck on page N of the wrong feed.
@@ -211,7 +224,8 @@ export default function CommunityPage() {
         avatar: (name[0] || username[0] || '?').toUpperCase(),
         avatarUrl: post?.author?.avatar,
       },
-      thumbnail: post.thumbnail || `https://picsum.photos/seed/${post._id}/600/400`,
+      thumbnail: post.thumbnail || '',
+      html: typeof post.html === 'string' ? post.html : undefined,
       category: post.category || 'general',
       likes: post.likes || 0,
       views: post.views || 0,
@@ -238,6 +252,12 @@ export default function CommunityPage() {
         const posts: any[] = Array.isArray(data?.posts) ? data.posts : []
         const items: Project[] = posts.map(adaptPost)
         setRealProjects(items)
+        // Real stats from this response. projects uses the server's full count;
+        // creators/likes are derived from the loaded page (a floor, not a lie).
+        const total = Number(data?.pagination?.total) || items.length
+        const creators = new Set(posts.map((p) => p?.author?.username || p?.author?.name).filter(Boolean)).size
+        const likes = posts.reduce((s, p) => s + (Number(p?.likes) || 0), 0)
+        setStats({ projects: total, creators, likes })
         // Hydrate the like/save state from the server so the heart and
         // bookmark icons render in the right state on first paint.
         const likedIds = posts.filter((p) => p.viewerLiked).map((p) => String(p._id))
@@ -444,7 +464,9 @@ export default function CommunityPage() {
             </div>
           </motion.div>
 
-          {/* Stats */}
+          {/* Stats — real numbers; hidden until there's genuine volume so we
+              never show fabricated counts. */}
+          {stats.projects > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -452,9 +474,9 @@ export default function CommunityPage() {
             className="flex justify-center gap-8 mt-8"
           >
             {[
-              { label: 'Projects', value: '12.4K' },
-              { label: 'Creators', value: '5.2K' },
-              { label: 'Likes', value: '89K' },
+              { label: 'Projects', value: formatStat(stats.projects) },
+              { label: 'Creators', value: formatStat(stats.creators) },
+              { label: 'Likes', value: formatStat(stats.likes) },
             ].map(stat => (
               <div key={stat.label} className="text-center">
                 <p className={cn('text-2xl font-bold', isDark ? 'text-white' : 'text-zinc-900')}>
@@ -466,6 +488,7 @@ export default function CommunityPage() {
               </div>
             ))}
           </motion.div>
+          )}
         </div>
       </section>
 
@@ -683,11 +706,7 @@ export default function CommunityPage() {
                         }
                         className="block aspect-video relative overflow-hidden"
                       >
-                        <img
-                          src={project.thumbnail}
-                          alt={project.title}
-                          className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                        />
+                        <SitePreview html={project.html} thumbnail={project.thumbnail} title={project.title} />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                         <div className="absolute top-3 left-3">
                           <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-500 text-white">
@@ -756,11 +775,7 @@ export default function CommunityPage() {
                 >
                   {/* Thumbnail */}
                   <div className="aspect-video relative overflow-hidden">
-                    <img
-                      src={project.thumbnail}
-                      alt={project.title}
-                      className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                    />
+                    <SitePreview html={project.html} thumbnail={project.thumbnail} title={project.title} />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
                     {/* Quick Actions */}
