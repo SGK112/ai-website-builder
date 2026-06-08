@@ -177,6 +177,7 @@ import { PublishToCommunityModal } from '@/components/builder/PublishToCommunity
 import { SiteGraderModal } from '@/components/builder/SiteGraderModal'
 import { ShareProposalModal } from '@/components/builder/ShareProposalModal'
 import { CollaboratorsModal } from '@/components/CollaboratorsModal'
+import { FinishedBuildBanner } from '@/components/FinishedBuildBanner'
 import { InlineUpgradeModal } from '@/components/builder/InlineUpgradeModal'
 import { SectionChat, type ChatSubmitPayload } from '@/components/builder/SectionChat'
 import { StewPlannerChat } from '@/components/builder/StewPlannerChat'
@@ -1380,6 +1381,9 @@ function WorkspaceContent() {
   // unhandledrejection). Surfaced as a "Fix with AI" banner that feeds the
   // error straight to the agent — the closed loop Lovable/Replit have.
   const [previewErrors, setPreviewErrors] = useState<Array<{ message: string; line: number | null; stack: string | null; at: number }>>([])
+  // A build that finished server-side while the user was away (from
+  // /api/builder/builds). Surfaced as a "ready — load it?" banner.
+  const [finishedAwayBuild, setFinishedAwayBuild] = useState<{ buildId: string; target: string; summary?: string; prompt?: string; fileCount?: number } | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [buildPhase, setBuildPhase] = useState<BuildPhase>('idle')
   const [currentSteps, setCurrentSteps] = useState<BuildStep[]>(buildSteps)
@@ -2330,11 +2334,22 @@ function WorkspaceContent() {
   // returns a Promise; this ref holds the resolve so that when isThinking
   // transitions to false, the Promise resolves and the loop can re-grade.
   const autoFixResolveRef = useRef<(() => void) | null>(null)
+  // The server-side build id for the in-flight agent turn (from the 'build'
+  // SSE event). Stop must tell the server to CANCEL — otherwise, since builds
+  // now keep running after a disconnect (server-side persistence), aborting
+  // the fetch alone would let the build finish in the background.
+  const currentBuildIdRef = useRef<string | null>(null)
   const stopAgent = () => {
     const c = agentAbortRef.current
     if (!c) return
+    // Explicit cancel BEFORE aborting the fetch, so the server halts the loop.
+    const bid = currentBuildIdRef.current
+    if (bid) {
+      fetch('/api/builder/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ buildId: bid }) }).catch(() => {})
+    }
     try { c.abort() } catch {}
     agentAbortRef.current = null
+    currentBuildIdRef.current = null
     setIsThinking(false)
   }
   const chatContainerRef = useRef<HTMLDivElement>(null)
@@ -6588,7 +6603,11 @@ ${html}
             let payload: any
             try { payload = JSON.parse(dataStr) } catch { continue }
 
-            if (evtName === 'text') {
+            if (evtName === 'build') {
+              // Server-side build id — capture it so Stop can cancel the build
+              // (it now keeps running on the server after a disconnect).
+              if (payload?.buildId) currentBuildIdRef.current = String(payload.buildId)
+            } else if (evtName === 'text') {
               textBuf += payload.text || ''
               flushAssistant(renderProgress())
             } else if (evtName === 'tool_use') {
@@ -6900,6 +6919,91 @@ ${html}
     }).catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isGenerating])
+
+  // Apply a persisted build's files back into the workspace (used when a
+  // build finished server-side while the user was away).
+  const applyBuildFiles = (files: Array<{ path: string; content: string }>, target: string) => {
+    if (!files?.length) return
+    if (target === 'website' || !target) {
+      const htmlFiles = files.filter(f => /\.html?$/i.test(f.path))
+      if (!htmlFiles.length) return
+      const titleCase = (s: string) => s.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || s
+      const restored: ProjectPage[] = htmlFiles.map(f => {
+        const isHome = f.path === 'index.html'
+        const slug = isHome ? 'index' : f.path.replace(/\.html?$/i, '').toLowerCase()
+        return { id: isHome ? 'home' : `page-${slug}`, name: isHome ? 'Home' : titleCase(slug), slug, html: f.content, isHome }
+      })
+      const home = restored.find(p => p.isHome) || restored[0]
+      setHtml(home.html)
+      setPages(restored)
+      setActivePageId(home.id)
+      setBuildTarget('website')
+    } else {
+      setVfsFiles(Object.fromEntries(files.map(f => [f.path, f.content])))
+      setBuildTarget(target as BuildTarget)
+    }
+    setPreviewBumpKey(k => k + 1)
+  }
+
+  const markBuildSeenRemote = (buildId: string) =>
+    fetch('/api/builder/builds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ buildId }) })
+      .catch(e => console.warn('[builds] markSeen failed:', e?.message))
+
+  const loadFinishedBuild = async () => {
+    const b = finishedAwayBuild
+    if (!b) return
+    try {
+      const r = await fetch(`/api/builder/builds?id=${encodeURIComponent(b.buildId)}`)
+      if (!r.ok) throw new Error(`fetch ${r.status}`)
+      const { build } = await r.json()
+      if (build?.files?.length) { applyBuildFiles(build.files, build.target); addToast('success', 'Loaded your finished build 🍲') }
+      else addToast('info', 'That build had no files to load.')
+    } catch (e: any) {
+      console.warn('[builds] load failed:', e?.message)
+      addToast('error', 'Could not load that build.')
+    }
+    void markBuildSeenRemote(b.buildId)
+    setFinishedAwayBuild(null)
+  }
+
+  const dismissFinishedBuild = () => {
+    if (finishedAwayBuild) void markBuildSeenRemote(finishedAwayBuild.buildId)
+    setFinishedAwayBuild(null)
+  }
+
+  // On load: if the user followed a "your stew is cooked" email link
+  // (?resumeBuild=…), pull that finished build and restore it. Otherwise check
+  // for any build that finished while they were away and nudge them to load it.
+  useEffect(() => {
+    if (!session?.user?.id || typeof window === 'undefined') return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const resumeId = new URLSearchParams(window.location.search).get('resumeBuild')
+        if (resumeId) {
+          const r = await fetch(`/api/builder/builds?id=${encodeURIComponent(resumeId)}`)
+          if (r.ok && !cancelled) {
+            const { build } = await r.json()
+            if (build?.files?.length) {
+              applyBuildFiles(build.files, build.target)
+              addToast('success', 'Loaded your finished build 🍲')
+            }
+          }
+          void markBuildSeenRemote(resumeId)
+          window.history.replaceState({}, '', '/workspace')
+          return
+        }
+        // No deep link — surface a finished build, if any.
+        const r = await fetch('/api/builder/builds')
+        if (r.ok && !cancelled) {
+          const { builds } = await r.json()
+          if (Array.isArray(builds) && builds.length > 0) setFinishedAwayBuild(builds[0])
+        }
+      } catch (e: any) { console.warn('[builds] resume check failed:', e?.message) }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id])
 
   // Image generation handler for conversational flow
   const handleImageGenerate = async (prompt: string) => {
@@ -12387,6 +12491,13 @@ npx eas build --platform all
         projectId={currentProject?.id || null}
         isDark={isDark}
         ownerEmail={session?.user?.email ?? undefined}
+      />
+
+      <FinishedBuildBanner
+        build={finishedAwayBuild}
+        onLoad={loadFinishedBuild}
+        onDismiss={dismissFinishedBuild}
+        isDark={isDark}
       />
 
       <InlineUpgradeModal

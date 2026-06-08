@@ -40,6 +40,8 @@ import Anthropic from '@anthropic-ai/sdk'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { TOOLS, executeTool, type AgentVfs } from '@/lib/agent-tools'
+import { startBuild, completeBuild, failBuild, markBuildCancelled, isCancelled, type BuildFile } from '@/lib/builds-store'
+import { sendMail } from '@/lib/mailer'
 import { connectDB, User, trackUsage, getUserUsageThisMonth, PLAN_LIMITS, isAdminEmail } from '@ai-website-builder/database'
 import mongoose from 'mongoose'
 import { dispatchToBridge, getBridgeStatus } from '@/lib/bridge-store'
@@ -533,11 +535,26 @@ export async function POST(req: NextRequest) {
       let totalInputTokens = 0
       let totalOutputTokens = 0
 
+      // Server-side build record — lets the build survive the client closing
+      // the tab (the loop continues below on a mere disconnect) and lets us
+      // email + restore it afterward. Best-effort.
+      let buildId: string | null = null
+      let cancelledByUser = false
+      try {
+        buildId = await startBuild({ userId: session.user.id, projectId: body.projectId, prompt, target: body.target || 'website' })
+        send('build', { buildId })
+      } catch (e: any) { console.warn('[agent] startBuild failed (non-fatal):', e?.message) }
+
       try {
         let iterations = 0
         let doneSummary: string | null = null
 
-        while (iterations < maxIterations && doneSummary == null && !aborted) {
+        while (iterations < maxIterations && doneSummary == null) {
+          // Stop ONLY on an explicit user cancel (Stop button → /api/builder/
+          // cancel). A mere disconnect (tab closed) does NOT stop the loop —
+          // the build finishes in the background and we email the user.
+          if (buildId && isCancelled(buildId)) { cancelledByUser = true; break }
+          if (!buildId && aborted) break  // no persistence → fall back to old "stop on disconnect"
           iterations++
 
           // Use the streaming API (.stream().finalMessage()) rather than a
@@ -657,6 +674,30 @@ export async function POST(req: NextRequest) {
         send('done', { summary: doneSummary, iterations })
         safeClose()
 
+        // ── Server-side build persistence + notify ──────────────────────────
+        // Save the result so it survives a disconnect, and if the user walked
+        // away mid-build (aborted = tab closed / connection dropped), email
+        // them it's ready. Explicit Stop → cancelled, no email.
+        if (buildId) {
+          try {
+            if (cancelledByUser) {
+              await markBuildCancelled(buildId)
+            } else {
+              const files: BuildFile[] = Object.entries(vfs.files).map(([path, content]) => ({ path, content: String(content ?? '') }))
+              await completeBuild(buildId, { files, summary: doneSummary || undefined, disconnected: aborted })
+              if (aborted && session.user.email) {
+                const link = `${req.nextUrl.origin}/workspace?resumeBuild=${buildId}`
+                await sendMail({
+                  to: session.user.email, kind: 'noreply',
+                  subject: `🍲 Your stew is cooked — it's ready`,
+                  text: `Your Webstew build finished while you were away.\n\nView it: ${link}\n\n— Webstew`,
+                  html: `<div style="font-family:system-ui,-apple-system,sans-serif;max-width:480px;margin:0 auto"><h2 style="margin:0 0 8px">🍲 Your stew is cooked</h2><p style="color:#444;margin:0 0 16px">Your build finished while you were away.</p><p style="margin:0 0 20px"><a href="${link}" style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:10px 18px;border-radius:10px;font-weight:600">View your build →</a></p></div>`,
+                }).catch(() => {})
+              }
+            }
+          } catch (e: any) { console.warn('[agent] build persist failed:', e?.message) }
+        }
+
         // Fire-and-forget usage tracking. We only meter calls that used OUR
         // Anthropic key — BYOK users pay Anthropic directly. 1 credit per
         // turn keeps the math simple for the monthlyCredits cap.
@@ -688,11 +729,13 @@ export async function POST(req: NextRequest) {
           send('error', { message: msg })
         }
         safeClose()
+        if (buildId) { try { await failBuild(buildId, msg) } catch {} }
       }
     },
     cancel() {
-      // Browser closed the EventSource — flip the flag so the loop above
-      // stops enqueuing on the next iteration.
+      // Browser closed the EventSource — flip the disconnect flag. The build
+      // loop keeps running (server-side persistence); only an explicit Stop
+      // (/api/builder/cancel) halts it.
       aborted = true
     },
   })
