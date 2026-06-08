@@ -1896,13 +1896,35 @@ function WorkspaceContent() {
     const mq = window.matchMedia('(max-width: 767px)')
     const apply = (matches: boolean) => {
       setIsMobile(matches)
-      if (matches) setSidebarCollapsed(true)
+      // Chat-first on mobile: when there's nothing to preview yet, land on the
+      // chat so the builder is conversational from the first screen. Collapse
+      // to the preview only once a project already exists (e.g. a restored
+      // project). A separate effect reveals the preview after the first build.
+      if (matches) setSidebarCollapsed(html.trim().length > 0 || Object.keys(vfsFiles).length > 0)
     }
     apply(mq.matches)
     const handler = (e: MediaQueryListEvent) => apply(e.matches)
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Mobile: once the first build lands, reveal the preview (collapse the chat
+  // drawer) exactly once — so "type → watch it build → see the result" flows
+  // like an app. After that the user controls the drawer with the menu button;
+  // we don't re-collapse on every subsequent edit.
+  const mobilePreviewRevealedRef = useRef(false)
+  useEffect(() => {
+    if (!isMobile) return
+    if (mobilePreviewRevealedRef.current) return
+    if (isGenerating) return                                    // wait until the first build settles
+    const hasContent = html.trim().length > 0 || Object.keys(vfsFiles).length > 0
+    if (hasContent) {
+      mobilePreviewRevealedRef.current = true
+      setSidebarCollapsed(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile, html, vfsFiles, isGenerating])
 
   useEffect(() => {
     try {
