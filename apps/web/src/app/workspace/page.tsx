@@ -345,6 +345,16 @@ function detectMultiPageIntent(prompt: string): boolean {
   return false
 }
 
+// The explicit page names a request named (excluding home, which already
+// exists). Returns [] when the user didn't name specific pages — then the
+// follow-up lets the agent pick sensible ones. Title-cased for the prompt.
+function extractRequestedPages(prompt: string): string[] {
+  const p = (prompt || '').toLowerCase()
+  return PAGE_NOUNS
+    .filter((w) => new RegExp(`\\b${w}\\b`).test(p))
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+}
+
 interface Project {
   id: string
   name: string
@@ -6826,8 +6836,14 @@ ${html}
     pendingMultiPageRef.current = null                // clear FIRST so this fires exactly once
     // Worded to route through the AGENT (refine) path — NOT the fresh-build
     // regex, which would wipe the home page. So: no "build/make/create … site".
+    // Honor an explicit page list when the user gave one (accuracy); otherwise
+    // let the agent pick sensible pages.
+    const named = extractRequestedPages(original)
+    const whichPages = named.length >= 1
+      ? `Add exactly these pages as separate complete .html files: ${named.join(', ')}. Don't add any pages I didn't ask for.`
+      : `Add each additional page this business needs as its own complete .html file (About, Services, Contact — whatever fits from my request: "${original.slice(0, 160)}").`
     const followUp =
-      `Add the other pages as separate complete .html files — About, Services, Contact, or whatever fits (from my request: "${original.slice(0, 200)}"). ` +
+      `${whichPages} ` +
       `Reuse this home page's exact header/nav, footer, fonts, colours and style on every page; only the main content changes per page. Wire the shared nav across all pages with pretty paths (/about, /services, …), and make sure no nav link points to a missing page.`
     // Tell the user this second pass is intentional (so the follow-up message
     // doesn't read like a glitch), then fire it once the home state settles.
