@@ -160,6 +160,11 @@ export async function runClaudeOnce(opts: RunOpts): Promise<void> {
       try { child.kill('SIGKILL') } catch {}
     }
   }, 5_000)
+  // Clear the watchdog the moment the child process ends, on EVERY path —
+  // natural close, our SIGKILL, or an abort/onEvent-rejection that throws out
+  // of runClaudeOnce before the close handler. 'exit' always fires when the
+  // process is gone, so this prevents a leaked interval ticking forever.
+  child.once('exit', () => clearInterval(watchdog))
 
   child.stderr.on('data', (b) => { stderr += b.toString() })
   // Mirror stdout to a tail buffer too — when claude exits 1 with no
@@ -348,6 +353,10 @@ function snapshotDir(root: string): Map<string, string> {
   const walk = (dir: string) => {
     for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
       if (ent.name.startsWith('.')) continue // skip dotfiles like .git
+      // Skip dependency/build dirs — if Claude ever ran an install despite the
+      // CLAUDE.md rule, reading thousands of node_modules files as utf8 (x3 per
+      // turn) would blow memory and stall the diff. Never part of the VFS.
+      if (ent.name === 'node_modules' || ent.name === 'dist' || ent.name === 'build') continue
       const full = path.join(dir, ent.name)
       if (ent.isDirectory()) {
         walk(full)

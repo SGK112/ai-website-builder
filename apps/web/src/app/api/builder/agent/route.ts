@@ -280,6 +280,10 @@ export async function POST(req: NextRequest) {
     }
 
     const encoder = new TextEncoder()
+    // Hoisted so cancel() (browser closed the fetch) can also stop the
+    // heartbeat — otherwise it keeps ticking after a disconnect.
+    let bridgeHeartbeat: ReturnType<typeof setInterval> | null = null
+    const stopHeartbeat = () => { if (bridgeHeartbeat) { clearInterval(bridgeHeartbeat); bridgeHeartbeat = null } }
     const sse = new ReadableStream({
       async start(controller) {
         const send = (event: string, data: unknown) => {
@@ -292,12 +296,9 @@ export async function POST(req: NextRequest) {
         // Code can go quiet between turns. Flush an SSE comment every 15s so
         // Cloudflare / Render's edge doesn't idle-kill the response body during
         // a long-but-healthy build (matches the direct branch's heartbeat).
-        let bridgeHeartbeat: ReturnType<typeof setInterval> | null = setInterval(() => {
-          try { controller.enqueue(encoder.encode(`: ping\n\n`)) } catch {
-            if (bridgeHeartbeat) { clearInterval(bridgeHeartbeat); bridgeHeartbeat = null }
-          }
+        bridgeHeartbeat = setInterval(() => {
+          try { controller.enqueue(encoder.encode(`: ping\n\n`)) } catch { stopHeartbeat() }
         }, 15000)
-        const stopHeartbeat = () => { if (bridgeHeartbeat) { clearInterval(bridgeHeartbeat); bridgeHeartbeat = null } }
         try {
           for await (const chunk of stream) {
             // Persist BEFORE forwarding so even if the SSE client
@@ -325,9 +326,10 @@ export async function POST(req: NextRequest) {
         }
       },
       cancel() {
-        // Browser closed the fetch. Clean up dispatcher state so the
-        // bridge sees BridgeCancelled on its next POST and stops the
-        // claude child (see runtime.ts).
+        // Browser closed the fetch. Stop the heartbeat and clean up dispatcher
+        // state so the bridge sees BridgeCancelled on its next POST and stops
+        // the claude child (see runtime.ts).
+        stopHeartbeat()
         try { cancelDispatch() } catch {}
       },
     })
