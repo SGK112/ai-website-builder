@@ -178,6 +178,7 @@ import { SiteGraderModal } from '@/components/builder/SiteGraderModal'
 import { ShareProposalModal } from '@/components/builder/ShareProposalModal'
 import { CollaboratorsModal } from '@/components/CollaboratorsModal'
 import { FinishedBuildBanner } from '@/components/FinishedBuildBanner'
+import { MessageFeedback } from '@/components/MessageFeedback'
 import { InlineUpgradeModal } from '@/components/builder/InlineUpgradeModal'
 import { SectionChat, type ChatSubmitPayload } from '@/components/builder/SectionChat'
 import { StewPlannerChat } from '@/components/builder/StewPlannerChat'
@@ -8386,6 +8387,18 @@ npx eas build --platform all
                               </div>
                             )}
                           </div>
+                        )}
+                        {/* Feedback — thumbs up/down on real AI replies (not the
+                            welcome, suggestions, or permission prompts). A
+                            down-vote's note trains this user's future builds. */}
+                        {msg.role === 'assistant' && !msg.suggestions && !msg.permission && i > 0 && typeof msg.content === 'string' && msg.content.trim().length > 8 && (
+                          <MessageFeedback
+                            messageKey={`${currentProject?.id || 'draft'}:${i}`}
+                            prompt={(() => { const u = [...chatMessages.slice(0, i)].reverse().find(m => m.role === 'user'); return typeof u?.content === 'string' ? u.content : undefined })()}
+                            projectId={currentProject?.id}
+                            target={buildTarget}
+                            isDark={isDark}
+                          />
                         )}
                       </div>
                       {msg.role === 'user' && (

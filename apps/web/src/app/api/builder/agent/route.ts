@@ -42,6 +42,7 @@ import { authOptions } from '@/lib/auth'
 import { TOOLS, executeTool, type AgentVfs } from '@/lib/agent-tools'
 import { startBuild, completeBuild, failBuild, markBuildCancelled, isCancelled, type BuildFile } from '@/lib/builds-store'
 import { sendMail } from '@/lib/mailer'
+import { getRecentNegativeNotes } from '@/lib/feedback-store'
 import { connectDB, User, trackUsage, getUserUsageThisMonth, PLAN_LIMITS, isAdminEmail } from '@ai-website-builder/database'
 import mongoose from 'mongoose'
 import { dispatchToBridge, getBridgeStatus } from '@/lib/bridge-store'
@@ -459,9 +460,23 @@ export async function POST(req: NextRequest) {
     ? `\n\nVERBOSITY OVERRIDE (Developer Mode):\nThe user is a developer and wants to see your reasoning. Disregard the ZERO PROSE rule above. Narrate your plan briefly before tool calls (1-2 sentences: what you're about to do and why), explain non-obvious choices, and call out anything risky. Keep tool chips clean — the prose is for context, not duplicating what the chip already shows.`
     : ''
 
+  // Feedback loop — fold this user's recent thumbs-down corrections into the
+  // prompt so the agent stops repeating mistakes they've already flagged.
+  // Best-effort; a feedback-store hiccup must never block a build.
+  let feedbackGuide = ''
+  try {
+    const notes = await getRecentNegativeNotes(session.user.id)
+    if (notes.length > 0) {
+      feedbackGuide =
+        `\n\nLEARN FROM THIS USER'S FEEDBACK — they previously flagged these problems on past builds. Do NOT repeat them:\n` +
+        notes.map((n) => `- ${n}`).join('\n')
+    }
+  } catch (e: any) { console.warn('[agent] feedback fetch failed (non-fatal):', e?.message) }
+
   const systemPrompt =
     SYSTEM_PROMPT_BASE +
     verbosityOverride +
+    feedbackGuide +
     (body.target ? `\n\nPROJECT TYPE: ${body.target}` : '') +
     (body.target === 'website' ? WEBSITE_MULTIPAGE_GUIDE : '') +
     (Object.keys(vfsFiles).length > 0
