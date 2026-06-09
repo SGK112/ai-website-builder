@@ -8914,15 +8914,20 @@ npx eas build --platform all
                       )
                       return (
                         <>
-                          {owned.map(card)}
                           {shared.length > 0 && (
-                            <div className="pt-3 mt-1 border-t border-white/[0.06]">
+                            <div className="mb-1">
                               <div className={cn('text-[10px] font-medium uppercase tracking-wider mb-2 px-0.5', isDark ? 'text-zinc-500' : 'text-slate-500')}>
                                 Shared with me
                               </div>
                               <div className="space-y-2">{shared.map(card)}</div>
                             </div>
                           )}
+                          {owned.length > 0 && shared.length > 0 && (
+                            <div className={cn('text-[10px] font-medium uppercase tracking-wider mb-2 px-0.5 pt-3 mt-1 border-t border-white/[0.06]', isDark ? 'text-zinc-500' : 'text-slate-500')}>
+                              Your projects
+                            </div>
+                          )}
+                          {owned.map(card)}
                         </>
                       )
                     })()}
