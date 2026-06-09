@@ -3777,6 +3777,13 @@ function WorkspaceContent() {
     setCurrentProject(full)
     setProjectName(full.name)
     setHtml(full.html)
+    // Push the loaded HTML straight to the preview too. The iframe renders the
+    // throttled `previewHtml` (which the throttle effect only refreshes AFTER
+    // render), so when loadProject also bumps previewBumpKey the iframe
+    // remounted with the PREVIOUS project's stale html — blank until a manual
+    // refresh. Setting it here means the remounted iframe paints the right
+    // content on the first render.
+    setPreviewHtml(full.html)
     setEnvVars(full.envVars)
     setSkillLevel(full.skillLevel)
     if (full.skillLevel === 'full-stack') setViewMode('code')
