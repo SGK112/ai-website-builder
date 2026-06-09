@@ -4,7 +4,7 @@
 // always returns 200 (anti-enumeration). User sees the same "check your
 // inbox" success regardless of whether the address actually has an account.
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Loader2, Mail, ArrowLeft } from 'lucide-react'
 
@@ -13,6 +13,15 @@ export default function ForgotPasswordPage() {
   const [submitting, setSubmitting] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Preserve where the user was headed (e.g. a shared-project link) through the
+  // reset detour. Read from the URL on mount (window, not useSearchParams, to
+  // avoid the Suspense-boundary requirement).
+  const [callbackUrl, setCallbackUrl] = useState('/workspace')
+  useEffect(() => {
+    const cb = new URLSearchParams(window.location.search).get('callbackUrl')
+    if (cb && cb.startsWith('/') && !cb.startsWith('//')) setCallbackUrl(cb)
+  }, [])
+  const loginHref = `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -22,7 +31,7 @@ export default function ForgotPasswordPage() {
       const res = await fetch('/api/auth/forgot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: email.trim(), callbackUrl }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setSent(true)
@@ -37,7 +46,7 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <Link
-          href="/login"
+          href={loginHref}
           className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 mb-6"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
@@ -62,7 +71,7 @@ export default function ForgotPasswordPage() {
                 </div>
               </div>
               <Link
-                href="/login"
+                href={loginHref}
                 className="block text-center px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm font-medium border border-white/10"
               >
                 Return to sign in

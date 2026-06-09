@@ -13,6 +13,11 @@ function ResetForm() {
   const router = useRouter()
   const search = useSearchParams()
   const token = search.get('token') || ''
+  // Preserve the original destination (e.g. a shared-project link) so we
+  // forward there after sign-in instead of dropping the user on a blank app.
+  const rawCb = search.get('callbackUrl') || ''
+  const callbackUrl = rawCb.startsWith('/') && !rawCb.startsWith('//') ? rawCb : ''
+  const loginHref = callbackUrl ? `/login?callbackUrl=${encodeURIComponent(callbackUrl)}` : '/login'
 
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -46,7 +51,7 @@ function ResetForm() {
       if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`)
       setDone(true)
       // Give the success state a beat before forwarding to sign-in.
-      setTimeout(() => router.push('/login'), 1800)
+      setTimeout(() => router.push(loginHref), 1800)
     } catch (err: any) {
       setError(err?.message || 'Could not reset password. Try requesting a new link.')
     } finally {

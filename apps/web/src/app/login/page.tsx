@@ -256,7 +256,7 @@ export default function LoginPage() {
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-sm font-medium text-slate-700 dark:text-zinc-400">Password</label>
                 <Link
-                  href="/forgot-password"
+                  href={`/forgot-password?callbackUrl=${encodeURIComponent(callbackUrl)}`}
                   className="text-xs text-violet-600 hover:text-violet-500 dark:text-violet-400 dark:hover:text-violet-300"
                 >
                   Forgot?

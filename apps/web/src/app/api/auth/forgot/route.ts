@@ -27,6 +27,10 @@ export async function POST(req: NextRequest) {
   let body: { email?: string }
   try { body = await req.json() } catch { body = {} }
   const email = String(body.email || '').trim().toLowerCase()
+  // Carry the post-login destination (e.g. a shared-project link) through the
+  // reset email so the user lands where they intended, not a blank workspace.
+  const rawCb = String((body as any).callbackUrl || '')
+  const callbackUrl = rawCb.startsWith('/') && !rawCb.startsWith('//') ? rawCb : ''
 
   // Validate shape; same 200 + generic message for missing/invalid/unknown
   // emails so we don't leak which addresses have accounts.
@@ -44,7 +48,8 @@ export async function POST(req: NextRequest) {
         process.env.NEXT_PUBLIC_APP_URL ||
         process.env.NEXTAUTH_URL ||
         'https://www.webstew.net'
-      const link = `${origin}/reset-password?token=${encodeURIComponent(token)}`
+      const link = `${origin}/reset-password?token=${encodeURIComponent(token)}` +
+        (callbackUrl ? `&callbackUrl=${encodeURIComponent(callbackUrl)}` : '')
       await sendMail({
         to: email,
         subject: 'Reset your Webstew password',
