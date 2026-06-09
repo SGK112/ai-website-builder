@@ -2272,6 +2272,10 @@ function WorkspaceContent() {
   // Instant-publish state (Go Live → {slug}.webstew.app, no GitHub/Render).
   const [isPublishing, setIsPublishing] = useState(false)
   const [publishUrl, setPublishUrl] = useState<string | null>(null)
+  // Ship tab: keep the primary flow (Go Live → custom domain) clean and tuck
+  // the power-user stuff (BYO API keys, raw GitHub/Render deploy, export)
+  // behind an "Advanced" disclosure so the panel isn't a wall of buttons.
+  const [showAdvancedDeploy, setShowAdvancedDeploy] = useState(false)
   const [publishPath, setPublishPath] = useState<string | null>(null)
   // Managed backend (one-click DB + auth) state.
   const [isProvisioningBackend, setIsProvisioningBackend] = useState(false)
@@ -10134,7 +10138,17 @@ npx eas build --platform all
                   />
                 </div>
 
-                {/* API Keys */}
+                {/* Advanced disclosure — BYO API keys for self-hosted
+                    (GitHub/Render) deploy. Hidden by default so the primary
+                    Go-Live + custom-domain flow isn't buried under key inputs. */}
+                <button
+                  onClick={() => setShowAdvancedDeploy(v => !v)}
+                  className={cn("w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition", isDark ? "bg-white/[0.02] border border-white/[0.06] text-zinc-400 hover:text-white" : "bg-slate-50 border border-slate-200 text-slate-500 hover:text-slate-800")}
+                >
+                  <span className="flex items-center gap-1.5"><Key className="w-3 h-3" /> Advanced — API keys for self-hosted deploy</span>
+                  <ChevronDown className={cn("w-4 h-4 transition-transform", showAdvancedDeploy && "rotate-180")} />
+                </button>
+                {showAdvancedDeploy && (
                 <div className="space-y-2">
                   <label className={cn("block text-xs flex items-center gap-1.5", isDark ? "text-zinc-500" : "text-slate-500")}>
                     <Key className="w-3 h-3" />
@@ -10162,6 +10176,7 @@ npx eas build --platform all
                     </div>
                   ))}
                 </div>
+                )}
 
                 {/* Deploy Status */}
                 {deployUrl && (
@@ -10441,6 +10456,7 @@ npx eas build --platform all
                       </div>
                     </div>
                   </button>
+                  {showAdvancedDeploy && (<>
                   <button
                     onClick={deployToGitHub}
                     disabled={isDeploying || !html.trim()}
@@ -10501,6 +10517,7 @@ npx eas build --platform all
                       <div className={cn("text-[10px]", isDark ? "text-zinc-600" : "text-slate-500")}>HTML, ZIP, Next.js, or Static</div>
                     </div>
                   </button>
+                  </>)}
 
                   <button
                     onClick={() => setShowPublishModal(true)}
