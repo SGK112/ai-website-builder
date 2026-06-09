@@ -130,10 +130,13 @@ export async function POST(req: NextRequest) {
                 // route serves it. Prefer the project's published site; else the
                 // user's most recent one.
                 const pubFilter = projectId ? { userId, projectId } : { userId }
-                await db.collection('published_sites').updateOne(
+                // updateOne ignores `sort`, so "most recent" was never honored —
+                // a domain bought without a projectId could land on an arbitrary
+                // site. findOneAndUpdate DOES honor sort; pick the newest match.
+                await db.collection('published_sites').findOneAndUpdate(
                   pubFilter,
                   { $set: { customDomain: domain, customDomainTarget: attach.target, updatedAt: new Date() } },
-                  { sort: { updatedAt: -1 } } as any,
+                  { sort: { updatedAt: -1 } },
                 )
                 console.log(`[domains] purchased ${domain} → Render(${attach.target}) reg=${reg.ok} attach=${attach.ok} dns=${dns.ok} (mock reg=${reg.mock}/attach=${attach.mock})`)
               }

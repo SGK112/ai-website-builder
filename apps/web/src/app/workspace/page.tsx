@@ -3921,6 +3921,13 @@ function WorkspaceContent() {
   // auto-points DNS at this project's site.
   const buyDomain = async (domain: string) => {
     try {
+      // Ensure the site is published FIRST, so there's a live published_sites
+      // record for the post-payment webhook to stamp the domain onto —
+      // otherwise the user buys a domain that points at nothing. Mirrors
+      // connectOwnedDomain. publishInstant is a no-op if already published.
+      if (!publishUrl && html.trim()) {
+        await publishInstant()
+      }
       const res = await fetch('/api/domains/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
