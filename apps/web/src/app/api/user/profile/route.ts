@@ -37,7 +37,7 @@ export async function GET() {
   const user = ObjectId.isValid(userId)
     ? await db.collection('users').findOne(
         { _id: new ObjectId(userId) },
-        { projection: { name: 1, email: 1, avatar: 1, bio: 1, tagline: 1 } }
+        { projection: { name: 1, email: 1, avatar: 1, bio: 1, tagline: 1, skillLevel: 1 } }
       )
     : null
 
@@ -52,6 +52,9 @@ export async function GET() {
       avatar: user.avatar || session.user.image || '',
       bio: user.bio || '',
       tagline: user.tagline || '',
+      // Experience tier (no-code | low-code | full-stack) so the workspace can
+      // render the right complexity on any device — not just where it was set.
+      skillLevel: user.skillLevel || null,
       username: deriveUsername(user.email || session.user.email),
     },
   })
@@ -67,17 +70,20 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid user id' }, { status: 400 })
   }
 
-  const body = await req.json().catch(() => ({})) as { bio?: string; tagline?: string }
+  const body = await req.json().catch(() => ({})) as { bio?: string; tagline?: string; skillLevel?: string }
   const bio = typeof body.bio === 'string' ? body.bio.slice(0, BIO_MAX).trim() : undefined
   const tagline = typeof body.tagline === 'string' ? body.tagline.slice(0, TAGLINE_MAX).trim() : undefined
+  const skillLevel = (['no-code', 'low-code', 'full-stack'] as const).includes(body.skillLevel as any)
+    ? body.skillLevel : undefined
 
-  if (bio === undefined && tagline === undefined) {
+  if (bio === undefined && tagline === undefined && skillLevel === undefined) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
   }
 
   const set: Record<string, any> = { updatedAt: new Date() }
   if (bio !== undefined) set.bio = bio
   if (tagline !== undefined) set.tagline = tagline
+  if (skillLevel !== undefined) set.skillLevel = skillLevel
 
   const client = await clientPromise
   const db = client.db('ai-website-builder')

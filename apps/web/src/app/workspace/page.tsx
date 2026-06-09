@@ -2749,6 +2749,38 @@ function WorkspaceContent() {
     fetchTemplates()
   }, [])
 
+  // Sync the experience tier from the user's ACCOUNT (not just localStorage),
+  // so the UI matches their level on every device — not only where they set it.
+  // localStorage gives an instant value on mount; the account overrides it.
+  useEffect(() => {
+    if (!session?.user?.id) return
+    let alive = true
+    fetch('/api/user/profile', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => {
+        const lvl = data?.profile?.skillLevel
+        if (alive && lvl && ['no-code', 'low-code', 'full-stack'].includes(lvl)) {
+          setSkillLevel(lvl as SkillLevel)
+          try { localStorage.setItem('workspace-skill-level', lvl) } catch {}
+        }
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [session?.user?.id])
+
+  // Set the experience tier everywhere it's persisted: state, localStorage (fast
+  // cache), and the account (source of truth, syncs across devices).
+  const persistSkillLevel = useCallback((level: SkillLevel) => {
+    setSkillLevel(level)
+    try { localStorage.setItem('workspace-skill-level', level) } catch {}
+    if (session?.user?.id) {
+      fetch('/api/user/profile', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skillLevel: level }),
+      }).catch(e => console.warn('[skill] account persist failed:', e?.message))
+    }
+  }, [session?.user?.id])
+
   // Cross-origin isolation self-heal. The WebContainer preview needs
   // `crossOriginIsolated`, which only turns on when /workspace is loaded as
   // a full document — the COOP/COEP headers ride the document response. A
@@ -8162,8 +8194,7 @@ npx eas build --platform all
                   <button
                     key={level}
                     onClick={() => {
-                      setSkillLevel(level)
-                      try { localStorage.setItem('workspace-skill-level', level) } catch {}
+                      persistSkillLevel(level)
                       // Each mode has a natural view: Visual=preview, Hybrid=split, Dev=code
                       if (level === 'no-code') setViewMode('preview')
                       else if (level === 'low-code') setViewMode('split')
@@ -14386,8 +14417,7 @@ npx eas build --platform all
       <SkillPicker
         isOpen={showSkillPicker}
         onComplete={(level) => {
-          setSkillLevel(level)
-          try { localStorage.setItem('workspace-skill-level', level) } catch {}
+          persistSkillLevel(level)
           setShowSkillPicker(false)
           // Show industry wizard to generate first prompt, then tour
           setShowIndustryWizard(true)
