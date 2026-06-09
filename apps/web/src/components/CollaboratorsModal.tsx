@@ -24,6 +24,7 @@ export function CollaboratorsModal({
   const [role, setRole] = useState<'editor' | 'viewer'>('editor')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   const load = useCallback(async () => {
@@ -41,14 +42,19 @@ export function CollaboratorsModal({
 
   const invite = async () => {
     if (!projectId) return
-    setBusy(true); setError(null)
+    setBusy(true); setError(null); setNotice(null)
+    const invited = email
     try {
       const r = await fetch(`/api/projects/${projectId}/collaborators`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, role }),
       })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error || 'Failed to invite')
-      setEmail(''); load()
+      setEmail('')
+      setNotice(d.emailed
+        ? `Invite emailed to ${invited}.`
+        : `${invited} was added, but the invite email couldn't be sent. Share the project link with them directly.`)
+      load()
     } catch (e: any) { setError(e?.message || 'Failed') } finally { setBusy(false) }
   }
   const remove = async (em: string) => {
@@ -95,6 +101,7 @@ export function CollaboratorsModal({
                 </div>
               )}
               {error && <p className="text-xs text-red-400">{error}</p>}
+              {notice && <p className="text-xs text-emerald-400">{notice}</p>}
 
               <div className="space-y-1.5">
                 <div className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${isDark ? 'bg-white/[0.02]' : 'bg-slate-50'}`}>

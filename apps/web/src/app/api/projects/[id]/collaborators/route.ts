@@ -14,8 +14,13 @@ import { authOptions } from '@/lib/auth'
 import { connectDB } from '@/lib/db'
 import { ObjectId } from 'mongodb'
 import { resolveProjectAccess } from '@/lib/project-access'
+import { sendMail } from '@/lib/mailer'
 
 export const dynamic = 'force-dynamic'
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!))
+}
 
 async function getDb() {
   const mongoose = await connectDB()
@@ -71,7 +76,42 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     { _id: new ObjectId(params.id) },
     { $push: { collaborators: entry } as any, $set: { updatedAt: new Date() } },
   )
-  return NextResponse.json({ ok: true, collaborator: entry, pending: !userId })
+
+  // Actually invite them. Without this the collaborator was stored but never
+  // notified — the owner had no way to know a manual link-share was expected.
+  // Best-effort: a mail failure must not undo the (successful) invite.
+  let emailed = false
+  try {
+    const origin = req.nextUrl.origin
+    const link = `${origin}/login?callbackUrl=${encodeURIComponent('/workspace?project=' + params.id)}`
+    const ownerName = session.user.name || session.user.email || 'Someone'
+    const ownerEmail = session.user.email || ''
+    const projectName = String((project as any).name || 'a project')
+    const res = await sendMail({
+      to: email,
+      kind: 'noreply',
+      replyTo: ownerEmail || undefined,
+      subject: `${ownerName} invited you to collaborate on "${projectName}"`,
+      text:
+        `${ownerName} (${ownerEmail}) invited you to collaborate on "${projectName}" as a ${newRole} on Webstew.\n\n` +
+        `Open the project: ${link}\n\n` +
+        `Sign in — or sign up free — with THIS email address (${email}) so we can match the invite and give you access.\n\n` +
+        `— Webstew`,
+      html:
+        `<div style="font-family:system-ui,-apple-system,sans-serif;max-width:480px;margin:0 auto">` +
+        `<h2 style="margin:0 0 8px">You've been invited 🤝</h2>` +
+        `<p style="color:#444;margin:0 0 16px"><b>${escapeHtml(ownerName)}</b> invited you to collaborate on <b>${escapeHtml(projectName)}</b> as a <b>${newRole}</b>.</p>` +
+        `<p style="margin:0 0 20px"><a href="${link}" style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:10px 18px;border-radius:10px;font-weight:600">Open the project →</a></p>` +
+        `<p style="color:#888;font-size:12px;margin:0">Sign in or sign up free with <b>${escapeHtml(email)}</b> so we can match your invite. — Webstew</p>` +
+        `</div>`,
+    })
+    emailed = res.ok
+    if (!res.ok) console.warn('[collaborators] invite email not sent:', res.reason, res.error)
+  } catch (e: any) {
+    console.warn('[collaborators] invite email failed:', e?.message)
+  }
+
+  return NextResponse.json({ ok: true, collaborator: entry, pending: !userId, emailed })
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
