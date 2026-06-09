@@ -7,6 +7,7 @@
 // ?appId=…), linked from the workspace deploy panel.
 
 import { useEffect, useState, useCallback } from 'react'
+import { IntegrationsManager } from '@/components/backend/IntegrationsManager'
 
 interface Overview {
   appId: string
@@ -149,6 +150,10 @@ export default function DataStudioPage() {
 
           <SecretsSection overview={overview} qs={qs} reload={loadOverview} />
           <ActionsSection appId={overview.appId} qs={qs} />
+          <section>
+            <h2 className="mb-2 text-sm font-medium text-zinc-200">Integrations</h2>
+            <IntegrationsManager qs={qs()} />
+          </section>
         </main>
       </div>
     </Shell>
