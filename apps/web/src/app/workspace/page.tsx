@@ -8090,20 +8090,27 @@ npx eas build --platform all
                                 onClick={() => loadProject(project)}
                                 className="flex-1 text-left"
                               >
-                                <div className={cn("text-sm", isDark ? "text-white" : "text-slate-900")}>{project.name}</div>
+                                <div className={cn("text-sm flex items-center gap-1.5", isDark ? "text-white" : "text-slate-900")}>
+                                  {project.name}
+                                  {project.role && project.role !== 'owner' && (
+                                    <span className={cn("text-[8px] px-1 py-0.5 rounded capitalize", isDark ? "bg-violet-500/15 text-violet-300" : "bg-violet-100 text-violet-700")}>shared</span>
+                                  )}
+                                </div>
                                 <div className={cn("text-[10px]", isDark ? "text-zinc-600" : "text-slate-400")}>
                                   {new Date(project.updatedAt).toLocaleDateString()}
                                 </div>
                               </button>
-                              <button
-                                onClick={() => deleteProject(project.id)}
-                                className={cn(
-                                  "p-1.5 rounded hover:bg-red-500/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all",
-                                  isDark ? "text-zinc-600" : "text-slate-400"
-                                )}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              {(!project.role || project.role === 'owner') && (
+                                <button
+                                  onClick={() => deleteProject(project.id)}
+                                  className={cn(
+                                    "p-1.5 rounded hover:bg-red-500/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all",
+                                    isDark ? "text-zinc-600" : "text-slate-400"
+                                  )}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           ))
                         )}
