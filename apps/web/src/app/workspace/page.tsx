@@ -179,6 +179,8 @@ import { ShareProposalModal } from '@/components/builder/ShareProposalModal'
 import { CollaboratorsModal } from '@/components/CollaboratorsModal'
 import { FinishedBuildBanner } from '@/components/FinishedBuildBanner'
 import { MessageFeedback } from '@/components/MessageFeedback'
+import { LearningPath } from '@/components/LearningPath'
+import { useLearningPath } from '@/hooks/useLearningPath'
 import { InlineUpgradeModal } from '@/components/builder/InlineUpgradeModal'
 import { SectionChat, type ChatSubmitPayload } from '@/components/builder/SectionChat'
 import { StewPlannerChat } from '@/components/builder/StewPlannerChat'
@@ -2780,6 +2782,19 @@ function WorkspaceContent() {
       }).catch(e => console.warn('[skill] account persist failed:', e?.message))
     }
   }, [session?.user?.id])
+
+  // Learning path — progress + actions wired to the workspace; all the state
+  // and step logic lives in the hook (see useLearningPath).
+  const learnPath = useLearningPath({
+    hasSite: !!html.trim() || Object.keys(vfsFiles).length > 0,
+    isPublished: !!publishUrl,
+    hasDomain: !!connectedDomain,
+    onBuild: () => { setActivePanel('build'); setTimeout(() => inputRef.current?.focus(), 50) },
+    onPublish: () => { void publishInstant() },
+    onAddDomain: () => setActivePanel('deploy'),
+    onShare: () => { if (currentProject?.id) setCollabModalOpen(true); else addToast('info', 'Save the project first to invite collaborators') },
+    onSell: () => setShowPublishModal(true),
+  })
 
   // Cross-origin isolation self-heal. The WebContainer preview needs
   // `crossOriginIsolated`, which only turns on when /workspace is loaded as
@@ -8375,6 +8390,13 @@ npx eas build --platform all
                     isDark ? "scrollbar-thumb-zinc-700" : "scrollbar-thumb-slate-300"
                   )}
                 >
+                  {/* Skill-aware learning path — build → live → domain → share
+                      → sell. Collapsed for devs, guided for beginners. */}
+                  {!plannerActive && !learnPath.dismissed && (
+                    <div className="mb-3">
+                      <LearningPath skillLevel={skillLevel} steps={learnPath.steps} onDismiss={learnPath.dismiss} isDark={isDark} />
+                    </div>
+                  )}
                   {/* Chat Messages — hidden while the Stew Planner is
                       interviewing; the planner owns the conversation then. */}
                   {!plannerActive && chatMessages.map((msg, i) => (
