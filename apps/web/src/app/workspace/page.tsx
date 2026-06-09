@@ -2764,7 +2764,7 @@ function WorkspaceContent() {
           try { localStorage.setItem('workspace-skill-level', lvl) } catch {}
         }
       })
-      .catch(() => {})
+      .catch(e => console.warn('[skill] account load failed:', e?.message))
     return () => { alive = false }
   }, [session?.user?.id])
 
