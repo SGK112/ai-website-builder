@@ -4039,24 +4039,47 @@ function WorkspaceContent() {
 window.WebstewDB = (function () {
   var BASE = "${origin}/api/backend/${info.appId}";
   var KEY = "${info.apiKey}";
-  function req(method, path, body) {
+  var APPID = "${info.appId}";
+  var TOKEN = null;
+  try { TOKEN = localStorage.getItem("webstew_token_" + APPID); } catch (e) {}
+  function setToken(t) {
+    TOKEN = t || null;
+    try { t ? localStorage.setItem("webstew_token_" + APPID, t) : localStorage.removeItem("webstew_token_" + APPID); } catch (e) {}
+  }
+  function req(method, path, body, authed) {
+    var headers = { "Content-Type": "application/json", "x-webstew-key": KEY };
+    if (authed && TOKEN) headers["Authorization"] = "Bearer " + TOKEN;
     return fetch(BASE + path, {
       method: method,
-      headers: { "Content-Type": "application/json", "x-webstew-key": KEY },
+      headers: headers,
       body: body ? JSON.stringify(body) : undefined
     }).then(function (r) { return r.json(); });
   }
+  function capture(p) { return p.then(function (r) { if (r && r.token) setToken(r.token); return r; }); }
   return {
     list:   function (c)      { return req("GET", "/" + c); },
     get:    function (c, id)  { return req("GET", "/" + c + "?id=" + id); },
     create: function (c, doc) { return req("POST", "/" + c, doc); },
     update: function (c, id, doc) { return req("PUT", "/" + c + "?id=" + id, doc); },
     remove: function (c, id)  { return req("DELETE", "/" + c + "?id=" + id); },
-    signup: function (email, password) { return req("POST", "/auth", { action: "signup", email: email, password: password }); },
-    login:  function (email, password) { return req("POST", "/auth", { action: "login", email: email, password: password }); },
+    signup: function (email, password) { return capture(req("POST", "/auth", { action: "signup", email: email, password: password })); },
+    login:  function (email, password) { return capture(req("POST", "/auth", { action: "login", email: email, password: password })); },
+    logout: function () { setToken(null); },
+    isLoggedIn: function () { return !!TOKEN; },
     // Server action — runs a predefined outbound call server-side with your
     // secrets injected (configure in Data Studio). Secrets never reach the browser.
-    action: function (name, body) { return req("POST", "/actions/" + name, body || {}); }
+    action: function (name, body) { return req("POST", "/actions/" + name, body || {}); },
+    // Integrations — your END-USERS connect THEIR own Stripe/Shopify/etc via
+    // Composio, and you run actions on their behalf. Requires a logged-in user.
+    // The COMPOSIO key stays on Webstew's server; it never reaches this page.
+    integrations: {
+      list: function () { return req("GET", "/integrations", null, true); },
+      connect: function (toolkit, returnUrl) {
+        return req("POST", "/integrations/connect", { toolkit: toolkit, returnUrl: returnUrl || window.location.href }, true)
+          .then(function (r) { if (r && r.redirectUrl) window.location.href = r.redirectUrl; return r; });
+      },
+      run: function (toolkit, action, params) { return req("POST", "/integrations/run", { toolkit: toolkit, action: action, params: params || {} }, true); }
+    }
   };
 })();
 <\/script>`
