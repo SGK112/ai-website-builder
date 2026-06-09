@@ -368,6 +368,9 @@ interface Project {
   // Multi-target (expo/nextjs/react/astro) projects store their VFS here.
   vfsFiles?: Record<string, string>
   buildTarget?: BuildTarget
+  // The caller's role on this project — 'owner' for your own, 'editor'/'viewer'
+  // when it was shared with you. Drives the "Shared with me" section.
+  role?: 'owner' | 'editor' | 'viewer'
 }
 
 interface HistoryEntry {
@@ -2694,6 +2697,7 @@ function WorkspaceContent() {
             skillLevel: (p.skillLevel || 'no-code') as SkillLevel,
             createdAt: p.createdAt,
             updatedAt: p.updatedAt,
+            role: (p as any).role as ('owner' | 'editor' | 'viewer' | undefined),
             ...(Object.keys(vfsFromFiles).length > 0 && { vfsFiles: vfsFromFiles, buildTarget: restoredTarget }),
             ...(restoredPages && restoredPages.length > 0 && { pages: restoredPages, activePageId: restoredActivePageId }),
           } as Project & { pages?: ProjectPage[]; activePageId?: string }
@@ -8851,54 +8855,77 @@ npx eas build --platform all
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {projects.map(project => (
-                      <div
-                        key={project.id}
-                        className={cn(
-                          'p-3 rounded-xl border transition-all cursor-pointer',
-                          currentProject?.id === project.id
-                            ? (isDark ? 'bg-violet-500/10 border-violet-500/30' : 'bg-violet-50 border-violet-300')
-                            : isDark
-                              ? 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.05]'
-                              : 'bg-slate-50 border-slate-200 hover:bg-slate-100',
-                        )}
-                        onClick={() => loadProject(project)}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <div className={cn('text-sm font-medium', isDark ? 'text-white' : 'text-slate-900')}>{project.name}</div>
-                            <div className={cn('text-[10px] mt-0.5', isDark ? 'text-zinc-500' : 'text-slate-500')}>
-                              {new Date(project.updatedAt).toLocaleString()}
+                    {(() => {
+                      const owned = projects.filter(p => !p.role || p.role === 'owner')
+                      const shared = projects.filter(p => p.role === 'editor' || p.role === 'viewer')
+                      const card = (project: Project) => (
+                        <div
+                          key={project.id}
+                          className={cn(
+                            'p-3 rounded-xl border transition-all cursor-pointer',
+                            currentProject?.id === project.id
+                              ? (isDark ? 'bg-violet-500/10 border-violet-500/30' : 'bg-violet-50 border-violet-300')
+                              : isDark
+                                ? 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.05]'
+                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100',
+                          )}
+                          onClick={() => loadProject(project)}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <div className={cn('text-sm font-medium', isDark ? 'text-white' : 'text-slate-900')}>{project.name}</div>
+                              <div className={cn('text-[10px] mt-0.5', isDark ? 'text-zinc-500' : 'text-slate-500')}>
+                                {new Date(project.updatedAt).toLocaleString()}
+                              </div>
                             </div>
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              deleteProject(project.id)
-                            }}
-                            className={cn(
-                              'p-1.5 rounded hover:bg-red-500/15 hover:text-red-600 dark:hover:text-red-400',
-                              isDark ? 'text-zinc-500' : 'text-slate-500',
+                            {(!project.role || project.role === 'owner') ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  deleteProject(project.id)
+                                }}
+                                className={cn(
+                                  'p-1.5 rounded hover:bg-red-500/15 hover:text-red-600 dark:hover:text-red-400',
+                                  isDark ? 'text-zinc-500' : 'text-slate-500',
+                                )}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            ) : (
+                              <span className={cn('text-[9px] px-1.5 py-0.5 rounded capitalize shrink-0', isDark ? 'bg-violet-500/15 text-violet-300' : 'bg-violet-100 text-violet-700')}>
+                                {project.role}
+                              </span>
                             )}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          </div>
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className={cn(
+                              'text-[9px] px-1.5 py-0.5 rounded',
+                              project.skillLevel === 'no-code' && (isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-800'),
+                              project.skillLevel === 'low-code' && (isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-800'),
+                              project.skillLevel === 'full-stack' && (isDark ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-100 text-violet-800'),
+                            )}>
+                              {project.skillLevel}
+                            </span>
+                            <span className={cn('text-[9px]', isDark ? 'text-zinc-500' : 'text-slate-500')}>
+                              {(project.html.length / 1024).toFixed(1)}KB
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className={cn(
-                            'text-[9px] px-1.5 py-0.5 rounded',
-                            project.skillLevel === 'no-code' && (isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-100 text-emerald-800'),
-                            project.skillLevel === 'low-code' && (isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-800'),
-                            project.skillLevel === 'full-stack' && (isDark ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-100 text-violet-800'),
-                          )}>
-                            {project.skillLevel}
-                          </span>
-                          <span className={cn('text-[9px]', isDark ? 'text-zinc-500' : 'text-slate-500')}>
-                            {(project.html.length / 1024).toFixed(1)}KB
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                      return (
+                        <>
+                          {owned.map(card)}
+                          {shared.length > 0 && (
+                            <div className="pt-3 mt-1 border-t border-white/[0.06]">
+                              <div className={cn('text-[10px] font-medium uppercase tracking-wider mb-2 px-0.5', isDark ? 'text-zinc-500' : 'text-slate-500')}>
+                                Shared with me
+                              </div>
+                              <div className="space-y-2">{shared.map(card)}</div>
+                            </div>
+                          )}
+                        </>
+                      )
+                    })()}
                   </div>
                 )}
               </motion.div>
