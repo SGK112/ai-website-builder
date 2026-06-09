@@ -103,6 +103,10 @@ async function sendViaResend(args: SendMailArgs): Promise<SendMailResult> {
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) return { ok: false, reason: 'not-configured' }
   const from = resolveFrom(args)
+  // List-Unsubscribe improves Gmail/Outlook inbox placement (it's part of their
+  // bulk-sender signals) — a mailto to the support address. The real spam-vs-
+  // inbox lever is still a DMARC record on the domain; this is hygiene on top.
+  const helpAddr = (process.env.RESEND_FROM_HELP || 'help@webstew.net').replace(/.*<|>.*/g, '').trim()
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -117,6 +121,7 @@ async function sendViaResend(args: SendMailArgs): Promise<SendMailResult> {
         text: args.text,
         html: args.html,
         reply_to: args.replyTo,
+        headers: { 'List-Unsubscribe': `<mailto:${helpAddr}?subject=unsubscribe>` },
       }),
     })
     if (!res.ok) {
