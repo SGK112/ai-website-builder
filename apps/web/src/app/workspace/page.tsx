@@ -5170,6 +5170,10 @@ ${html}
       addTerminalLine('error', 'No prompt yet — describe what you want to build.')
       return
     }
+    if (currentProject?.role === 'viewer') {
+      addToast('info', 'You have view-only access — ask the owner for edit access to make changes.')
+      return
+    }
     promptText = promptText || ''
 
     // Multi-target branch — route Astro/Next.js/React/Expo to the JSON generator
@@ -6352,6 +6356,12 @@ ${html}
   // Handle conversational chat with AI assistant
   const handleChatMessage = async (message: string) => {
     if (!message.trim() || isGenerating || isThinking) return
+    // View-only collaborators can't edit — the server 403s the save anyway, so
+    // block here to avoid edits that silently fail to persist.
+    if (currentProject?.role === 'viewer') {
+      addToast('info', 'You have view-only access — ask the owner for edit access to make changes.')
+      return
+    }
     // New turn — clear stale preview errors; they'll re-surface if the new
     // code still throws.
     setPreviewErrors([])
@@ -10695,8 +10705,8 @@ npx eas build --platform all
                 value={commandInput}
                 onChange={(e) => setCommandInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCommandSubmit()}
-                placeholder={isGenerating ? 'Creating...' : 'Chat with AI or upload a PDF…'}
-                disabled={isGenerating}
+                placeholder={currentProject?.role === 'viewer' ? 'View only — ask the owner for edit access' : isGenerating ? 'Creating...' : 'Chat with AI or upload a PDF…'}
+                disabled={isGenerating || currentProject?.role === 'viewer'}
                 className={cn(
                   "flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/50 disabled:opacity-50",
                   isDark
