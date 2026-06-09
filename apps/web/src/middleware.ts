@@ -140,7 +140,12 @@ export async function middleware(request: NextRequest) {
     return new NextResponse('Not Found', { status: 404, headers: { 'Cache-Control': 'public, max-age=86400' } })
   }
 
-  const isGatedPage = GATED_PAGE_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'))
+  // Public exceptions under otherwise-gated prefixes. /integrations/connected is
+  // the post-OAuth landing for a PUBLISHED APP's end-users (Composio passthrough)
+  // — they're not Webstew users, so bouncing them to signup would break the flow.
+  const PUBLIC_PAGE_EXCEPTIONS = ['/integrations/connected']
+  const isGatedPage = !PUBLIC_PAGE_EXCEPTIONS.includes(pathname)
+    && GATED_PAGE_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'))
   const isGatedApi = GATED_API_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'))
 
   if (!isGatedPage && !isGatedApi) {
