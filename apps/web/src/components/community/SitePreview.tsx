@@ -20,10 +20,17 @@ export function SitePreview({
   title?: string
 }) {
   const [imgOk, setImgOk] = useState(true)
+  const [frameLoaded, setFrameLoaded] = useState(false)
 
   if (html && html.trim().length > 0) {
     return (
       <div className="absolute inset-0 overflow-hidden bg-white">
+        {/* Shimmer placeholder until the iframe paints — otherwise the card
+            flashes a blank white rectangle (jarring on a dark feed) while the
+            scaled-down site (+ its Tailwind CDN / images) loads in. */}
+        {!frameLoaded && (
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/15 via-fuchsia-500/10 to-transparent animate-pulse" />
+        )}
         {/* Render at 1280px wide then scale to fit, so the preview looks like
             a real desktop site rather than a cramped mobile reflow. */}
         <iframe
@@ -33,7 +40,8 @@ export function SitePreview({
           sandbox="allow-scripts"
           tabIndex={-1}
           aria-hidden
-          className="pointer-events-none origin-top-left"
+          onLoad={() => setFrameLoaded(true)}
+          className={`pointer-events-none origin-top-left transition-opacity duration-500 ${frameLoaded ? 'opacity-100' : 'opacity-0'}`}
           style={{ width: '1280px', height: '800px', transform: 'scale(0.3125)', border: '0' }}
         />
       </div>
