@@ -6,6 +6,8 @@ export { BuildPanel } from './BuildPanel'
 export { ShipPanel } from './ShipPanel'
 export { ProjectList } from './ProjectList'
 export { WhatsNextCoach } from './WhatsNextCoach'
+export { EnvPanel } from './EnvPanel'
+export { ConsolePanel } from './ConsolePanel'
 export { ErrorBoundary } from './ErrorBoundary'
 
 // Re-export types

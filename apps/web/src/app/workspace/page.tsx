@@ -77,8 +77,6 @@ import {
   XCircle,
   Variable,
   Lock,
-  Unlock,
-  RotateCcw,
   MessageSquare,
   Cpu,
   Workflow,
@@ -174,6 +172,8 @@ import { ContentPanel } from '@/components/builder/ContentPanel'
 import { ShipPanel } from './components/ShipPanel'
 import { ProjectList } from './components/ProjectList'
 import { WhatsNextCoach } from './components/WhatsNextCoach'
+import { EnvPanel } from './components/EnvPanel'
+import { ConsolePanel } from './components/ConsolePanel'
 import { levelCopy, defaultBuildTargetForLevel } from './constants'
 import { PublishToCommunityModal } from '@/components/builder/PublishToCommunityModal'
 import { SiteGraderModal } from '@/components/builder/SiteGraderModal'
@@ -2472,7 +2472,6 @@ function WorkspaceContent() {
   const vfsFilesRef = useRef<Record<string, string>>({})
   vfsFilesRef.current = vfsFiles
   const previewSyncRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const consoleRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -3473,13 +3472,6 @@ function WorkspaceContent() {
       terminalRef.current.scrollTop = terminalRef.current.scrollHeight
     }
   }, [terminalLines])
-
-  // Auto-scroll console
-  useEffect(() => {
-    if (consoleRef.current) {
-      consoleRef.current.scrollTop = consoleRef.current.scrollHeight
-    }
-  }, [consoleLogs])
 
   // Rotate quips during generation - faster for timelapse feel
   useEffect(() => {
@@ -7522,18 +7514,6 @@ npx eas build --platform all
     }
   }
 
-  const getConsoleIcon = (type: ConsoleLogType) => {
-    switch (type) {
-      case 'error': return <XCircle className="w-3.5 h-3.5 text-red-400" />
-      case 'warn': return <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-      case 'info': return <Info className="w-3.5 h-3.5 text-blue-400" />
-      default: return <Terminal className="w-3.5 h-3.5 text-zinc-400" />
-    }
-  }
-
-  const filteredLogs = consoleFilter === 'all'
-    ? consoleLogs
-    : consoleLogs.filter(log => log.type === consoleFilter)
 
   const currentSuggestions = promptSuggestions[skillLevel]
 
@@ -9925,188 +9905,29 @@ npx eas build --platform all
 
             {/* Env Panel */}
             {!sidebarCollapsed && activePanel === 'env' && (
-              <motion.div
-                key="env"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex-1 overflow-y-auto p-3 space-y-3"
-              >
-                <div className={cn('flex items-center gap-2 text-xs', isDark ? 'text-zinc-400' : 'text-slate-700 font-medium')}>
-                  <Variable className="w-3.5 h-3.5" />
-                  <span>Environment Variables</span>
-                </div>
-
-                <div className="space-y-2">
-                  {envVars.map((envVar, i) => (
-                    <div key={i} className={cn(
-                      'p-2.5 rounded-lg border space-y-2',
-                      isDark ? 'bg-white/[0.02] border-white/[0.05]' : 'bg-slate-50 border-slate-200',
-                    )}>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={envVar.key}
-                          onChange={(e) => setEnvVars(prev => prev.map((v, idx) => idx === i ? { ...v, key: e.target.value } : v))}
-                          className={cn(
-                            'flex-1 bg-transparent text-xs font-mono focus:outline-none',
-                            isDark ? 'text-violet-300' : 'text-violet-700',
-                          )}
-                          placeholder="KEY"
-                        />
-                        <button
-                          onClick={() => toggleEnvSecret(envVar.key)}
-                          className={cn(
-                            'p-1 rounded',
-                            isDark ? 'hover:bg-white/5 text-zinc-500' : 'hover:bg-slate-200 text-slate-500',
-                          )}
-                        >
-                          {envVar.isSecret ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
-                        </button>
-                        <button
-                          onClick={() => removeEnvVar(envVar.key)}
-                          className={cn(
-                            'p-1 rounded hover:bg-red-500/15 hover:text-red-600 dark:hover:text-red-400',
-                            isDark ? 'text-zinc-500' : 'text-slate-500',
-                          )}
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                      <input
-                        type={envVar.isSecret ? 'password' : 'text'}
-                        value={envVar.value}
-                        onChange={(e) => setEnvVars(prev => prev.map((v, idx) => idx === i ? { ...v, value: e.target.value } : v))}
-                        className={cn(
-                          'w-full rounded px-2 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-violet-500/50',
-                          // Dark code-block in dark theme, high-contrast white-bg + black text in light.
-                          isDark ? 'bg-zinc-900 text-white' : 'bg-white border border-slate-300 text-slate-900',
-                        )}
-                        placeholder="value"
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                <div className={cn(
-                  'p-2.5 rounded-lg border border-dashed space-y-2',
-                  isDark ? 'bg-white/[0.02] border-white/[0.1]' : 'bg-slate-50 border-slate-300',
-                )}>
-                  <input
-                    type="text"
-                    value={newEnvKey}
-                    onChange={(e) => setNewEnvKey(e.target.value.toUpperCase())}
-                    className={cn(
-                      'w-full bg-transparent text-xs font-mono focus:outline-none',
-                      isDark ? 'text-zinc-300 placeholder-zinc-600' : 'text-slate-900 placeholder-slate-400',
-                    )}
-                    placeholder="NEW_VARIABLE"
-                  />
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newEnvValue}
-                      onChange={(e) => setNewEnvValue(e.target.value)}
-                      className={cn(
-                        'flex-1 rounded px-2 py-1.5 text-xs font-mono focus:outline-none',
-                        isDark ? 'bg-zinc-900 text-white' : 'bg-white border border-slate-300 text-slate-900',
-                      )}
-                      placeholder="value"
-                    />
-                    <button
-                      onClick={addEnvVar}
-                      disabled={!newEnvKey.trim()}
-                      className={cn(
-                        'px-3 py-1.5 rounded text-xs disabled:opacity-50',
-                        isDark
-                          ? 'bg-violet-500/20 text-violet-300 hover:bg-violet-500/30'
-                          : 'bg-violet-600 text-white hover:bg-violet-500',
-                      )}
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
+              <EnvPanel
+                isDark={isDark}
+                envVars={envVars}
+                onUpdateVar={(index, patch) => setEnvVars(prev => prev.map((v, i) => i === index ? { ...v, ...patch } : v))}
+                onToggleSecret={toggleEnvSecret}
+                onRemove={removeEnvVar}
+                newEnvKey={newEnvKey}
+                onNewEnvKeyChange={setNewEnvKey}
+                newEnvValue={newEnvValue}
+                onNewEnvValueChange={setNewEnvValue}
+                onAdd={addEnvVar}
+              />
             )}
 
             {/* Console Panel */}
             {!sidebarCollapsed && activePanel === 'console' && (
-              <motion.div
-                key="console"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex-1 flex flex-col"
-              >
-                <div className={cn(
-                  'flex items-center justify-between px-3 py-2 border-b',
-                  isDark ? 'border-white/[0.08]' : 'border-slate-200',
-                )}>
-                  <div className="flex items-center gap-1">
-                    {(['all', 'log', 'info', 'warn', 'error'] as const).map(filter => (
-                      <button
-                        key={filter}
-                        onClick={() => setConsoleFilter(filter)}
-                        className={cn(
-                          'px-2 py-0.5 rounded text-[10px] transition-colors',
-                          consoleFilter === filter
-                            ? isDark ? 'bg-white/10 text-white' : 'bg-slate-200 text-slate-900'
-                            : isDark ? 'text-zinc-500 hover:text-white' : 'text-slate-500 hover:text-slate-900',
-                        )}
-                      >
-                        {filter}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    onClick={clearConsole}
-                    className={cn(
-                      'p-1 rounded',
-                      isDark ? 'hover:bg-white/5 text-zinc-500 hover:text-white' : 'hover:bg-slate-100 text-slate-500 hover:text-slate-900',
-                    )}
-                  >
-                    <RotateCcw className="w-3 h-3" />
-                  </button>
-                </div>
-
-                <div
-                  ref={consoleRef}
-                  className={cn(
-                    'flex-1 overflow-y-auto p-2 font-mono text-xs space-y-0.5',
-                    // High-contrast bg per theme so logs pop. Black-on-white
-                    // in light, light-on-near-black in dark.
-                    isDark ? 'bg-zinc-950' : 'bg-white',
-                  )}
-                >
-                  {filteredLogs.map((log, i) => (
-                    <div
-                      key={i}
-                      className={cn(
-                        'flex items-start gap-2 px-2 py-1 rounded',
-                        log.type === 'error' && (isDark ? 'bg-red-500/10' : 'bg-red-50'),
-                        log.type === 'warn' && (isDark ? 'bg-amber-500/10' : 'bg-amber-50'),
-                      )}
-                    >
-                      {getConsoleIcon(log.type)}
-                      <span className={cn(
-                        'flex-1',
-                        // Use the darker (-700/-800) variants in light theme
-                        // so colored log lines hit WCAG-AA on white.
-                        log.type === 'error' && (isDark ? 'text-red-300' : 'text-red-800'),
-                        log.type === 'warn'  && (isDark ? 'text-amber-300' : 'text-amber-800'),
-                        log.type === 'info'  && (isDark ? 'text-blue-300' : 'text-blue-800'),
-                        log.type === 'log'   && (isDark ? 'text-zinc-200' : 'text-slate-900'),
-                      )}>
-                        {log.message}
-                      </span>
-                      <span className={cn('text-[9px]', isDark ? 'text-zinc-600' : 'text-slate-400')}>
-                        {log.timestamp.toLocaleTimeString()}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
+              <ConsolePanel
+                isDark={isDark}
+                logs={consoleLogs}
+                filter={consoleFilter}
+                onFilterChange={setConsoleFilter}
+                onClear={clearConsole}
+              />
             )}
 
             {/* Deploy Panel */}
