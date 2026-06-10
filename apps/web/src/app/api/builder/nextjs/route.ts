@@ -138,6 +138,7 @@ function makeSlug(name: string): string {
 
 function pickAnthropicModel(modelName: string | undefined): string {
   const lc = (modelName || '').toLowerCase()
+  if (lc.includes('fable')) return 'claude-fable-5'
   if (lc.includes('opus')) return 'claude-opus-4-8'
   if (lc.includes('sonnet')) return 'claude-sonnet-4-6'
   // Haiku default — fits Cloudflare's 100s edge timeout. Sonnet still

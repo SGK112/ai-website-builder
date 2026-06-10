@@ -2696,7 +2696,8 @@ Rules:
       // default, so the router intended Haiku but Sonnet ran. Sonnet's 16K
       // cap blew through 3 max_tokens continuations on complex prompts and
       // shipped a truncated site to the user.
-      const claudeModel = /^claude-(haiku|sonnet|opus)-/.test(model || '') ? model! :
+      const claudeModel = /^claude-(fable|haiku|sonnet|opus)-/.test(model || '') ? model! :
+                          model === 'claude-fable' ? 'claude-fable-5' :
                           model === 'claude-opus' || model === 'claude-3-opus' ? 'claude-opus-4-8' :
                           model === 'claude-sonnet' || model === 'claude-3-sonnet' || model === 'claude-3.5-sonnet' ? 'claude-sonnet-4-6' :
                           model === 'claude-haiku' || model === 'claude-3-haiku' || model === 'claude-haiku-3.5' || model === 'claude-3.5-haiku' ? 'claude-haiku-4-5-20251001' :
@@ -2707,7 +2708,7 @@ Rules:
       // to a single hero section. Continuation logic below handles stop_reason='max_tokens'.
       const maxTokens = claudeModel.includes('haiku') ? 16384 :
                         claudeModel.includes('sonnet') ? 16384 :
-                        claudeModel.includes('opus') ? 32000 : 16384
+                        (claudeModel.includes('opus') || claudeModel.includes('fable')) ? 32000 : 16384
 
       // Detect if this is an e-commerce request for better prompting
       const industry = detectIndustry(prompt || fullUserPrompt)

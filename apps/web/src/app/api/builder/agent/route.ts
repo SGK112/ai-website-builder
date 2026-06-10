@@ -172,7 +172,8 @@ interface AgentRequest {
 function pickModel(name?: string): { model: string; substituted?: string } {
   const lc = (name || '').toLowerCase().trim()
   if (!lc || lc === 'auto' || lc === 'best') return { model: 'claude-sonnet-4-6' }
-  if (lc.startsWith('claude') || lc.includes('opus') || lc.includes('sonnet') || lc.includes('haiku')) {
+  if (lc.startsWith('claude') || lc.includes('fable') || lc.includes('opus') || lc.includes('sonnet') || lc.includes('haiku')) {
+    if (lc.includes('fable')) return { model: 'claude-fable-5' }
     if (lc.includes('opus')) return { model: 'claude-opus-4-8' }
     if (lc.includes('haiku')) return { model: 'claude-haiku-4-5-20251001' }
     return { model: 'claude-sonnet-4-6' }

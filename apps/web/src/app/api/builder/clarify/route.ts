@@ -114,7 +114,9 @@ async function callModel(
 
   const anthropicKey = apiKey || process.env.ANTHROPIC_API_KEY
   if (!anthropicKey) throw new Error('No AI API key configured')
-  const claudeModel = lc.includes('opus')
+  const claudeModel = lc.includes('fable')
+    ? 'claude-fable-5'
+    : lc.includes('opus')
     ? 'claude-opus-4-8'
     : lc.includes('sonnet')
       ? 'claude-sonnet-4-6'

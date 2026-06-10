@@ -27,7 +27,8 @@ Rules:
 {"steps":[{"title":"<=6 words","prompt":"imperative instruction for the builder","verify":"what 'done' looks like for this step"}]}`
 
 function resolveModel(model?: string): string {
-  if (/^claude-(haiku|sonnet|opus)-/.test(model || '')) return model!
+  if (/^claude-(fable|haiku|sonnet|opus)-/.test(model || '')) return model!
+  if (model === 'claude-fable') return 'claude-fable-5'
   if (model === 'claude-opus') return 'claude-opus-4-8'
   if (model === 'claude-haiku') return 'claude-haiku-4-5-20251001'
   return 'claude-sonnet-4-6'
