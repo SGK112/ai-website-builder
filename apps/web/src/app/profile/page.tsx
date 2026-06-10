@@ -44,7 +44,6 @@ import {
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/context/ThemeContext'
 import { StarryNight, SunriseBackground } from '@/components/landing/BackgroundEffects'
-import { WebStewNav } from '@/components/shared/WebStewNav'
 import { PayoutsCard } from '@/components/profile/PayoutsCard'
 import { SUBSCRIPTION_PLANS } from '@/lib/stripe-plans'
 import { DeployCredentialsCard } from '@/components/profile/DeployCredentialsCard'
@@ -422,8 +421,7 @@ export default function ProfilePage() {
         {isDark ? <StarryNight /> : <SunriseBackground />}
       </div>
 
-      {/* Unified Navigation */}
-      <WebStewNav />
+      {/* Nav is the global WorkspaceNav (from ClientLayout) — one app-wide nav. */}
 
       {/* Main Content */}
       <main className="relative z-10 max-w-6xl mx-auto px-4 py-8">

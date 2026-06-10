@@ -1,8 +1,18 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect, useId } from 'react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
+
+// These backgrounds position stars/clouds with Math.random(), so the server
+// and client produce different markup → React hydration warnings ("Prop style
+// did not match"). They're purely decorative, so we render them client-only:
+// return null until mount, then paint. No content/SEO is affected.
+function useMounted() {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  return mounted
+}
 
 // Generate random stars
 function generateStars(count: number) {
@@ -130,6 +140,7 @@ function Constellation({
 
 // Starry Night Background
 export function StarryNight() {
+  const mounted = useMounted()
   const starGroups = useMemo(() => {
     const allStars = generateStars(300)
     return [
@@ -142,6 +153,8 @@ export function StarryNight() {
   }, [])
   const brightStars = useMemo(() => generateStars(40).map(s => ({ ...s, size: s.size + 1.5 })), [])
   const shootingStars = useMemo(() => generateStars(2), [])
+
+  if (!mounted) return null
 
   return (
     <div className="absolute inset-0 overflow-hidden">
@@ -268,7 +281,8 @@ export function StarryNight() {
 
 // Volumetric Cloud Component
 function VolumetricCloud({ className, scale = 1, opacity = 1 }: { className?: string; scale?: number; opacity?: number }) {
-  const cloudId = useMemo(() => Math.random().toString(36).substr(2, 9), [])
+  // useId is SSR-stable (server and client agree) — a random id here mismatched on hydration.
+  const cloudId = useId().replace(/:/g, '')
 
   return (
     <div className={cn("relative pointer-events-none", className)} style={{ transform: `scale(${scale})`, opacity }}>
@@ -310,6 +324,7 @@ function VolumetricCloud({ className, scale = 1, opacity = 1 }: { className?: st
 
 // Day/Night Timelapse with dial motion - sun and moon arc across the sky
 export function DayNightCycle() {
+  const mounted = useMounted()
   const cycleDuration = 20 // 20 seconds per full cycle
 
   // Pre-generate star positions
@@ -324,6 +339,8 @@ export function DayNightCycle() {
 
   // Arc radius for the dial motion (relative to container center)
   const arcRadius = 42 // percentage of container height
+
+  if (!mounted) return null
 
   return (
     <div className="absolute inset-0 overflow-hidden">

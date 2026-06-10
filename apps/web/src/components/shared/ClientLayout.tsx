@@ -11,11 +11,13 @@ interface ClientLayoutProps {
 export function ClientLayout({ children }: ClientLayoutProps) {
   const pathname = usePathname()
 
-  // Pages that render their OWN nav (WebStewNav) — don't also paint the global
-  // WorkspaceNav on top of them, or you get a double header + logo (/profile,
-  // /templates did exactly that).
-  const ownNavPrefixes = ['/auth/', '/workspace', '/create/', '/profile', '/templates']
-  const hideNavExact = ['/', '/login', '/signup', '/auth', '/workspace', '/create', '/profile', '/templates']
+  // Pages that render their OWN nav (the landing's bespoke marketing header,
+  // the workspace's internal toolbar) — don't also paint the global
+  // WorkspaceNav on top of them. Everything else gets ONE consistent nav:
+  // WorkspaceNav. (/templates + /profile used to render a second, different
+  // nav — WebStewNav — which is why the app had two top-navs. Removed.)
+  const ownNavPrefixes = ['/auth/', '/workspace', '/create/']
+  const hideNavExact = ['/', '/login', '/signup', '/auth', '/workspace', '/create']
   const shouldHideNav =
     hideNavExact.includes(pathname) || ownNavPrefixes.some((p) => pathname.startsWith(p))
 

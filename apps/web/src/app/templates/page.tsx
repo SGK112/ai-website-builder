@@ -27,7 +27,6 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getTemplateById } from '@/lib/templates'
-import { WebStewNav } from '@/components/shared/WebStewNav'
 
 interface Template {
   id: string
@@ -311,8 +310,7 @@ export default function TemplatesPage() {
 
   return (
     <div className="min-h-screen bg-slate-950">
-      {/* Unified Navigation */}
-      <WebStewNav />
+      {/* Nav is the global WorkspaceNav (from ClientLayout) — one app-wide nav. */}
 
       {/* Hero */}
       <section className="py-8 sm:py-12 px-4 sm:px-6 text-center border-b border-white/10">
