@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CustomDomainCard } from '@/components/builder/CustomDomainCard'
-import type { SkillLevel, WorkspaceSettings } from '../types'
+import type { SkillLevel, WorkspaceSettings, BuildTarget } from '../types'
 
 type ToastType = 'success' | 'error' | 'info' | 'warning'
 
@@ -53,7 +53,7 @@ interface ShipPanelProps {
   onSettingChange: (key: keyof WorkspaceSettings, value: string) => void
   // Build context
   html: string
-  buildTarget: string
+  buildTarget: BuildTarget
   hasVfsFiles: boolean
   // Go Live / publish
   isPublishing: boolean

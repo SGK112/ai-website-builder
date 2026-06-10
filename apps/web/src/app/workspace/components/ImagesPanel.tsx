@@ -302,7 +302,7 @@ export function ImagesPanel({
             const logoPrompt = prompt('Describe your logo (e.g., "minimalist tech startup logo with abstract shapes")')
             if (logoPrompt) {
               onImagePromptChange(`Logo design: ${logoPrompt}, clean vector style, transparent background, professional branding`)
-              onImageStyleChange('minimalist')
+              onImageStyleChange('minimal')
             }
           }}
           className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 hover:border-emerald-500/40 transition-all"
@@ -317,7 +317,7 @@ export function ImagesPanel({
             const iconPrompt = prompt('Describe your icon (e.g., "shopping cart icon for e-commerce")')
             if (iconPrompt) {
               onImagePromptChange(`Icon: ${iconPrompt}, flat design, single color, minimal, SVG style`)
-              onImageStyleChange('minimalist')
+              onImageStyleChange('minimal')
             }
           }}
           className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-all"
@@ -348,7 +348,7 @@ export function ImagesPanel({
             if (heroPrompt) {
               onImagePromptChange(`Hero image: ${heroPrompt}, high quality, professional photography style, website hero section`)
               onImageAspectRatioChange('16:9')
-              onImageStyleChange('photographic')
+              onImageStyleChange('professional')
             }
           }}
           className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-gradient-to-br from-violet-500/10 to-purple-500/10 border border-violet-500/20 hover:border-violet-500/40 transition-all"

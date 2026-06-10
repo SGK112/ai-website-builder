@@ -10453,7 +10453,7 @@ npx eas build --platform all
                       ) : (
                         <>
                           <p className="text-zinc-500 font-medium text-sm">{levelCopy[skillLevel].previewEmptyTitle}</p>
-                          <p className="text-zinc-700 text-xs mt-1">{levelCopy[skillLevel].previewEmptyBody}</p>
+                          <p className="text-zinc-400 text-xs mt-1">{levelCopy[skillLevel].previewEmptyBody}</p>
                         </>
                       )}
                     </div>

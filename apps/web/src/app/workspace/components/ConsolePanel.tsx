@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { RotateCcw, XCircle, AlertTriangle, Info, Terminal } from 'lucide-react'
+import { RotateCcw, XCircle, AlertTriangle, Info, Terminal, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ConsoleLog, ConsoleLogType } from '../types'
 
@@ -11,11 +11,12 @@ function consoleIcon(type: ConsoleLogType) {
     case 'error': return <XCircle className="w-3.5 h-3.5 text-red-400" />
     case 'warn': return <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
     case 'info': return <Info className="w-3.5 h-3.5 text-blue-400" />
+    case 'success': return <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
     default: return <Terminal className="w-3.5 h-3.5 text-zinc-400" />
   }
 }
 
-const FILTERS = ['all', 'log', 'info', 'warn', 'error'] as const
+const FILTERS = ['all', 'log', 'info', 'warn', 'error', 'success'] as const
 
 interface ConsolePanelProps {
   isDark: boolean
@@ -103,6 +104,7 @@ export function ConsolePanel({ isDark, logs, filter, onFilterChange, onClear }: 
               log.type === 'error' && (isDark ? 'text-red-300' : 'text-red-800'),
               log.type === 'warn'  && (isDark ? 'text-amber-300' : 'text-amber-800'),
               log.type === 'info'  && (isDark ? 'text-blue-300' : 'text-blue-800'),
+              log.type === 'success' && (isDark ? 'text-emerald-300' : 'text-emerald-700'),
               log.type === 'log'   && (isDark ? 'text-zinc-200' : 'text-slate-900'),
             )}>
               {log.message}
