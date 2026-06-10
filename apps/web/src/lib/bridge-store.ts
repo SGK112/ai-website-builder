@@ -309,8 +309,16 @@ export function dispatchToBridge(
   const buffer: BridgeResponse[] = []
   let chunkResolver: ((c: BridgeResponse | null) => void) | null = null
   let done = false
+  let idleTimer: ReturnType<typeof setTimeout> | null = null
+  // Assigned once timeoutMs is known (below). Resets the idle watchdog —
+  // every chunk from the bridge proves it's alive, so a long-but-healthy
+  // build that keeps streaming never trips the "did not respond" warning.
+  let armIdle: () => void = () => {}
+  const clearIdle = () => { if (idleTimer) { clearTimeout(idleTimer); idleTimer = null } }
   const push = (c: BridgeResponse) => {
     if (done) return
+    // A real chunk means the bridge is responding — restart the watchdog.
+    if (c.kind !== 'done' && c.kind !== 'error') armIdle()
     if (chunkResolver) {
       const r = chunkResolver
       chunkResolver = null
@@ -322,10 +330,12 @@ export function dispatchToBridge(
     // after the consumer receives this terminal chunk.
     if (c.kind === 'done' || c.kind === 'error') {
       done = true
+      clearIdle()
     }
   }
   const close = () => {
     done = true
+    clearIdle()
     if (chunkResolver) {
       const r = chunkResolver
       chunkResolver = null
@@ -358,25 +368,30 @@ export function dispatchToBridge(
     console.log(`[bridge-dispatch] ${requestId} queued (no active pollers)`)
   }
 
-  // Timeout safety — if bridge never picks up + responds within window,
-  // emit an error and clean up so the agent route's SSE doesn't hang.
-  // Must exceed the bridge runner's own hard cap (270s) so a long-but-healthy
-  // build (e.g. a multi-page site) isn't cut off here while Claude Code is
-  // still streaming. Kept under the route's 300s maxDuration.
+  // Idle watchdog — fires ONLY after this long with NO chunk at all (a truly
+  // dead/disconnected bridge), not as an absolute cap. Every chunk resets it
+  // (see push), so a long-but-healthy build that keeps streaming — even a
+  // multi-page site running past the old 285s absolute cap — no longer trips
+  // the false "did not respond" warning. The window still exceeds the bridge
+  // runner's own hard cap (270s) so a single slow step between chunks is safe.
   const timeoutMs = opts.timeoutMs ?? 285_000
-  const timeoutTimer = setTimeout(() => {
-    if (done) return
-    push({
-      requestId,
-      kind: 'error',
-      data: {
-        message:
-          'Local bridge did not respond within ' +
-          Math.floor(timeoutMs / 1000) +
-          's. Check that `webstew-bridge connect …` is running in your terminal.',
-      },
-    })
-  }, timeoutMs)
+  armIdle = () => {
+    clearIdle()
+    idleTimer = setTimeout(() => {
+      if (done) return
+      push({
+        requestId,
+        kind: 'error',
+        data: {
+          message:
+            'Local bridge went quiet for ' +
+            Math.floor(timeoutMs / 1000) +
+            's. Check that `webstew-bridge connect …` is running in your terminal.',
+        },
+      })
+    }, timeoutMs)
+  }
+  armIdle() // start the watchdog
 
   const stream: AsyncIterable<BridgeResponse> = {
     [Symbol.asyncIterator]() {
@@ -394,7 +409,7 @@ export function dispatchToBridge(
         },
         async return() {
           done = true
-          clearTimeout(timeoutTimer)
+          clearIdle()
           responseStreams.delete(requestId)
           return { value: undefined as any, done: true }
         },
@@ -404,7 +419,7 @@ export function dispatchToBridge(
 
   const cancel = () => {
     done = true
-    clearTimeout(timeoutTimer)
+    clearIdle()
     responseStreams.delete(requestId)
   }
 
