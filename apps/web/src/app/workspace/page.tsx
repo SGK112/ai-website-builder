@@ -1516,6 +1516,11 @@ function WorkspaceContent() {
   // Terminal state
   const [terminalLines, setTerminalLines] = useState<TerminalLine[]>([])
   const [commandInput, setCommandInput] = useState('')
+  // Images the user attached (drop / paste / paperclip) to send WITH the next
+  // chat message — so they reach the AI builder as vision input. Distinct from
+  // stewIngredients (which only feed a from-scratch build).
+  const [pendingChatImages, setPendingChatImages] = useState<{ url: string; name: string }[]>([])
+  const [attachingImage, setAttachingImage] = useState(false)
   const [chatPosition, setChatPosition] = useState<{ x: number; y: number } | null>(null) // null = docked at bottom center
   const [isDraggingChat, setIsDraggingChat] = useState(false)
   const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
@@ -6229,6 +6234,28 @@ ${html}
     addToast('success', `Added ${file.name} — will be used in the next build`)
   }
 
+  // Attach an image (drop / paste / paperclip) to the NEXT chat message, so it
+  // actually reaches the AI builder as vision input. Shows a preview chip above
+  // the input; cleared once the message is sent.
+  const attachImageToChat = async (file: File) => {
+    if (!file.type.startsWith('image/')) return
+    setAttachingImage(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      const data = await res.json().catch(() => ({} as any))
+      if (!res.ok || !data?.url) throw new Error(data?.error || `HTTP ${res.status}`)
+      const name = file.name || 'screenshot.png'
+      setPendingChatImages((prev) => [...prev, { url: data.url, name }])
+      addToast('success', 'Image attached — describe the change and send')
+    } catch (e) {
+      addToast('error', `Couldn't attach image: ${(e as Error)?.message || 'upload failed'}`)
+    } finally {
+      setAttachingImage(false)
+    }
+  }
+
   const handleDocUpload = async (file: File) => {
     if (!file) return
     setDocIngesting(true)
@@ -6406,6 +6433,11 @@ ${html}
     // New turn — clear stale preview errors; they'll re-surface if the new
     // code still throws.
     setPreviewErrors([])
+
+    // Snapshot any attached images for THIS message (sent to the builder as
+    // vision input), then clear the tray so they're not re-sent next turn.
+    const turnImages = pendingChatImages.map(i => i.url)
+    if (turnImages.length) setPendingChatImages([])
 
     // (Mobile auto-collapse-sidebar removed — was suspect for header+blank
     // +footer regression where streaming HTML stopped arriving after the
@@ -6593,6 +6625,9 @@ ${html}
             prompt: agentPrompt,
             files: agentFiles,
             history: agentHistory,
+            // Screenshots/images the user attached — sent to the model as
+            // vision input so "make this purple / match this" actually works.
+            images: turnImages.length ? turnImages : undefined,
             model: selectedModel.id,
             apiKey: selectedModel.provider !== 'auto' ? apiKeys[selectedModel.provider] || undefined : undefined,
             target: buildTarget,
@@ -7201,8 +7236,12 @@ ${html}
   }
 
   const handleCommandSubmit = () => {
-    if (!commandInput.trim() || isGenerating) return
-    handleChatMessage(commandInput)
+    if (isGenerating) return
+    // Allow sending with just an attached image (e.g. "make this purple" can
+    // even be implied) — but nudge for a default instruction if there's no text.
+    if (!commandInput.trim() && pendingChatImages.length === 0) return
+    const msg = commandInput.trim() || 'Update the site to match the attached image.'
+    handleChatMessage(msg)
   }
 
   const handleExport = async () => {
@@ -7731,9 +7770,9 @@ npx eas build --platform all
         const isDoc = isPdf || isText || /\.(docx?|rtf)$/i.test(f.name)
         const isVid = f.type.startsWith('video/')
         if (isImg) {
-          // Pipe through the existing image upload path. The chat input's
-          // attachment slot picks this up and renders it as an ingredient.
-          handleImageFileUpload(f).catch(() => addToast('error', `Image upload failed`))
+          // Attach to the next chat message (visible chip) so the user can
+          // say "make this purple" and the image actually reaches the builder.
+          void attachImageToChat(f)
         } else if (isDoc) {
           handleDocUpload(f)
         } else if (isVid) {
@@ -8764,6 +8803,37 @@ npx eas build --platform all
             // hidden behind the tab bar.
             style={{ paddingBottom: 'calc(14px + env(safe-area-inset-bottom, 0px) + var(--bottom-nav-h, 0px))' }}
           >
+            {/* Attached-image preview chips — proof the screenshot is going
+                WITH the next message, with one-tap remove. */}
+            {pendingChatImages.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {pendingChatImages.map((img, i) => (
+                  <div
+                    key={`${img.url}-${i}`}
+                    className={cn(
+                      'group relative w-14 h-14 rounded-lg overflow-hidden border shrink-0',
+                      isDark ? 'border-white/15 bg-white/5' : 'border-slate-200 bg-slate-100'
+                    )}
+                    title={img.name}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img.url} alt={img.name} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setPendingChatImages(prev => prev.filter((_, idx) => idx !== i))}
+                      className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                      title="Remove"
+                      aria-label="Remove attached image"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </div>
+                ))}
+                <span className={cn('self-center text-[11px]', isDark ? 'text-zinc-500' : 'text-slate-500')}>
+                  Attached — describe the change, then send
+                </span>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <div className={cn(
                 'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all',
@@ -8777,33 +8847,38 @@ npx eas build --platform all
                   <MessageSquare className={cn("w-4 h-4", isDark ? "text-zinc-400" : "text-slate-500")} />
                 )}
               </div>
-              {/* Hidden PDF file input */}
+              {/* Hidden file input — images attach to the chat, PDFs go to the
+                  doc-ingest builder. */}
               <input
                 ref={docFileRef}
                 type="file"
-                accept=".pdf,application/pdf"
+                accept="image/*,.pdf,application/pdf"
                 className="hidden"
                 onChange={(e) => {
                   const f = e.target.files?.[0]
-                  if (f) void handleDocUpload(f)
+                  if (!f) return
+                  if (f.type.startsWith('image/')) void attachImageToChat(f)
+                  else void handleDocUpload(f)
+                  if (docFileRef.current) docFileRef.current.value = ''
                 }}
               />
-              {/* Paperclip — upload PDF to generate a site from it */}
+              {/* Paperclip — attach a screenshot/image (sent with your message)
+                  or a PDF (builds a site from it) */}
               <button
                 type="button"
                 onClick={() => docFileRef.current?.click()}
-                disabled={docIngesting || isGenerating || isThinking}
-                title="Upload a PDF (bid, plans, proposal) to build a site from it"
+                disabled={docIngesting || attachingImage || isGenerating || isThinking}
+                title="Attach a screenshot/image to send with your message, or a PDF to build from"
                 className={cn(
                   'w-7 h-7 rounded-md flex items-center justify-center shrink-0 transition-all',
-                  docIngesting
+                  (docIngesting || attachingImage)
                     ? 'bg-violet-500/20 text-violet-400 animate-pulse'
                     : isDark
                       ? 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
                       : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200'
                 )}
               >
-                {docIngesting
+                {(docIngesting || attachingImage)
                   ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   : <Paperclip className="w-3.5 h-3.5" />
                 }
@@ -8834,6 +8909,13 @@ npx eas build --platform all
                 value={commandInput}
                 onChange={(e) => setCommandInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCommandSubmit()}
+                onPaste={(e) => {
+                  // Paste a screenshot straight into the chat — the core
+                  // "I screenshot it and share with instructions" flow.
+                  const img = Array.from(e.clipboardData?.items || []).find(it => it.type.startsWith('image/'))
+                  const file = img?.getAsFile()
+                  if (file) { e.preventDefault(); void attachImageToChat(file) }
+                }}
                 placeholder={currentProject?.role === 'viewer' ? 'View only — ask the owner for edit access' : isGenerating ? 'Creating...' : levelCopy[skillLevel].chatPlaceholder}
                 disabled={isGenerating || currentProject?.role === 'viewer'}
                 className={cn(
@@ -8857,10 +8939,10 @@ npx eas build --platform all
               ) : (
                 <button
                   onClick={handleCommandSubmit}
-                  disabled={!commandInput.trim()}
+                  disabled={!commandInput.trim() && pendingChatImages.length === 0}
                   className={cn(
                     'w-8 h-8 rounded-lg flex items-center justify-center transition-all',
-                    commandInput.trim()
+                    (commandInput.trim() || pendingChatImages.length > 0)
                       ? 'bg-violet-500 hover:bg-violet-400 text-white'
                       : isDark ? 'bg-white/5 text-zinc-500' : 'bg-slate-200 text-slate-400'
                   )}

@@ -146,6 +146,9 @@ MULTI-PAGE WEBSITES (this project's target is "website"):
 
 interface AgentRequest {
   prompt: string
+  // Image URLs the user attached this turn (screenshots / references). Sent to
+  // the model as vision content blocks alongside the prompt.
+  images?: string[]
   files?: Record<string, string>
   history?: Array<{ role: 'user' | 'assistant'; content: any }>
   model?: string
@@ -457,7 +460,18 @@ export async function POST(req: NextRequest) {
       if (h?.role && h?.content) messages.push(h as Anthropic.Messages.MessageParam)
     }
   }
-  messages.push({ role: 'user', content: prompt })
+  // Attach any images the user shared as vision blocks before the prompt, so
+  // "make this purple / match this screenshot" works. Capped + URL-validated.
+  const imageBlocks = (Array.isArray(body.images) ? body.images : [])
+    .filter((u): u is string => typeof u === 'string' && /^https?:\/\//i.test(u))
+    .slice(0, 4)
+    .map((url) => ({ type: 'image' as const, source: { type: 'url' as const, url } }))
+  messages.push({
+    role: 'user',
+    content: imageBlocks.length
+      ? [...imageBlocks, { type: 'text' as const, text: prompt }]
+      : prompt,
+  })
 
   // Developer Mode wants to see Claude's reasoning; default modes want terse.
   // The base prompt already says ZERO PROSE — override that for full-stack.
