@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
 import { generateTextFree, FreeAIConfig } from '@/lib/free-ai-providers'
+import { isGrokModel, XAI_FLAGSHIP, xaiClient } from '@/lib/xai'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
@@ -321,6 +322,20 @@ async function getAIResponse(
       ]
     })
 
+    return response.choices[0]?.message?.content || ''
+  }
+
+  if (isGrokModel(model)) {
+    // xAI is OpenAI-compatible — same chat.completions call, xAI client.
+    const client = xaiClient(apiKey)
+    const response = await client.chat.completions.create({
+      model: XAI_FLAGSHIP,
+      max_tokens: CONVERSE_MAX_TOKENS,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+      ]
+    })
     return response.choices[0]?.message?.content || ''
   }
 

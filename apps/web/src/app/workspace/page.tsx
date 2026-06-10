@@ -294,10 +294,9 @@ const aiModels: AIModel[] = [
   { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'google', description: 'Most capable Gemini', contextWindow: '2M', speed: 'medium', quality: 'best' },
   { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', provider: 'google', description: 'Fast multimodal', contextWindow: '1M', speed: 'fast', quality: 'good' },
 
-  // xAI Grok — OpenAI-compatible API at api.x.ai/v1
-  { id: 'grok-2-1212', name: 'Grok 2', provider: 'xai', description: 'xAI flagship text model', contextWindow: '131K', speed: 'medium', quality: 'best' },
-  { id: 'grok-2-vision-1212', name: 'Grok 2 Vision', provider: 'xai', description: 'xAI multimodal — text + image', contextWindow: '32K', speed: 'medium', quality: 'great' },
-  { id: 'grok-beta', name: 'Grok Beta', provider: 'xai', description: 'Earlier Grok model — lower cost', contextWindow: '131K', speed: 'fast', quality: 'great' },
+  // xAI Grok — OpenAI-compatible API at api.x.ai/v1. Grok 4.x is multimodal
+  // (text + image), 1M context; the grok-2 line is retired.
+  { id: 'grok-4.3', name: 'Grok 4.3', provider: 'xai', description: 'xAI flagship — multimodal, 1M context', contextWindow: '1M', speed: 'medium', quality: 'best' },
 ]
 
 // Stock Image Sources

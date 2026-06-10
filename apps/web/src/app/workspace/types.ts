@@ -9,7 +9,7 @@ export type SkillLevel = 'no-code' | 'low-code' | 'full-stack'
 export type BuildTarget = 'website' | 'astro' | 'nextjs' | 'react' | 'expo'
 export type BuildPhase = 'idle' | 'structure' | 'styling' | 'interactivity' | 'complete'
 export type ConsoleLogType = 'log' | 'info' | 'warn' | 'error' | 'success'
-export type AIProvider = 'anthropic' | 'openai' | 'google' | 'huggingface' | 'together' | 'cloudflare'
+export type AIProvider = 'auto' | 'anthropic' | 'openai' | 'google' | 'xai' | 'huggingface' | 'together' | 'cloudflare'
 
 export interface SelectedElement {
   tagName: string

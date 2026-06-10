@@ -88,6 +88,8 @@ export const aiModels: AIModel[] = [
   { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'openai', description: 'Fast and affordable', contextWindow: '16K', speed: 'fast', quality: 'good' },
   { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'google', description: 'Latest fast model', contextWindow: '1M', speed: 'fast', quality: 'great' },
   { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'google', description: 'Most capable Gemini', contextWindow: '2M', speed: 'medium', quality: 'best' },
+  // xAI Grok — OpenAI-compatible API at api.x.ai/v1. Grok 4.x is multimodal, 1M context.
+  { id: 'grok-4.3', name: 'Grok 4.3', provider: 'xai', description: 'xAI flagship — multimodal, 1M context', contextWindow: '1M', speed: 'medium', quality: 'best' },
 ]
 
 // Stock Image Categories

@@ -16,6 +16,7 @@ import OpenAI from 'openai'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
+import { isGrokModel, XAI_FLAGSHIP, xaiClient } from '@/lib/xai'
 import type { ClarifyRequest, ClarifyResponse, StewPlan } from '@/lib/types/stew-planner'
 
 export const dynamic = 'force-dynamic'
@@ -78,6 +79,20 @@ async function callModel(
 ): Promise<string> {
   const lc = (model || '').toLowerCase()
   const isOpenAI = lc.startsWith('gpt') || lc.startsWith('o1') || lc.startsWith('o3')
+
+  // xAI Grok — OpenAI-compatible, so the same chat.completions call works.
+  if (isGrokModel(model)) {
+    const client = xaiClient(apiKey)
+    const res = await client.chat.completions.create({
+      model: XAI_FLAGSHIP,
+      max_tokens: CLARIFY_MAX_TOKENS,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+      ],
+    })
+    return res.choices[0]?.message?.content || ''
+  }
 
   // The planner needs reliable JSON. OpenAI when explicitly selected (and a
   // key is available); Anthropic Haiku otherwise — fast, cheap, dependable.
