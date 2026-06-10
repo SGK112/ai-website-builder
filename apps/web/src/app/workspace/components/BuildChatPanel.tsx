@@ -2,7 +2,7 @@
 
 import type { ComponentType, RefObject, ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bot, User, Loader2, Check } from 'lucide-react'
+import { Bot, User, Loader2, Check, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { LearningPath, type LearningStep } from '@/components/LearningPath'
 import { MessageFeedback } from '@/components/MessageFeedback'
@@ -226,6 +226,11 @@ export function BuildChatPanel({
   onLoadInlineTemplate,
 }: BuildChatPanelProps) {
   const showQuickStart = !plannerActive && (chatMessages.length === 1 || !hasHtml) && !isGenerating
+  // The "Thinking…" pill is only the *pre-reply* wait. Once an assistant
+  // bubble exists it streams its own live tool status ("Editing index.html…"),
+  // so showing both was the confusing double-bubble. Gate on "last turn is the
+  // user's" — i.e. we're still waiting for the assistant to start.
+  const awaitingReply = chatMessages.length > 0 && chatMessages[chatMessages.length - 1]?.role === 'user'
 
   return (
     <motion.div
@@ -297,19 +302,32 @@ export function BuildChatPanel({
           />
         ))}
 
-        {/* Thinking indicator (converse API in flight, before generation) */}
-        {isThinking && !isGenerating && (
+        {/* Pre-reply "Thinking…" — Webstew-branded (gradient avatar + chip),
+            shown only while we await the assistant's first bubble. */}
+        {isThinking && !isGenerating && awaitingReply && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex gap-2">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-              <Loader2 className="w-4 h-4 text-white animate-spin" />
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 via-fuchsia-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-sm shadow-violet-500/30">
+              <motion.span animate={{ scale: [1, 1.18, 1], opacity: [0.85, 1, 0.85] }} transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}>
+                <Sparkles className="w-3.5 h-3.5 text-white" />
+              </motion.span>
             </div>
-            <div className={cn("rounded-2xl rounded-bl-sm px-3 py-2 flex items-center gap-2", isDark ? "bg-zinc-800/80 text-violet-300" : "bg-slate-100 text-violet-600")}>
+            <div className={cn(
+              "rounded-2xl rounded-bl-sm px-3.5 py-2 flex items-center gap-2 border",
+              isDark
+                ? "bg-gradient-to-r from-violet-500/15 to-fuchsia-500/10 border-violet-400/20"
+                : "bg-gradient-to-r from-violet-50 to-fuchsia-50 border-violet-200"
+            )}>
               <span className="flex gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '300ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 animate-bounce" style={{ animationDelay: '300ms' }} />
               </span>
-              <span className="text-sm">Thinking…</span>
+              <span className={cn(
+                "text-sm font-medium bg-gradient-to-r bg-clip-text text-transparent",
+                isDark ? "from-violet-200 to-fuchsia-200" : "from-violet-600 to-fuchsia-600"
+              )}>
+                Thinking…
+              </span>
             </div>
           </motion.div>
         )}
