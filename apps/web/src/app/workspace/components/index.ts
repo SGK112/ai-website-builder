@@ -5,6 +5,7 @@ export { PreviewPanel } from './PreviewPanel'
 export { BuildPanel } from './BuildPanel'
 export { ShipPanel } from './ShipPanel'
 export { ProjectList } from './ProjectList'
+export { WhatsNextCoach } from './WhatsNextCoach'
 export { ErrorBoundary } from './ErrorBoundary'
 
 // Re-export types
