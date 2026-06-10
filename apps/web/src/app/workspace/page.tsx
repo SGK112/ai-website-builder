@@ -174,6 +174,7 @@ import { StylePresetPicker, ComponentPicker, ThemeBuilder } from '@/components/b
 import { ContentPanel } from '@/components/builder/ContentPanel'
 import { ShipPanel } from './components/ShipPanel'
 import { ProjectList } from './components/ProjectList'
+import { levelCopy } from './constants'
 import { PublishToCommunityModal } from '@/components/builder/PublishToCommunityModal'
 import { SiteGraderModal } from '@/components/builder/SiteGraderModal'
 import { ShareProposalModal } from '@/components/builder/ShareProposalModal'
@@ -10236,7 +10237,7 @@ npx eas build --platform all
                 value={commandInput}
                 onChange={(e) => setCommandInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCommandSubmit()}
-                placeholder={currentProject?.role === 'viewer' ? 'View only — ask the owner for edit access' : isGenerating ? 'Creating...' : 'Chat with AI or upload a PDF…'}
+                placeholder={currentProject?.role === 'viewer' ? 'View only — ask the owner for edit access' : isGenerating ? 'Creating...' : levelCopy[skillLevel].chatPlaceholder}
                 disabled={isGenerating || currentProject?.role === 'viewer'}
                 className={cn(
                   "flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/50 disabled:opacity-50",
@@ -11987,8 +11988,8 @@ npx eas build --platform all
                         </>
                       ) : (
                         <>
-                          <p className="text-zinc-500 font-medium text-sm">Preview</p>
-                          <p className="text-zinc-700 text-xs mt-1">Your website appears here</p>
+                          <p className="text-zinc-500 font-medium text-sm">{levelCopy[skillLevel].previewEmptyTitle}</p>
+                          <p className="text-zinc-700 text-xs mt-1">{levelCopy[skillLevel].previewEmptyBody}</p>
                         </>
                       )}
                     </div>
