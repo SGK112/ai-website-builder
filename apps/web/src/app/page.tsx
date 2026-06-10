@@ -1877,7 +1877,13 @@ export default function HomePage() {
                   The ingredients to
                   <span
                     className={cn(
-                      "italic font-normal ml-3 bg-clip-text text-transparent inline-block leading-[1.4] pb-5 pr-2",
+                      // Playfair italic has a deep 'g' descender; bg-clip-text
+                      // only paints the gradient within the box, so the box
+                      // must extend well below the baseline or the descender
+                      // clips flat. Generous leading + bottom padding gives it
+                      // room; the negative margin reclaims the visual gap so
+                      // the line still sits tight under the rest of the head.
+                      "italic font-normal ml-3 bg-clip-text text-transparent inline-block leading-[1.55] pb-8 pr-3 -mb-6",
                       isDark
                         ? "bg-gradient-to-r from-amber-200 to-pink-300"
                         : "bg-gradient-to-r from-orange-500 to-pink-500"
