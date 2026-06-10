@@ -27,8 +27,16 @@ import {
   GitBranch,
   Bug,
 } from 'lucide-react'
-import type { AIModel, BuildStep, QuickStartTemplate, PromptSuggestion, SkillLevel } from './types'
+import type { AIModel, BuildStep, QuickStartTemplate, PromptSuggestion, SkillLevel, BuildTarget } from './types'
 import { LUXE_ECOMMERCE_TEMPLATE } from '@/lib/templates'
+
+// Default build target per skill tier. no-code/low-code stay on the static
+// `website` pipeline (instant publish, no build step); full-stack defaults to
+// a Next.js app since those users expect routes/data, not a single HTML file.
+// Only applied to a fresh/empty canvas — never clobbers an existing project.
+export function defaultBuildTargetForLevel(level: SkillLevel): BuildTarget {
+  return level === 'full-stack' ? 'nextjs' : 'website'
+}
 
 // Per-level microcopy — the workspace speaks to each skill level in its own
 // register. no-code talks outcomes ("a site for my bakery"), full-stack talks

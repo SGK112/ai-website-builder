@@ -174,7 +174,7 @@ import { ContentPanel } from '@/components/builder/ContentPanel'
 import { ShipPanel } from './components/ShipPanel'
 import { ProjectList } from './components/ProjectList'
 import { WhatsNextCoach } from './components/WhatsNextCoach'
-import { levelCopy } from './constants'
+import { levelCopy, defaultBuildTargetForLevel } from './constants'
 import { PublishToCommunityModal } from '@/components/builder/PublishToCommunityModal'
 import { SiteGraderModal } from '@/components/builder/SiteGraderModal'
 import { ShareProposalModal } from '@/components/builder/ShareProposalModal'
@@ -2467,6 +2467,10 @@ function WorkspaceContent() {
   // the effect each delta.
   const htmlRef = useRef('')
   htmlRef.current = html
+  // Kept current so callbacks (e.g. persistSkillLevel) can read the live canvas
+  // emptiness without a stale closure or widening their deps.
+  const vfsFilesRef = useRef<Record<string, string>>({})
+  vfsFilesRef.current = vfsFiles
   const previewSyncRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const consoleRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -2776,7 +2780,13 @@ function WorkspaceContent() {
   // cache), and the account (source of truth, syncs across devices).
   const persistSkillLevel = useCallback((level: SkillLevel) => {
     setSkillLevel(level)
-    try { localStorage.setItem('workspace-skill-level', level) } catch {}
+    // On a fresh/empty canvas, switch to the tier's natural build target so a
+    // new full-stack user starts on a Next.js app, not a static HTML file.
+    // Refs read the live canvas so we never clobber an in-progress project.
+    if (!htmlRef.current.trim() && Object.keys(vfsFilesRef.current).length === 0) {
+      setBuildTarget(defaultBuildTargetForLevel(level))
+    }
+    try { localStorage.setItem('workspace-skill-level', level) } catch (e) { console.warn('[skill] localStorage persist failed:', (e as Error)?.message) }
     if (session?.user?.id) {
       fetch('/api/user/profile', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -3894,6 +3904,7 @@ function WorkspaceContent() {
     setCurrentProject(null)
     setProjectName('Untitled Project')
     setHtml('')
+    setBuildTarget(defaultBuildTargetForLevel(skillLevel))
     setEnvVars([{ key: 'API_URL', value: 'https://api.example.com', isSecret: false }])
     setTerminalLines([])
     setHistory([])
