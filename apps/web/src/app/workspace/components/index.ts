@@ -10,6 +10,7 @@ export { EnvPanel } from './EnvPanel'
 export { ConsolePanel } from './ConsolePanel'
 export { IntegrationsPanel } from './IntegrationsPanel'
 export { ImagesPanel } from './ImagesPanel'
+export { VideoPanel } from './VideoPanel'
 export { ErrorBoundary } from './ErrorBoundary'
 
 // Re-export types

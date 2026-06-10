@@ -173,6 +173,7 @@ import { EnvPanel } from './components/EnvPanel'
 import { ConsolePanel } from './components/ConsolePanel'
 import { IntegrationsPanel } from './components/IntegrationsPanel'
 import { ImagesPanel } from './components/ImagesPanel'
+import { VideoPanel } from './components/VideoPanel'
 import { levelCopy, defaultBuildTargetForLevel } from './constants'
 import { PublishToCommunityModal } from '@/components/builder/PublishToCommunityModal'
 import { SiteGraderModal } from '@/components/builder/SiteGraderModal'
@@ -7350,6 +7351,95 @@ npx eas build --platform all
     iframeRef.current?.contentWindow?.postMessage({ type: 'drag-state', isDragging: false }, '*')
   }
 
+  // --- Video panel handlers (VideoPanel owns presentation; these own state) ---
+  // Upload a still to animate (image-to-video via SVD).
+  const uploadVideoSource = async (file: File) => {
+    setVideoSourceUploading(true)
+    setVideoError('')
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/upload', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `Upload failed (${res.status})`)
+      const url = data.url || data.secure_url
+      if (!url) throw new Error('Upload succeeded but no URL returned')
+      setVideoSourceImage(url)
+      addTerminalLine('success', `✓ Source image uploaded`)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Upload failed'
+      setVideoError(`Image upload: ${msg}`)
+      addTerminalLine('error', `Image upload failed: ${msg}`)
+    } finally {
+      setVideoSourceUploading(false)
+    }
+  }
+
+  // Text-to-video, or image-to-video when a source image is set.
+  const generateVideo = async () => {
+    const isImageMode = !!videoSourceImage
+    if (!isImageMode && !videoPrompt.trim()) return
+    setVideoGenerating(true)
+    setGeneratedVideoUrl(null)
+    setVideoError('')
+    setVideoStatus(isImageMode ? 'Animating your image...' : 'Starting video generation...')
+    try {
+      const response = await fetch('/api/ai/video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          isImageMode
+            ? { action: 'image-to-video', imageUrl: videoSourceImage, prompt: videoPrompt || undefined, model: 'svd' }
+            : { action: 'text-to-video', prompt: videoPrompt, model: videoModel }
+        )
+      })
+      setVideoStatus(isImageMode ? 'Animating... ~60-90 seconds' : 'Processing... this takes ~60 seconds')
+      const data = await response.json()
+      if (response.ok && data.success && data.output) {
+        const url = Array.isArray(data.output) ? data.output[0] : data.output
+        setGeneratedVideoUrl(url)
+        setVideoStatus('✓ Video ready!')
+        addTerminalLine('success', isImageMode ? '✓ Image animated!' : '✓ Video generated!')
+      } else {
+        throw new Error(data.error || `Video generation failed (HTTP ${response.status})`)
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed'
+      setVideoError(msg)
+      setVideoStatus('')
+      addTerminalLine('error', `Video generation failed: ${msg}`)
+    }
+    setVideoGenerating(false)
+  }
+
+  // Drop the generated video into the page HTML before </body>.
+  const insertVideoIntoWebsite = () => {
+    if (!html || !generatedVideoUrl) {
+      addTerminalLine('error', 'No site yet — build one first.')
+      return
+    }
+    const videoHtml = `
+<!-- AI Generated Video -->
+<div style="width: 100%; max-width: 800px; margin: 2rem auto; padding: 0 1rem;">
+  <video
+    src="${generatedVideoUrl}"
+    controls
+    autoplay
+    loop
+    muted
+    playsinline
+    style="width: 100%; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);"
+  >
+    Your browser does not support the video tag.
+  </video>
+</div>
+`
+    const updatedHtml = html.replace('</body>', `${videoHtml}</body>`)
+    setHtml(updatedHtml)
+    addTerminalLine('success', '✓ Video inserted.')
+    setVideoStatus('Video added to your website')
+  }
+
   // Extract all images from current HTML
   const extractWebsiteImages = useCallback(() => {
     if (!html) return []
@@ -8957,327 +9047,25 @@ npx eas build --platform all
 
             {/* Video Panel */}
             {!sidebarCollapsed && activePanel === 'video' && (
-              <motion.div
-                key="video"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex-1 overflow-y-auto p-3 space-y-4"
-              >
-                <a
-                  href="/video"
-                  target="_blank"
-                  rel="noreferrer"
-                  className={cn(
-                    'flex items-center justify-between p-3 rounded-xl border text-xs font-medium transition-colors',
-                    isDark
-                      ? 'border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20'
-                      : 'border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100'
-                  )}
-                >
-                  <span className="flex items-center gap-2">
-                    <Film className="w-3.5 h-3.5" />
-                    Open Video Studio — Create, Edit, Export ↗
-                  </span>
-                  <ExternalLink className="w-3 h-3 opacity-60" />
-                </a>
-
-                <div className="flex items-center gap-2 text-xs text-purple-400">
-                  <Film className="w-4 h-4" />
-                  <span className="font-medium">Quick Generate</span>
-                </div>
-
-                {/* Image-to-Video: upload an image and animate it (Stable Video Diffusion) */}
-                <div className="p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20">
-                  <label className={cn('block text-sm mb-3 font-medium flex items-center gap-2', isDark ? 'text-blue-300' : 'text-blue-700')}>
-                    <ImageIcon className="w-4 h-4" />
-                    Image to Video — bring a still photo to life
-                  </label>
-                  {videoSourceImage ? (
-                    <div className="mb-3 relative">
-                      <img src={videoSourceImage} alt="Source" className="w-full rounded-lg border border-blue-500/30" />
-                      <button
-                        onClick={() => setVideoSourceImage(null)}
-                        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 hover:bg-black/90 text-white"
-                        title="Remove image"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="block mb-3">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        disabled={videoSourceUploading}
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0]
-                          if (!file) return
-                          setVideoSourceUploading(true)
-                          setVideoError('')
-                          try {
-                            const formData = new FormData()
-                            formData.append('file', file)
-                            const res = await fetch('/api/upload', { method: 'POST', body: formData })
-                            const data = await res.json()
-                            if (!res.ok) throw new Error(data.error || `Upload failed (${res.status})`)
-                            const url = data.url || data.secure_url
-                            if (!url) throw new Error('Upload succeeded but no URL returned')
-                            setVideoSourceImage(url)
-                            addTerminalLine('success', `✓ Source image uploaded`)
-                          } catch (err) {
-                            const msg = err instanceof Error ? err.message : 'Upload failed'
-                            setVideoError(`Image upload: ${msg}`)
-                            addTerminalLine('error', `Image upload failed: ${msg}`)
-                          } finally {
-                            setVideoSourceUploading(false)
-                          }
-                        }}
-                      />
-                      <div className="flex flex-col items-center justify-center w-full p-6 rounded-lg border-2 border-dashed border-blue-500/30 hover:border-blue-500/50 cursor-pointer transition">
-                        {videoSourceUploading ? (
-                          <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
-                        ) : (
-                          <>
-                            <ImageIcon className="w-6 h-6 text-blue-400/60 mb-2" />
-                            <span className={cn('text-xs', isDark ? 'text-zinc-400' : 'text-slate-600')}>Click to upload image</span>
-                            <span className={cn('text-[10px] mt-1', isDark ? 'text-zinc-600' : 'text-slate-400')}>JPG, PNG, WebP</span>
-                          </>
-                        )}
-                      </div>
-                    </label>
-                  )}
-                </div>
-
-                {/* Text to Video — only enabled when no source image is set */}
-                <div className="p-4 rounded-xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20">
-                  <label className={cn('block text-sm mb-3 font-medium', isDark ? 'text-purple-300' : 'text-purple-700')}>
-                    {videoSourceImage ? 'Optional motion prompt' : 'Text to Video'}
-                  </label>
-                  <textarea
-                    value={videoPrompt}
-                    onChange={(e) => setVideoPrompt(e.target.value)}
-                    placeholder={videoSourceImage
-                      ? "Optional: describe the motion (e.g. 'gentle camera pan, leaves rustling')"
-                      : "Describe your video... e.g., 'ocean waves crashing on a beach at sunset'"}
-                    rows={3}
-                    className={cn(
-                      'w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none focus:border-purple-500/50 resize-none mb-3',
-                      isDark
-                        ? 'bg-black/40 border-white/10 text-white placeholder:text-zinc-500'
-                        : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400',
-                    )}
-                  />
-
-                  <div className="mb-3">
-                    <label className={cn('block text-xs mb-1.5', isDark ? 'text-zinc-400' : 'text-slate-600')}>Model</label>
-                    <select
-                      value={videoSourceImage ? 'svd' : videoModel}
-                      onChange={(e) => setVideoModel(e.target.value as any)}
-                      disabled={!!videoSourceImage}
-                      className={cn(
-                        'w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:border-purple-500/50 disabled:opacity-60',
-                        isDark
-                          ? 'bg-black/40 border-white/10 text-white'
-                          : 'bg-white border-slate-300 text-slate-900',
-                      )}
-                    >
-                      {videoSourceImage ? (
-                        <option value="svd">Stable Video Diffusion (image → 4s clip)</option>
-                      ) : (
-                        <>
-                          <option value="animate-diff">AnimateDiff (Fast, ~60s)</option>
-                          <option value="zeroscope">Zeroscope (Higher quality)</option>
-                        </>
-                      )}
-                    </select>
-                  </div>
-
-                  <button
-                    onClick={async () => {
-                      const isImageMode = !!videoSourceImage
-                      if (!isImageMode && !videoPrompt.trim()) return
-                      setVideoGenerating(true)
-                      setGeneratedVideoUrl(null)
-                      setVideoError('')
-                      setVideoStatus(isImageMode ? 'Animating your image...' : 'Starting video generation...')
-
-                      try {
-                        const response = await fetch('/api/ai/video', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify(
-                            isImageMode
-                              ? {
-                                  action: 'image-to-video',
-                                  imageUrl: videoSourceImage,
-                                  prompt: videoPrompt || undefined,
-                                  model: 'svd',
-                                }
-                              : {
-                                  action: 'text-to-video',
-                                  prompt: videoPrompt,
-                                  model: videoModel,
-                                }
-                          )
-                        })
-
-                        setVideoStatus(isImageMode ? 'Animating... ~60-90 seconds' : 'Processing... this takes ~60 seconds')
-                        const data = await response.json()
-
-                        if (response.ok && data.success && data.output) {
-                          const url = Array.isArray(data.output) ? data.output[0] : data.output
-                          setGeneratedVideoUrl(url)
-                          setVideoStatus('✓ Video ready!')
-                          addTerminalLine('success', isImageMode ? '✓ Image animated!' : '✓ Video generated!')
-                        } else {
-                          throw new Error(data.error || `Video generation failed (HTTP ${response.status})`)
-                        }
-                      } catch (error) {
-                        const msg = error instanceof Error ? error.message : 'Failed'
-                        setVideoError(msg)
-                        setVideoStatus('')
-                        addTerminalLine('error', `Video generation failed: ${msg}`)
-                      }
-                      setVideoGenerating(false)
-                    }}
-                    disabled={videoGenerating || (!videoSourceImage && !videoPrompt.trim())}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition"
-                  >
-                    {videoGenerating ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4" />
-                        {videoSourceImage ? 'Animate Image' : 'Generate Video'}
-                      </>
-                    )}
-                  </button>
-
-                  {/* Status Message */}
-                  {videoGenerating && videoStatus && (
-                    <div className="mt-3 p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
-                      <div className="flex items-center gap-2 text-sm text-purple-300">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        {videoStatus}
-                      </div>
-                      <div className="mt-2 text-xs text-zinc-500">
-                        AI is creating your video. Please wait...
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Error Message */}
-                  {videoError && (
-                    <div className="mt-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-                      <div className="text-sm text-red-400">
-                        ✕ {videoError}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Generated Video Preview */}
-                {generatedVideoUrl && (
-                  <div className={cn('p-4 rounded-xl border', isDark ? 'bg-white/[0.02] border-white/[0.05]' : 'bg-slate-50 border-slate-200')}>
-                    <label className={cn('block text-xs mb-2', isDark ? 'text-zinc-400' : 'text-slate-600')}>Generated Video</label>
-                    <video
-                      src={generatedVideoUrl}
-                      controls
-                      autoPlay
-                      loop
-                      muted
-                      className="w-full rounded-lg mb-3"
-                    />
-
-                    {/* Insert into Website Button */}
-                    <button
-                      onClick={() => {
-                        if (!html) {
-                          addTerminalLine('error', 'No site yet — build one first.')
-                          return
-                        }
-                        const videoHtml = `
-<!-- AI Generated Video -->
-<div style="width: 100%; max-width: 800px; margin: 2rem auto; padding: 0 1rem;">
-  <video
-    src="${generatedVideoUrl}"
-    controls
-    autoplay
-    loop
-    muted
-    playsinline
-    style="width: 100%; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);"
-  >
-    Your browser does not support the video tag.
-  </video>
-</div>
-`
-                        // Insert before closing body tag
-                        const updatedHtml = html.replace('</body>', `${videoHtml}</body>`)
-                        setHtml(updatedHtml)
-                        addTerminalLine('success', '✓ Video inserted.')
-                        setVideoStatus('Video added to your website')
-                      }}
-                      disabled={!html}
-                      className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition mb-2"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Insert into Website
-                    </button>
-
-                    <div className="flex gap-2">
-                      <a
-                        href={generatedVideoUrl}
-                        download="ai-video.mp4"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium transition"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        Download
-                      </a>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(generatedVideoUrl)
-                          addTerminalLine('info', 'Video URL copied.')
-                        }}
-                        className={cn(
-                          'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition',
-                          isDark
-                            ? 'bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white'
-                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700',
-                        )}
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                        Copy URL
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Info */}
-                <div className={cn('p-3 rounded-lg border', isDark ? 'bg-zinc-800/50 border-zinc-700/50' : 'bg-slate-100 border-slate-200')}>
-                  <div className={cn('text-xs space-y-1', isDark ? 'text-zinc-400' : 'text-slate-600')}>
-                    <p className="flex items-center gap-2">
-                      <span className="text-purple-400">•</span>
-                      Powered by Replicate AI
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <span className="text-purple-400">•</span>
-                      Generation takes ~60 seconds
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <span className="text-purple-400">•</span>
-                      Output: MP4 video clip
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
+              <VideoPanel
+                isDark={isDark}
+                hasHtml={!!html}
+                videoSourceImage={videoSourceImage}
+                videoSourceUploading={videoSourceUploading}
+                onUploadSource={uploadVideoSource}
+                onClearSource={() => setVideoSourceImage(null)}
+                videoPrompt={videoPrompt}
+                onVideoPromptChange={setVideoPrompt}
+                videoModel={videoModel}
+                onVideoModelChange={setVideoModel}
+                videoGenerating={videoGenerating}
+                onGenerate={generateVideo}
+                videoStatus={videoStatus}
+                videoError={videoError}
+                generatedVideoUrl={generatedVideoUrl}
+                onInsert={insertVideoIntoWebsite}
+                onCopyUrl={(url) => { void navigator.clipboard.writeText(url); addTerminalLine('info', 'Video URL copied.') }}
+              />
             )}
 
             {/* Bridge Panel */}
