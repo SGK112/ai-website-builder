@@ -6296,6 +6296,17 @@ ${html}
     }
   }
 
+  // Kick off the clarifying interview from a thin first prompt. The build
+  // panel swaps the chat for StewPlannerChat (one-tap replies + Skip), and the
+  // first message seeds the conversation. When the agent has enough, it pops
+  // the plan-review modal whose "Go" hands the assembled prompt to the builder.
+  const startPlannerInterview = (firstMessage: string) => {
+    setPlannerActive(true)
+    setPlannerPlan({})
+    setPlannerSuggestions([])
+    return handlePlannerTurn(firstMessage, [], {})
+  }
+
   // "Go" from the plan-review modal — the assembled prompt feeds the existing
   // generation paths unchanged. Planner state is cleared so chat resumes normal.
   const handlePlannerGo = (prompt: string, _plan: StewPlan) => {
@@ -6308,6 +6319,9 @@ ${html}
     if (buildTarget !== 'website') {
       void handleGenerateMultiTarget(buildTarget, prompt)
     } else {
+      // Same multi-page follow-up the direct build path gets, so a planned
+      // multi-page site builds its inner pages too.
+      pendingMultiPageRef.current = detectMultiPageIntent(prompt) ? prompt : null
       void handleGenerate(prompt, stewIngredients.length > 0 ? stewIngredients : undefined, { fresh: true })
     }
   }
@@ -6443,6 +6457,12 @@ ${html}
     // through the dedicated scaffolder, which returns a complete project in
     // one JSON response.
     if (buildTarget !== 'website' && Object.keys(vfsFiles).length === 0) {
+      // Thin first prompt → interview the user to craft a strong app spec
+      // before scaffolding blind. Detailed prompts skip straight to the build.
+      if (!isRichPrompt(message)) {
+        await startPlannerInterview(message)
+        return
+      }
       await handleGenerate(message)
       return
     }
@@ -6468,11 +6488,14 @@ ${html}
           setActivePageId('home')
           setPreviewBumpKey((k) => k + 1)
         }
-        // One predictable path: build immediately. The clarifying interview
-        // (Stew Planner) added a confusing delay on thin prompts — users
-        // would rather see something and refine it than answer questions
-        // before anything appears. Thin prompts still produce a real first
-        // draft the user can iterate on in chat.
+        // Thin fresh-build prompt → interview the user via the Stew Planner to
+        // craft a strong build prompt first. Rich, fully-specified prompts skip
+        // straight to the generator. The planner offers one-tap replies + a
+        // Skip-&-build-now escape, so it guides without blocking.
+        if (!isRichPrompt(message)) {
+          await startPlannerInterview(message)
+          return
+        }
         // Multi-page intent → after the home page lands, an effect (below)
         // fires a follow-up pass that builds the rest of the pages.
         pendingMultiPageRef.current = detectMultiPageIntent(message) ? message : null
