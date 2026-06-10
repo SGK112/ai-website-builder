@@ -23,7 +23,7 @@ export const dynamic = 'force-dynamic'
 function resolveModel(model?: string): { model: string; maxTokens: number } {
   const m = /^claude-(haiku|sonnet|opus)-/.test(model || '')
     ? model!
-    : model === 'claude-opus' ? 'claude-opus-4-7'
+    : model === 'claude-opus' ? 'claude-opus-4-8'
     : model === 'claude-haiku' ? 'claude-haiku-4-5-20251001'
     : 'claude-sonnet-4-6'
   const maxTokens = m.includes('opus') ? 32000 : 16384

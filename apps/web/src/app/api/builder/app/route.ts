@@ -145,7 +145,7 @@ function makeSlug(name: string): string {
 
 function pickAnthropicModel(modelName: string | undefined): string {
   const lc = (modelName || '').toLowerCase()
-  if (lc.includes('opus')) return 'claude-opus-4-7'
+  if (lc.includes('opus')) return 'claude-opus-4-8'
   if (lc.includes('sonnet')) return 'claude-sonnet-4-6'
   // Default to Haiku 4.5 — 3-5x faster than Sonnet on a full Expo project,
   // typically lands in 25-45s vs Sonnet's 90-180s (which was tripping the

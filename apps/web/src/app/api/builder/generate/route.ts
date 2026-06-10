@@ -964,7 +964,7 @@ function isEcommerceRequest(prompt: string): boolean {
 //
 // Decision matrix (in priority order):
 //   1. Vision-heavy prompt              → grok-2-vision-1212
-//   2. Complex reasoning / architecture → claude-opus-4-7
+//   2. Complex reasoning / architecture → claude-opus-4-8
 //   3. Quick refinement (short prompt, has currentHtml) → claude-haiku-4-5
 //   4. Fresh full-site build            → claude-sonnet-4-6 (default)
 //
@@ -992,7 +992,7 @@ function pickBestModel(prompt: string, currentHtml?: string): AutoModelChoice {
 
   // Heavy reasoning / multi-step / architecture / complex code
   if (/\b(architect|architecture|plan a (multi[- ]?page|full|complex)|design the (data|database|schema)|workflow|state machine|implement (auth|authentication|payment|stripe|webhook|api endpoint)|complex (logic|integration)|reasoning|step.by.step|chain of)\b/.test(p)) {
-    return { model: 'claude-opus-4-7', reason: 'reasoning: complex task' }
+    return { model: 'claude-opus-4-8', reason: 'reasoning: complex task' }
   }
 
   // Fresh-build detection — "build me a coffee shop site".
@@ -2697,7 +2697,7 @@ Rules:
       // cap blew through 3 max_tokens continuations on complex prompts and
       // shipped a truncated site to the user.
       const claudeModel = /^claude-(haiku|sonnet|opus)-/.test(model || '') ? model! :
-                          model === 'claude-opus' || model === 'claude-3-opus' ? 'claude-opus-4-7' :
+                          model === 'claude-opus' || model === 'claude-3-opus' ? 'claude-opus-4-8' :
                           model === 'claude-sonnet' || model === 'claude-3-sonnet' || model === 'claude-3.5-sonnet' ? 'claude-sonnet-4-6' :
                           model === 'claude-haiku' || model === 'claude-3-haiku' || model === 'claude-haiku-3.5' || model === 'claude-3.5-haiku' ? 'claude-haiku-4-5-20251001' :
                           model === 'claude' ? 'claude-sonnet-4-6' :

@@ -28,7 +28,7 @@ Rules:
 
 function resolveModel(model?: string): string {
   if (/^claude-(haiku|sonnet|opus)-/.test(model || '')) return model!
-  if (model === 'claude-opus') return 'claude-opus-4-7'
+  if (model === 'claude-opus') return 'claude-opus-4-8'
   if (model === 'claude-haiku') return 'claude-haiku-4-5-20251001'
   return 'claude-sonnet-4-6'
 }

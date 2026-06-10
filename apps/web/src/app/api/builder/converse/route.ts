@@ -290,7 +290,7 @@ async function getAIResponse(
     if (!anthropicKey) throw new Error('Anthropic API key not configured')
 
     const claudeModel = lc.includes('haiku') ? 'claude-haiku-4-5-20251001' :
-                         lc.includes('opus')  ? 'claude-opus-4-7' :
+                         lc.includes('opus')  ? 'claude-opus-4-8' :
                          'claude-sonnet-4-6'
 
     const client = new Anthropic({ apiKey: anthropicKey })
@@ -355,7 +355,7 @@ async function regenerateSection(
   if (!anthropicKey) throw new Error('No Anthropic API key for section regen')
 
   const claudeModel = ((model || '').toLowerCase().includes('haiku') ? 'claude-haiku-4-5-20251001' :
-                       (model || '').toLowerCase().includes('opus') ? 'claude-opus-4-7' :
+                       (model || '').toLowerCase().includes('opus') ? 'claude-opus-4-8' :
                        'claude-sonnet-4-6')
 
   const client = new Anthropic({ apiKey: anthropicKey })

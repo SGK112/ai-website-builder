@@ -279,7 +279,7 @@ const aiModels: AIModel[] = [
   // PAID MODELS
   // Anthropic Claude — claude-sonnet-4 retires 2026-06-15 per Anthropic
   // deprecation notice; bumped to 4.6/4.7. Same price, higher quality.
-  { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', provider: 'anthropic', description: 'Most capable, best for complex tasks', contextWindow: '200K', speed: 'medium', quality: 'best' },
+  { id: 'claude-opus-4-8', name: 'Claude Opus 4.8', provider: 'anthropic', description: 'Most capable, best for complex tasks', contextWindow: '200K', speed: 'medium', quality: 'best' },
   { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', provider: 'anthropic', description: 'Balanced speed and quality', contextWindow: '200K', speed: 'fast', quality: 'great' },
   { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', provider: 'anthropic', description: 'Fastest responses', contextWindow: '200K', speed: 'fast', quality: 'good' },
   // OpenAI
