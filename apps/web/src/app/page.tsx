@@ -318,16 +318,6 @@ export default function HomePage() {
     [0.15, 0.22, 0.43, 0.48],
     [0, 1, 1, 0]
   )
-  const previewCaptionOpacity = useTransform(
-    smoothProgress,
-    [0.15, 0.22, 0.64, 0.68],
-    [0, 1, 1, 0]
-  )
-  const previewCaptionBottom = useTransform(
-    smoothProgress,
-    [0.23, 0.36, 0.44, 0.50, 0.58, 0.64, 0.72],
-    ['16svh', '16svh', '10svh', '10svh', '4svh', '4svh', '-12svh']
-  )
   // Prompt visible only during MOBILE hold (when "Keep scrolling to
   // expand" makes sense). Fades out before TABLET morph starts so it
   // doesn't overlap the growing card top.
@@ -1384,13 +1374,18 @@ export default function HomePage() {
                       <span className="w-3 h-3 rounded-full bg-amber-400/90" />
                       <span className="w-3 h-3 rounded-full bg-emerald-400/90" />
                     </div>
+                    {/* The explanatory hook: the actual sentence that built
+                        this live site. Sits in the chrome's address bar — the
+                        traffic lights + "Live" badge already read "real
+                        deployed site", and this says "…from one sentence." */}
                     <div className={cn(
-                      'flex-1 max-w-md mx-auto h-5 rounded-md flex items-center justify-center gap-1.5 text-[10px] font-mono truncate px-2',
+                      'flex-1 max-w-lg mx-auto h-5 rounded-md flex items-center justify-center gap-1.5 text-[10px] truncate px-2.5',
                       isDark ? 'bg-white/10 text-slate-400' : 'bg-slate-100 text-slate-500'
                     )}>
-                      <span className="opacity-60">webstew.app/</span>
-                      <span className={cn('truncate', isDark ? 'text-slate-200' : 'text-slate-700')}>
-                        {DEMO_SITES[demoIdx].label.toLowerCase().replace(/\s+/g, '-')}
+                      <Sparkles className={cn('w-3 h-3 shrink-0', isDark ? 'text-violet-300' : 'text-violet-500')} />
+                      <span className="opacity-60 shrink-0">Built from:</span>
+                      <span className={cn('truncate italic', isDark ? 'text-slate-200' : 'text-slate-700')}>
+                        &ldquo;{DEMO_SITES[demoIdx].prompt}&rdquo;
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
@@ -1437,13 +1432,11 @@ export default function HomePage() {
                   </AnimatePresence>
                 </motion.div>
 
-                {/* Device-type text labels removed — the card's own bezel
-                    chrome (mobile notch, tablet camera, PC browser bar)
-                    already telegraphs the state and the text was crowding
-                    the caption row. */}
-
-                {/* Prompt-caption bubble removed — it overlapped iframe
-                    content as the card resized. The preview is the message. */}
+                {/* No floating prompt caption — the card spans ~88vw×80svh+
+                    and grows to fill the viewport, so a caption over/around it
+                    overlaps the iframe. The explanatory "built from a sentence"
+                    story lives in the browser chrome's prompt bar instead (the
+                    one designed, inset-safe spot). */}
 
               </div>
             </section>
