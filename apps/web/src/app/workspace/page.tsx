@@ -175,6 +175,7 @@ import { IntegrationsPanel } from './components/IntegrationsPanel'
 import { ImagesPanel } from './components/ImagesPanel'
 import { VideoPanel } from './components/VideoPanel'
 import { TemplatesPanel } from './components/TemplatesPanel'
+import { BuildChatPanel } from './components/BuildChatPanel'
 import { levelCopy, defaultBuildTargetForLevel } from './constants'
 import { PublishToCommunityModal } from '@/components/builder/PublishToCommunityModal'
 import { SiteGraderModal } from '@/components/builder/SiteGraderModal'
@@ -4403,6 +4404,27 @@ ${html}
     }
   }
 
+  // Build-panel empty-state quick-start tile. Premade → load HTML to preview +
+  // announce in chat; otherwise route the request through chat.
+  const loadInlineTemplate = (id: string) => {
+    const template = quickStartTemplates.find(t => t.id === id)
+    if (!template) return
+    if (template.htmlTemplate && template.isPremade) {
+      const rendered = template.templateVariables
+        ? applyTemplateVariables(template.htmlTemplate, template.templateVariables)
+        : template.htmlTemplate
+      setHtml(rendered)
+      setViewMode('preview')
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `Loaded the "${template.label}" template — tell me what to change and I'll edit it directly.`
+      }])
+      addToHistory(rendered, `Loaded ${template.label} template`)
+    } else {
+      void handleChatMessage(`Build me a ${template.label.toLowerCase()}`)
+    }
+  }
+
   // Load template from Supabase
   // Quick-start tile (TemplatesPanel). Premade templates load their HTML
   // instantly; the rest route through chat so the conversation layer can
@@ -8405,363 +8427,33 @@ npx eas build --platform all
           <AnimatePresence initial={false}>
             {/* Build Panel */}
             {!sidebarCollapsed && activePanel === 'build' && (
-              <motion.div
-                key="build"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex-1 min-h-0 flex flex-col overflow-hidden"
-              >
-                {/* Build Progress */}
-                <AnimatePresence>
-                  {buildPhase !== 'idle' && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className={cn(
-                        "px-3 py-2 border-b",
-                        isDark ? "border-white/[0.08] bg-violet-500/5" : "border-slate-200 bg-violet-50"
-                      )}
-                    >
-                      <div className="flex items-center justify-center gap-3">
-                        {currentSteps.map((step, i) => (
-                          <div key={step.phase} className="flex items-center gap-1.5">
-                            <div className={cn(
-                              'w-5 h-5 rounded-full flex items-center justify-center transition-all text-[10px]',
-                              step.status === 'complete' ? 'bg-emerald-500/20 text-emerald-400' :
-                              step.status === 'active' ? 'bg-violet-500/20 text-violet-400' :
-                              isDark ? 'bg-zinc-800 text-zinc-600' : 'bg-slate-200 text-slate-400'
-                            )}>
-                              {step.status === 'complete' ? (
-                                <Check className="w-3 h-3" />
-                              ) : step.status === 'active' ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : (
-                                <step.icon className="w-2.5 h-2.5" />
-                              )}
-                            </div>
-                            {i < currentSteps.length - 1 && (
-                              <div className={cn(
-                                'w-4 h-0.5 rounded-full',
-                                step.status === 'complete' ? 'bg-emerald-500/50' : isDark ? 'bg-zinc-800' : 'bg-slate-200'
-                              )} />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* Conversational Chat Interface */}
-                <div
-                  ref={chatContainerRef}
-                  className={cn(
-                    "flex-1 min-h-0 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-track-transparent",
-                    isDark ? "scrollbar-thumb-zinc-700" : "scrollbar-thumb-slate-300"
-                  )}
-                >
-                  {/* Skill-aware learning path — build → live → domain → share
-                      → sell. Collapsed for devs, guided for beginners. */}
-                  {!plannerActive && !learnPath.dismissed && (
-                    <div className="mb-3">
-                      <LearningPath skillLevel={skillLevel} steps={learnPath.steps} onDismiss={learnPath.dismiss} isDark={isDark} />
-                    </div>
-                  )}
-                  {/* Chat Messages — hidden while the Stew Planner is
-                      interviewing; the planner owns the conversation then. */}
-                  {!plannerActive && chatMessages.map((msg, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={cn(
-                        'flex gap-2',
-                        msg.role === 'user' ? 'justify-end' : 'justify-start'
-                      )}
-                    >
-                      {msg.role === 'assistant' && (
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                          <Bot className="w-4 h-4 text-white" />
-                        </div>
-                      )}
-                      <div className={cn(
-                        'max-w-[85%] rounded-2xl px-3 py-2 text-sm',
-                        msg.role === 'user'
-                          ? isDark
-                            ? 'bg-violet-500/20 text-violet-100 rounded-br-sm'
-                            : 'bg-violet-500 text-white rounded-br-sm'
-                          : isDark
-                            ? 'bg-zinc-800/80 text-zinc-100 rounded-bl-sm'
-                            : 'bg-slate-100 text-slate-800 rounded-bl-sm'
-                      )}>
-                        {/* Render markdown-like content */}
-                        <div className="whitespace-pre-wrap text-[13px] leading-relaxed">
-                          {msg.content.split('\n').map((line, lineIdx) => {
-                            // Bold text
-                            const boldParsed = line.replace(/\*\*([^*]+)\*\*/g, `<strong class="${isDark ? 'text-white' : 'text-slate-900'} font-semibold">$1</strong>`)
-                            // Bullet points
-                            if (line.startsWith('• ') || line.startsWith('- ')) {
-                              return (
-                                <div key={lineIdx} className="flex gap-2 ml-1">
-                                  <span className="text-violet-400">•</span>
-                                  <span dangerouslySetInnerHTML={{ __html: boldParsed.replace(/^[•-]\s*/, '') }} />
-                                </div>
-                              )
-                            }
-                            // Numbered list
-                            if (/^\d+\.\s/.test(line)) {
-                              return (
-                                <div key={lineIdx} className="flex gap-2 ml-1">
-                                  <span className="text-violet-400">{line.match(/^\d+/)?.[0]}.</span>
-                                  <span dangerouslySetInnerHTML={{ __html: boldParsed.replace(/^\d+\.\s*/, '') }} />
-                                </div>
-                              )
-                            }
-                            return <div key={lineIdx} dangerouslySetInnerHTML={{ __html: boldParsed }} />
-                          })}
-                        </div>
-
-                        {/* Suggestion buttons for this message — explicit
-                            dark text on light backgrounds + light text on
-                            dark to keep readable in both themes. */}
-                        {msg.suggestions && msg.suggestions.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mt-3 pt-2 border-t border-border">
-                            {msg.suggestions.map((suggestion, sIdx) => (
-                              <button
-                                key={sIdx}
-                                onClick={() => handleChatMessage(suggestion)}
-                                className="px-3 py-1.5 text-xs font-medium rounded-full bg-violet-600 text-white hover:bg-violet-500 transition-all shadow-sm dark:bg-violet-500/25 dark:text-violet-100 dark:hover:bg-violet-500/40 dark:border dark:border-violet-400/40"
-                              >
-                                {suggestion}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                        {msg.source && (
-                          <div className="mt-2 flex items-center gap-1">
-                            {msg.source === 'bridge' ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] text-orange-400/70 font-medium">
-                                <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                chef
-                              </span>
-                            ) : (
-                              <span className={cn('inline-flex items-center gap-1 text-[10px] font-medium', isDark ? 'text-zinc-400' : 'text-slate-500')}>api</span>
-                            )}
-                          </div>
-                        )}
-                        {msg.permission && (
-                          <div className="mt-3 pt-2 border-t border-white/10">
-                            {msg.permission.resolved ? (
-                              <span className={cn('text-xs font-medium', msg.permission.resolved === 'approved' ? 'text-emerald-400' : 'text-zinc-500')}>
-                                {msg.permission.resolved === 'approved' ? '✓ Approved' : '✗ Denied'}
-                              </span>
-                            ) : (
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => resolvePermissionFromChat(msg.permission!.permissionId, false)}
-                                  className={cn('flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition border', isDark ? 'border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100')}
-                                >
-                                  {msg.permission.denyLabel}
-                                </button>
-                                <button
-                                  onClick={() => resolvePermissionFromChat(msg.permission!.permissionId, true)}
-                                  className="flex-1 px-3 py-1.5 rounded-lg bg-gradient-to-br from-orange-500 to-amber-500 hover:brightness-110 text-white text-xs font-semibold transition"
-                                >
-                                  {msg.permission.approveLabel}
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {/* Feedback — thumbs up/down on real AI replies (not the
-                            welcome, suggestions, or permission prompts). A
-                            down-vote's note trains this user's future builds. */}
-                        {msg.role === 'assistant' && !msg.suggestions && !msg.permission && i > 0 && typeof msg.content === 'string' && msg.content.trim().length > 8 && (
-                          <MessageFeedback
-                            messageKey={`${currentProject?.id || 'draft'}:${i}`}
-                            prompt={(() => { const u = [...chatMessages.slice(0, i)].reverse().find(m => m.role === 'user'); return typeof u?.content === 'string' ? u.content : undefined })()}
-                            projectId={currentProject?.id}
-                            target={buildTarget}
-                            isDark={isDark}
-                          />
-                        )}
-                      </div>
-                      {msg.role === 'user' && (
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center flex-shrink-0">
-                          <User className="w-4 h-4 text-white" />
-                        </div>
-                      )}
-                    </motion.div>
-                  ))}
-
-                  {/* Chat thinking indicator (shown while converse API is in flight, before generation starts) */}
-                  {isThinking && !isGenerating && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="flex gap-2"
-                    >
-                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                        <Loader2 className="w-4 h-4 text-white animate-spin" />
-                      </div>
-                      <div className={cn(
-                        "rounded-2xl rounded-bl-sm px-3 py-2 flex items-center gap-2",
-                        isDark ? "bg-zinc-800/80 text-violet-300" : "bg-slate-100 text-violet-600"
-                      )}>
-                        <span className="flex gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '0ms' }} />
-                          <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '150ms' }} />
-                          <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '300ms' }} />
-                        </span>
-                        <span className="text-sm">Thinking…</span>
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* Generation Progress */}
-                  {isGenerating && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="flex gap-2"
-                    >
-                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                        <Loader2 className="w-4 h-4 text-white animate-spin" />
-                      </div>
-                      <div className={cn(
-                        "rounded-2xl rounded-bl-sm px-3 py-2",
-                        isDark ? "bg-zinc-800/80" : "bg-slate-100"
-                      )}>
-                        <div className={cn("flex items-center gap-2 text-sm", isDark ? "text-violet-300" : "text-violet-600")}>
-                          <span className="animate-pulse">Creating your {conversationIntent || 'content'}...</span>
-                        </div>
-                        {/* Build steps */}
-                        <div className="mt-2 space-y-1">
-                          {currentSteps.map((step) => (
-                            <div key={step.phase} className="flex items-center gap-2 text-[11px]">
-                              {step.status === 'complete' ? (
-                                <Check className="w-3 h-3 text-emerald-400" />
-                              ) : step.status === 'active' ? (
-                                <Loader2 className="w-3 h-3 text-violet-400 animate-spin" />
-                              ) : (
-                                <div className={cn("w-3 h-3 rounded-full border", isDark ? "border-zinc-600" : "border-slate-300")} />
-                              )}
-                              <span className={cn(
-                                step.status === 'complete' ? 'text-emerald-400' :
-                                step.status === 'active' ? 'text-violet-300' :
-                                'text-zinc-500'
-                              )}>
-                                {step.label}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* Quick action suggestions at bottom */}
-                  {chatSuggestions.length > 0 && !isGenerating && chatMessages.length > 1 && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="flex flex-wrap gap-1.5 pt-2"
-                    >
-                      {chatSuggestions.map((suggestion, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => handleChatMessage(suggestion)}
-                          className={cn(
-                            "px-3 py-1.5 text-xs font-medium rounded-full transition-all",
-                            // Stronger contrast: explicit slate-900 text on
-                            // white in light mode + slate-100 on a dark
-                            // tinted bg in dark mode. The previous slate-600
-                            // on slate-100 was too washed out to read.
-                            "bg-card text-foreground border border-border hover:bg-violet-100 hover:text-violet-700 hover:border-violet-300 dark:hover:bg-violet-500/20 dark:hover:text-violet-200 dark:hover:border-violet-400/40"
-                          )}
-                        >
-                          {suggestion}
-                        </button>
-                      ))}
-                    </motion.div>
-                  )}
-
-                  {/* Stew Planner — the clarifying agent's conversation,
-                      shown in place of the quick-start grid while active. */}
-                  {plannerActive && (
-                    <StewPlannerChat
-                      messages={plannerMessages}
-                      plan={plannerPlan}
-                      isThinking={plannerThinking}
-                      suggestedReplies={plannerSuggestions}
-                      isDark={isDark}
-                      onSubmit={({ text }) => {
-                        setCommandInput('')
-                        void handlePlannerTurn(text, plannerMessages, plannerPlan)
-                      }}
-                      onSkip={handlePlannerSkip}
-                    />
-                  )}
-
-                  {/* Quick Start Templates - Only show initially */}
-                  {!plannerActive && (chatMessages.length === 1 || !html) && !isGenerating && (
-                    <div className="pt-4 space-y-4">
-                      <div>
-                        <p className={cn("text-[10px] uppercase tracking-wider mb-2", isDark ? "text-zinc-500" : "text-slate-500")}>Quick Start</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {quickStartTemplates.slice(0, 4).map((template) => {
-                            const Icon = template.icon
-                            return (
-                              <button
-                                key={template.id}
-                                onClick={() => {
-                                  if (template.htmlTemplate && template.isPremade) {
-                                    // Templates use {{var}} placeholders; substitute before render
-                                    // or the preview shows literal "{{productName}}" text.
-                                    const rendered = template.templateVariables
-                                      ? applyTemplateVariables(template.htmlTemplate, template.templateVariables)
-                                      : template.htmlTemplate
-                                    setHtml(rendered)
-                                    setViewMode('preview')
-                                    setChatMessages(prev => [...prev, {
-                                      role: 'assistant',
-                                      content: `Loaded the "${template.label}" template — tell me what to change and I'll edit it directly.`
-                                    }])
-                                    addToHistory(rendered, `Loaded ${template.label} template`)
-                                  } else {
-                                    handleChatMessage(`Build me a ${template.label.toLowerCase()}`)
-                                  }
-                                }}
-                                className={cn(
-                                  "group relative p-3 rounded-xl transition-all text-left overflow-hidden border",
-                                  isDark
-                                    ? "bg-gradient-to-br from-white/[0.03] to-transparent border-white/[0.05] hover:border-white/[0.15]"
-                                    : "bg-white border-slate-200 hover:border-violet-300 hover:shadow-md"
-                                )}
-                              >
-                                <div className={`absolute inset-0 bg-gradient-to-br ${template.gradient} opacity-0 group-hover:opacity-10 transition-opacity`} />
-                                {template.isPremade && (
-                                  <span className="absolute top-2 right-2 px-1.5 py-0.5 text-[8px] font-bold tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded">
-                                    INSTANT
-                                  </span>
-                                )}
-                                <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${template.gradient} flex items-center justify-center mb-2`}>
-                                  <Icon className="w-4 h-4 text-white" />
-                                </div>
-                                <span className={cn("text-xs font-medium", isDark ? "text-white" : "text-slate-800")}>{template.label}</span>
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </div>
-
-                    </div>
-                  )}
-                </div>
-
-              </motion.div>
+              <BuildChatPanel
+                isDark={isDark}
+                skillLevel={skillLevel}
+                buildPhase={buildPhase}
+                currentSteps={currentSteps}
+                conversationIntent={conversationIntent}
+                chatContainerRef={chatContainerRef}
+                chatMessages={chatMessages}
+                isThinking={isThinking}
+                isGenerating={isGenerating}
+                chatSuggestions={chatSuggestions}
+                hasHtml={!!html}
+                currentProjectId={currentProject?.id}
+                buildTarget={buildTarget}
+                onSendMessage={handleChatMessage}
+                onResolvePermission={resolvePermissionFromChat}
+                learnPath={learnPath}
+                plannerActive={plannerActive}
+                plannerMessages={plannerMessages}
+                plannerPlan={plannerPlan}
+                plannerThinking={plannerThinking}
+                plannerSuggestions={plannerSuggestions}
+                onPlannerSubmit={(text) => { setCommandInput(''); void handlePlannerTurn(text, plannerMessages, plannerPlan) }}
+                onPlannerSkip={handlePlannerSkip}
+                quickStartTemplates={quickStartTemplates}
+                onLoadInlineTemplate={loadInlineTemplate}
+              />
             )}
 
             {/* Templates Panel */}

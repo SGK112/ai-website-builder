@@ -12,6 +12,7 @@ export { IntegrationsPanel } from './IntegrationsPanel'
 export { ImagesPanel } from './ImagesPanel'
 export { VideoPanel } from './VideoPanel'
 export { TemplatesPanel } from './TemplatesPanel'
+export { BuildChatPanel } from './BuildChatPanel'
 export { ErrorBoundary } from './ErrorBoundary'
 
 // Re-export types
