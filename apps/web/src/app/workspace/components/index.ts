@@ -8,6 +8,7 @@ export { ProjectList } from './ProjectList'
 export { WhatsNextCoach } from './WhatsNextCoach'
 export { EnvPanel } from './EnvPanel'
 export { ConsolePanel } from './ConsolePanel'
+export { IntegrationsPanel } from './IntegrationsPanel'
 export { ErrorBoundary } from './ErrorBoundary'
 
 // Re-export types
