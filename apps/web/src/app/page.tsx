@@ -409,6 +409,9 @@ export default function HomePage() {
   // Live demo iframe state
   const [demoIdx, setDemoIdx] = useState(0)
   const [demoGenerating, setDemoGenerating] = useState(false)
+  // Commercial auto-play: true while the preview section is on screen, so the
+  // build sequence (generate → reveal → hold → next) plays itself like an ad.
+  const [previewInView, setPreviewInView] = useState(false)
 
   // Handle client-side mounting for animations
   useEffect(() => {
@@ -435,20 +438,70 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prompt])
 
-  // Auto-cycle through DEMO_SITES every ~11s. Long enough for iframe
-  // srcDoc to render, for visitors to actually take in the demo, and for
-  // the 1s crossfade to feel deliberate rather than abrupt. Pauses inside
-  // the pinned showcase (pin progress 0.20-0.80) because scroll progress
-  // drives demo selection there.
+  // Track whether the showcase is on screen — the commercial only plays
+  // while a visitor can see it (and we pause it otherwise to save cycles).
   useEffect(() => {
-    const tick = () => {
-      const p = smoothProgress.get()
-      if (p > 0.20 && p < 0.80) return
-      setDemoIdx(i => (i + 1) % DEMO_SITES.length)
+    const el = previewRef.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      ([entry]) => setPreviewInView(entry.isIntersecting),
+      { threshold: 0.04 }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+
+  // Track the last scroll time so the commercial yields *only while the
+  // visitor is actively scrolling* (then scroll scrubs the takeover). When
+  // they're parked — anywhere in the section — the reel plays.
+  const lastScrollRef = useRef(0)
+  useEffect(() => {
+    const onScroll = () => { lastScrollRef.current = Date.now() }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // The commercial. When the showcase is on screen and the visitor isn't
+  // actively scrolling, auto-play the build story on a loop:
+  //   flash "Building with Claude…"  →  reveal the live site  →  hold  →  next.
+  // Reuses the existing demoGenerating overlay + the "Built from: <prompt>"
+  // chrome, so each beat reads input → output. Pauses for reduced motion,
+  // a hidden tab, and active scrolling (scroll wins there).
+  useEffect(() => {
+    if (!previewInView) return
+    if (typeof window !== 'undefined' &&
+        window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+
+    const GENERATE_MS = 950   // "Building…" beat
+    const HOLD_MS = 4200       // dwell on the finished, live site
+    const IDLE_MS = 650        // treat as "parked" after this long without a scroll
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout>
+
+    const schedule = (fn: () => void, ms: number) => { timer = setTimeout(fn, ms) }
+
+    const beat = () => {
+      if (cancelled) return
+      const scrolling = Date.now() - lastScrollRef.current < IDLE_MS
+      if (scrolling || (typeof document !== 'undefined' && document.hidden)) {
+        schedule(beat, 400)   // recheck soon; scroll is driving for now
+        return
+      }
+      setDemoGenerating(true)
+      schedule(() => {
+        if (cancelled) return
+        setDemoGenerating(false)            // reveal the live site
+        schedule(() => {
+          if (cancelled) return
+          setDemoIdx(i => (i + 1) % DEMO_SITES.length)  // next example
+          schedule(beat, 140)               // brief gap, then build again
+        }, HOLD_MS)
+      }, GENERATE_MS)
     }
-    const t = setInterval(tick, 11000)
-    return () => clearInterval(t)
-  }, [smoothProgress])
+
+    schedule(beat, 800)
+    return () => { cancelled = true; clearTimeout(timer); setDemoGenerating(false) }
+  }, [previewInView])
 
   // Scroll-driven demo selection during the pinned showcase. Maps pin
   // progress (0.23 → 0.77) to demo index 0 → DEMO_SITES.length-1.
@@ -1412,7 +1465,18 @@ export default function HomePage() {
                           isDark ? 'bg-slate-950/70' : 'bg-white/70'
                         )}
                       >
-                        <div className="text-center">
+                        <div className="text-center px-6 max-w-xl">
+                          {/* The prompt being built — the input half of the
+                              "sentence → live site" story. */}
+                          <div className={cn(
+                            'inline-flex items-center gap-2 mb-5 px-4 py-2.5 rounded-2xl border shadow-lg max-w-full',
+                            isDark ? 'bg-white/[0.06] border-white/[0.12] text-slate-100' : 'bg-white border-slate-200 text-slate-700'
+                          )}>
+                            <Sparkles className={cn('w-4 h-4 shrink-0', isDark ? 'text-violet-300' : 'text-violet-500')} />
+                            <span className="text-sm sm:text-base font-medium italic truncate">
+                              &ldquo;{DEMO_SITES[demoIdx].prompt}&rdquo;
+                            </span>
+                          </div>
                           <div className="flex items-center justify-center gap-2 mb-3">
                             {[0, 0.15, 0.3].map((d, i) => (
                               <motion.div
@@ -1423,8 +1487,8 @@ export default function HomePage() {
                               />
                             ))}
                           </div>
-                          <div className={cn('text-sm font-mono', isDark ? 'text-slate-200' : 'text-slate-800')}>
-                            Generating with Claude…
+                          <div className={cn('text-sm font-mono', isDark ? 'text-slate-300' : 'text-slate-600')}>
+                            Building with Claude…
                           </div>
                         </div>
                       </motion.div>
