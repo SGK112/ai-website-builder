@@ -9,6 +9,7 @@ export { WhatsNextCoach } from './WhatsNextCoach'
 export { EnvPanel } from './EnvPanel'
 export { ConsolePanel } from './ConsolePanel'
 export { IntegrationsPanel } from './IntegrationsPanel'
+export { ImagesPanel } from './ImagesPanel'
 export { ErrorBoundary } from './ErrorBoundary'
 
 // Re-export types
