@@ -7,7 +7,6 @@ import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search,
-  Loader2,
   Eye,
   Sparkles,
   ShoppingBag,
@@ -221,7 +220,7 @@ export default function TemplatesPage() {
   }, [previewTemplate])
 
   useEffect(() => {
-    loadTemplates()
+    void loadTemplates()
   }, [])
 
   // Load per-template purchase entitlements once the session resolves.
@@ -372,13 +371,43 @@ export default function TemplatesPage() {
       {/* Templates Grid */}
       <section className="py-6 sm:py-12 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto">
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-8 h-8 text-violet-500 animate-spin" />
+          {loading && templates.length === 0 ? (
+            // Cold-start skeleton (mirrors the card layout) — only shown when
+            // there's genuinely nothing yet. The built-in templates seed state
+            // on first paint, so normally they render instantly and the API
+            // fetch just appends more; we don't block ready content behind a
+            // spinner/skeleton.
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden animate-pulse">
+                  <div className="aspect-[4/3] bg-white/[0.04]" />
+                  <div className="p-4 space-y-3">
+                    <div className="h-4 w-2/3 rounded bg-white/[0.06]" />
+                    <div className="h-3 w-full rounded bg-white/[0.04]" />
+                    <div className="h-3 w-4/5 rounded bg-white/[0.04]" />
+                    <div className="flex gap-2 pt-1">
+                      <div className="h-5 w-16 rounded-full bg-white/[0.05]" />
+                      <div className="h-5 w-12 rounded-full bg-white/[0.05]" />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : filteredTemplates.length === 0 ? (
-            <div className="text-center py-20">
-              <p className="text-slate-400">No templates found matching your criteria</p>
+            <div className="flex flex-col items-center text-center py-20">
+              <div className="w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center mb-4">
+                <Search className="w-6 h-6 text-slate-500" />
+              </div>
+              <p className="text-slate-300 font-medium">No templates match your search</p>
+              <p className="text-sm text-slate-500 mt-1">Try a different keyword or category.</p>
+              {(searchQuery || selectedCategory !== 'all') && (
+                <button
+                  onClick={() => { setSearchQuery(''); setSelectedCategory('all') }}
+                  className="mt-5 px-4 py-2 rounded-lg text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white transition"
+                >
+                  Clear filters
+                </button>
+              )}
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
