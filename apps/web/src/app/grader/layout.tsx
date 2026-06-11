@@ -1,9 +1,13 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Free Website Grader — Check Your SEO, Speed & Mobile Score | Webstew',
+  // Kept tight: the root template appends " · Webstew AI", so the final
+  // <title> is ~54 chars (Bing/Google flag >60). No "| Webstew" — the
+  // template already brands it; doubling it was what blew the length.
+  title: 'Free Website Grader — SEO, Speed & Mobile',
+  // ~155 chars — under the 160 cap (the old one was 204 and got truncated).
   description:
-    'Grade any website in seconds, free. Get an instant report card on SEO, performance, mobile-friendliness, accessibility, security, and AI discoverability — with specific fixes. No signup to see your score.',
+    'Grade any website free in seconds — an instant report card on SEO, speed, mobile, accessibility, security and AI visibility, with specific fixes. No signup.',
   keywords: [
     'website grader',
     'free website grader',
