@@ -1109,6 +1109,9 @@ export default function HomePage() {
                   <a href="/compare/wix" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>vs Wix</a>
                   <a href="/compare/webflow" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>vs Webflow</a>
                   <a href="/compare/framer" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>vs Framer</a>
+                  <a href="/for/restaurants" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>For Restaurants</a>
+                  <a href="/for/photographers" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>For Photographers</a>
+                  <a href="/for/small-business" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>For Small Business</a>
                   <a href="/community" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Community</a>
                   <a href="/community?tab=feedback" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Feedback</a>
                   <a href="/upgrade" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Pricing</a>
