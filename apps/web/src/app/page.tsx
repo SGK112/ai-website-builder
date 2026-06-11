@@ -450,7 +450,7 @@ export default function HomePage() {
               page. Constant feedback that the story has more to come. */}
           <motion.div
             style={{ scaleX: pageProgressSmooth }}
-            className="fixed top-0 left-0 right-0 h-[3px] z-[60] origin-left bg-gradient-to-r from-violet-500 via-fuchsia-500 to-amber-400 pointer-events-none"
+            className="fixed top-0 left-0 right-0 h-[3px] z-[60] origin-left bg-gradient-to-r from-violet-500 to-fuchsia-500 pointer-events-none"
             aria-hidden
           />
 
@@ -485,153 +485,20 @@ export default function HomePage() {
             }}
           />
 
-          {/* Conic spotlight — slowly rotating multi-hue cone */}
-          <div className="hero-spotlight pointer-events-none" aria-hidden />
-
-          {/* Aurora beams — three long diagonal ribbons that drift */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            <div
-              className="aurora-beam"
-              style={{
-                top: '-10%',
-                left: '-10%',
-                width: '70%',
-                height: '38rem',
-                ['--beam-rot' as any]: '14deg',
-                ['--beam-duration' as any]: '16s',
-                ['--beam-opacity-min' as any]: isDark ? 0.35 : 0.22,
-                ['--beam-opacity-max' as any]: isDark ? 0.75 : 0.45,
-                background: 'linear-gradient(90deg, transparent 0%, rgba(139,92,246,0.55) 35%, rgba(236,72,153,0.55) 65%, transparent 100%)',
-              }}
-            />
-            <div
-              className="aurora-beam"
-              style={{
-                top: '22%',
-                right: '-15%',
-                width: '75%',
-                height: '32rem',
-                ['--beam-rot' as any]: '-12deg',
-                ['--beam-duration' as any]: '19s',
-                ['--beam-opacity-min' as any]: isDark ? 0.3 : 0.18,
-                ['--beam-opacity-max' as any]: isDark ? 0.65 : 0.38,
-                background: 'linear-gradient(90deg, transparent 0%, rgba(34,211,238,0.5) 30%, rgba(139,92,246,0.55) 70%, transparent 100%)',
-              }}
-            />
-            <div
-              className="aurora-beam"
-              style={{
-                bottom: '-12%',
-                left: '5%',
-                width: '85%',
-                height: '34rem',
-                ['--beam-rot' as any]: '8deg',
-                ['--beam-duration' as any]: '22s',
-                ['--beam-opacity-min' as any]: isDark ? 0.28 : 0.16,
-                ['--beam-opacity-max' as any]: isDark ? 0.6 : 0.35,
-                background: 'linear-gradient(90deg, transparent 0%, rgba(251,191,36,0.42) 25%, rgba(236,72,153,0.5) 60%, rgba(139,92,246,0.45) 90%, transparent 100%)',
-              }}
-            />
-            {/* Webstew warm beam — saffron → paprika → wine. Anchors the
-                cooking-theme palette inside the modern aurora field. */}
-            <div
-              className="aurora-beam"
-              style={{
-                top: '48%',
-                left: '-20%',
-                width: '80%',
-                height: '30rem',
-                ['--beam-rot' as any]: '-6deg',
-                ['--beam-duration' as any]: '24s',
-                ['--beam-opacity-min' as any]: isDark ? 0.32 : 0.18,
-                ['--beam-opacity-max' as any]: isDark ? 0.7 : 0.42,
-                background: 'linear-gradient(90deg, transparent 0%, rgba(251,191,36,0.55) 25%, rgba(234,88,12,0.5) 55%, rgba(190,18,60,0.4) 85%, transparent 100%)',
-              }}
-            />
-          </div>
-
-          {/* Twinkling particles — sparse field of small dots */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            {[
-              { top: '12%', left: '8%',  size: 2, delay: 0,    dur: 4.5 },
-              { top: '18%', left: '78%', size: 3, delay: 0.6,  dur: 5.2 },
-              { top: '32%', left: '24%', size: 2, delay: 1.2,  dur: 4.8 },
-              { top: '42%', left: '88%', size: 2, delay: 1.8,  dur: 5.5 },
-              { top: '58%', left: '12%', size: 3, delay: 2.4,  dur: 4.7 },
-              { top: '64%', left: '70%', size: 2, delay: 3.0,  dur: 5.1 },
-              { top: '76%', left: '36%', size: 2, delay: 0.4,  dur: 5.3 },
-              { top: '14%', left: '52%', size: 2, delay: 2.0,  dur: 4.9 },
-              { top: '48%', left: '46%', size: 2, delay: 2.6,  dur: 5.4 },
-              { top: '26%', left: '92%', size: 2, delay: 1.5,  dur: 4.6 },
-              { top: '70%', left: '90%', size: 3, delay: 3.4,  dur: 5.0 },
-              { top: '84%', left: '60%', size: 2, delay: 0.9,  dur: 4.8 },
-            ].map((p, i) => (
-              <span
-                key={i}
-                className="absolute rounded-full animate-twinkle"
-                style={{
-                  top: p.top,
-                  left: p.left,
-                  width: `${p.size}px`,
-                  height: `${p.size}px`,
-                  background: isDark ? 'rgba(255,255,255,0.95)' : 'rgba(124,58,237,0.6)',
-                  boxShadow: isDark
-                    ? '0 0 10px rgba(255,255,255,0.7), 0 0 20px rgba(167,139,250,0.55)'
-                    : '0 0 8px rgba(124,58,237,0.45)',
-                  ['--twinkle-duration' as any]: `${p.dur}s`,
-                  animationDelay: `${p.delay}s`,
-                }}
-              />
-            ))}
-          </div>
-
-          {/* Webstew spice flecks — warm particles rising slowly through the
-              hero like saffron and paprika lifting in a simmering broth. They
-              start near the bottom edge and drift up + slightly sideways over
-              ~14s. Sized between 2-4px so they read as ingredient flecks, not
-              dust. Hues: saffron / paprika / cumin / sumac. */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            {[
-              { left: '6%',  size: 3, delay: 0,    dur: 13, sway: 22,  hue: 'saffron' },
-              { left: '14%', size: 2, delay: 4.2,  dur: 15, sway: -18, hue: 'paprika' },
-              { left: '22%', size: 4, delay: 7.5,  dur: 16, sway: 16,  hue: 'amber'   },
-              { left: '31%', size: 2, delay: 2.1,  dur: 14, sway: -24, hue: 'cumin'   },
-              { left: '42%', size: 3, delay: 9.0,  dur: 15, sway: 20,  hue: 'paprika' },
-              { left: '51%', size: 2, delay: 5.4,  dur: 13, sway: -14, hue: 'saffron' },
-              { left: '60%', size: 4, delay: 11.3, dur: 17, sway: 18,  hue: 'sumac'   },
-              { left: '69%', size: 2, delay: 3.0,  dur: 14, sway: -22, hue: 'amber'   },
-              { left: '78%', size: 3, delay: 8.1,  dur: 15, sway: 24,  hue: 'saffron' },
-              { left: '86%', size: 2, delay: 6.0,  dur: 16, sway: -16, hue: 'paprika' },
-              { left: '93%', size: 3, delay: 1.2,  dur: 14, sway: 20,  hue: 'cumin'   },
-            ].map((p, i) => {
-              const palette = {
-                saffron: { bg: 'rgba(251,191,36,0.95)',  glow: 'rgba(251,191,36,0.55)' },
-                paprika: { bg: 'rgba(234,88,12,0.95)',   glow: 'rgba(234,88,12,0.5)'   },
-                amber:   { bg: 'rgba(245,158,11,0.95)',  glow: 'rgba(245,158,11,0.5)'  },
-                cumin:   { bg: 'rgba(180,83,9,0.95)',    glow: 'rgba(180,83,9,0.45)'   },
-                sumac:   { bg: 'rgba(190,18,60,0.95)',   glow: 'rgba(190,18,60,0.45)'  },
-              }[p.hue as 'saffron' | 'paprika' | 'amber' | 'cumin' | 'sumac']
-              return (
-                <span
-                  key={`spice-${i}`}
-                  className="absolute rounded-full animate-spice"
-                  style={{
-                    left: p.left,
-                    bottom: '-10px',
-                    width: `${p.size}px`,
-                    height: `${p.size}px`,
-                    background: palette.bg,
-                    boxShadow: `0 0 8px ${palette.glow}, 0 0 16px ${palette.glow}`,
-                    opacity: isDark ? 0.85 : 0.7,
-                    ['--spice-duration' as any]: `${p.dur}s`,
-                    ['--spice-sway' as any]: `${p.sway}px`,
-                    ['--spice-opacity' as any]: isDark ? 0.85 : 0.7,
-                    animationDelay: `${p.delay}s`,
-                  }}
-                />
-              )
-            })}
-          </div>
+          {/* One quiet violet glow behind the headline — the single light
+              source up top. (Replaced the rotating multi-hue cone + four aurora
+              ribbons + twinkling dots + rising spice flecks; far too busy for
+              the calm page. Knowledge over noise.) */}
+          <div
+            className="absolute left-1/2 -translate-x-1/2 top-[-10rem] w-[58rem] max-w-[120vw] h-[42rem] rounded-full pointer-events-none"
+            style={{
+              background: isDark
+                ? 'radial-gradient(ellipse at center, rgba(124,58,237,0.20), rgba(124,58,237,0.06) 45%, transparent 70%)'
+                : 'radial-gradient(ellipse at center, rgba(124,58,237,0.10), transparent 70%)',
+              filter: 'blur(70px)',
+            }}
+            aria-hidden
+          />
 
           {/* Simmer glow — soft warm radial sitting at the bottom of the hero,
               breathing in and out like heat rising from a pot. Anchors the
