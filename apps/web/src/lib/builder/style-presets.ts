@@ -689,10 +689,37 @@ export function applyThemeToHtml(html: string, preset: StylePreset): string {
     background-color: var(--bg) !important;
   }
 
-  /* === NAVIGATION — only tint color, preserve any background-image === */
-  nav {
+  /* === HEADER & NAV ===
+     The header was the ONE element that kept missing the theme switch. The old
+     rule only set backdrop-filter and never recolored the bar, and the global
+     recolors above only match SOLID classes (.bg-slate-900) — sticky "glass"
+     navs use an OPACITY-MODIFIER class (bg-slate-900/80), a different class
+     that slipped through, so the bar stayed dark while the page flipped.
+     Reported repeatedly by Joshua: "everything but the header switches."
+
+     Recolor the header/nav bar itself (and any glass inner container) to a
+     translucent version of the theme background — with !important so it also
+     beats an inline style="background:…". Never touch a bar that carries a
+     real background image (photo hero header). */
+  header:not([style*="url("]):not([style*="background-image"]),
+  nav:not([style*="url("]):not([style*="background-image"]),
+  header > div:not([style*="url("]):not([style*="background-image"]),
+  nav > div:not([style*="url("]):not([style*="background-image"]) {
     backdrop-filter: blur(12px) !important;
     -webkit-backdrop-filter: blur(12px) !important;
+  }
+  header:not([class*="bg-gradient"]):not([style*="url("]):not([style*="background-image"]),
+  nav:not([class*="bg-gradient"]):not([style*="url("]):not([style*="background-image"]) {
+    background-color: color-mix(in srgb, var(--bg) 82%, transparent) !important;
+    border-color: var(--border) !important;
+  }
+  /* Dark nav backgrounds incl. opacity modifiers (bg-slate-900/80, /90, /50…),
+     on the bar OR a glass inner container. */
+  header[class*="bg-slate-9"], header[class*="bg-zinc-9"], header[class*="bg-gray-9"], header[class*="bg-neutral-9"], header[class*="bg-stone-9"], header[class*="bg-black"],
+  nav[class*="bg-slate-9"], nav[class*="bg-zinc-9"], nav[class*="bg-gray-9"], nav[class*="bg-neutral-9"], nav[class*="bg-stone-9"], nav[class*="bg-black"],
+  header [class*="bg-slate-9"], header [class*="bg-zinc-9"], header [class*="bg-gray-9"], header [class*="bg-neutral-9"], header [class*="bg-black"],
+  nav [class*="bg-slate-9"], nav [class*="bg-zinc-9"], nav [class*="bg-gray-9"], nav [class*="bg-neutral-9"], nav [class*="bg-black"] {
+    background-color: color-mix(in srgb, var(--bg) 82%, transparent) !important;
   }
 
   /* === FOOTER === */
