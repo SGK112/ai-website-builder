@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { motion, AnimatePresence, useScroll, useSpring, useTransform, useMotionValueEvent } from 'framer-motion'
+import { motion, AnimatePresence, useScroll, useSpring, useTransform } from 'framer-motion'
 import {
   Sparkles,
   ArrowRight,
@@ -451,22 +451,13 @@ export default function HomePage() {
     return () => io.disconnect()
   }, [])
 
-  // Track the last scroll time so the commercial yields *only while the
-  // visitor is actively scrolling* (then scroll scrubs the takeover). When
-  // they're parked — anywhere in the section — the reel plays.
-  const lastScrollRef = useRef(0)
-  useEffect(() => {
-    const onScroll = () => { lastScrollRef.current = Date.now() }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
-
-  // The commercial. When the showcase is on screen and the visitor isn't
-  // actively scrolling, auto-play the build story on a loop:
-  //   flash "Building with Claude…"  →  reveal the live site  →  hold  →  next.
-  // Reuses the existing demoGenerating overlay + the "Built from: <prompt>"
-  // chrome, so each beat reads input → output. Pauses for reduced motion,
-  // a hidden tab, and active scrolling (scroll wins there).
+  // The commercial — the SOLE driver of demo content, so it plays like a
+  // structured deck and scroll can't scrub sites out of order. Each slide:
+  //   flash "Building with Claude… <prompt>"  →  reveal the live site  →  hold
+  //   →  next. Scroll independently drives only the device-morph takeover, so
+  // the presentation never gets backed up or renders the site before the text.
+  // Reuses the demoGenerating overlay + the "Built from: <prompt>" chrome, so
+  // each beat reads input → output. Pauses for reduced motion + a hidden tab.
   useEffect(() => {
     if (!previewInView) return
     if (typeof window !== 'undefined' &&
@@ -477,7 +468,6 @@ export default function HomePage() {
     // finished result — like advancing a deck.
     const GENERATE_MS = 2400   // read the prompt + "Building…" before the reveal
     const HOLD_MS = 4200        // dwell on the finished, live site
-    const IDLE_MS = 650         // treat as "parked" after this long without a scroll
     let cancelled = false
     let timer: ReturnType<typeof setTimeout>
 
@@ -485,9 +475,10 @@ export default function HomePage() {
 
     const beat = () => {
       if (cancelled) return
-      const scrolling = Date.now() - lastScrollRef.current < IDLE_MS
-      if (scrolling || (typeof document !== 'undefined' && document.hidden)) {
-        schedule(beat, 400)   // recheck soon; scroll is driving for now
+      // Only structural pause: a hidden tab. Scroll no longer interrupts the
+      // deck (it drives the device morph, not the demo).
+      if (typeof document !== 'undefined' && document.hidden) {
+        schedule(beat, 600)
         return
       }
       setDemoGenerating(true)
@@ -505,15 +496,6 @@ export default function HomePage() {
     schedule(beat, 800)
     return () => { cancelled = true; clearTimeout(timer); setDemoGenerating(false) }
   }, [previewInView])
-
-  // Scroll-driven demo selection during the pinned showcase. Maps pin
-  // progress (0.23 → 0.77) to demo index 0 → DEMO_SITES.length-1.
-  useMotionValueEvent(smoothProgress, 'change', (v) => {
-    if (v < 0.23 || v > 0.77) return
-    const t = (v - 0.23) / (0.77 - 0.23)
-    const idx = Math.min(DEMO_SITES.length - 1, Math.floor(t * DEMO_SITES.length))
-    setDemoIdx((current) => (current === idx ? current : idx))
-  })
 
   // Typewriter for the placeholder — types out one example, holds, deletes,
   // types the next. Pauses entirely when the user starts typing. Examples
