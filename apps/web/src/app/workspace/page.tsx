@@ -8424,7 +8424,7 @@ npx eas build --platform all
                 { id: 'webstew' as Panel, icon: ChefHat, label: 'Stew', tour: 'webstew', color: 'orange', levels: ['low-code','full-stack'] },
                 { id: 'projects' as Panel, icon: FolderOpen, label: 'Files', color: 'emerald', levels: ['no-code','low-code','full-stack'] },
                 { id: 'images' as Panel, icon: ImageIcon, label: 'Media', color: 'pink', levels: ['no-code','low-code','full-stack'] },
-                { id: 'video' as Panel, icon: Film, label: 'Video', color: 'purple', levels: ['low-code','full-stack'] },
+                { id: 'video' as Panel, icon: Film, label: 'Video', color: 'purple', levels: ['no-code','low-code','full-stack'] },
                 { id: 'content' as Panel, icon: FileText, label: 'CMS', color: 'pink', levels: ['low-code','full-stack'] },
                 { id: 'integrations' as Panel, icon: Link2, label: 'Plugins', color: 'cyan', levels: ['low-code','full-stack'] },
                 { id: 'env' as Panel, icon: Variable, label: 'Env', color: 'yellow', levels: ['low-code','full-stack'] },
