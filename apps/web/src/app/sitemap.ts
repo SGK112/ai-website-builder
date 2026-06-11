@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next'
 import { getClient } from '@/lib/mongodb'
 import { DEMO_SITES } from '@/lib/demo-sites'
+import { COMPETITOR_SLUGS } from '@/lib/competitors'
 
 // Sitemap = static marketing routes + the demo showcase pages + ALL public,
 // indexable user content (community/marketplace listings, public profiles).
@@ -36,6 +37,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: r.changeFrequency,
     priority: r.priority,
   }))
+
+  // Comparison pages — high-intent "vs" landing pages, static.
+  for (const slug of COMPETITOR_SLUGS) {
+    entries.push({
+      url: `${BASE}/compare/${slug}`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.7,
+    })
+  }
 
   // Demo showcase pages — static, always present.
   for (const d of DEMO_SITES) {
