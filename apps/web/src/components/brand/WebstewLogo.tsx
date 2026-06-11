@@ -63,7 +63,7 @@ export function WebstewLogo({
   href,
   isDark,
   className,
-  showTagline = true,
+  showTagline = false,
   hideIcon = false,
 }: Props) {
   // If isDark isn't passed, infer from prefers-color-scheme via Tailwind's
