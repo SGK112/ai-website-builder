@@ -239,7 +239,7 @@ export default function HomePage() {
   const { status: sessionStatus } = useSession()
   const { theme, setTheme } = useTheme()
   const isDark = theme === 'dark'
-  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   // Page-level scroll progress — drives a thin fixed bar at the top of the
   // viewport so users have constant feedback about where they are in the
@@ -263,7 +263,7 @@ export default function HomePage() {
   // so the landing's promise lines up with the product's first step.
   // "store" not "online store" so "Build a ___" reads cleanly (no a/an
   // article problem) and landing page is dropped as a subset of website.
-  const rotatingWords = ['website', 'mobile app', 'store', 'web app']
+  const rotatingWords = ['website', 'online store', 'mobile app', 'new website', 'web app']
   const rotatingWord = rotatingWords[rotatingWordIdx]
   // Typewriter placeholder state
   const [typedText, setTypedText] = useState('')
@@ -671,37 +671,25 @@ export default function HomePage() {
           {/* Content overlay */}
           <div className="relative z-10">
             {/* Header */}
-            <header className="px-4 py-4 sm:p-6">
-              <div className="max-w-5xl mx-auto flex items-center justify-between gap-2">
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="flex items-center gap-1.5 sm:gap-2 min-w-0"
-                >
-                  <span
-                    className="text-4xl sm:text-6xl leading-none select-none cursor-pointer hover:scale-110 hover:rotate-6 transition-all duration-500 ease-out shrink-0"
-                    style={{
-                      filter: isDark
-                        ? 'drop-shadow(0 0 20px rgba(167, 139, 250, 0.6))'
-                        : 'drop-shadow(0 0 20px rgba(251, 146, 60, 0.6))',
-                      animation: 'float 4s ease-in-out infinite'
-                    }}
-                  >🍲</span>
-                  {/* Wordmark — Webstew in Inter Tight (chosen 2026-05-15)
-                      stacked over the "Ai Website Builder" tagline. Tight
-                      leading so the two lines feel like one mark, not two
-                      separate elements. */}
-                  <span className="inline-flex flex-col items-center min-w-0 leading-none">
+            {/* Minimal hero nav — the first surface stays clean and uncrowded:
+                small solid wordmark + understated text links, no loud buttons or
+                glow. Border-b mirrors the footer. Mobile keeps one clean row
+                (logo + Start Building + theme); secondary links reveal at sm/md. */}
+            <header className={cn(
+              "px-4 sm:px-6 py-4 border-b",
+              isDark ? "border-white/5" : "border-slate-200"
+            )}>
+              <div className="max-w-5xl mx-auto flex items-center justify-between gap-4 text-sm">
+                {/* Logo — small pot + solid Webstew + tagline */}
+                <a href="/" className="flex items-center gap-2 min-w-0">
+                  <span className="text-xl sm:text-2xl leading-none select-none shrink-0">🍲</span>
+                  <span className="inline-flex flex-col leading-none min-w-0">
                     <span
-                      className={cn(
-                        "text-2xl sm:text-4xl tracking-tight truncate",
-                        isDark
-                          ? "bg-gradient-to-r from-white via-violet-200 to-fuchsia-200 bg-clip-text text-transparent"
-                          : "bg-gradient-to-r from-orange-600 via-pink-600 to-purple-600 bg-clip-text text-transparent"
-                      )}
+                      className={cn("tracking-tight truncate", isDark ? "text-white" : "text-slate-800")}
                       style={{
                         fontFamily: 'var(--font-inter-tight), system-ui, sans-serif',
                         fontWeight: 800,
+                        fontSize: '1.05rem',
                         letterSpacing: '-0.03em',
                         lineHeight: 1,
                       }}
@@ -710,201 +698,100 @@ export default function HomePage() {
                     </span>
                     <span
                       className={cn(
-                        "mt-1 text-[9px] sm:text-[10px] uppercase tracking-[0.22em] font-semibold whitespace-nowrap",
+                        "mt-0.5 text-[8px] sm:text-[9px] uppercase tracking-[0.22em] font-semibold whitespace-nowrap",
                         isDark ? "text-slate-400" : "text-slate-500"
                       )}
                       style={{ fontFamily: 'var(--font-inter), system-ui, sans-serif' }}
                     >
-                      <span className="text-violet-400 font-bold">Ai</span> Website Builder
+                      <span className="text-violet-500 font-bold">Ai</span> Website Builder
                     </span>
                   </span>
-                </motion.div>
+                </a>
 
-                <motion.nav
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="flex items-center gap-1 sm:gap-2 shrink-0"
-                >
-                  <a
-                    href="/community"
-                    className={cn(
-                      "px-3 py-2 rounded-lg text-sm font-medium transition-all hidden md:block",
-                      isDark
-                        ? "text-slate-400 hover:text-white hover:bg-white/10"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
-                    )}
-                  >
-                    Community
-                  </a>
-                  <button
-                    onClick={() => setShowTargetModal(true)}
-                    className={cn(
-                      "px-3 py-2 rounded-lg text-sm font-medium transition-all hidden sm:flex items-center gap-1.5",
-                      isDark
-                        ? "text-slate-400 hover:text-white hover:bg-white/10"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
-                    )}
-                  >
-                    <span>App Builder</span>
-                    <span className={cn(
-                      "text-[10px] px-1.5 py-0.5 rounded-full font-semibold",
-                      isDark ? "bg-violet-500/20 text-violet-300" : "bg-violet-100 text-violet-600"
-                    )}>NEW</span>
-                  </button>
-                  <a
-                    href="/login"
-                    className={cn(
-                      "px-3 py-2 rounded-lg text-sm font-medium transition-all hidden sm:block",
-                      isDark
-                        ? "text-slate-400 hover:text-white hover:bg-white/10"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
-                    )}
-                  >
-                    Sign in
-                  </a>
+                {/* Nav — understated text links */}
+                <nav className="flex items-center gap-x-5 gap-y-2">
+                  <a href="/community" className={cn("hidden md:block transition-colors", isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900")}>Community</a>
+                  <button onClick={() => setShowTargetModal(true)} className={cn("hidden md:block transition-colors", isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900")}>App Builder</button>
+                  <a href="/login" className={cn("hidden sm:block transition-colors", isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900")}>Sign in</a>
                   <a
                     href={sessionStatus === 'authenticated' ? '/workspace' : '/signup?next=%2Fworkspace'}
-                    className={cn(
-                      "px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap",
-                      isDark
-                        ? "bg-violet-600 hover:bg-violet-500 text-white"
-                        : "bg-orange-500 hover:bg-orange-400 text-white"
-                    )}
+                    className={cn("font-semibold transition-colors whitespace-nowrap", isDark ? "text-white hover:text-violet-200" : "text-slate-900 hover:text-violet-700")}
                   >
-                    {sessionStatus === 'authenticated' ? 'Open Workspace' : 'Start Building'}
+                    {sessionStatus === 'authenticated' ? 'Open Workspace →' : 'Start Building →'}
                   </a>
                   <button
                     onClick={() => setTheme(isDark ? 'light' : 'dark')}
-                    className={cn(
-                      "p-2 sm:p-2.5 rounded-lg backdrop-blur-sm transition-all duration-300 shrink-0",
-                      isDark
-                        ? "bg-white/10 hover:bg-white/20 text-white"
-                        : "bg-white/50 hover:bg-white/70 text-slate-700"
-                    )}
+                    className={cn("p-1.5 rounded-md transition-colors shrink-0", isDark ? "text-slate-400 hover:text-white hover:bg-white/10" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100")}
                     aria-label="Toggle theme"
                   >
                     {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                   </button>
-                </motion.nav>
+                </nav>
               </div>
             </header>
 
             {/* Main Content */}
             <main className="min-h-[60vh] flex items-center justify-center px-6 pb-4 pt-2">
               <div className="w-full max-w-2xl">
-                {/* Hero — minimal Lovable shape: headline + input. No
-                    status pill, no paragraph, no eyebrow. */}
+                {/* Hero — minimal Lovable shape: one-line headline, short
+                    subtitle, slim single-line prompt bar. */}
                 <motion.div
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6 }}
-                  className="text-center mb-10 relative"
+                  className="text-center mb-7 relative"
                 >
-                  <h1 className="text-6xl md:text-8xl font-bold tracking-[-0.04em] leading-[0.95] text-foreground">
-                    Build a
-                    <span className="block relative h-[1.15em] mt-2 overflow-visible">
-                      <AnimatePresence mode="wait">
-                        <motion.span
-                          key={rotatingWord}
-                          initial={{ opacity: 0, y: 30, filter: 'blur(8px)' }}
-                          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                          exit={{ opacity: 0, y: -30, filter: 'blur(8px)' }}
-                          transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
-                          className={cn(
-                            'absolute inset-0 italic font-normal bg-clip-text text-transparent',
-                            isDark
-                              ? 'bg-gradient-to-br from-violet-200 via-fuchsia-300 to-cyan-200'
-                              : 'bg-gradient-to-br from-violet-600 via-fuchsia-600 to-cyan-600'
-                          )}
-                          style={{
-                            fontFamily: 'var(--font-playfair), Georgia, "Times New Roman", serif',
-                            fontSize: '1.2em',
-                            lineHeight: '0.95',
-                            letterSpacing: '-0.025em',
-                          }}
-                        >
-                          {rotatingWord}.
-                        </motion.span>
-                      </AnimatePresence>
-                    </span>
+                  {/* Reimagined H1 — the assistant's voice (its workspace
+                      greeting), with the input below as the answer. No rotating
+                      word, no gimmick. */}
+                  <h1 className="text-4xl md:text-6xl font-bold tracking-[-0.035em] leading-[1.05] text-foreground">
+                    What should we build today?
                   </h1>
+                  <p className="mt-5 text-base md:text-lg max-w-xl mx-auto text-muted-foreground">
+                    Real websites and apps — built from a sentence, ready to ship.
+                  </p>
                 </motion.div>
 
-                {/* Prompt window — large, generous padding. Single primary
-                    action surface; visitors should never miss it. */}
+                {/* Slim single-line prompt — Lovable-style input bar. */}
                 <motion.div
-                  initial={{ opacity: 0, y: 30 }}
+                  initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.1 }}
-                  className={cn(
-                    'rounded-3xl backdrop-blur-xl border-2 transition-all duration-300',
-                    isDark
-                      ? 'bg-slate-900/70 border-white/10 shadow-2xl shadow-black/40'
-                      : 'bg-white/95 border-slate-200 shadow-2xl shadow-slate-900/10',
-                    prompt && (isDark ? 'ring-2 ring-violet-500/40 border-violet-500/30' : 'ring-2 ring-violet-400/30 border-violet-300/60')
-                  )}
+                  className="max-w-xl mx-auto"
                 >
-                  <div className="px-5 sm:px-6 pt-5 sm:pt-6 pb-2">
-                    <textarea
+                  <div className={cn(
+                    'flex items-center gap-2 rounded-full border pl-5 pr-2 py-2 transition-all',
+                    isDark
+                      ? 'bg-white/[0.04] border-white/10 focus-within:border-violet-500/50 focus-within:bg-white/[0.06]'
+                      : 'bg-white border-slate-200 shadow-sm focus-within:border-violet-400'
+                  )}>
+                    <input
                       ref={inputRef}
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder={typedText || (
-                        buildTarget === 'mobile'
-                          ? `Describe the app you want to build…`
-                          : buildTarget === 'webapp'
-                            ? `Describe the web app you want to build…`
-                            : `Describe the website you want to build…`
-                      )}
-                      rows={3}
+                      placeholder={typedText || 'Describe the site or app you want…'}
                       className={cn(
-                        'w-full resize-none bg-transparent text-lg sm:text-xl leading-relaxed focus:outline-none min-h-[88px] sm:min-h-[112px]',
-                        isDark
-                          ? 'text-white placeholder-slate-500'
-                          : 'text-slate-900 placeholder-slate-400'
+                        'flex-1 bg-transparent text-sm sm:text-base focus:outline-none min-w-0',
+                        isDark ? 'text-white placeholder-zinc-500' : 'text-slate-900 placeholder-slate-400'
                       )}
                     />
-                  </div>
-
-                  <div className="flex items-center justify-between gap-3 px-4 sm:px-5 pb-4 sm:pb-5">
-                    {/* Build target dropdown (Lovable pattern) */}
-                    <div className="relative">
-                      <select
-                        value={buildTarget}
-                        onChange={(e) => setBuildTarget(e.target.value as typeof buildTarget)}
-                        aria-label="Build target"
-                        className={cn(
-                          'appearance-none pl-3 pr-9 py-2 rounded-xl text-sm font-medium cursor-pointer transition-colors',
-                          isDark
-                            ? 'bg-white/5 hover:bg-white/10 text-white border border-white/10'
-                            : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200'
-                        )}
-                      >
-                        <option value="website">🌐  Website</option>
-                        <option value="webapp">⚛️  Web App</option>
-                        <option value="mobile">📱  Mobile App</option>
-                      </select>
-                      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none text-muted-foreground" />
-                    </div>
-
                     <button
                       onClick={handleSubmit}
                       disabled={!prompt.trim() || isTransitioning}
                       aria-label="Build it"
                       className={cn(
-                        'flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200',
+                        'w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all',
                         prompt.trim()
-                          ? 'bg-gradient-to-br from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white shadow-lg shadow-emerald-500/40 hover:scale-105 active:scale-100'
-                          : isDark
-                            ? 'bg-emerald-500/15 text-emerald-400 cursor-not-allowed'
-                            : 'bg-emerald-50 text-emerald-500 cursor-not-allowed'
+                          ? 'bg-gradient-to-br from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white shadow-lg shadow-emerald-500/30 hover:scale-105'
+                          : isDark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-50 text-emerald-500'
                       )}
                     >
                       {isTransitioning ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
                     </button>
                   </div>
                 </motion.div>
+
 
 
               </div>
@@ -1005,7 +892,7 @@ export default function HomePage() {
             <motion.section initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} className="px-6 py-24">
               <div className="max-w-5xl mx-auto">
                 <div className="text-center mb-14">
-                  <h2 className="text-3xl md:text-5xl font-bold tracking-tight leading-[1.15] pb-2 text-foreground">
+                  <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
                     How it works.
                   </h2>
                 </div>
@@ -1025,15 +912,10 @@ export default function HomePage() {
                           : "bg-white/80 border-slate-200 hover:border-slate-300"
                       )}
                     >
-                      <div
-                        className={cn(
-                          "text-4xl font-bold italic mb-5 bg-clip-text text-transparent inline-block",
-                          isDark
-                            ? "bg-gradient-to-br from-amber-200 to-pink-300"
-                            : "bg-gradient-to-br from-orange-500 to-pink-500"
-                        )}
-                        style={{ fontFamily: 'var(--font-playfair), Georgia, serif' }}
-                      >
+                      <div className={cn(
+                        "text-sm font-semibold tracking-widest mb-4",
+                        isDark ? "text-violet-300/70" : "text-violet-500/80"
+                      )}>
                         {step.num}
                       </div>
                       <h3 className={cn(
@@ -1067,7 +949,7 @@ export default function HomePage() {
               <div className="max-w-6xl mx-auto">
                 <div className="flex items-end justify-between mb-6 sm:mb-10 gap-4">
                   <div>
-                    <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-2 text-foreground">
+                    <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-2 text-foreground">
                       Start from a template.
                     </h2>
                     <p className="text-base md:text-lg text-muted-foreground">
@@ -1181,27 +1063,9 @@ export default function HomePage() {
                 )}>
                   The pantry
                 </p>
-                <h2 className={cn(
-                  "text-center text-3xl md:text-5xl font-bold tracking-tight mb-4 leading-[1.15] pb-2",
-                  "text-foreground"
-                )}>
-                  The ingredients to
-                  <span
-                    className={cn(
-                      // Playfair italic 'g' has a deep descender. The earlier
-                      // clip was NOT a too-small box — it was the -mb-6 here:
-                      // a negative bottom margin pulled the next element (with
-                      // the opaque page background) UP over the descender and
-                      // painted on top of it. So: enough leading + a little
-                      // bottom padding to seat the descender, and NO negative
-                      // margin. pr keeps the italic slant from clipping right.
-                      "italic font-normal ml-3 inline-block leading-[1.4] pr-3",
-                      isDark ? "text-rose-300" : "text-rose-500"
-                    )}
-                    style={{ fontFamily: 'var(--font-playfair), Georgia, serif' }}
-                  >
-                    greatness.
-                  </span>
+                <h2 className="text-center text-3xl md:text-4xl font-bold tracking-tight mb-4 text-foreground">
+                  The ingredients to{' '}
+                  <span className={isDark ? "text-violet-300" : "text-violet-600"}>greatness.</span>
                 </h2>
                 <p className={cn(
                   "text-center text-base md:text-lg mb-12 max-w-2xl mx-auto",
@@ -1307,82 +1171,40 @@ export default function HomePage() {
               className="px-6 pb-24 pt-12"
             >
               <div className="max-w-2xl mx-auto text-center">
-                <h2 className="text-5xl md:text-6xl font-bold tracking-tight leading-[1.2] mb-8 pb-2 text-foreground">
+                <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-7 text-foreground">
                   Start building.
                 </h2>
 
-                {/* Same input component as the hero — animated typewriter,
-                    dropdown picker, send arrow. Wired to the same submit. */}
-                <div
-                  className={cn(
-                    "rounded-2xl backdrop-blur-xl border transition-all duration-300 text-left",
-                    isDark
-                      ? "bg-slate-900/70 border-white/10 shadow-xl shadow-black/30"
-                      : "bg-white/90 border-slate-200/80 shadow-xl shadow-slate-300/30",
-                    prompt && (isDark ? "ring-1 ring-violet-500/40" : "ring-1 ring-violet-400/40")
-                  )}
-                >
-                  <div className="px-4 pt-3 pb-0">
-                    <textarea
-                      value={prompt}
-                      onChange={(e) => setPrompt(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      placeholder={typedText || (
-                        buildTarget === 'mobile'
-                          ? `Ask Webstew to build a mobile app...`
-                          : buildTarget === 'webapp'
-                            ? `Ask Webstew to build a web app...`
-                            : `Ask Webstew to build a website for...`
-                      )}
-                      rows={1}
-                      className={cn(
-                        "w-full resize-none bg-transparent text-base leading-snug focus:outline-none min-h-[44px]",
-                        isDark
-                          ? "text-white placeholder-slate-500"
-                          : "text-slate-900 placeholder-slate-400"
-                      )}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between px-3 pb-3">
-                    <div className="relative">
-                      <select
-                        value={buildTarget}
-                        onChange={(e) => setBuildTarget(e.target.value as typeof buildTarget)}
-                        aria-label="Build target"
-                        className={cn(
-                          "appearance-none pl-2.5 pr-8 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors",
-                          isDark
-                            ? "bg-white/5 hover:bg-white/10 text-white border border-white/10"
-                            : "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200"
-                        )}
-                      >
-                        <option value="website">🌐  Website</option>
-                        <option value="webapp">⚛️  Web App</option>
-                        <option value="mobile">📱  Mobile App</option>
-                      </select>
-                      <ChevronDown className={cn(
-                        "absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none",
-                        "text-muted-foreground"
-                      )} />
-                    </div>
-
-                    <button
-                      onClick={handleSubmit}
-                      disabled={!prompt.trim() || isTransitioning}
-                      aria-label="Build it"
-                      className={cn(
-                        "flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-200",
-                        prompt.trim()
-                          ? "bg-gradient-to-br from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white shadow-md shadow-emerald-500/30 hover:scale-105"
-                          : isDark
-                            ? "bg-emerald-500/15 text-emerald-400 cursor-not-allowed"
-                            : "bg-emerald-50 text-emerald-500 cursor-not-allowed"
-                      )}
-                    >
-                      {isTransitioning ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
-                    </button>
-                  </div>
+                {/* Slim single-line input — same shape as the hero. */}
+                <div className={cn(
+                  'flex items-center gap-2 rounded-full border pl-5 pr-2 py-2 transition-all',
+                  isDark
+                    ? 'bg-white/[0.04] border-white/10 focus-within:border-violet-500/50 focus-within:bg-white/[0.06]'
+                    : 'bg-white border-slate-200 shadow-sm focus-within:border-violet-400'
+                )}>
+                  <input
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={typedText || 'Describe the site or app you want…'}
+                    className={cn(
+                      'flex-1 bg-transparent text-sm sm:text-base focus:outline-none min-w-0',
+                      isDark ? 'text-white placeholder-zinc-500' : 'text-slate-900 placeholder-slate-400'
+                    )}
+                  />
+                  <button
+                    onClick={handleSubmit}
+                    disabled={!prompt.trim() || isTransitioning}
+                    aria-label="Build it"
+                    className={cn(
+                      'w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all',
+                      prompt.trim()
+                        ? 'bg-gradient-to-br from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white shadow-lg shadow-emerald-500/30 hover:scale-105'
+                        : isDark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-50 text-emerald-500'
+                    )}
+                  >
+                    {isTransitioning ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
+                  </button>
                 </div>
 
                 <p className={cn(

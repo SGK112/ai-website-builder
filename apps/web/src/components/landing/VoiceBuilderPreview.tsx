@@ -7,7 +7,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Mic, Sparkles, Loader2, CheckCircle2, AlertCircle, Volume2 } from 'lucide-react'
+import { Mic, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -54,176 +54,87 @@ export function VoiceBuilderPreview({ isDark }: Props) {
       transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
       className="px-6 py-24"
     >
-      <div className="max-w-4xl mx-auto">
-        <div className={cn(
-          "relative rounded-3xl overflow-hidden p-8 md:p-14 border",
-          isDark
-            ? "bg-gradient-to-br from-violet-900/40 via-zinc-950 to-fuchsia-900/30 border-violet-500/20"
-            : "bg-gradient-to-br from-violet-50 via-white to-fuchsia-50 border-violet-200"
+      <div className="max-w-xl mx-auto text-center">
+        <p className={cn(
+          "text-xs uppercase tracking-[0.25em] mb-3 font-semibold",
+          isDark ? "text-violet-300/80" : "text-violet-600/80"
         )}>
-          {/* Decorative pulsing mic — visual cue without a real animation
-              dependency. Pure CSS scale + opacity pulse. */}
-          <div className="absolute -top-12 -right-12 pointer-events-none">
-            <div className={cn(
-              "w-64 h-64 rounded-full blur-3xl",
-              isDark ? "bg-violet-500/20" : "bg-violet-400/30"
-            )} />
-          </div>
-          <div className="absolute -bottom-16 -left-16 pointer-events-none">
-            <div className={cn(
-              "w-72 h-72 rounded-full blur-3xl",
-              isDark ? "bg-fuchsia-500/20" : "bg-fuchsia-400/25"
-            )} />
-          </div>
+          Voice · Coming soon
+        </p>
+        <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground mb-4">
+          Soon, just <span className={isDark ? "text-violet-300" : "text-violet-600"}>say it</span>.
+        </h2>
+        <p className="text-base md:text-lg text-muted-foreground mb-7 max-w-md mx-auto">
+          Talk to the builder like a person. <span className="text-foreground">&ldquo;Add a contact form.&rdquo;</span> Done.
+        </p>
 
-          <div className="relative">
-            <div className="flex items-center gap-3 mb-6">
-              <span className={cn(
-                "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] uppercase tracking-[0.15em] font-bold",
-                isDark ? "bg-violet-500/20 text-violet-300 ring-1 ring-violet-500/30" : "bg-violet-100 text-violet-700 ring-1 ring-violet-300"
-              )}>
-                <Sparkles className="w-3 h-3" />
-                Coming soon · Early access
-              </span>
-            </div>
-
-            <h2 className={cn(
-              "text-3xl md:text-5xl font-bold tracking-tight mb-3 max-w-2xl",
-              isDark ? "text-white" : "text-slate-900"
-            )}>
-              Talk to Webstew. <span className={cn(
-                "italic",
-                isDark ? "text-violet-300" : "text-violet-600"
-              )}>Build with your voice.</span>
-            </h2>
-            <p className={cn(
-              "text-base md:text-lg mb-8 max-w-xl leading-relaxed",
-              isDark ? "text-zinc-400" : "text-slate-600"
-            )}>
-              Real-time conversation with the builder. Say <span className="italic">"add a contact form,"</span> watch it appear. <span className="italic">"Make the hero bigger,"</span> done. Powered by our voice agent and the same realtime pipeline that handles thousands of phone calls a day.
-            </p>
-
-            {/* Animated mic visual */}
-            <div className="flex items-center gap-4 mb-10">
-              <div className="relative">
-                <div className={cn(
-                  "w-16 h-16 rounded-2xl flex items-center justify-center shadow-2xl",
-                  isDark
-                    ? "bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-violet-500/40"
-                    : "bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-violet-500/30"
-                )}>
-                  <Mic className="w-7 h-7 text-white" />
-                </div>
-                {/* Pulse ring */}
-                <div className={cn(
-                  "absolute inset-0 rounded-2xl animate-ping",
-                  isDark ? "bg-violet-500/30" : "bg-violet-400/40"
-                )} style={{ animationDuration: '2.5s' }} />
-              </div>
-              <div className="flex-1 flex items-center gap-1">
-                {/* Pseudo waveform — varied heights, animated via stagger */}
-                {[0.5, 0.8, 0.4, 0.95, 0.6, 0.7, 0.35, 0.85, 0.55, 0.9, 0.45, 0.75, 0.6, 0.5].map((h, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ scaleY: 0.2 }}
-                    animate={{ scaleY: [0.3, h, 0.3] }}
-                    transition={{
-                      duration: 1.2 + (i % 4) * 0.15,
-                      repeat: Infinity,
-                      delay: i * 0.07,
-                      ease: 'easeInOut',
-                    }}
-                    className={cn(
-                      "w-1 origin-center rounded-full",
-                      isDark
-                        ? "bg-gradient-to-b from-violet-400 to-fuchsia-400"
-                        : "bg-gradient-to-b from-violet-500 to-fuchsia-500"
-                    )}
-                    style={{ height: `${h * 56}px` }}
-                  />
-                ))}
-              </div>
-              <Volume2 className={cn(
-                "w-6 h-6",
-                isDark ? "text-violet-300/60" : "text-violet-600/60"
-              )} />
-            </div>
-
-            {/* Waitlist form OR success state */}
-            {status === 'success' ? (
-              <div className={cn(
-                "p-5 rounded-2xl border flex items-center gap-3",
-                isDark
-                  ? "bg-emerald-500/10 border-emerald-500/30"
-                  : "bg-emerald-50 border-emerald-300"
-              )}>
-                <CheckCircle2 className={cn("w-6 h-6 shrink-0", isDark ? "text-emerald-400" : "text-emerald-600")} />
-                <div>
-                  <p className={cn("font-semibold text-base", isDark ? "text-white" : "text-slate-900")}>
-                    You're on the list.
-                  </p>
-                  <p className={cn("text-sm mt-0.5", isDark ? "text-emerald-200/80" : "text-emerald-700/90")}>
-                    We'll email you the moment voice building goes live.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <form
-                onSubmit={handleSubmit}
-                className={cn(
-                  "flex flex-col sm:flex-row gap-2 p-2 rounded-2xl border backdrop-blur-xl max-w-2xl",
-                  isDark
-                    ? "bg-white/[0.03] border-white/15"
-                    : "bg-white/90 border-violet-200"
-                )}
-              >
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@yourdomain.com"
-                  required
-                  disabled={status === 'submitting'}
-                  className={cn(
-                    "flex-1 bg-transparent px-4 py-3 text-base focus:outline-none disabled:opacity-50",
-                    isDark ? "text-white placeholder-zinc-500" : "text-slate-900 placeholder-slate-400"
-                  )}
-                />
-                <button
-                  type="submit"
-                  disabled={status === 'submitting' || !email.trim()}
-                  className="shrink-0 inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white font-semibold transition shadow-lg shadow-violet-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {status === 'submitting' ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Joining…
-                    </>
-                  ) : (
-                    <>
-                      <Mic className="w-4 h-4" />
-                      Get early access
-                    </>
-                  )}
-                </button>
-              </form>
-            )}
-
-            {error && status === 'error' && (
-              <div className="mt-3 flex items-center gap-2 text-sm text-red-500">
-                <AlertCircle className="w-4 h-4" />
-                {error}
-              </div>
-            )}
-
-            <p className={cn(
-              "text-xs mt-4",
-              isDark ? "text-zinc-500" : "text-slate-500"
-            )}>
-              Powered by Aria — Webstew's voice agent. We'll only email you about voice access.
-            </p>
-          </div>
+        {/* A quiet waveform — the one bit of motion, restrained. */}
+        <div className="flex items-center justify-center gap-[3px] mb-8" aria-hidden>
+          {[0.4, 0.7, 0.3, 0.85, 0.5, 0.65, 0.35, 0.8, 0.45, 0.6, 0.4, 0.75].map((h, i) => (
+            <motion.div
+              key={i}
+              animate={{ scaleY: [0.35, h, 0.35] }}
+              transition={{ duration: 1.5 + (i % 3) * 0.2, repeat: Infinity, delay: i * 0.08, ease: 'easeInOut' }}
+              className={cn("w-0.5 origin-center rounded-full", isDark ? "bg-violet-400/45" : "bg-violet-500/45")}
+              style={{ height: '22px' }}
+            />
+          ))}
         </div>
+
+        {status === 'success' ? (
+          <div className={cn(
+            "inline-flex items-center gap-2 px-5 py-3 rounded-full border max-w-md mx-auto",
+            isDark ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300" : "bg-emerald-50 border-emerald-300 text-emerald-700"
+          )}>
+            <CheckCircle2 className="w-5 h-5 shrink-0" />
+            <span className="text-sm font-medium">You&rsquo;re on the list — we&rsquo;ll email you when voice goes live.</span>
+          </div>
+        ) : (
+          <form
+            onSubmit={handleSubmit}
+            className={cn(
+              "flex items-center gap-2 rounded-full border pl-5 pr-2 py-2 max-w-md mx-auto transition-all",
+              isDark ? "bg-white/[0.04] border-white/10 focus-within:border-violet-500/50" : "bg-white border-slate-200 shadow-sm focus-within:border-violet-400"
+            )}
+          >
+            <Mic className={cn("w-4 h-4 shrink-0", isDark ? "text-violet-300" : "text-violet-500")} />
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@email.com"
+              required
+              disabled={status === 'submitting'}
+              className={cn(
+                "flex-1 bg-transparent text-sm sm:text-base focus:outline-none min-w-0 disabled:opacity-50",
+                isDark ? "text-white placeholder-zinc-500" : "text-slate-900 placeholder-slate-400"
+              )}
+            />
+            <button
+              type="submit"
+              disabled={status === 'submitting' || !email.trim()}
+              className={cn(
+                "shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all whitespace-nowrap",
+                email.trim()
+                  ? "bg-violet-600 hover:bg-violet-500 text-white"
+                  : isDark ? "bg-white/10 text-zinc-500" : "bg-slate-100 text-slate-400"
+              )}
+            >
+              {status === 'submitting' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Get early access'}
+            </button>
+          </form>
+        )}
+
+        {error && status === 'error' && (
+          <div className="mt-3 flex items-center justify-center gap-2 text-sm text-red-500">
+            <AlertCircle className="w-4 h-4" />
+            {error}
+          </div>
+        )}
+
+        <p className={cn("text-xs mt-4", isDark ? "text-zinc-500" : "text-slate-500")}>
+          Powered by Aria — Webstew&rsquo;s voice agent.
+        </p>
       </div>
     </motion.section>
   )
