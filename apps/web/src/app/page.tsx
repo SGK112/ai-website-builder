@@ -717,7 +717,7 @@ export default function HomePage() {
                     href={sessionStatus === 'authenticated' ? '/workspace' : '/signup?next=%2Fworkspace'}
                     className={cn("font-semibold transition-colors whitespace-nowrap", isDark ? "text-white hover:text-violet-200" : "text-slate-900 hover:text-violet-700")}
                   >
-                    {sessionStatus === 'authenticated' ? 'Open Workspace →' : 'Start Building →'}
+                    {sessionStatus === 'authenticated' ? 'Open Workspace →' : 'Start Cooking →'}
                   </a>
                   <button
                     onClick={() => setTheme(isDark ? 'light' : 'dark')}
@@ -745,7 +745,7 @@ export default function HomePage() {
                       greeting), with the input below as the answer. No rotating
                       word, no gimmick. */}
                   <h1 className="text-4xl md:text-6xl font-bold tracking-[-0.035em] leading-[1.05] text-foreground">
-                    What should we build today?
+                    What should we cook up today?
                   </h1>
                   <p className="mt-5 text-base md:text-lg max-w-xl mx-auto text-muted-foreground">
                     Real websites and apps — built from a sentence, ready to ship.
@@ -1172,7 +1172,7 @@ export default function HomePage() {
             >
               <div className="max-w-2xl mx-auto text-center">
                 <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-7 text-foreground">
-                  Start building.
+                  Start cooking.
                 </h2>
 
                 {/* Slim single-line input — same shape as the hero. */}
