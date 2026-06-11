@@ -114,6 +114,12 @@ const nextConfig = {
   },
   // Powered by header disabled for security
   poweredByHeader: false,
+  // Dev only: keep compiled pages in memory much longer so navigating away from
+  // the big workspace route and back doesn't trigger a full recompile each time.
+  onDemandEntries: {
+    maxInactiveAge: 60 * 60 * 1000,
+    pagesBufferLength: 8,
+  },
 }
 
 // Wrap with Sentry only when a DSN is configured. Keeps `next build`/`next dev`
