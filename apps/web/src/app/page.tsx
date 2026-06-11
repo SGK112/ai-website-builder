@@ -73,8 +73,8 @@ const templateGallery = [
     id: 'saas-modern',
     name: 'Modern SaaS',
     category: 'SaaS',
-    image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&q=80',
-    heroImage: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1920&q=80',
+    image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&q=70&auto=format&fit=crop',
+    heroImage: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1100&q=70&auto=format&fit=crop',
     colors: { primary: '#6366F1', secondary: '#818CF8', accent: '#A5B4FC' },
     fonts: { heading: 'Inter', body: 'Inter' },
     sections: ['Hero', 'Logo Cloud', 'Features', 'Pricing', 'Testimonials', 'FAQ', 'CTA'],
@@ -85,8 +85,8 @@ const templateGallery = [
     id: 'restaurant-elegant',
     name: 'Elegant Restaurant',
     category: 'Restaurant',
-    image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80',
-    heroImage: 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=1920&q=80',
+    image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&q=70&auto=format&fit=crop',
+    heroImage: 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=1100&q=70&auto=format&fit=crop',
     colors: { primary: '#F59E0B', secondary: '#FBBF24', accent: '#FCD34D' },
     fonts: { heading: 'Playfair Display', body: 'Lora' },
     sections: ['Hero', 'About', 'Menu', 'Gallery', 'Reviews', 'Reservations', 'Location'],
@@ -97,8 +97,8 @@ const templateGallery = [
     id: 'agency-creative',
     name: 'Creative Agency',
     category: 'Agency',
-    image: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=800&q=80',
-    heroImage: 'https://images.unsplash.com/photo-1558655146-9f40138edfeb?w=1920&q=80',
+    image: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=600&q=70&auto=format&fit=crop',
+    heroImage: 'https://images.unsplash.com/photo-1558655146-9f40138edfeb?w=1100&q=70&auto=format&fit=crop',
     colors: { primary: '#EC4899', secondary: '#F472B6', accent: '#FBCFE8' },
     fonts: { heading: 'Syne', body: 'Work Sans' },
     sections: ['Hero', 'Services', 'Portfolio', 'Clients', 'Team', 'Testimonials', 'Contact'],
@@ -109,8 +109,8 @@ const templateGallery = [
     id: 'ecommerce-luxury',
     name: 'Luxury Fashion',
     category: 'E-Commerce',
-    image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&q=80',
-    heroImage: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1920&q=80',
+    image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600&q=70&auto=format&fit=crop',
+    heroImage: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1100&q=70&auto=format&fit=crop',
     colors: { primary: '#1F2937', secondary: '#6B7280', accent: '#D4AF37' },
     fonts: { heading: 'Cormorant Garamond', body: 'Montserrat' },
     sections: ['Hero', 'Featured', 'Categories', 'New Arrivals', 'Brand Story', 'Newsletter'],
@@ -121,8 +121,8 @@ const templateGallery = [
     id: 'portfolio-minimal',
     name: 'Minimal Portfolio',
     category: 'Portfolio',
-    image: 'https://images.unsplash.com/photo-1545665277-5937489579f2?w=800&q=80',
-    heroImage: 'https://images.unsplash.com/photo-1561070791-2526d30994b5?w=1920&q=80',
+    image: 'https://images.unsplash.com/photo-1545665277-5937489579f2?w=600&q=70&auto=format&fit=crop',
+    heroImage: 'https://images.unsplash.com/photo-1561070791-2526d30994b5?w=1100&q=70&auto=format&fit=crop',
     colors: { primary: '#10B981', secondary: '#34D399', accent: '#6EE7B7' },
     fonts: { heading: 'DM Sans', body: 'DM Sans' },
     sections: ['Hero', 'Projects', 'About', 'Skills', 'Blog', 'Contact'],
@@ -133,8 +133,8 @@ const templateGallery = [
     id: 'startup-bold',
     name: 'Startup Bold',
     category: 'Startup',
-    image: 'https://images.unsplash.com/photo-1551434678-e076c223a692?w=800&q=80',
-    heroImage: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=1920&q=80',
+    image: 'https://images.unsplash.com/photo-1551434678-e076c223a692?w=600&q=70&auto=format&fit=crop',
+    heroImage: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=1100&q=70&auto=format&fit=crop',
     colors: { primary: '#8B5CF6', secondary: '#A78BFA', accent: '#C4B5FD' },
     fonts: { heading: 'Space Grotesk', body: 'Inter' },
     sections: ['Hero', 'Problem/Solution', 'Features', 'Social Proof', 'Team', 'Waitlist', 'CTA'],
@@ -145,8 +145,8 @@ const templateGallery = [
     id: 'fitness-gym',
     name: 'Fitness Studio',
     category: 'Fitness',
-    image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80',
-    heroImage: 'https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?w=1920&q=80',
+    image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=70&auto=format&fit=crop',
+    heroImage: 'https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?w=1100&q=70&auto=format&fit=crop',
     colors: { primary: '#EF4444', secondary: '#F97316', accent: '#FBBF24' },
     fonts: { heading: 'Bebas Neue', body: 'Roboto' },
     sections: ['Hero', 'Classes', 'Trainers', 'Pricing', 'Testimonials', 'Gallery', 'Contact'],
@@ -157,8 +157,8 @@ const templateGallery = [
     id: 'realestate-luxury',
     name: 'Luxury Real Estate',
     category: 'Real Estate',
-    image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800&q=80',
-    heroImage: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=1920&q=80',
+    image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600&q=70&auto=format&fit=crop',
+    heroImage: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=1100&q=70&auto=format&fit=crop',
     colors: { primary: '#1E1B4B', secondary: '#475569', accent: '#D4AF37' },
     fonts: { heading: 'Cormorant Garamond', body: 'Montserrat' },
     sections: ['Hero', 'Listings', 'Search', 'Agents', 'Testimonials', 'Neighborhoods', 'Contact'],
@@ -169,8 +169,8 @@ const templateGallery = [
     id: 'medical-clinic',
     name: 'Medical Clinic',
     category: 'Healthcare',
-    image: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=800&q=80',
-    heroImage: 'https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?w=1920&q=80',
+    image: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=600&q=70&auto=format&fit=crop',
+    heroImage: 'https://images.unsplash.com/photo-1631217868264-e5b90bb7e133?w=1100&q=70&auto=format&fit=crop',
     colors: { primary: '#0EA5E9', secondary: '#38BDF8', accent: '#7DD3FC' },
     fonts: { heading: 'DM Sans', body: 'DM Sans' },
     sections: ['Hero', 'Services', 'Doctors', 'Appointments', 'Testimonials', 'Insurance', 'Contact'],
@@ -181,8 +181,8 @@ const templateGallery = [
     id: 'blog-magazine',
     name: 'Blog Magazine',
     category: 'Blog',
-    image: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=800&q=80',
-    heroImage: 'https://images.unsplash.com/photo-1432821596592-e2c18b78144f?w=1920&q=80',
+    image: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=600&q=70&auto=format&fit=crop',
+    heroImage: 'https://images.unsplash.com/photo-1432821596592-e2c18b78144f?w=1100&q=70&auto=format&fit=crop',
     colors: { primary: '#F97316', secondary: '#FB923C', accent: '#FDBA74' },
     fonts: { heading: 'Playfair Display', body: 'Source Sans Pro' },
     sections: ['Featured', 'Categories', 'Recent Posts', 'Newsletter', 'Popular', 'Author', 'Archive'],
@@ -193,8 +193,8 @@ const templateGallery = [
     id: 'event-conference',
     name: 'Event Conference',
     category: 'Events',
-    image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&q=80',
-    heroImage: 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=1920&q=80',
+    image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&q=70&auto=format&fit=crop',
+    heroImage: 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=1100&q=70&auto=format&fit=crop',
     colors: { primary: '#7C3AED', secondary: '#8B5CF6', accent: '#A78BFA' },
     fonts: { heading: 'Space Grotesk', body: 'Inter' },
     sections: ['Hero', 'Countdown', 'Speakers', 'Schedule', 'Tickets', 'Sponsors', 'Venue'],
@@ -205,8 +205,8 @@ const templateGallery = [
     id: 'photography-portfolio',
     name: 'Photography Portfolio',
     category: 'Photography',
-    image: 'https://images.unsplash.com/photo-1452587925148-ce544e77e70d?w=800&q=80',
-    heroImage: 'https://images.unsplash.com/photo-1493863641943-9b68992a8d07?w=1920&q=80',
+    image: 'https://images.unsplash.com/photo-1452587925148-ce544e77e70d?w=600&q=70&auto=format&fit=crop',
+    heroImage: 'https://images.unsplash.com/photo-1493863641943-9b68992a8d07?w=1100&q=70&auto=format&fit=crop',
     colors: { primary: '#18181B', secondary: '#27272A', accent: '#FAFAFA' },
     fonts: { heading: 'Cormorant Garamond', body: 'Montserrat' },
     sections: ['Hero', 'Gallery', 'About', 'Services', 'Clients', 'Booking', 'Contact'],
@@ -571,9 +571,9 @@ export default function HomePage() {
 
                 {/* Nav — understated text links */}
                 <nav className="flex items-center gap-x-5 gap-y-2">
-                  <a href="/community" className={cn("hidden md:block transition-colors", isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900")}>Community</a>
-                  <button onClick={() => setShowTargetModal(true)} className={cn("hidden md:block transition-colors", isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900")}>App Builder</button>
-                  <a href="/login" className={cn("hidden sm:block transition-colors", isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900")}>Sign in</a>
+                  <a href="/community" className={cn("hidden md:block transition-colors", isDark ? "text-slate-300 hover:text-white" : "text-slate-500 hover:text-slate-900")}>Community</a>
+                  <button onClick={() => setShowTargetModal(true)} className={cn("hidden md:block transition-colors", isDark ? "text-slate-300 hover:text-white" : "text-slate-500 hover:text-slate-900")}>App Builder</button>
+                  <a href="/login" className={cn("hidden sm:block transition-colors", isDark ? "text-slate-300 hover:text-white" : "text-slate-500 hover:text-slate-900")}>Sign in</a>
                   <a
                     href={sessionStatus === 'authenticated' ? '/workspace' : '/signup?next=%2Fworkspace'}
                     className={cn("font-semibold transition-colors whitespace-nowrap", isDark ? "text-white hover:text-violet-200" : "text-slate-900 hover:text-violet-700")}
@@ -582,7 +582,7 @@ export default function HomePage() {
                   </a>
                   <button
                     onClick={() => setTheme(isDark ? 'light' : 'dark')}
-                    className={cn("p-1.5 rounded-md transition-colors shrink-0", isDark ? "text-slate-400 hover:text-white hover:bg-white/10" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100")}
+                    className={cn("p-1.5 rounded-md transition-colors shrink-0", isDark ? "text-slate-300 hover:text-white hover:bg-white/10" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100")}
                     aria-label="Toggle theme"
                   >
                     {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -836,14 +836,14 @@ export default function HomePage() {
                     // loads the HTML directly, no LLM call. Without libId,
                     // we fall back to AI generation with the title/sub as
                     // the prompt (industry-aware via detectIndustry).
-                    { title: 'Personal portfolio', sub: 'Designer/dev work showcase', img: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800&q=80', libId: 'agency-portfolio' },
-                    { title: 'SaaS dashboard',     sub: 'Analytics, KPIs, charts',    img: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80', libId: 'saas-landing' },
-                    { title: 'Restaurant site',    sub: 'Menu, hours, reservations',  img: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80', libId: 'restaurant-menu' },
-                    { title: 'Fitness mobile app', sub: 'Workouts, stats, streaks',   img: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&q=80', libId: null },
-                    { title: 'E-commerce store',   sub: 'Product grid, cart, checkout', img: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=800&q=80', libId: 'luxe-ecommerce' },
-                    { title: 'Markdown blog',      sub: 'Posts, tags, search, RSS',   img: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=800&q=80', libId: null },
-                    { title: 'Photography portfolio', sub: 'Masonry gallery, lightbox', img: 'https://images.unsplash.com/photo-1452587925148-ce544e77e70d?w=800&q=80', libId: 'agency-portfolio' },
-                    { title: 'Documentation site', sub: 'Sidebar, search, code blocks', img: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&q=80', libId: null },
+                    { title: 'Personal portfolio', sub: 'Designer/dev work showcase', img: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&q=70&auto=format&fit=crop', libId: 'agency-portfolio' },
+                    { title: 'SaaS dashboard',     sub: 'Analytics, KPIs, charts',    img: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&q=70&auto=format&fit=crop', libId: 'saas-landing' },
+                    { title: 'Restaurant site',    sub: 'Menu, hours, reservations',  img: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&q=70&auto=format&fit=crop', libId: 'restaurant-menu' },
+                    { title: 'Fitness mobile app', sub: 'Workouts, stats, streaks',   img: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600&q=70&auto=format&fit=crop', libId: null },
+                    { title: 'E-commerce store',   sub: 'Product grid, cart, checkout', img: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=600&q=70&auto=format&fit=crop', libId: 'luxe-ecommerce' },
+                    { title: 'Markdown blog',      sub: 'Posts, tags, search, RSS',   img: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=600&q=70&auto=format&fit=crop', libId: null },
+                    { title: 'Photography portfolio', sub: 'Masonry gallery, lightbox', img: 'https://images.unsplash.com/photo-1452587925148-ce544e77e70d?w=600&q=70&auto=format&fit=crop', libId: 'agency-portfolio' },
+                    { title: 'Documentation site', sub: 'Sidebar, search, code blocks', img: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&q=70&auto=format&fit=crop', libId: null },
                   ] as Array<{ title: string; sub: string; img: string; libId: string | null }>).map((p, i) => (
                     <motion.button
                       key={p.title}
@@ -1070,7 +1070,7 @@ export default function HomePage() {
 
                 <p className={cn(
                   "text-xs mt-4",
-                  isDark ? "text-slate-500" : "text-slate-500"
+                  isDark ? "text-slate-400" : "text-slate-500"
                 )}>
                   Free to start · No credit card · Your first build is on us
                 </p>
@@ -1080,7 +1080,7 @@ export default function HomePage() {
             {/* Footer */}
             <footer className={cn(
               "py-10 px-6 border-t",
-              isDark ? "border-white/5 text-slate-500" : "border-slate-200 text-slate-500"
+              isDark ? "border-white/5 text-slate-400" : "border-slate-200 text-slate-500"
             )}>
               <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
                 <div className="flex items-center gap-2">
@@ -1119,7 +1119,7 @@ export default function HomePage() {
                   so we surface it here too — same name, end-to-end. */}
               <p className={cn(
                 "max-w-5xl mx-auto mt-4 text-center sm:text-right text-xs",
-                isDark ? "text-slate-600" : "text-slate-400"
+                isDark ? "text-slate-400" : "text-slate-500"
               )}>
                 Webstew AI is operated by Remodely LLC.
               </p>
