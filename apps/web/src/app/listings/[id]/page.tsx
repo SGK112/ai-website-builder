@@ -8,6 +8,7 @@ import type { Metadata } from 'next'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
 import { ListingActions } from '@/components/marketplace/ListingActions'
+import { seoTitle, seoDescription, clip } from '@/lib/seo'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -68,12 +69,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const l = await loadListing(params.id)
   if (!l) return { title: 'Listing · Webstew' }
   const author = l.author?.name || l.author?.username || 'a creator'
+  // User-written title/description are unbounded — clamp to search limits.
   return {
-    title: `${l.title} · by ${author} · Webstew`,
-    description: l.description?.slice(0, 200) || `${l.title} — built on Webstew.`,
+    title: { absolute: seoTitle(`${l.title} — by ${author}`) },
+    description: seoDescription(l.description || `${l.title} — built on Webstew.`),
     openGraph: {
-      title: l.title,
-      description: l.description?.slice(0, 200),
+      title: clip(l.title, 60),
+      description: seoDescription(l.description),
       images: l.thumbnail ? [l.thumbnail] : undefined,
       type: 'article',
     },

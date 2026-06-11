@@ -14,6 +14,7 @@ import { ArrowLeft, Sparkles, BadgeCheck, ExternalLink, Calendar, Eye, Heart } f
 import type { Metadata } from 'next'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
+import { seoTitle, seoDescription, clip } from '@/lib/seo'
 import { DEMO_SITES } from '@/lib/demo-sites'
 
 export const dynamic = 'force-dynamic'
@@ -223,12 +224,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!data) {
     return { title: `@${params.username} · Webstew` }
   }
+  const n = data.listings.length
   return {
-    title: `${data.author.name} (@${data.author.username}) · Webstew`,
-    description: `${data.author.name} has shared ${data.listings.length} site${data.listings.length === 1 ? '' : 's'} on Webstew. View the catalog and remix any of them.`,
+    // absolute → no double "Webstew"; name is user-supplied so clamp it.
+    title: { absolute: seoTitle(`${data.author.name} (@${data.author.username})`) },
+    description: seoDescription(`${data.author.name} has shared ${n} site${n === 1 ? '' : 's'} on Webstew. View the catalog and remix any of them.`),
     openGraph: {
-      title: `${data.author.name} on Webstew`,
-      description: `${data.listings.length} site${data.listings.length === 1 ? '' : 's'} shared`,
+      title: clip(`${data.author.name} on Webstew`, 60),
+      description: `${n} site${n === 1 ? '' : 's'} shared on Webstew`,
       type: 'profile',
     },
     twitter: { card: 'summary_large_image' },

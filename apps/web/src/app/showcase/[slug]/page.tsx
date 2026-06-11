@@ -9,6 +9,7 @@ import { notFound } from 'next/navigation'
 import { ArrowLeft, Sparkles, BadgeCheck, ExternalLink, Tag, Wand2 } from 'lucide-react'
 import type { Metadata } from 'next'
 import { DEMO_SITES } from '@/lib/demo-sites'
+import { seoTitle, seoDescription } from '@/lib/seo'
 
 export const dynamic = 'force-static'
 
@@ -42,10 +43,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const d = DEMO_SITES.find((x) => x.id === params.slug)
   if (!d) return { title: 'Template · Webstew' }
   return {
-    title: `${d.label} — Webstew template`,
-    description: `${d.label} — ${d.prompt}. Generated with Webstew. Use this as a starting prompt for your own site.`,
+    title: { absolute: seoTitle(`${d.label} template`) },
+    description: seoDescription(`${d.label} — ${d.prompt}. Generated with Webstew; use it as a starting prompt for your own site.`),
     openGraph: {
-      title: `${d.label} — Webstew template`,
+      title: `${d.label} template · Webstew`,
       description: d.prompt,
       type: 'article',
     },
