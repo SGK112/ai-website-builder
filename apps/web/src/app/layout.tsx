@@ -245,6 +245,30 @@ export default function RootLayout({
             }),
           }}
         />
+        {/* WebSite entity — ties the domain to the Organization and gives
+            Google a SearchAction (the sitelinks search box) pointed at the
+            template gallery, which reads ?search=. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'WebSite',
+              '@id': 'https://www.webstew.net/#website',
+              name: 'Webstew AI',
+              url: 'https://www.webstew.net',
+              publisher: { '@id': 'https://www.webstew.net/#org' },
+              potentialAction: {
+                '@type': 'SearchAction',
+                target: {
+                  '@type': 'EntryPoint',
+                  urlTemplate: 'https://www.webstew.net/templates?search={search_term_string}',
+                },
+                'query-input': 'required name=search_term_string',
+              },
+            }),
+          }}
+        />
       </head>
       <body className={`${inter.className} antialiased bg-background text-foreground`}>
         <ThemeProvider>

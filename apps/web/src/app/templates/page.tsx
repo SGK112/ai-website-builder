@@ -222,6 +222,13 @@ export default function TemplatesPage() {
     void loadTemplates()
   }, [])
 
+  // Seed the search from ?search= so the homepage SearchAction (sitelinks
+  // search box) lands on a real, pre-filtered result. Read once on mount.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('search')
+    if (q) setSearchQuery(q)
+  }, [])
+
   // Load per-template purchase entitlements once the session resolves.
   // Anonymous users get { owned: [] } silently.
   useEffect(() => {
