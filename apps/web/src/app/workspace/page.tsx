@@ -221,6 +221,9 @@ interface SelectedElement {
   tagName: string
   outerHTML: string
   textContent?: string
+  // On-screen rect (iframe viewport coords) from the picker, used to float the
+  // contextual chat next to the element.
+  rect?: { top: number; left: number; width: number; height: number }
 }
 
 interface ImageEdit {
@@ -4852,13 +4855,16 @@ ${html}
         }
       }, '*');
     } else {
-      // Send regular element message
+      // Send regular element message. Include the on-screen rect (iframe
+      // viewport coords) so the host can float a compact chat next to it.
+      var __r = e.target.getBoundingClientRect();
       window.parent.postMessage({
         type: 'element-click',
         element: {
           tagName: tagName,
           outerHTML: outerHTML,
-          textContent: textContent
+          textContent: textContent,
+          rect: { top: __r.top, left: __r.left, width: __r.width, height: __r.height }
         }
       }, '*');
     }
@@ -13205,6 +13211,21 @@ npx eas build --platform all
                   outerHtml: selectedElement.outerHTML,
                   textSnippet: selectedElement.textContent?.slice(0, 80) || '',
                 }
+              : null
+          }
+          // Map the picked element's iframe-local rect to a screen anchor so
+          // the chat can float right next to it (desktop preview is unscaled).
+          anchor={
+            selectedElement?.rect && iframeRef.current
+              ? (() => {
+                  const ir = iframeRef.current.getBoundingClientRect()
+                  return {
+                    top: ir.top + selectedElement.rect.top,
+                    left: ir.left + selectedElement.rect.left,
+                    width: selectedElement.rect.width,
+                    height: selectedElement.rect.height,
+                  }
+                })()
               : null
           }
           onClearSelection={() => setSelectedElement(null)}

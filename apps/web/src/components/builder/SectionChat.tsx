@@ -12,7 +12,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, Sparkles, X, Loader2, Mic, ChevronDown, MousePointer2, ChefHat, ChevronUp } from 'lucide-react'
+import { Send, Sparkles, X, Loader2, Mic, MousePointer2, ChefHat } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface SectionContext {
@@ -48,6 +48,29 @@ interface Props {
   // this, mobile users had to find a toolbar button hidden behind a menu.
   selectMode?: boolean
   onToggleSelectMode?: (next: boolean) => void
+  // Screen-space rect of the picked element so the chat floats next to it
+  // instead of taking over the bottom of the screen. Null → bottom-right.
+  anchor?: { top: number; left: number; width: number; height: number } | null
+}
+
+const CARD_W = 360
+const EST_H = 420
+
+// Place a compact card next to the element: to its right if there's room,
+// else its left, else clamped on-screen. No anchor → bottom-right.
+function computePosition(anchor: Props['anchor']): { top: number; left: number } {
+  if (typeof window === 'undefined') return { top: 80, left: 80 }
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const w = Math.min(CARD_W, vw - 24)
+  if (!anchor) {
+    return { top: Math.max(16, vh - EST_H - 88), left: Math.max(12, vw - w - 16) }
+  }
+  let left = anchor.left + anchor.width + 12
+  if (left + w > vw - 12) left = anchor.left - w - 12
+  if (left < 12) left = Math.min(Math.max(anchor.left, 12), vw - w - 12)
+  const top = Math.min(Math.max(anchor.top, 12), Math.max(12, vh - EST_H - 12))
+  return { top, left }
 }
 
 const QUICK_PROMPTS = [
@@ -67,17 +90,46 @@ export function SectionChat({
   hideFabOnDesktop = false,
   selectMode = false,
   onToggleSelectMode,
+  anchor = null,
 }: Props) {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 80, left: 80 })
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
+  // Track which element we last auto-opened for. Without this, closing the
+  // panel while an element is still selected re-fired the auto-open on the
+  // next render — the "won't close" bug. Now we open ONCE per new selection.
+  const lastSelRef = useRef<string | null>(null)
 
-  // Auto-open the sheet whenever a section is selected — the user just
-  // tapped something on the canvas and is asking to edit it.
   useEffect(() => {
-    if (selectedElement && !open) setOpen(true)
-  }, [selectedElement, open])
+    const key = selectedElement?.outerHtml ?? null
+    if (key && key !== lastSelRef.current) {
+      lastSelRef.current = key
+      setOpen(true)
+    }
+    if (!key) lastSelRef.current = null
+  }, [selectedElement])
+
+  // Position the compact card next to the element each time it opens / the
+  // selection moves. Recompute on resize while open.
+  useEffect(() => {
+    if (!open) return
+    const update = () => setPos(computePosition(anchor))
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+    // anchor is a fresh object each render — depend on its primitive coords.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, anchor?.top, anchor?.left, anchor?.width])
+
+  // Esc closes — a guaranteed escape hatch regardless of selection state.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
 
   // Focus input after open animation settles.
   useEffect(() => {
@@ -153,37 +205,44 @@ export function SectionChat({
       <AnimatePresence>
         {open && (
           <>
-            {/* Backdrop — tap to dismiss, but don't kill the underlying canvas */}
+            {/* Light backdrop — tap anywhere to dismiss; canvas stays visible */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setOpen(false)}
-              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]"
+              className="fixed inset-0 z-40 bg-black/20"
             />
 
+            {/* Compact card — floats next to the picked element. */}
             <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', stiffness: 360, damping: 36 }}
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+              style={{ top: pos.top, left: pos.left, width: `min(${CARD_W}px, calc(100vw - 24px))` }}
               className={cn(
-                'fixed bottom-0 inset-x-0 z-50 rounded-t-2xl shadow-2xl',
-                'bg-zinc-950/98 backdrop-blur-xl border-t border-white/10',
-                'flex flex-col max-h-[min(80vh,640px)]'
+                'fixed z-50 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden',
+                'bg-zinc-950/98 backdrop-blur-xl border border-white/10',
+                'flex flex-col max-h-[min(70vh,520px)]'
               )}
             >
-              {/* Drag handle + header */}
-              <div className="flex items-center justify-between px-4 pt-2 pb-3 border-b border-white/5">
-                <button
-                  onClick={() => setOpen(false)}
-                  className="flex items-center gap-2 text-zinc-400 hover:text-white -ml-1 px-1.5 py-0.5"
-                  aria-label="Close chat"
-                >
-                  <ChevronDown className="w-5 h-5" />
-                  <span className="text-sm font-medium">AI Editor</span>
-                </button>
-                <AriaIndicator status={ariaStatus} />
+              {/* Header — clear close button (the panel was un-closable before) */}
+              <div className="flex items-center justify-between px-3 py-2 border-b border-white/5">
+                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                  <ChefHat className="w-4 h-4 text-orange-400" />
+                  Ask the chef
+                </div>
+                <div className="flex items-center gap-2">
+                  <AriaIndicator status={ariaStatus} />
+                  <button
+                    onClick={() => setOpen(false)}
+                    className="text-zinc-400 hover:text-white p-1 rounded-md hover:bg-white/10"
+                    aria-label="Close chat"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               {/* Section context pill */}
