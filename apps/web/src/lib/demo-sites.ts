@@ -13,6 +13,11 @@ export interface DemoSite {
   id: string
   label: string
   prompt: string
+  // A richer one-liner shown under the prompt while "building" — says what the
+  // finished site actually contains, so the demo explains itself.
+  description: string
+  // Short build steps that cycle during the build beat ("what's happening").
+  steps: string[]
   html: string
 }
 
@@ -194,6 +199,8 @@ export const DEMO_SITES: DemoSite[] = [
     id: 'saas',
     label: 'SaaS landing',
     prompt: 'A modern SaaS landing page for an analytics product',
+    description: 'A conversion-focused SaaS landing page — hero, feature grid, social proof, and a pricing section built to drive sign-ups.',
+    steps: ['Sketching the hero + headline', 'Writing benefit-driven copy', 'Building the feature grid', 'Adding pricing + a sign-up CTA', 'Polishing with Tailwind'],
     html: `${baseHead}<body class="bg-slate-950 text-white">
 <nav class="px-4 sm:px-8 py-3 sm:py-5 flex items-center justify-between border-b border-white/5">
   <div class="flex items-center gap-2"><div class="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500"></div><span class="font-bold text-sm sm:text-base">Aurora</span></div>
@@ -261,6 +268,8 @@ export const DEMO_SITES: DemoSite[] = [
     id: 'portfolio',
     label: 'Portfolio',
     prompt: 'A creative portfolio site for a designer',
+    description: 'A bold personal portfolio — oversized editorial type, a curated project gallery, and an about section that lands the hire.',
+    steps: ['Setting an editorial type scale', 'Laying out the work gallery', 'Writing the about + bio', 'Wiring up contact', 'Adding hover motion'],
     html: `${baseHead}<body class="bg-stone-50 text-stone-900">
 <nav class="px-4 sm:px-10 py-4 sm:py-6 flex items-center justify-between">
   <span class="serif italic font-bold text-base sm:text-xl">Maya Reyes</span>
@@ -302,6 +311,8 @@ export const DEMO_SITES: DemoSite[] = [
     id: 'mobile',
     label: 'Mobile app',
     prompt: 'A fitness tracker mobile app',
+    description: 'A fitness tracker app screen — daily stats, an activity ring, and today\u2019s workout, framed like a real phone.',
+    steps: ['Framing the phone shell', 'Building the stats dashboard', 'Adding the activity ring', 'Listing today\u2019s workout', 'Theming the UI'],
     html: `${baseHead}<body class="bg-gradient-to-br from-violet-950 via-slate-950 to-fuchsia-950 min-h-screen flex items-center justify-center p-4 sm:p-8">
 <div class="relative">
   <div class="w-[240px] sm:w-[300px] h-[500px] sm:h-[600px] rounded-[36px] sm:rounded-[44px] bg-slate-950 border-[8px] sm:border-[10px] border-slate-800 shadow-2xl shadow-violet-500/30 overflow-hidden relative">
@@ -348,6 +359,8 @@ export const DEMO_SITES: DemoSite[] = [
     id: 'ecommerce',
     label: 'E-commerce store',
     prompt: 'An online jewelry store with featured products',
+    description: 'An online jewelry storefront — a shoppable product grid, featured pieces, and a checkout-ready cart.',
+    steps: ['Designing the storefront', 'Building the product grid', 'Featuring hero pieces', 'Wiring the cart', 'Styling the checkout CTA'],
     html: `${baseHead}<body class="bg-stone-50 text-stone-900">
 <nav class="px-4 sm:px-10 py-3 sm:py-5 flex items-center justify-between border-b border-stone-200">
   <span class="serif font-bold text-base sm:text-xl tracking-[0.2em]">AURELIA</span>
@@ -398,6 +411,8 @@ export const DEMO_SITES: DemoSite[] = [
     id: 'blog',
     label: 'Editorial blog',
     prompt: 'A magazine-style blog about food and culture',
+    description: 'A magazine-style editorial blog — a striking cover story, an article grid, and elegant serif typography.',
+    steps: ['Setting the masthead', 'Composing the cover story', 'Laying out the article grid', 'Tuning serif typography', 'Adding a subscribe bar'],
     html: `${baseHead}<body class="bg-amber-50 text-stone-900">
 <nav class="px-4 sm:px-10 py-4 sm:py-6 flex items-center justify-between border-b border-stone-300">
   <span class="serif italic text-base sm:text-2xl font-bold">The Saffron Notebook</span>
@@ -449,6 +464,8 @@ export const DEMO_SITES: DemoSite[] = [
     id: 'restaurant',
     label: 'Restaurant',
     prompt: 'An elegant restaurant website',
+    description: 'An elegant restaurant site — an inviting hero, the menu from the kitchen, hours, and a one-tap reservation.',
+    steps: ['Plating the hero', 'Writing out the menu', 'Adding hours + location', 'Building the reservation form', 'Setting the mood + type'],
     html: `${baseHead}<body class="bg-stone-950 text-stone-100">
 <nav class="absolute top-0 inset-x-0 z-20 px-4 sm:px-10 py-4 sm:py-6 flex items-center justify-between">
   <span class="serif italic text-base sm:text-2xl font-bold tracking-wide">Petra & Salt</span>

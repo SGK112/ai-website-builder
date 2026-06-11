@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { motion, AnimatePresence, useScroll, useSpring, useTransform } from 'framer-motion'
+import { motion, AnimatePresence, useScroll, useSpring } from 'framer-motion'
 import {
   Sparkles,
   ArrowRight,
@@ -30,6 +30,7 @@ import { DEMO_SITES } from '@/lib/demo-sites'
 import { BuildTargetModal, type BuildTargetId } from '@/components/builder/BuildTargetModal'
 import { SiteGraderWidget } from '@/components/landing/SiteGraderWidget'
 import { VoiceBuilderPreview } from '@/components/landing/VoiceBuilderPreview'
+import { LivePreviewPlayer } from '@/components/landing/LivePreviewPlayer'
 
 const examplePrompts = [
   "A modern SaaS landing page for a project management tool",
@@ -240,7 +241,6 @@ export default function HomePage() {
   const { theme, setTheme } = useTheme()
   const isDark = theme === 'dark'
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const previewRef = useRef<HTMLElement>(null)
 
   // Page-level scroll progress — drives a thin fixed bar at the top of the
   // viewport so users have constant feedback about where they are in the
@@ -248,144 +248,6 @@ export default function HomePage() {
   const { scrollYProgress: pageProgress } = useScroll()
   const pageProgressSmooth = useSpring(pageProgress, { stiffness: 110, damping: 30 })
 
-  // Track viewport size so we can compute a target scale that actually
-  // covers the viewport. The card is min(1152px, 94vw) wide with a 16/10
-  // aspect, so the target scale is the larger of viewport-w/card-w and
-  // viewport-h/card-h — that guarantees the iframe fills the screen.
-  const [viewport, setViewport] = useState({ w: 1920, h: 1080 })
-  useEffect(() => {
-    const update = () => setViewport({ w: window.innerWidth, h: window.innerHeight })
-    update()
-    window.addEventListener('resize', update)
-    return () => window.removeEventListener('resize', update)
-  }, [])
-  const targetScale = (() => {
-    const cardW = Math.min(1152, viewport.w * 0.94)
-    const cardH = cardW * 10 / 16
-    return Math.max(viewport.w / cardW, viewport.h / cardH)
-  })()
-
-  // Scroll-driven takeover. Section is sized so the preview grows fast
-  // (0 → 0.42 of section progress) and then LOCKS at fullscreen for the
-  // remainder of the sticky zone. No shrink-back — when the user scrolls
-  // past, sticky releases naturally and the next section comes up. Spring-
-  // smoothed for a buttery feel without scroll lag.
-  const { scrollYProgress: previewProgress } = useScroll({
-    target: previewRef,
-    offset: ['start end', 'end start'],
-  })
-  // Softer spring so the size/opacity transitions feel like silk, not
-  // step-jumps. Lower stiffness + higher mass = more flow, more inertia,
-  // less reactive to micro-scrolls.
-  // Spring tuned for scroll-happy users: tracks fast wheel/touch input
-  // without overshooting or feeling laggy, yet stays smooth enough that
-  // gentle scrolls feel liquid. Robust across input speeds.
-  const springConfig = { stiffness: 95, damping: 38, mass: 0.45 }
-  const smoothProgress = useSpring(previewProgress, springConfig)
-
-  // Mobile viewport check must precede the transforms that read it.
-  const isMobileVp = viewport.w < 768
-
-  // Section = 340vh, viewport = 100vh → total scroll = 440vh.
-  // Pin window: 100/440 ≈ 0.227  →  340/440 ≈ 0.773  (240vh of pinned scroll).
-  //
-  //   • 0.227          Pin engages; card queued at MOBILE
-  //   • 0.23 – 0.46    HOLD at MOBILE         (~100vh of scroll)
-  //   • 0.46 – 0.48    Transition → TABLET
-  //   • 0.48 – 0.60    HOLD at TABLET         (~53vh)
-  //   • 0.60 – 0.62    Transition → PC
-  //   • 0.62 – 0.72    HOLD at PC             (~44vh)
-  //   • 0.72 – 0.77    Morph to FULLSCREEN + HOLD (~22vh)
-  //   • 0.773          Pin release; stat strip revealed
-  // 340vh-section timing.
-  const previewDim = useTransform(
-    smoothProgress,
-    [0.66, 0.70, 1],
-    [0, 1, 1]
-  )
-  const previewHaloOpacity = useTransform(
-    smoothProgress,
-    [0.20, 0.66, 0.70, 1],
-    [0.35, 0.5, 1, 1]
-  )
-  const previewLabelY = useTransform(
-    smoothProgress,
-    [0.43, 0.50],
-    [0, -24]
-  )
-  const previewLabelOpacity = useTransform(
-    smoothProgress,
-    [0.15, 0.22, 0.43, 0.48],
-    [0, 1, 1, 0]
-  )
-  // Prompt visible only during MOBILE hold (when "Keep scrolling to
-  // expand" makes sense). Fades out before TABLET morph starts so it
-  // doesn't overlap the growing card top.
-  const previewScrollPromptOpacity = useTransform(
-    smoothProgress,
-    [0.20, 0.26, 0.36, 0.42],
-    [0, 1, 1, 0]
-  )
-  const chromeOpacity = useTransform(
-    smoothProgress,
-    [0.56, 0.58, 0.66, 0.69],
-    [0, 1, 1, 0]
-  )
-  const iframeTopInset = useTransform(
-    smoothProgress,
-    [0.56, 0.58, 0.66, 0.69],
-    ['0px', '36px', '36px', '0px']
-  )
-  const scanlineOpacity = useTransform(
-    smoothProgress,
-    [0.68, 0.70, 0.92, 1],
-    [0, 0.18, 0.18, 0]
-  )
-  const vignetteOpacity = useTransform(
-    smoothProgress,
-    [0.68, 0.70, 0.92, 1],
-    [0, 0.4, 0.4, 0]
-  )
-
-  // DEVICE MORPH — 340vh section. Wider transition windows between holds
-  // so the morph eases continuously rather than holding-then-snapping
-  // (the "clippy" feeling). Holds are short pauses; transitions stretch
-  // across 8% of progress (~35vh of scroll) to feel fluid.
-  // start → mobile-hold-end → tablet-in → tablet-hold-end →
-  // pc-in → pc-hold-end → fullscreen-in → fullscreen-hold-end.
-  const cardWidth = useTransform(
-    smoothProgress,
-    [0.23, 0.36, 0.44, 0.50, 0.58, 0.64, 0.72, 0.77],
-    ['88vw', '88vw', '94vw', '94vw', '98vw', '98vw', '100vw', '100vw']
-  )
-  const cardHeight = useTransform(
-    smoothProgress,
-    [0.23, 0.36, 0.44, 0.50, 0.58, 0.64, 0.72, 0.77],
-    ['80svh', '80svh', '88svh', '88svh', '95svh', '95svh', '100svh', '100svh']
-  )
-  const cardRadius = useTransform(
-    smoothProgress,
-    [0.23, 0.36, 0.44, 0.50, 0.58, 0.64, 0.72, 0.77],
-    ['36px', '36px', '28px', '28px', '20px', '14px', '0px', '0px']
-  )
-  const cardBorderWidth = useTransform(
-    smoothProgress,
-    [0.23, 0.36, 0.44, 0.50, 0.58, 0.64, 0.72, 0.77],
-    ['6px', '6px', '7px', '7px', '8px', '4px', '1px', '1px']
-  )
-  // Device-bezel chrome opacities — drive the on-card visual cues
-  // (mobile notch, tablet camera dot) that telegraph the current state.
-  // No standalone text labels — the bezel shape is the label.
-  const mobileNotchOpacity = useTransform(
-    smoothProgress,
-    [0.22, 0.26, 0.40, 0.46],
-    [0, 1, 1, 0]
-  )
-  const tabletCameraOpacity = useTransform(
-    smoothProgress,
-    [0.42, 0.48, 0.54, 0.60],
-    [0, 1, 1, 0]
-  )
 
   const [prompt, setPrompt] = useState('')
   const [isTransitioning, setIsTransitioning] = useState(false)
@@ -406,12 +268,6 @@ export default function HomePage() {
   const rotatingWord = rotatingWords[rotatingWordIdx]
   // Typewriter placeholder state
   const [typedText, setTypedText] = useState('')
-  // Live demo iframe state
-  const [demoIdx, setDemoIdx] = useState(0)
-  const [demoGenerating, setDemoGenerating] = useState(false)
-  // Commercial auto-play: true while the preview section is on screen, so the
-  // build sequence (generate → reveal → hold → next) plays itself like an ad.
-  const [previewInView, setPreviewInView] = useState(false)
 
   // Handle client-side mounting for animations
   useEffect(() => {
@@ -438,64 +294,6 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prompt])
 
-  // Track whether the showcase is on screen — the commercial only plays
-  // while a visitor can see it (and we pause it otherwise to save cycles).
-  useEffect(() => {
-    const el = previewRef.current
-    if (!el) return
-    const io = new IntersectionObserver(
-      ([entry]) => setPreviewInView(entry.isIntersecting),
-      { threshold: 0.04 }
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [])
-
-  // The commercial — the SOLE driver of demo content, so it plays like a
-  // structured deck and scroll can't scrub sites out of order. Each slide:
-  //   flash "Building with Claude… <prompt>"  →  reveal the live site  →  hold
-  //   →  next. Scroll independently drives only the device-morph takeover, so
-  // the presentation never gets backed up or renders the site before the text.
-  // Reuses the demoGenerating overlay + the "Built from: <prompt>" chrome, so
-  // each beat reads input → output. Pauses for reduced motion + a hidden tab.
-  useEffect(() => {
-    if (!previewInView) return
-    if (typeof window !== 'undefined' &&
-        window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
-
-    // Slide-like pacing: hold the "Building… <the prompt>" card long enough to
-    // actually READ the description before the site renders, then dwell on the
-    // finished result — like advancing a deck.
-    const GENERATE_MS = 2400   // read the prompt + "Building…" before the reveal
-    const HOLD_MS = 4200        // dwell on the finished, live site
-    let cancelled = false
-    let timer: ReturnType<typeof setTimeout>
-
-    const schedule = (fn: () => void, ms: number) => { timer = setTimeout(fn, ms) }
-
-    const beat = () => {
-      if (cancelled) return
-      // Only structural pause: a hidden tab. Scroll no longer interrupts the
-      // deck (it drives the device morph, not the demo).
-      if (typeof document !== 'undefined' && document.hidden) {
-        schedule(beat, 600)
-        return
-      }
-      setDemoGenerating(true)
-      schedule(() => {
-        if (cancelled) return
-        setDemoGenerating(false)            // reveal the live site
-        schedule(() => {
-          if (cancelled) return
-          setDemoIdx(i => (i + 1) % DEMO_SITES.length)  // next example
-          schedule(beat, 140)               // brief gap, then build again
-        }, HOLD_MS)
-      }, GENERATE_MS)
-    }
-
-    schedule(beat, 800)
-    return () => { cancelled = true; clearTimeout(timer); setDemoGenerating(false) }
-  }, [previewInView])
 
   // Typewriter for the placeholder — types out one example, holds, deletes,
   // types the next. Pauses entirely when the user starts typing. Examples
@@ -1202,293 +1000,11 @@ export default function HomePage() {
                 </div>
               </div>
             </motion.section>
-            {/* Live preview — scroll-driven takeover. Section is 200vh so
-                the sticky-pin window is ~100vh of scroll, giving the
-                fullscreen-hold → transition → detached-hold phases room to
-                breathe. Top/bottom margins keep the section visually
-                separated from the marquee above and the next section below
-                (no -mt-8 sucking it up against the logo strip). */}
-            <section
-              ref={previewRef}
-              className="relative z-10 h-[340vh] mt-2 mb-2"
-            >
-              <div className="sticky top-0 h-[100svh] sm:h-screen flex items-center justify-center overflow-hidden">
-                {/* Backdrop dim — covers the rest of the page when preview
-                    takes over. Blurred so background motion is felt, not seen. */}
-                <motion.div
-                  style={{ opacity: previewDim }}
-                  aria-hidden
-                  className={cn(
-                    'absolute inset-0 backdrop-blur-md pointer-events-none',
-                    isDark ? 'bg-[#050308]/75' : 'bg-white/75'
-                  )}
-                />
-
-                {/* Section label — fades out when preview goes fullscreen.
-                    Wrapper handles horizontal centering (left-0 right-0 flex
-                    justify-center); inner motion handles opacity + y. We
-                    can't combine -translate-x-1/2 with framer-motion's `y`
-                    style — framer rewrites the whole transform string and
-                    clobbers the Tailwind translate, pushing the label right. */}
-                {/* Section eyebrow — fades out when preview takes over. */}
-                <div className="absolute top-[2vh] sm:top-[3vh] inset-x-0 z-20 flex justify-center px-4 pointer-events-none">
-                  <motion.div
-                    style={{ opacity: previewLabelOpacity, y: previewLabelY }}
-                    className="flex items-center gap-2 max-w-[92vw]"
-                  >
-                    <p className={cn(
-                      'text-[10px] sm:text-xs uppercase tracking-[0.18em] sm:tracking-[0.28em] font-semibold text-center sm:whitespace-nowrap',
-                      isDark ? 'text-violet-300/80' : 'text-violet-600/80'
-                    )}>
-                      Made with Webstew
-                    </p>
-                  </motion.div>
-                </div>
-
-                {/* Scroll prompt — fades in during the pre-takeover pause. */}
-                <div className="absolute top-[7vh] sm:top-[8vh] inset-x-0 z-20 flex justify-center px-4 pointer-events-none">
-                  <motion.div
-                    style={{ opacity: previewScrollPromptOpacity }}
-                    className="flex flex-col items-center gap-1.5"
-                  >
-                    <span className={cn(
-                      'text-[10px] uppercase tracking-[0.28em] font-medium',
-                      isDark ? 'text-white/55' : 'text-slate-600/70'
-                    )}>
-                      Scroll
-                    </span>
-                    <motion.span
-                      animate={{ y: [0, 4, 0] }}
-                      transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
-                      className={cn(
-                        'text-base leading-none',
-                        isDark ? 'text-white/55' : 'text-slate-600/70'
-                      )}
-                    >
-                      ↓
-                    </motion.span>
-                  </motion.div>
-                </div>
-
-                {/* Halo behind the preview card — brightens while fullscreen */}
-                <motion.div
-                  style={{ opacity: previewHaloOpacity }}
-                  aria-hidden
-                  className="absolute inset-0 pointer-events-none flex items-center justify-center"
-                >
-                  <div className={cn(
-                    'w-[80vw] h-[60vh] rounded-full blur-[120px]',
-                    isDark
-                      ? 'bg-gradient-to-br from-violet-600/30 via-fuchsia-500/25 to-amber-400/25'
-                      : 'bg-gradient-to-br from-violet-400/35 via-pink-300/30 to-amber-300/30'
-                  )} />
-                </motion.div>
-
-                {/* The DESKTOP card — scale/borderRadius driven by scroll.
-                    On detach, also shifts LEFT to make room for the tablet
-                    + mobile siblings. Inside, two scroll-driven overlays
-                    evoke a CRT (scanline + vignette) during the fullscreen
-                    takeover, then fade out as the card detaches into a
-                    styled "browser window" with chrome. */}
-                <motion.div
-                  style={{
-                    width: cardWidth,
-                    height: cardHeight,
-                    borderRadius: cardRadius,
-                    borderWidth: cardBorderWidth,
-                  }}
-                  className={cn(
-                    'relative overflow-hidden shadow-2xl will-change-transform z-10 border-solid bg-card',
-                    'border-slate-300/80 dark:border-slate-800'
-                  )}
-                >
-                  {/* mode="popLayout" lets old + new demo crossfade without
-                      jumping the layout when scroll-happy users blast past
-                      multiple sites. iframe is interactive — users can
-                      scroll inside the rendered demo at fullscreen. */}
-                  <AnimatePresence initial={false} mode="popLayout">
-                    <motion.div
-                      key={demoIdx}
-                      initial={{ opacity: 0, scale: 1.02 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.99 }}
-                      transition={{ duration: 1.0, ease: [0.22, 1, 0.36, 1] }}
-                      style={{ paddingTop: iframeTopInset }}
-                      className="absolute inset-0"
-                    >
-                      <iframe
-                        srcDoc={DEMO_SITES[demoIdx].html}
-                        sandbox="allow-scripts"
-                        loading="lazy"
-                        className="w-full h-full block border-0"
-                        title={`Demo: ${DEMO_SITES[demoIdx].label}`}
-                        scrolling="yes"
-                      />
-                    </motion.div>
-                  </AnimatePresence>
-
-                  {/* CRT scanline overlay — fine repeating horizontal lines.
-                      Strongest at fullscreen, fades when the card detaches.
-                      Pointer-events-none so it doesn't catch clicks. */}
-                  <motion.div
-                    style={{
-                      opacity: scanlineOpacity,
-                      backgroundImage:
-                        'repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,0,0,0.18) 2px, rgba(0,0,0,0.18) 3px)',
-                    }}
-                    className="absolute inset-0 pointer-events-none mix-blend-overlay"
-                    aria-hidden
-                  />
-
-                  {/* Tube vignette — soft dark edges curving in like a CRT
-                      face. Disappears once the card becomes a flat window. */}
-                  <motion.div
-                    style={{ opacity: vignetteOpacity }}
-                    className="absolute inset-0 pointer-events-none"
-                    aria-hidden
-                  >
-                    <div
-                      className="absolute inset-0"
-                      style={{
-                        background:
-                          'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%)',
-                      }}
-                    />
-                  </motion.div>
-
-                  {/* Tablet camera dot — visible only in tablet state, sits
-                      on top of the bezel at top-center. */}
-                  <motion.div
-                    style={{ opacity: tabletCameraOpacity }}
-                    className="absolute top-2 left-1/2 -translate-x-1/2 z-30 pointer-events-none"
-                    aria-hidden
-                  >
-                    <span className="block w-1.5 h-1.5 rounded-full bg-slate-700 dark:bg-slate-300 ring-1 ring-black/30" />
-                  </motion.div>
-
-                  {/* Mobile notch — small pill at top center, evokes iPhone
-                      Dynamic Island. Only visible in mobile state. */}
-                  <motion.div
-                    style={{ opacity: mobileNotchOpacity }}
-                    className="absolute top-1 left-1/2 -translate-x-1/2 z-30 pointer-events-none"
-                    aria-hidden
-                  >
-                    <span className="block w-12 h-3 rounded-full bg-slate-900 dark:bg-black" />
-                  </motion.div>
-
-                  {/* Mobile home indicator — thin pill at bottom center. */}
-                  <motion.div
-                    style={{ opacity: mobileNotchOpacity }}
-                    className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-30 pointer-events-none"
-                    aria-hidden
-                  >
-                    <span className="block w-10 h-1 rounded-full bg-slate-900/60 dark:bg-white/40" />
-                  </motion.div>
-
-                  {/* Soft gradient edges — sit inside the card so they don't
-                      blur the iframe content, only its top/bottom edges. */}
-                  <div className={cn(
-                    'absolute inset-x-0 top-0 h-10 pointer-events-none',
-                    isDark ? 'bg-gradient-to-b from-slate-950/40 to-transparent' : 'bg-gradient-to-b from-white/30 to-transparent'
-                  )} />
-                  <div className={cn(
-                    'absolute inset-x-0 bottom-0 h-12 pointer-events-none',
-                    isDark ? 'bg-gradient-to-t from-slate-950/40 to-transparent' : 'bg-gradient-to-t from-white/30 to-transparent'
-                  )} />
-
-                  {/* Browser chrome — materializes as the card detaches.
-                      Reads as a finished website preview, not raw iframe. */}
-                  <motion.div
-                    style={{ opacity: chromeOpacity }}
-                    className={cn(
-                      'absolute inset-x-0 top-0 h-9 flex items-center px-3 gap-3 border-b backdrop-blur-md pointer-events-none z-20',
-                      isDark
-                        ? 'bg-slate-900/85 border-white/10'
-                        : 'bg-white/90 border-slate-200/80'
-                    )}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 rounded-full bg-red-400/90" />
-                      <span className="w-3 h-3 rounded-full bg-amber-400/90" />
-                      <span className="w-3 h-3 rounded-full bg-emerald-400/90" />
-                    </div>
-                    {/* The explanatory hook: the actual sentence that built
-                        this live site. Sits in the chrome's address bar — the
-                        traffic lights + "Live" badge already read "real
-                        deployed site", and this says "…from one sentence." */}
-                    <div className={cn(
-                      'flex-1 max-w-lg mx-auto h-5 rounded-md flex items-center justify-center gap-1.5 text-[10px] truncate px-2.5',
-                      isDark ? 'bg-white/10 text-slate-400' : 'bg-slate-100 text-slate-500'
-                    )}>
-                      <Sparkles className={cn('w-3 h-3 shrink-0', isDark ? 'text-violet-300' : 'text-violet-500')} />
-                      <span className="opacity-60 shrink-0">Built from:</span>
-                      <span className={cn('truncate italic', isDark ? 'text-slate-200' : 'text-slate-700')}>
-                        &ldquo;{DEMO_SITES[demoIdx].prompt}&rdquo;
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="relative flex h-1.5 w-1.5">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
-                      </span>
-                      <span className={cn(
-                        'text-[9px] uppercase tracking-[0.18em] font-bold',
-                        isDark ? 'text-emerald-300' : 'text-emerald-600'
-                      )}>Live</span>
-                    </div>
-                  </motion.div>
-
-                  <AnimatePresence>
-                    {demoGenerating && (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.25 }}
-                        className={cn(
-                          'absolute inset-0 flex items-center justify-center backdrop-blur-xl',
-                          isDark ? 'bg-slate-950/70' : 'bg-white/70'
-                        )}
-                      >
-                        <div className="text-center px-6 max-w-xl">
-                          {/* The prompt being built — the input half of the
-                              "sentence → live site" story. */}
-                          <div className={cn(
-                            'inline-flex items-center gap-2 mb-5 px-4 py-2.5 rounded-2xl border shadow-lg max-w-full',
-                            isDark ? 'bg-white/[0.06] border-white/[0.12] text-slate-100' : 'bg-white border-slate-200 text-slate-700'
-                          )}>
-                            <Sparkles className={cn('w-4 h-4 shrink-0', isDark ? 'text-violet-300' : 'text-violet-500')} />
-                            <span className="text-sm sm:text-base font-medium italic truncate">
-                              &ldquo;{DEMO_SITES[demoIdx].prompt}&rdquo;
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-center gap-2 mb-3">
-                            {[0, 0.15, 0.3].map((d, i) => (
-                              <motion.div
-                                key={i}
-                                className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500"
-                                animate={{ scale: [1, 1.5, 1], opacity: [0.4, 1, 0.4] }}
-                                transition={{ duration: 0.8, repeat: Infinity, delay: d }}
-                              />
-                            ))}
-                          </div>
-                          <div className={cn('text-sm font-mono', isDark ? 'text-slate-300' : 'text-slate-600')}>
-                            Building with Claude…
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-
-                {/* No floating prompt caption — the card spans ~88vw×80svh+
-                    and grows to fill the viewport, so a caption over/around it
-                    overlaps the iframe. The explanatory "built from a sentence"
-                    story lives in the browser chrome's prompt bar instead (the
-                    one designed, inset-safe spot). */}
-
-              </div>
-            </section>
+            {/* Live preview — a self-contained auto-playing showcase in normal
+                page flow. The old scroll-jacking 340vh takeover broke when
+                visitors got scroll-happy; this just plays itself and lets
+                scroll pass through. See LivePreviewPlayer. */}
+            <LivePreviewPlayer isDark={isDark} />
 
 
             {/* Stats strip — renders normally now that the preview has
