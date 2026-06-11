@@ -18,7 +18,10 @@ export function generateMetadata({ params }: PageProps): Metadata {
   if (!c) return {}
   const url = `/compare/${c.slug}`
   return {
-    title: c.metaTitle,
+    // absolute → bypass the root '%s · Webstew AI' template; the title already
+    // says "Webstew", so appending the brand again would double it and blow the
+    // ~60-char length budget.
+    title: { absolute: c.metaTitle },
     description: c.metaDescription,
     alternates: { canonical: url },
     openGraph: { title: c.metaTitle, description: c.metaDescription, url, type: 'website' },

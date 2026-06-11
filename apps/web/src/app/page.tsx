@@ -1106,6 +1106,9 @@ export default function HomePage() {
                 <div className="flex items-center gap-x-5 gap-y-2 flex-wrap justify-center sm:justify-end">
                   <a href="/grader" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Site Grader</a>
                   <button onClick={() => setShowTargetModal(true)} className={cn("transition-colors text-left", isDark ? "hover:text-white" : "hover:text-slate-900")}>App Builder</button>
+                  <a href="/compare/wix" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>vs Wix</a>
+                  <a href="/compare/webflow" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>vs Webflow</a>
+                  <a href="/compare/framer" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>vs Framer</a>
                   <a href="/community" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Community</a>
                   <a href="/community?tab=feedback" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Feedback</a>
                   <a href="/upgrade" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Pricing</a>

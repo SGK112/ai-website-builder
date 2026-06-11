@@ -14,6 +14,7 @@ import { ArrowLeft, Search, Gauge, Smartphone, Eye, ShieldCheck, Sparkles } from
 import { cn } from '@/lib/utils'
 import { SiteGraderWidget } from '@/components/landing/SiteGraderWidget'
 import { WebstewLogo } from '@/components/brand/WebstewLogo'
+import { COMPETITORS } from '@/lib/competitors'
 
 const GRADE_CRITERIA = [
   {
@@ -206,8 +207,29 @@ function GraderInner() {
           </div>
         </section>
 
+        {/* Related — internal-link cluster into the comparison pages */}
+        <section className="mt-16 text-center text-sm">
+          <p className={muted}>
+            Choosing a builder?{' '}
+            {Object.values(COMPETITORS).map((o, i, arr) => (
+              <span key={o.slug}>
+                <Link
+                  href={`/compare/${o.slug}`}
+                  className={cn(
+                    'underline-offset-2 hover:underline',
+                    isDark ? 'text-violet-300 hover:text-white' : 'text-violet-700 hover:text-violet-900'
+                  )}
+                >
+                  Webstew vs {o.name}
+                </Link>
+                {i < arr.length - 1 ? ' · ' : ''}
+              </span>
+            ))}
+          </p>
+        </section>
+
         {/* CTA */}
-        <section className="mt-16 sm:mt-20">
+        <section className="mt-12 sm:mt-16">
           <div
             className={cn(
               'rounded-3xl border p-8 sm:p-12 text-center',

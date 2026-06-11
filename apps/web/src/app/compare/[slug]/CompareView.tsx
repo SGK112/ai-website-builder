@@ -10,7 +10,7 @@ import { ArrowLeft, Check, X, Minus } from 'lucide-react'
 import { useTheme } from '@/context/ThemeContext'
 import { cn } from '@/lib/utils'
 import { WebstewLogo } from '@/components/brand/WebstewLogo'
-import type { Competitor } from '@/lib/competitors'
+import { COMPETITORS, type Competitor } from '@/lib/competitors'
 
 // A row value that's a clear win/loss renders an icon; otherwise plain text.
 function cellTone(value: string) {
@@ -24,6 +24,8 @@ export function CompareView({ competitor: c }: { competitor: Competitor }) {
   const isDark = theme === 'dark'
 
   const muted = isDark ? 'text-zinc-400' : 'text-slate-600'
+  const others = Object.values(COMPETITORS).filter((x) => x.slug !== c.slug)
+  const linkCls = isDark ? 'text-violet-300 hover:text-white underline-offset-2 hover:underline' : 'text-violet-700 hover:text-violet-900 underline-offset-2 hover:underline'
   const card = cn(
     'rounded-2xl border p-5 sm:p-6',
     isDark ? 'border-white/10 bg-white/[0.02]' : 'border-slate-200 bg-white'
@@ -158,6 +160,28 @@ export function CompareView({ competitor: c }: { competitor: Competitor }) {
               </details>
             ))}
           </div>
+        </section>
+
+        {/* Related — internal-link cluster across the comparison + grader pages */}
+        <section className="mt-12 text-center text-sm">
+          <p className={muted}>
+            More comparisons:{' '}
+            {others.map((o, i) => (
+              <span key={o.slug}>
+                <Link href={`/compare/${o.slug}`} className={linkCls}>
+                  Webstew vs {o.name}
+                </Link>
+                {i < others.length - 1 ? ' · ' : ''}
+              </span>
+            ))}
+          </p>
+          <p className={cn('mt-2', muted)}>
+            Not sure where your current site stands?{' '}
+            <Link href="/grader" className={linkCls}>
+              Grade it free
+            </Link>
+            .
+          </p>
         </section>
 
         {/* CTA */}

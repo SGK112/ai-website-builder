@@ -30,9 +30,9 @@ export const COMPETITORS: Record<string, Competitor> = {
   wix: {
     slug: 'wix',
     name: 'Wix',
-    metaTitle: 'Webstew vs Wix: AI Website Builder Comparison (2026)',
+    metaTitle: 'Webstew vs Wix: AI Builder Comparison (2026)',
     metaDescription:
-      'Webstew vs Wix — compare AI website generation, code ownership, mobile-app output, pricing, and lock-in. See which builder fits founders and developers in 2026.',
+      'Webstew vs Wix — compare AI website generation, code ownership, mobile-app output, pricing, and lock-in. See which builder fits founders and teams in 2026.',
     tagline: 'Own real code vs. an all-in-one hosted editor',
     intro:
       'Wix is one of the most popular all-in-one website builders — easy drag-and-drop, a huge template library, and everything hosted in one place. Webstew takes a different approach: describe what you want and AI generates a real, ownable codebase you can deploy anywhere. Here is how they compare.',
@@ -67,7 +67,7 @@ export const COMPETITORS: Record<string, Competitor> = {
   webflow: {
     slug: 'webflow',
     name: 'Webflow',
-    metaTitle: 'Webstew vs Webflow: AI Builder vs Visual Designer (2026)',
+    metaTitle: 'Webstew vs Webflow: AI Builder vs Designer (2026)',
     metaDescription:
       'Webstew vs Webflow — AI prompt-to-app generation vs a pro visual designer. Compare code ownership, mobile output, learning curve, CMS, and pricing for 2026.',
     tagline: 'Prompt-to-app speed vs. designer-grade visual control',
@@ -104,7 +104,7 @@ export const COMPETITORS: Record<string, Competitor> = {
   framer: {
     slug: 'framer',
     name: 'Framer',
-    metaTitle: 'Webstew vs Framer: AI Website Builder Comparison (2026)',
+    metaTitle: 'Webstew vs Framer: AI Builder Comparison (2026)',
     metaDescription:
       'Webstew vs Framer — compare AI generation, code ownership, mobile-app output, hosting, and lock-in. Find the right builder for ownable sites and apps in 2026.',
     tagline: 'Ownable, deployable code vs. a polished hosted canvas',
