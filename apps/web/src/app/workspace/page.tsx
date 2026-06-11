@@ -8803,6 +8803,42 @@ npx eas build --platform all
             // hidden behind the tab bar.
             style={{ paddingBottom: 'calc(14px + env(safe-area-inset-bottom, 0px) + var(--bottom-nav-h, 0px))' }}
           >
+            {/* Selected-element anchor — when the user has picked an element in
+                the preview, show that the next message targets THAT node (the
+                backend already prepends its outerHTML as "They want: …"). Closes
+                the "point at it → tell the AI" loop. */}
+            {selectedElement && (
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <div className={cn(
+                  'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border max-w-full',
+                  isDark ? 'bg-violet-500/15 border-violet-400/30 text-violet-100' : 'bg-violet-50 border-violet-300 text-violet-700'
+                )}>
+                  <MousePointer2 className={cn('w-3.5 h-3.5 shrink-0', isDark ? 'text-violet-300' : 'text-violet-500')} />
+                  <span className="text-[11px] font-semibold shrink-0">Editing</span>
+                  <code className={cn('text-[11px] font-mono shrink-0', isDark ? 'text-violet-200' : 'text-violet-600')}>
+                    &lt;{selectedElement.tagName?.toLowerCase() || 'element'}&gt;
+                  </code>
+                  {selectedElement.textContent?.trim() && (
+                    <span className={cn('text-[11px] truncate', isDark ? 'text-zinc-400' : 'text-slate-500')}>
+                      {selectedElement.textContent.trim().slice(0, 40)}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedElement(null)}
+                    className="ml-0.5 w-4 h-4 rounded-full bg-black/10 hover:bg-black/25 dark:bg-white/10 dark:hover:bg-white/25 flex items-center justify-center shrink-0"
+                    title="Clear selection"
+                    aria-label="Clear selected element"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </div>
+                <span className={cn('text-[11px]', isDark ? 'text-zinc-500' : 'text-slate-500')}>
+                  describe the change — it targets this element
+                </span>
+              </div>
+            )}
+
             {/* Attached-image preview chips — proof the screenshot is going
                 WITH the next message, with one-tap remove. */}
             {pendingChatImages.length > 0 && (
@@ -9305,6 +9341,28 @@ npx eas build --platform all
                 </button>
               ))}
             </div>
+
+            {/* Select element — point-and-edit. Toggles the in-preview element
+                picker; click any node in the preview, then tell the AI how to
+                change it (the chat anchors to that element). Website target
+                only — that's the srcDoc preview the picker script runs in. */}
+            {buildTarget === 'website' && (
+              <button
+                onClick={() => { setSelectMode(v => !v); if (selectMode) setSelectedElement(null) }}
+                title="Select an element in the preview, then tell the AI how to change it"
+                className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border',
+                  selectMode
+                    ? 'bg-violet-500/20 text-violet-300 border-violet-500/40 shadow-lg shadow-violet-500/20'
+                    : isDark
+                      ? 'bg-white/[0.03] text-zinc-600 hover:text-violet-300 hover:bg-violet-500/10 hover:border-violet-500/30 border-white/[0.05]'
+                      : 'bg-slate-100 text-slate-500 hover:text-violet-600 hover:bg-violet-500/10 border-slate-200'
+                )}
+              >
+                <MousePointer2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{selectMode ? 'Selecting…' : 'Select'}</span>
+              </button>
+            )}
 
             {/* Image Library */}
             <button
