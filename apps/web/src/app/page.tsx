@@ -1195,7 +1195,7 @@ export default function HomePage() {
                       // painted on top of it. So: enough leading + a little
                       // bottom padding to seat the descender, and NO negative
                       // margin. pr keeps the italic slant from clipping right.
-                      "italic font-normal ml-3 bg-clip-text text-transparent inline-block leading-[1.35] pb-3 pr-3",
+                      "italic font-normal ml-3 bg-clip-text text-transparent inline-block leading-[1.7] pr-3",
                       isDark
                         ? "bg-gradient-to-r from-amber-200 to-pink-300"
                         : "bg-gradient-to-r from-orange-500 to-pink-500"
