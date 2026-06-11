@@ -472,9 +472,12 @@ export default function HomePage() {
     if (typeof window !== 'undefined' &&
         window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
 
-    const GENERATE_MS = 950   // "Building…" beat
-    const HOLD_MS = 4200       // dwell on the finished, live site
-    const IDLE_MS = 650        // treat as "parked" after this long without a scroll
+    // Slide-like pacing: hold the "Building… <the prompt>" card long enough to
+    // actually READ the description before the site renders, then dwell on the
+    // finished result — like advancing a deck.
+    const GENERATE_MS = 2400   // read the prompt + "Building…" before the reveal
+    const HOLD_MS = 4200        // dwell on the finished, live site
+    const IDLE_MS = 650         // treat as "parked" after this long without a scroll
     let cancelled = false
     let timer: ReturnType<typeof setTimeout>
 
@@ -1941,13 +1944,14 @@ export default function HomePage() {
                   The ingredients to
                   <span
                     className={cn(
-                      // Playfair italic has a deep 'g' descender; bg-clip-text
-                      // only paints the gradient within the box, so the box
-                      // must extend well below the baseline or the descender
-                      // clips flat. Generous leading + bottom padding gives it
-                      // room; the negative margin reclaims the visual gap so
-                      // the line still sits tight under the rest of the head.
-                      "italic font-normal ml-3 bg-clip-text text-transparent inline-block leading-[1.55] pb-8 pr-3 -mb-6",
+                      // Playfair italic 'g' has a deep descender. The earlier
+                      // clip was NOT a too-small box — it was the -mb-6 here:
+                      // a negative bottom margin pulled the next element (with
+                      // the opaque page background) UP over the descender and
+                      // painted on top of it. So: enough leading + a little
+                      // bottom padding to seat the descender, and NO negative
+                      // margin. pr keeps the italic slant from clipping right.
+                      "italic font-normal ml-3 bg-clip-text text-transparent inline-block leading-[1.35] pb-3 pr-3",
                       isDark
                         ? "bg-gradient-to-r from-amber-200 to-pink-300"
                         : "bg-gradient-to-r from-orange-500 to-pink-500"

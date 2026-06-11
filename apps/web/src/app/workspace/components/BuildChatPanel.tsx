@@ -1,8 +1,9 @@
 'use client'
 
 import type { ComponentType, RefObject, ReactNode } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bot, User, Loader2, Check, Sparkles } from 'lucide-react'
+import { Bot, User, Loader2, Check, Sparkles, ChefHat } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { LearningPath, type LearningStep } from '@/components/LearningPath'
 import { MessageFeedback } from '@/components/MessageFeedback'
@@ -58,18 +59,71 @@ function renderRichText(content: string, isDark: boolean): ReactNode {
   })
 }
 
+// Live "it's working" state for the in-progress assistant bubble — so the
+// chef bubble is never a stagnant "…". Cooking metaphor, cycling phrases, the
+// chat-side cousin of the preview's loading spinner.
+const COOKING_PHRASES = [
+  'Reading your site…',
+  'Cooking up the changes…',
+  'Adding ingredients…',
+  'Stewing…',
+  'Simmering…',
+  'Plating it up…',
+]
+function CookingIndicator({ isDark }: { isDark: boolean }) {
+  const [i, setI] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setI(v => (v + 1) % COOKING_PHRASES.length), 1900)
+    return () => clearInterval(t)
+  }, [])
+  return (
+    <div className="flex items-center gap-2 py-0.5">
+      <motion.span
+        animate={{ rotate: [0, -10, 10, -6, 0], y: [0, -1, 0] }}
+        transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+        className={isDark ? 'text-orange-300' : 'text-orange-500'}
+      >
+        <ChefHat className="w-4 h-4" />
+      </motion.span>
+      <AnimatePresence mode="wait">
+        <motion.span
+          key={i}
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -4 }}
+          transition={{ duration: 0.25 }}
+          className={cn('text-[13px] font-medium bg-gradient-to-r bg-clip-text text-transparent',
+            isDark ? 'from-violet-200 to-fuchsia-200' : 'from-violet-600 to-fuchsia-600')}
+        >
+          {COOKING_PHRASES[i]}
+        </motion.span>
+      </AnimatePresence>
+      <span className="flex gap-1">
+        {[0, 150, 300].map(d => (
+          <span key={d} className="w-1 h-1 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 animate-bounce" style={{ animationDelay: `${d}ms` }} />
+        ))}
+      </span>
+    </div>
+  )
+}
+
 function ChatMessageBubble({
-  msg, index, isDark, prevUserPrompt, projectId, buildTarget, onSendMessage, onResolvePermission,
+  msg, index, isDark, isStreaming, prevUserPrompt, projectId, buildTarget, onSendMessage, onResolvePermission,
 }: {
   msg: ChatMessage
   index: number
   isDark: boolean
+  isStreaming?: boolean
   prevUserPrompt?: string
   projectId?: string
   buildTarget: BuildTarget
   onSendMessage: (text: string) => void
   onResolvePermission: (permissionId: string, approved: boolean) => void
 }) {
+  // The active bubble has nothing to say yet (placeholder "…") — show the
+  // animated cooking state instead of a frozen ellipsis.
+  const bodyText = msg.content.trim()
+  const isWaitingPlaceholder = isStreaming && (bodyText === '' || bodyText === '…' || bodyText === '...')
   const showFeedback =
     msg.role === 'assistant' && !msg.suggestions && !msg.permission &&
     index > 0 && msg.content.trim().length > 8
@@ -81,8 +135,13 @@ function ChatMessageBubble({
       className={cn('flex gap-2', msg.role === 'user' ? 'justify-end' : 'justify-start')}
     >
       {msg.role === 'assistant' && (
-        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-          <Bot className="w-4 h-4 text-white" />
+        <div className={cn(
+          'w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0',
+          isStreaming && 'ring-2 ring-violet-400/40'
+        )}>
+          {isStreaming
+            ? <motion.span animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 1.2, repeat: Infinity }}><Sparkles className="w-3.5 h-3.5 text-white" /></motion.span>
+            : <Bot className="w-4 h-4 text-white" />}
         </div>
       )}
       <div className={cn(
@@ -92,7 +151,9 @@ function ChatMessageBubble({
           : isDark ? 'bg-zinc-800/80 text-zinc-100 rounded-bl-sm' : 'bg-slate-100 text-slate-800 rounded-bl-sm'
       )}>
         <div className="whitespace-pre-wrap text-[13px] leading-relaxed">
-          {renderRichText(msg.content, isDark)}
+          {isWaitingPlaceholder
+            ? <CookingIndicator isDark={isDark} />
+            : renderRichText(msg.content, isDark)}
         </div>
 
         {msg.suggestions && msg.suggestions.length > 0 && (
@@ -294,6 +355,9 @@ export function BuildChatPanel({
             msg={msg}
             index={i}
             isDark={isDark}
+            // The last assistant bubble is "live" while a request is in flight
+            // — drives the cooking animation so it never looks frozen.
+            isStreaming={msg.role === 'assistant' && i === chatMessages.length - 1 && (isThinking || isGenerating)}
             prevUserPrompt={(() => { const u = [...chatMessages.slice(0, i)].reverse().find(m => m.role === 'user'); return typeof u?.content === 'string' ? u.content : undefined })()}
             projectId={currentProjectId}
             buildTarget={buildTarget}
