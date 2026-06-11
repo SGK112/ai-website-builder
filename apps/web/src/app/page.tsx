@@ -549,28 +549,22 @@ export default function HomePage() {
               <div className="max-w-5xl mx-auto flex items-center justify-between gap-4 text-sm">
                 {/* Logo — small pot + solid Webstew + tagline */}
                 <a href="/" className="flex items-center gap-2 min-w-0">
-                  <span className="text-xl sm:text-2xl leading-none select-none shrink-0">🍲</span>
+                  <span className="text-2xl sm:text-3xl leading-none select-none shrink-0">🍲</span>
                   <span className="inline-flex flex-col leading-none min-w-0">
                     <span
-                      className={cn("tracking-tight truncate", isDark ? "text-white" : "text-slate-800")}
+                      className={cn(
+                        "tracking-tight truncate bg-clip-text text-transparent bg-gradient-to-r",
+                        isDark ? "from-white via-violet-200 to-fuchsia-200" : "from-orange-600 via-pink-600 to-purple-600"
+                      )}
                       style={{
                         fontFamily: 'var(--font-inter-tight), system-ui, sans-serif',
                         fontWeight: 800,
-                        fontSize: '1.05rem',
+                        fontSize: '1.3rem',
                         letterSpacing: '-0.03em',
                         lineHeight: 1,
                       }}
                     >
                       Webstew
-                    </span>
-                    <span
-                      className={cn(
-                        "mt-0.5 text-[8px] sm:text-[9px] uppercase tracking-[0.22em] font-semibold whitespace-nowrap",
-                        isDark ? "text-slate-400" : "text-slate-500"
-                      )}
-                      style={{ fontFamily: 'var(--font-inter), system-ui, sans-serif' }}
-                    >
-                      <span className="text-violet-500 font-bold">Ai</span> Website Builder
                     </span>
                   </span>
                 </a>
@@ -1090,32 +1084,22 @@ export default function HomePage() {
             )}>
               <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
                 <div className="flex items-center gap-2">
-                  <span className="text-lg">🍲</span>
-                  <span
-                    className={cn(
-                      "inline-flex flex-col items-center leading-none",
-                      isDark ? "text-white" : "text-slate-800"
-                    )}
-                  >
+                  <span className="text-xl">🍲</span>
+                  <span className="inline-flex flex-col items-center leading-none">
                     <span
+                      className={cn(
+                        "bg-clip-text text-transparent bg-gradient-to-r",
+                        isDark ? "from-white via-violet-200 to-fuchsia-200" : "from-orange-600 via-pink-600 to-purple-600"
+                      )}
                       style={{
                         fontFamily: 'var(--font-inter-tight), system-ui, sans-serif',
                         fontWeight: 800,
-                        fontSize: '1rem',
+                        fontSize: '1.2rem',
                         letterSpacing: '-0.03em',
                         lineHeight: 1,
                       }}
                     >
                       Webstew
-                    </span>
-                    <span
-                      className={cn(
-                        "mt-0.5 text-[8px] uppercase tracking-[0.22em] font-semibold",
-                        isDark ? "text-slate-400" : "text-slate-500"
-                      )}
-                      style={{ fontFamily: 'var(--font-inter), system-ui, sans-serif' }}
-                    >
-                      <span className="text-violet-500 font-bold">Ai</span> Website Builder
                     </span>
                   </span>
                 </div>
