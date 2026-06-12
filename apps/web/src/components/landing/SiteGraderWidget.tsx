@@ -31,6 +31,7 @@ interface GraderResult {
     remaining: number
     limit: number
     scope: 'anon-lifetime' | 'daily'
+    plan?: string
   }
 }
 
@@ -474,7 +475,9 @@ export function SiteGraderWidget({ isDark }: Props) {
                   isDark ? "text-zinc-500" : "text-slate-500"
                 )}>
                   {result.quota.scope === 'daily'
-                    ? `${result.quota.remaining} of ${result.quota.limit} grades left today.`
+                    ? (result.quota.limit < 0
+                        ? `Unlimited grades on your ${result.quota.plan || 'enterprise'} plan.`
+                        : `${result.quota.remaining} of ${result.quota.limit} grades left today.`)
                     : result.quota.remaining > 0
                       ? `${result.quota.remaining} of ${result.quota.limit} free grades left on this browser. Sign up free for 3/day.`
                       : `Last free grade used on this browser. Sign up free for 3/day.`}

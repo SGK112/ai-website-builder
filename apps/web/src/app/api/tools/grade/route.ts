@@ -18,6 +18,8 @@ import { authOptions } from '@/lib/auth'
 import { gradeWebsite, gradeHtml } from '@/lib/grader'
 import { guardAnonAbuse } from '@/lib/abuse-guard'
 import { connectDB } from '@/lib/db'
+import { isAdminEmail } from '@ai-website-builder/database'
+import { ObjectId } from 'mongodb'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 25
@@ -25,12 +27,42 @@ export const maxDuration = 25
 const MAX_HTML_CHARS = 1_500_000
 const ANON_GRADER_COOKIE = 'wsgrader'
 const ANON_GRADER_LIMIT = 3
-const DAILY_LIMIT = parseInt(process.env.GRADER_DAILY_LIMIT || '3', 10) || 3
+
+// Daily grader quota by plan. Free is the env-tunable baseline (keeps the old
+// GRADER_DAILY_LIMIT lever); each paid tier grades more; Enterprise (and admins)
+// are unlimited. Anonymous users get ANON_GRADER_LIMIT lifetime (handled below).
+type PlanId = 'free' | 'starter' | 'pro' | 'scale' | 'enterprise'
+const FREE_DAILY = parseInt(process.env.GRADER_DAILY_LIMIT || '3', 10) || 3
+const GRADER_DAILY_LIMITS: Record<PlanId, number> = {
+  free: FREE_DAILY,
+  starter: 25,
+  pro: 100,
+  scale: 500,
+  enterprise: Infinity,
+}
+
+// Resolve a signed-in user's daily grader limit from their plan. Admins and
+// Enterprise subscribers are unlimited. Falls back to free on any lookup miss so
+// a DB hiccup never locks a paying user out harder than a free one.
+async function resolveDailyLimit(userId: string, email?: string | null): Promise<{ limit: number; plan: PlanId }> {
+  if (email && isAdminEmail(email)) return { limit: Infinity, plan: 'enterprise' }
+  try {
+    const mongoose = await connectDB()
+    const db = mongoose.connection.db
+    if (db && ObjectId.isValid(userId)) {
+      const u = await db.collection('users').findOne({ _id: new ObjectId(userId) }, { projection: { plan: 1 } })
+      const raw = String(u?.plan || 'free') as PlanId
+      const plan: PlanId = raw in GRADER_DAILY_LIMITS ? raw : 'free'
+      return { limit: GRADER_DAILY_LIMITS[plan], plan }
+    }
+  } catch { /* fall through to free */ }
+  return { limit: GRADER_DAILY_LIMITS.free, plan: 'free' }
+}
 
 // Per-user, per-UTC-day usage counter. Stored in a tiny standalone
 // collection so we don't have to extend the User schema for what's
 // effectively an analytics-grade integer.
-async function bumpDailyUsage(userId: string): Promise<{ ok: true; count: number } | { ok: false; resetAt: Date }> {
+async function bumpDailyUsage(userId: string, limit: number): Promise<{ ok: true; count: number } | { ok: false; resetAt: Date }> {
   const mongoose = await connectDB()
   const db = mongoose.connection.db
   if (!db) return { ok: true, count: 0 } // fail-open if DB is unreachable — we'd rather grade than 500
@@ -47,7 +79,7 @@ async function bumpDailyUsage(userId: string): Promise<{ ok: true; count: number
   // mongodb driver v6 returns the doc directly (no {value} wrapper); `r.value`
   // was always undefined, so count defaulted to 1 and the daily cap never bit.
   const count: number = r?.count ?? 1
-  if (count > DAILY_LIMIT) {
+  if (count > limit) { // limit === Infinity (enterprise/admin) never trips
     // Decrement back since we tipped over — keeps the counter honest if
     // a different user retries later.
     await db.collection('grader_usage').updateOne({ key }, { $inc: { count: -1 } })
@@ -72,7 +104,7 @@ export async function POST(req: NextRequest) {
     if (anonCount >= ANON_GRADER_LIMIT) {
       return NextResponse.json(
         {
-          error: `You've used your ${ANON_GRADER_LIMIT} free grades. Sign up free for ${DAILY_LIMIT}/day.`,
+          error: `You've used your ${ANON_GRADER_LIMIT} free grades. Sign up free for ${FREE_DAILY}/day.`,
           limit: ANON_GRADER_LIMIT,
           used: anonCount,
           signupWall: true,
@@ -82,16 +114,22 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Authed: per-day quota check (atomic increment).
+  // Authed: per-day quota check (atomic increment), tiered by plan.
   let quotaUsed = 0
+  let dailyLimit = FREE_DAILY
+  let userPlan: PlanId = 'free'
   if (isAuthed) {
-    const r = await bumpDailyUsage(session!.user!.id!)
+    const resolved = await resolveDailyLimit(session!.user!.id!, session!.user!.email)
+    dailyLimit = resolved.limit
+    userPlan = resolved.plan
+    const r = await bumpDailyUsage(session!.user!.id!, dailyLimit)
     if (!r.ok) {
       const secondsToReset = Math.max(60, Math.floor((r.resetAt.getTime() - Date.now()) / 1000))
       return NextResponse.json(
         {
-          error: `You've used your ${DAILY_LIMIT} grades for today. Resets at ${r.resetAt.toISOString().slice(11, 16)} UTC.`,
-          limit: DAILY_LIMIT,
+          error: `You've used your ${dailyLimit} grades for today (${userPlan} plan). Resets at ${r.resetAt.toISOString().slice(11, 16)} UTC — upgrade for more.`,
+          limit: dailyLimit,
+          plan: userPlan,
           retryAfter: secondsToReset,
           quotaExhausted: true,
         },
@@ -129,8 +167,12 @@ export async function POST(req: NextRequest) {
 
     // Stamp the response with quota info so the widget can show
     // "X grades left today" / "2 of 3 free grades used."
+    // Unlimited (enterprise/admin) → limit/remaining of -1 so the widget can
+    // render "Unlimited" instead of a number.
     const quota = isAuthed
-      ? { remaining: Math.max(0, DAILY_LIMIT - quotaUsed), limit: DAILY_LIMIT, scope: 'daily' as const }
+      ? dailyLimit === Infinity
+        ? { remaining: -1, limit: -1, scope: 'daily' as const, plan: userPlan }
+        : { remaining: Math.max(0, dailyLimit - quotaUsed), limit: dailyLimit, scope: 'daily' as const, plan: userPlan }
       : { remaining: Math.max(0, ANON_GRADER_LIMIT - (anonCount + 1)), limit: ANON_GRADER_LIMIT, scope: 'anon-lifetime' as const }
 
     const response = NextResponse.json({ ...result, quota })
