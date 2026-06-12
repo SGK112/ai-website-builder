@@ -43,7 +43,17 @@ export async function POST(req: NextRequest) {
   const target = String(body?.target || 'website')
   // Only allow same-origin / webstew links so the email can't be turned into
   // an open-redirect carrier. Fall back to the workspace.
-  const origin = req.nextUrl.origin
+  //
+  // Prefer NEXTAUTH_URL / NEXT_PUBLIC_SITE_URL over req.nextUrl.origin: behind
+  // Cloudflare→Render, req.nextUrl.origin resolves to the internal bind
+  // (https://localhost:5001), which made the emailed link a dead page. Same
+  // precedence as the integrations OAuth routes. nextUrl.origin is the local-
+  // dev last resort only.
+  const origin = (
+    process.env.NEXTAUTH_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    req.nextUrl.origin
+  ).replace(/\/+$/, '')
   let link = `${origin}/workspace`
   const rawUrl = String(body?.url || '')
   if (rawUrl && /^https?:\/\//i.test(rawUrl)) {

@@ -82,7 +82,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // Best-effort: a mail failure must not undo the (successful) invite.
   let emailed = false
   try {
-    const origin = req.nextUrl.origin
+    // Canonical public origin — behind Cloudflare→Render, req.nextUrl.origin
+    // is the internal bind (https://localhost:5001), which dead-links the
+    // emailed invite. Same precedence as the integrations + notify routes.
+    const origin = (
+      process.env.NEXTAUTH_URL ||
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      req.nextUrl.origin
+    ).replace(/\/+$/, '')
     const link = `${origin}/login?callbackUrl=${encodeURIComponent('/workspace?project=' + params.id)}`
     const ownerName = session.user.name || session.user.email || 'Someone'
     const ownerEmail = session.user.email || ''

@@ -721,7 +721,16 @@ export async function POST(req: NextRequest) {
               const files: BuildFile[] = Object.entries(vfs.files).map(([path, content]) => ({ path, content: String(content ?? '') }))
               await completeBuild(buildId, { files, summary: doneSummary || undefined, disconnected: aborted })
               if (aborted && session.user.email) {
-                const link = `${req.nextUrl.origin}/workspace?resumeBuild=${buildId}`
+                // Behind Cloudflare→Render, req.nextUrl.origin is the internal
+                // bind (https://localhost:5001) — that made the emailed link a
+                // dead page. Prefer the canonical public origin (same
+                // precedence as the integrations OAuth + notify routes).
+                const origin = (
+                  process.env.NEXTAUTH_URL ||
+                  process.env.NEXT_PUBLIC_SITE_URL ||
+                  req.nextUrl.origin
+                ).replace(/\/+$/, '')
+                const link = `${origin}/workspace?resumeBuild=${buildId}`
                 await sendMail({
                   to: session.user.email, kind: 'noreply',
                   subject: `🍲 Your stew is cooked — it's ready`,
