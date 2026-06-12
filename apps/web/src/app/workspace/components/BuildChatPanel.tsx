@@ -236,6 +236,7 @@ interface BuildChatPanelProps {
   currentSteps: BuildStep[]
   conversationIntent: string | null
   chatContainerRef: RefObject<HTMLDivElement>
+  onChatScroll?: () => void
   chatMessages: ChatMessage[]
   isThinking: boolean
   isGenerating: boolean
@@ -266,6 +267,7 @@ export function BuildChatPanel({
   currentSteps,
   conversationIntent,
   chatContainerRef,
+  onChatScroll,
   chatMessages,
   isThinking,
   isGenerating,
@@ -336,6 +338,7 @@ export function BuildChatPanel({
       {/* Conversational Chat Interface */}
       <div
         ref={chatContainerRef}
+        onScroll={onChatScroll}
         className={cn(
           "flex-1 min-h-0 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-track-transparent",
           isDark ? "scrollbar-thumb-zinc-700" : "scrollbar-thumb-slate-300"

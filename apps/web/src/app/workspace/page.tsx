@@ -1886,11 +1886,12 @@ function WorkspaceContent() {
     const mq = window.matchMedia('(max-width: 767px)')
     const apply = (matches: boolean) => {
       setIsMobile(matches)
-      // Chat-first on mobile: when there's nothing to preview yet, land on the
-      // chat so the builder is conversational from the first screen. Collapse
-      // to the preview only once a project already exists (e.g. a restored
-      // project). A separate effect reveals the preview after the first build.
-      if (matches) setSidebarCollapsed(html.trim().length > 0 || Object.keys(vfsFiles).length > 0)
+      // App-first on mobile: keep the chat drawer CLOSED on load so it doesn't
+      // cover the build-start canvas ("What do you want to build?" + quick-start
+      // cards / the live preview). The user opens chat with the menu button when
+      // they're ready. (Previously the drawer auto-opened over those steps,
+      // which read like a website overlay, not a workspace app.)
+      if (matches) setSidebarCollapsed(true)
     }
     apply(mq.matches)
     const handler = (e: MediaQueryListEvent) => apply(e.matches)
@@ -2343,20 +2344,36 @@ function WorkspaceContent() {
     setIsThinking(false)
   }
   const chatContainerRef = useRef<HTMLDivElement>(null)
-  // Auto-scroll the chat thread to the bottom as messages arrive AND
-  // as the streaming assistant message mutates (each token chunk
-  // mutates the same last message). Respects user scroll-up: if they
-  // scrolled away from the bottom (>120px), we don't yank them back —
-  // they're reading history. Returns to auto-scroll once they
-  // scroll back near the bottom or send a new message.
+  // Whether the chat is "pinned" to the bottom and should follow new content.
+  // Driven by real user scroll gestures (handleChatScroll), NOT by per-frame
+  // measurement — that's the key to surviving long/heavy conversations.
+  const stickToBottomRef = useRef(true)
+  // Auto-scroll the chat thread to the bottom as messages arrive AND as the
+  // streaming assistant message mutates (each token chunk mutates the last
+  // message). Respects user scroll-up: once they scroll away from the bottom
+  // we stop following until they scroll back or send a new message.
   useEffect(() => {
     const el = chatContainerRef.current
     if (!el) return
-    const distanceFromBottom = el.scrollHeight - (el.scrollTop + el.clientHeight)
-    if (distanceFromBottom < 120) {
-      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-    }
+    // A fresh user message always re-pins — we follow our own send.
+    const last = chatMessages[chatMessages.length - 1]
+    if (last && (last as any).role === 'user') stickToBottomRef.current = true
+    if (!stickToBottomRef.current) return
+    // Instant, not smooth: in a heavy conversation a single token chunk can add
+    // hundreds of px at once; a smooth animation never finishes before the next
+    // chunk lands, so it perpetually lags and the thread "stops moving up". A
+    // direct jump always lands at the bottom regardless of chunk size.
+    el.scrollTop = el.scrollHeight
   }, [chatMessages, isThinking])
+
+  // Update the pin on real scroll gestures. A programmatic jump lands at
+  // distance ~0 and keeps the pin; the user scrolling up past the threshold
+  // releases it so they can read history without being yanked back.
+  const handleChatScroll = useCallback(() => {
+    const el = chatContainerRef.current
+    if (!el) return
+    stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120
+  }, [])
 
   // Resolve the auto-fix loop Promise when the agent finishes
   useEffect(() => {
@@ -7024,12 +7041,11 @@ ${html}
       setIsThinking(false)
     }
 
-    // Scroll to bottom of chat
+    // Scroll to bottom of chat — re-pin so we follow the reply.
     setTimeout(() => {
-      chatContainerRef.current?.scrollTo({
-        top: chatContainerRef.current.scrollHeight,
-        behavior: 'smooth'
-      })
+      stickToBottomRef.current = true
+      const el = chatContainerRef.current
+      if (el) el.scrollTop = el.scrollHeight
     }, 100)
   }
 
@@ -8527,6 +8543,7 @@ npx eas build --platform all
                 currentSteps={currentSteps}
                 conversationIntent={conversationIntent}
                 chatContainerRef={chatContainerRef}
+                onChatScroll={handleChatScroll}
                 chatMessages={chatMessages}
                 isThinking={isThinking}
                 isGenerating={isGenerating}
