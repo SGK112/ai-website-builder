@@ -168,6 +168,72 @@ interface AgentRequest {
   useBridge?: boolean
 }
 
+// Persist agent file writes into a project's `files` ARRAY of
+// { path, content, type } — NOT a { [path]: contents } map. A prior version
+// wrote a dotted key (`files.about.html`), which Mongo tries to set INTO the
+// array element and rejects, so every agent write to a saved project threw and
+// the agent surfaced it as a bogus "write restriction". These hooks
+// replace-or-append the element by path in one atomic pipeline update.
+// Persistence is best-effort: a sync failure must never block the in-memory
+// write that drives the build/preview (the client snapshot + build store still
+// hold the file).
+function makeFilePersistence(db: any, oid: any) {
+  const fileType = (p: string): string => {
+    const ext = p.split('.').pop()?.toLowerCase()
+    if (ext === 'html' || ext === 'htm') return 'html'
+    if (ext === 'css') return 'css'
+    if (ext === 'js' || ext === 'jsx' || ext === 'mjs') return 'javascript'
+    if (ext === 'ts' || ext === 'tsx') return 'typescript'
+    if (ext === 'json') return 'json'
+    if (ext === 'md') return 'markdown'
+    return 'other'
+  }
+  const write = async (path: string, contents: string) => {
+    try {
+      await db.collection('projects').updateOne({ _id: oid }, [
+        {
+          $set: {
+            files: {
+              $concatArrays: [
+                {
+                  $filter: {
+                    input: { $cond: [{ $isArray: '$files' }, '$files', []] },
+                    cond: { $ne: ['$$this.path', path] },
+                  },
+                },
+                [{ path, content: contents, type: fileType(path), lastModified: '$$NOW' }],
+              ],
+            },
+            updatedAt: '$$NOW',
+          },
+        },
+      ])
+    } catch (e: any) {
+      console.warn(`[agent] persist write failed for ${path}:`, e?.message)
+    }
+  }
+  const del = async (path: string) => {
+    try {
+      await db.collection('projects').updateOne({ _id: oid }, [
+        {
+          $set: {
+            files: {
+              $filter: {
+                input: { $cond: [{ $isArray: '$files' }, '$files', []] },
+                cond: { $ne: ['$$this.path', path] },
+              },
+            },
+            updatedAt: '$$NOW',
+          },
+        },
+      ])
+    } catch (e: any) {
+      console.warn(`[agent] persist delete failed for ${path}:`, e?.message)
+    }
+  }
+  return { write, del }
+}
+
 // The agent loop uses Anthropic's tool-use protocol — non-Anthropic IDs
 // (gpt-*, gemini-*, grok-*, llama-*, qwen-*, deepseek-*) can't be honored here.
 // Returns the chosen model AND a note if we had to substitute, so the route
@@ -273,18 +339,9 @@ export async function POST(req: NextRequest) {
           const { ObjectId } = await import('mongodb')
           let oid: any
           try { oid = new ObjectId(body.projectId) } catch { oid = body.projectId }
-          persistUpdate = async (path, contents) => {
-            await db.collection('projects').updateOne(
-              { _id: oid },
-              { $set: { [`files.${path}`]: contents, updatedAt: new Date() } }
-            )
-          }
-          persistDelete = async (path) => {
-            await db.collection('projects').updateOne(
-              { _id: oid },
-              { $unset: { [`files.${path}`]: '' }, $set: { updatedAt: new Date() } }
-            )
-          }
+          const fp = makeFilePersistence(db, oid)
+          persistUpdate = fp.write
+          persistDelete = fp.del
         }
       } catch (e: any) {
         console.warn('[agent-bridge] Mongo persist hook unavailable:', e?.message)
@@ -420,18 +477,10 @@ export async function POST(req: NextRequest) {
         const { ObjectId } = await import('mongodb')
         let oid: any
         try { oid = new ObjectId(body.projectId) } catch { oid = body.projectId }
-        persistHook = async (path, contents) => {
-          await db.collection('projects').updateOne(
-            { _id: oid },
-            { $set: { [`files.${path}`]: contents, updatedAt: new Date() } }
-          )
-        }
-        persistDeleteHook = async (path) => {
-          await db.collection('projects').updateOne(
-            { _id: oid },
-            { $unset: { [`files.${path}`]: '' }, $set: { updatedAt: new Date() } }
-          )
-        }
+        // `files` is an ARRAY of { path, content, type } — see makeFilePersistence.
+        const fp = makeFilePersistence(db, oid)
+        persistHook = fp.write
+        persistDeleteHook = fp.del
       }
     } catch (e: any) {
       console.warn('[agent] Mongo persist hook unavailable:', e?.message)
