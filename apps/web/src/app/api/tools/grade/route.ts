@@ -5,7 +5,8 @@
 // Auth model — three tiers:
 //   • anon:    3 lifetime grades per browser (wsgrader cookie). After that,
 //              402 + signupWall flag. No /api/grader/share access.
-//   • authed:  GRADER_DAILY_LIMIT grades per UTC day (default 25). After
+//   • authed:  GRADER_DAILY_LIMIT grades per UTC day (default 3 — a free
+//              taste that resets daily, not 3-lifetime like anon). After
 //              that, 429 with retryAfter to next midnight UTC.
 //   • bot UA / bad reputation IP: 403 from abuse-guard regardless of session.
 //
@@ -24,7 +25,7 @@ export const maxDuration = 25
 const MAX_HTML_CHARS = 1_500_000
 const ANON_GRADER_COOKIE = 'wsgrader'
 const ANON_GRADER_LIMIT = 3
-const DAILY_LIMIT = parseInt(process.env.GRADER_DAILY_LIMIT || '25', 10) || 25
+const DAILY_LIMIT = parseInt(process.env.GRADER_DAILY_LIMIT || '3', 10) || 3
 
 // Per-user, per-UTC-day usage counter. Stored in a tiny standalone
 // collection so we don't have to extend the User schema for what's

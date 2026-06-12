@@ -476,8 +476,8 @@ export function SiteGraderWidget({ isDark }: Props) {
                   {result.quota.scope === 'daily'
                     ? `${result.quota.remaining} of ${result.quota.limit} grades left today.`
                     : result.quota.remaining > 0
-                      ? `${result.quota.remaining} of ${result.quota.limit} free grades left on this browser. Sign up free for ${25}/day.`
-                      : `Last free grade used on this browser. Sign up free for 25/day.`}
+                      ? `${result.quota.remaining} of ${result.quota.limit} free grades left on this browser. Sign up free for 3/day.`
+                      : `Last free grade used on this browser. Sign up free for 3/day.`}
                 </p>
               )}
             </motion.div>
