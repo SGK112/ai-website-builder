@@ -38,6 +38,11 @@ separate, not like steps of one flow.
 ---
 
 ## ✅ Shipped recently
+- **Tier 1 #1** — Stop button → graceful Pause/save/continue (keeps partial work
+  + streamed text, resumes same project with full history)
+- **Tier 1 #2** — AI bound to the previewed project (no project switch mid-build)
+- **Tier 1 #3** — "+New" does a full reset to a fresh draft (was leaving the old
+  site in the preview)
 - Dead "stew is cooked" email link (`localhost:5001` → canonical public origin)
 - Grader limit tiered by plan (free 3 · starter 25 · pro 100 · scale 500 ·
   enterprise/admin ∞); widget shows "Unlimited" for enterprise
@@ -49,7 +54,7 @@ separate, not like steps of one flow.
 
 ---
 
-## Tier 1 — Daily-friction fixes (no decisions; start now)  · stage: BUILD
+## Tier 1 — Daily-friction fixes  ✅ DONE (shipped)  · stage: BUILD
 
 ### 1. Stop button → graceful Pause / steer / continue  ⭐
 **State:** `page.tsx:stopAgent` is wired (aborts fetch + POSTs `/api/builder/cancel`)
@@ -194,8 +199,8 @@ Connect + webhook), `marketplace/payout` (real `stripe.transfers.create`),
 ---
 
 ## Recommended sequence
-1. **Tier 1 (BUILD friction):** Stop→Pause (1) → active-project binding (2) → +New (3)
-2. **7a** persist chat/prompts (rides on #1's state work)
+1. ~~**Tier 1 (BUILD friction):** Stop→Pause (1) → active-project binding (2) → +New (3)~~ ✅ DONE
+2. **7a** persist chat/prompts (rides on #1's state work) ← NEXT
 3. **#9 journey spine + #5 mobile** together — this is what makes the app feel
    "1‑2‑3," especially on mobile; do them as one pass
 4. **Tier 2 rest:** ZIP import (4a) → Logo Studio (8) → GitHub import (4b)
