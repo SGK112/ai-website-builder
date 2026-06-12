@@ -3587,13 +3587,22 @@ function WorkspaceContent() {
         // User clicked an internal link in the preview — switch tabs if the
         // target page exists. Otherwise show a hint that they can create it.
         const target: string = event.data.target
+        const hash: string = event.data.hash || ''
         const matched = pages.find(p =>
           p.slug.toLowerCase() === target ||
           p.name.toLowerCase() === target ||
           (target === 'index' && p.isHome)
         )
         if (matched) {
-          if (matched.id !== activePageId) switchToPage(matched.id)
+          const willSwitch = matched.id !== activePageId
+          if (willSwitch) switchToPage(matched.id)
+          // If the link had an #anchor, scroll to it once the iframe has the
+          // right page rendered (longer wait when we just swapped srcDoc).
+          if (hash) {
+            setTimeout(() => {
+              iframeRef.current?.contentWindow?.postMessage({ type: 'preview-scroll', hash }, '*')
+            }, willSwitch ? 250 : 0)
+          }
         } else {
           addToast('info', `Page "/${target}" doesn't exist yet — click "+ Add page" to create it`)
         }
@@ -4561,12 +4570,19 @@ ${html}
       window.parent.postMessage({ type: 'open-external', href: href }, '*');
       return;
     }
-    // Internal page links — tell parent, parent switches tabs
-    var isInternal = href.startsWith('/') || /^[a-z0-9_-]+(\\.html)?$/i.test(href);
+    // Internal page links — tell parent, parent switches tabs.
+    // Split off the #hash and ?query FIRST. A dropdown link like
+    // "/services#plumbing" must resolve to the "services" PAGE (then scroll to
+    // #plumbing) — not a bogus "services#plumbing" slug that matches nothing,
+    // which is why the Services dropdown + "/#contact" links never connected.
+    var hash = '';
+    var hi = href.indexOf('#'); if (hi >= 0) { hash = href.slice(hi); href = href.slice(0, hi); }
+    var qi = href.indexOf('?'); if (qi >= 0) { href = href.slice(0, qi); }
+    var isInternal = href === '' || href.startsWith('/') || /^[a-z0-9_-]+(\\.html)?$/i.test(href);
     if (isInternal) {
       var slug = href.replace(/^\\//, '').replace(/\\.html$/i, '').toLowerCase();
       if (!slug || slug === 'index' || slug === 'home') slug = 'index';
-      window.parent.postMessage({ type: 'navigate-page', target: slug }, '*');
+      window.parent.postMessage({ type: 'navigate-page', target: slug, hash: hash }, '*');
     }
   }, true);
 
@@ -4704,6 +4720,13 @@ ${html}
           img.style.cursor = '';
         }
       });
+    } else if (e.data && e.data.type === 'preview-scroll' && e.data.hash) {
+      // Parent switched to this page after a "/page#anchor" nav click — scroll
+      // to the anchor now that this page's DOM is the one rendered.
+      try {
+        var el = document.querySelector(e.data.hash);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } catch (_) {}
     }
   });
 
