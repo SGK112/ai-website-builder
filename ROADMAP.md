@@ -113,21 +113,46 @@ Connect + webhook), `marketplace/payout` (real `stripe.transfers.create`),
   in-workspace and in `/community`.
 - **Sell more than sites:** templates, full sites, app projects (Expo/backend),
   components.
-- **Crypto payments** — three architectures:
+- **IP / code protection (REQUIRED — sellers must control their work):**
+  - **The only real protection is not shipping the source.** Anything rendered
+    in a browser (live `srcDoc`, network tab, view-source, devtools) is
+    copyable. Client-side "disable right-click / block devtools" is theater —
+    we will not rely on it.
+  - **Protected preview:** for any for-sale listing the public preview is a
+    server-generated **screenshot / scroll-video** OR a **watermarked, sandboxed
+    live demo** rendered on an isolated service — never the raw HTML. CURRENT
+    LEAK to fix: `/listings/[id]` renders full `l.html` in an iframe `srcDoc`
+    for free listings (premium already withholds html server-side).
+  - **Entitlement-gated delivery:** real files/export are delivered only to a
+    verified buyer (on-chain purchase → `marketplace_purchases`).
+  - **Per-buyer fingerprint:** embed a hidden watermark in delivered code so a
+    leaked copy is traceable to the buyer.
+  - **Seller control:** pricing, public/unlisted, takedown, license terms,
+    report-stolen-content / DMCA flow.
+  - **License + provenance:** every sale records buyer + license terms on record
+    (and the on-chain tx is itself proof of purchase).
+- **Crypto payments — DECIDED: non-custodial wallet-to-wallet via an on-chain
+  payment splitter. USDC on Base.**
+  - Users connect their OWN wallet (Coinbase Wallet / MetaMask / WalletConnect)
+    to both buy and sell. Webstew never holds funds or keys (non-custodial →
+    stays out of money-transmitter territory).
+  - A **payment-splitter contract** settles each sale in one tx: seller gets
+    their share, Webstew treasury gets the platform fee — enforced on-chain, so
+    "we get our cut" is guaranteed without custody.
+  - Prefer an **audited splitter primitive (e.g. 0xSplits)** over custom Solidity
+    to avoid a new audit.
+  - Contract emits a purchase event → backend verifies the tx → unlocks the item
+    via the existing `marketplace_purchases` entitlement.
+  - Stack: wagmi + viem + WalletConnect; native USDC on Base.
 
-  | Option | Custody / risk | Effort |
-  |---|---|---|
-  | **A. Coinbase Commerce (USDC, hosted)** ⭐ rec | non-custodial, lowest legal exposure | Low |
-  | B. Wallet-connect + USDC on Base | possible MSB exposure if funds pooled | Med-High |
-  | C. Smart-contract escrow / splitter | truly non-custodial, needs audit | High |
+  **Specs still to lock:**
+  1. Platform fee % (default 10%)
+  2. Instant settle (recommended for digital goods) vs escrow-with-confirm
+  3. Audited splitter (0xSplits) vs custom contract — recommend audited
+  4. Treasury wallet address for the platform cut
 
-  **Recommendation:** Option A for MVP (USDC on Base) — slots into the existing
-  checkout + earnings flow, you never hold a key.
-
-**Decisions needed before crypto build:**
-1. Buy-side only, or sellers **withdraw** in crypto too?
-2. Chain + token — OK with **USDC on Base**?
-3. Confirm **non-custodial** (stay out of money-transmitter territory)?
+  **Custodial fallback if ever needed:** Coinbase Commerce hosted USDC checkout
+  (lower effort, but loses the connect-your-own-wallet UX) — not the chosen path.
 
 ---
 
