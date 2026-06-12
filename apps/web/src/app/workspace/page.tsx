@@ -6600,6 +6600,51 @@ ${html}
       }
     }
 
+    // Hoisted ABOVE the try so the catch (Pause path) can also commit partial
+    // work. committedHtml mirrors the active page's streamed HTML live; the maps
+    // accumulate sibling-page create/edit/delete across a bridge→API failover.
+    let committedHtml: string | null = null
+    let placeholderAdded = false
+    const pageEdits = new Map<string, string>()      // existing pageId → new html
+    const newPageFiles = new Map<string, string>()   // brand-new <slug>.html → html
+    const deletedPageIds = new Set<string>()         // existing pageId to remove
+
+    // Land whatever the agent produced this turn into state — the active page's
+    // HTML plus any created / edited / deleted sibling pages. Called on a normal
+    // finish AND on a user Pause, so partial work is never lost: the preview, the
+    // page tabs, and the NEXT turn's file snapshot all include it (and the agent
+    // route already persisted each write to Mongo).
+    const commitAgentWork = () => {
+      if (committedHtml && committedHtml !== html) {
+        setHtml(committedHtml)
+        addToHistory(committedHtml, 'AI Edit: ' + message.slice(0, 60))
+      }
+      if (buildTarget === 'website' && (pageEdits.size || newPageFiles.size || deletedPageIds.size)) {
+        setPages(prevPages => {
+          let next = prevPages.map(p => {
+            if (pageEdits.has(p.id)) return { ...p, html: pageEdits.get(p.id)! }
+            if (p.id === activePageId && committedHtml) return { ...p, html: committedHtml }
+            return p
+          })
+          if (deletedPageIds.size) {
+            next = next.filter(p => !(deletedPageIds.has(p.id) && !p.isHome))
+          }
+          let createdCount = 0
+          for (const [fname, contents] of newPageFiles) {
+            const slug = fname.replace(/\.html?$/i, '').toLowerCase()
+            if (slug === 'index' || next.some(p => p.slug === slug)) continue
+            const name = slug
+              .split('-')
+              .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+              .join(' ') || slug
+            next.push({ id: `page-${Date.now()}-${createdCount}`, name, slug, html: contents, isHome: false })
+            createdCount++
+          }
+          return next
+        })
+      }
+    }
+
     try {
       // Build an enriched prompt with selected-element + multi-page context
       const activePageForChat = pages.find(p => p.id === activePageId)
@@ -6648,15 +6693,6 @@ ${html}
       // on the server's Anthropic key — the user never hits a dead end.
       const BRIDGE_FAILOVER_NOTICE =
         '⚠️ Local bridge did not respond within 180s. Check that webstew-bridge connect … is running in your terminal.'
-      let committedHtml: string | null = null
-      let placeholderAdded = false
-      // Multi-page reconciliation accumulators (website target). Live across
-      // a bridge→API failover (both attempts write into the same maps; the
-      // successful attempt's events win). Applied once after the turn settles.
-      const pageEdits = new Map<string, string>()      // existing pageId → new html
-      const newPageFiles = new Map<string, string>()   // brand-new <slug>.html → html
-      const deletedPageIds = new Set<string>()         // existing pageId to remove
-
       const streamAgentTurn = async (
         viaBridge: boolean,
       ): Promise<'ok' | 'credit' | 'bridge-failed'> => {
@@ -6822,6 +6858,10 @@ ${html}
                       (path === 'index.html' ? homePageId : undefined)
                     if (existingId === activePageId) {
                       latestHtml = payload.contents
+                      // Mirror into the outer-scoped committedHtml LIVE so a
+                      // Pause (which jumps to the catch before the post-loop
+                      // commit) can still land the active page's partial work.
+                      committedHtml = payload.contents
                     } else if (existingId) {
                       pageEdits.set(existingId, payload.contents)
                     } else {
@@ -6954,55 +6994,18 @@ ${html}
       }
       if (outcome === 'credit') return
 
-      // Commit HTML once at the end (avoids thrashing the preview iframe mid-stream)
-      if (committedHtml && committedHtml !== html) {
-        setHtml(committedHtml)
-        addToHistory(committedHtml, 'AI Edit: ' + message.slice(0, 60))
+      // Commit streamed work once at the end (avoids thrashing the preview
+      // iframe mid-stream). Same routine the Pause path runs.
+      const htmlChanged = !!committedHtml && committedHtml !== html
+      commitAgentWork()
+      if (htmlChanged) {
         addToast('success', 'Dish is up. 🍽️')
         // Owl self-heal: validate the edited HTML and auto-repair if the agent
         // left broken JS / unclosed tags behind. Best-effort, runs after the
         // commit so the preview shows immediately then quietly corrects.
-        void runOwlSelfHeal(committedHtml)
+        void runOwlSelfHeal(committedHtml!)
       }
-
-      // ── Reconcile multi-page edits (website target) ──────────────────────
-      // The agent may have edited sibling pages, created new ones, or deleted
-      // pages. Fold all of that back into the pages[] state in one update so
-      // the page tabs, persistence, and publish all reflect the new structure.
-      if (buildTarget === 'website' && (pageEdits.size || newPageFiles.size || deletedPageIds.size)) {
-        setPages(prevPages => {
-          // 1. Apply edits to existing (non-active) pages. The active page's
-          //    edit already went through setHtml(committedHtml) above; mirror it
-          //    into its pages[] entry too so a later page-switch doesn't revert it.
-          let next = prevPages.map(p => {
-            if (pageEdits.has(p.id)) return { ...p, html: pageEdits.get(p.id)! }
-            if (p.id === activePageId && committedHtml) return { ...p, html: committedHtml }
-            return p
-          })
-          // 2. Remove deleted pages (never the home page).
-          if (deletedPageIds.size) {
-            next = next.filter(p => !(deletedPageIds.has(p.id) && !p.isHome))
-          }
-          // 3. Add brand-new pages the agent created.
-          let createdCount = 0
-          for (const [fname, contents] of newPageFiles) {
-            const slug = fname.replace(/\.html?$/i, '').toLowerCase()
-            if (slug === 'index' || next.some(p => p.slug === slug)) continue
-            const name = slug
-              .split('-')
-              .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-              .join(' ') || slug
-            next.push({
-              id: `page-${Date.now()}-${createdCount}`,
-              name,
-              slug,
-              html: contents,
-              isHome: false,
-            })
-            createdCount++
-          }
-          return next
-        })
+      if (buildTarget === 'website') {
         const created = newPageFiles.size
         const edited = pageEdits.size
         const removed = deletedPageIds.size
@@ -7016,20 +7019,29 @@ ${html}
       setConversationIntent(null)
 
     } catch (error: any) {
-      // User-initiated abort (Stop button) — not an error. Replace the
-      // pending "…" placeholder with a quiet "(stopped)" so the user
-      // knows the request was cancelled cleanly.
+      // User hit Pause (Stop button) — not an error. KEEP everything the agent
+      // produced so far (run the same commit the finish path runs), preserve the
+      // streamed text, and mark the turn paused with an invite to continue. The
+      // next message picks up the SAME project with full history, so the build
+      // resumes on the same path instead of restarting.
       if (error?.name === 'AbortError') {
+        commitAgentWork()
         setChatMessages(prev => {
           const next = [...prev]
           for (let i = next.length - 1; i >= 0; i--) {
             if (next[i].role === 'assistant') {
-              next[i] = { ...next[i], content: '_(scrapped — pulled off the heat)_' }
+              const sofar = typeof next[i].content === 'string' ? next[i].content.trim() : ''
+              const kept = sofar && sofar !== '…' && sofar !== '...' ? sofar + '\n\n' : ''
+              next[i] = {
+                ...next[i],
+                content: kept + '⏸ _Paused — your progress is saved. Tell me what to adjust and I’ll pick up right where we left off._',
+              }
               break
             }
           }
           return next
         })
+        addToast('info', 'Paused — your progress is saved.')
         return
       }
       console.error('Chat error:', error)
