@@ -3757,6 +3757,14 @@ function WorkspaceContent() {
   }
 
   const loadProject = async (project: Project & { pages?: ProjectPage[]; activePageId?: string }) => {
+    // Bind the AI to the previewed project: never switch projects while a build
+    // is in flight, or that build's streamed output would land on the project
+    // you just switched TO. Pause first (Stop button) — it's graceful now —
+    // then switch. "Whatever's in the preview is the only thing the AI edits."
+    if (isThinking || isGenerating) {
+      addToast('info', 'Pause or finish the current build before switching projects.')
+      return
+    }
     // The list endpoint (/api/projects) strips file content to keep the
     // listing payload small — so the `project` we get from the dropdown
     // has empty html/files. Fetch the full record on click; fall back to
@@ -3896,15 +3904,34 @@ function WorkspaceContent() {
   }
 
   const newProject = () => {
+    // Don't blow away a project mid-build (the stream would write into the new
+    // blank one). Pause first.
+    if (isThinking || isGenerating) {
+      addToast('info', 'Pause or finish the current build before starting a new project.')
+      return
+    }
+    // FULL reset. The old version left pages / vfsFiles / chatMessages /
+    // previewHtml / activePageId behind, so the previous site stayed in the
+    // preview and "+New" looked dead. Clear EVERYTHING back to a fresh draft.
     setCurrentProject(null)
     setProjectName('Untitled Project')
     setHtml('')
+    setPreviewHtml('')
+    setPages([{ id: 'home', name: 'Home', slug: 'index', html: '', isHome: true }])
+    setActivePageId('home')
+    setVfsFiles({})
+    setChatMessages([])
+    setConversationIntent(null)
+    setSelectedElement(null)
+    setPendingChatImages([])
+    setStewIngredients([])
     setBuildTarget(defaultBuildTargetForLevel(skillLevel))
     setEnvVars([{ key: 'API_URL', value: 'https://api.example.com', isSecret: false }])
     setTerminalLines([])
     setHistory([])
     setHistoryIndex(-1)
     addTerminalLine('info', 'New project created')
+    addToast('success', 'New project ready — describe what to cook up.')
     setShowProjectsDropdown(false)
   }
 
