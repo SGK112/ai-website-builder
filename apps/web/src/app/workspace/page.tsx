@@ -3198,10 +3198,17 @@ function WorkspaceContent() {
   // don't hammer the API on every keystroke. Status tracked via a small
   // pill in the topbar (saveStatus state below).
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  // Stops the autosave timer from creating two cloud rows for the same draft if
+  // it fires again while the first create is still in flight.
+  const creatingDraftRef = useRef(false)
   useEffect(() => {
     if (!session?.user?.id) return
-    if (!currentProject?.id) return // first manual save creates the project; auto-save resumes after
     if (isGenerating) return // streaming churn — wait until the build settles
+    // Auto-save whenever there's real content — INCLUDING a brand-new draft with
+    // no currentProject yet. We used to bail on a missing id, so a draft never
+    // reached the cloud until a MANUAL Save; if the user didn't click it, the
+    // work never entered the Files tab and the next build overwrote the local
+    // slot ("I keep starting over"). Now a draft auto-creates a real project.
     // Need real content to save — HTML for website projects, or VFS files
     // for multi-target (Expo/Astro/etc). Without the VFS clause, multi-target
     // projects (empty `html`) never autosaved at all.
@@ -3234,14 +3241,14 @@ function WorkspaceContent() {
                 ]
               : [{ path: 'index.html', content: html, type: 'html' as const }])
 
-        let targetId = currentProject!.id
+        let targetId = currentProject?.id || ''
 
         // Promote a project that has no live cloud row to a fresh one and
         // re-point local state, so the next autosave PATCHes a real id.
-        // Two ways a project gets here: it still carries a client-side
-        // `proj_` id (never saved), or its ObjectId 404s — the row was
-        // deleted, or belongs to another account / DB (e.g. a project
-        // created against prod, now autosaving against a local dev DB).
+        // Three ways a project gets here: it's a brand-new DRAFT (no
+        // currentProject at all), it still carries a client-side `proj_` id
+        // (never saved), or its ObjectId 404s — the row was deleted, or belongs
+        // to another account / DB (e.g. created against prod, autosaving local).
         const promoteToFreshProject = async () => {
           const createRes = await fetch('/api/projects', {
             method: 'POST',
@@ -3254,12 +3261,31 @@ function WorkspaceContent() {
           if (!newId) throw new Error('Project create returned no id')
           const oldId = targetId
           targetId = String(newId)
-          setCurrentProject(prev => (prev ? { ...prev, id: targetId } : prev))
-          setProjects(prev => prev.map(p => (p.id === oldId ? { ...p, id: targetId } : p)))
+          // Point local state at the new cloud row. For a brand-new draft
+          // (currentProject was null) build a full record so the workspace and
+          // the Files tab treat it as a real saved project from now on.
+          setCurrentProject(prev => prev
+            ? { ...prev, id: targetId }
+            : { id: targetId, name: projectName || 'Untitled site', html, envVars, skillLevel, createdAt: new Date(), updatedAt: new Date(), buildTarget })
+          setProjects(prev => {
+            // Re-point a promoted client-side row…
+            if (oldId && prev.some(p => p.id === oldId)) {
+              return prev.map(p => (p.id === oldId ? { ...p, id: targetId } : p))
+            }
+            // …or prepend the brand-new project so the Files tab shows it now.
+            if (prev.some(p => p.id === targetId)) return prev
+            return [
+              { id: targetId, name: projectName || 'Untitled site', html, envVars, skillLevel, createdAt: new Date(), updatedAt: new Date(), buildTarget },
+              ...prev,
+            ]
+          })
         }
 
         if (!isCloudProjectId(targetId)) {
-          await promoteToFreshProject()
+          if (creatingDraftRef.current) { setSaveStatus('idle'); return }
+          creatingDraftRef.current = true
+          try { await promoteToFreshProject() }
+          finally { creatingDraftRef.current = false }
         }
 
         const patch = () => fetch(`/api/projects/${targetId}`, {
