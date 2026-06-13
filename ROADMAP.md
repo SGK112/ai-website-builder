@@ -52,6 +52,9 @@ separate, not like steps of one flow.
   sidecar) and restores on reopen (Saved-Prompts library still pending)
 - **#4b Import from GitHub** — paste a repo URL → project (private repos via the
   connected GitHub token; shares the zip-import mapping)
+- **Tailwind CDN removed (published sites)** — publish/preview compile Tailwind
+  to static CSS (honors inline config via safe JSON5 parse; falls back to the
+  CDN on any uncertainty). Editor preview keeps the CDN for instant JIT.
 - Dead "stew is cooked" email link (`localhost:5001` → canonical public origin)
 - Grader limit tiered by plan (free 3 · starter 25 · pro 100 · scale 500 ·
   enterprise/admin ∞); widget shows "Unlimited" for enterprise
