@@ -6584,7 +6584,7 @@ ${html}
       : latest.line != null ? `${latest.message} (line ${latest.line})` : latest.message
     handleChatMessage(
       `The live preview is throwing a runtime error. Find the cause in the code and fix it — change only what's needed.\n\n` +
-      `If it's an external embed using a placeholder API key or an undefined variable (e.g. Google Maps with YOUR_API_KEY / YOUR_LAT / YOUR_LNG), REPLACE it with a zero-config alternative: a keyless OpenStreetMap iframe, or a static map image via /api/media?q=CITY+map. The page must run with NO API keys.\n\n` +
+      `If it's an external embed using a placeholder API key or an undefined variable (e.g. Google Maps with YOUR_API_KEY / YOUR_LAT / YOUR_LNG), REPLACE it with the KEYLESS Google Maps embed iframe (a real map from a plain address, no key needed): <iframe src="https://maps.google.com/maps?q=FULL+ADDRESS+OR+CITY&z=13&output=embed" width="100%" height="400" style="border:0;" loading="lazy"></iframe>. The page must run with NO API keys.\n\n` +
       `Error:\n${detail}`,
     )
   }
