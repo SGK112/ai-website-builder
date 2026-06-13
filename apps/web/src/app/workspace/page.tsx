@@ -3354,13 +3354,16 @@ function WorkspaceContent() {
           : [{ path: 'index.html', content: html, type: 'html' as const }]),
         ...(chatMessagesRef.current.length > 1 ? [buildChatSidecar()] : []),
       ]
+      // .catch on the promise (not just try/catch): the fetch isn't awaited, so
+      // an async network rejection would otherwise surface as an uncaught
+      // "Failed to fetch" in the console during a tab switch / unload.
       try {
         fetch(`/api/projects/${currentProject!.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ files: filesPayload }),
           keepalive: true,
-        })
+        }).catch(() => {})
       } catch { /* unload — nothing we can do anyway */ }
     }
     const onVis = () => { if (document.visibilityState === 'hidden') flush() }
