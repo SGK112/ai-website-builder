@@ -61,6 +61,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "framer-motion": "^12.23.26",
+    "json5": "^2.2.3",
     "jszip": "^3.10.1",
     "lucide-react": "^0.323.0",
     "mongoose": "^8.1.1",
