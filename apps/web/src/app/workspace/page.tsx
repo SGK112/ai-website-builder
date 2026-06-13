@@ -3345,7 +3345,7 @@ function WorkspaceContent() {
     // PATCHed, and promoting it (POST) during unload isn't reliable. Those
     // are caught by the debounced autosave above while the tab is still open.
     if (!session?.user?.id || !isCloudProjectId(currentProject?.id)) return
-    const flush = () => {
+    const flush = (viaKeepalive: boolean) => {
       if ((!html || html.length < 100) && Object.keys(vfsFiles).length === 0) return
       const isMulti = buildTarget !== 'website' && Object.keys(vfsFiles).length > 0
       const filesPayload = [
@@ -3354,24 +3354,30 @@ function WorkspaceContent() {
           : [{ path: 'index.html', content: html, type: 'html' as const }]),
         ...(chatMessagesRef.current.length > 1 ? [buildChatSidecar()] : []),
       ]
-      // .catch on the promise (not just try/catch): the fetch isn't awaited, so
-      // an async network rejection would otherwise surface as an uncaught
-      // "Failed to fetch" in the console during a tab switch / unload.
+      const body = JSON.stringify({ files: filesPayload })
+      // keepalive request bodies are capped at ~64KB by the browser; a rich
+      // multi-page site blows past that and the fetch rejects with the recurring
+      // "Failed to fetch". On visibilitychange the page is still ALIVE, so a
+      // normal fetch (no cap) completes fine. Reserve keepalive for true unload,
+      // and skip it when the body is too big — the 3s autosave already persisted
+      // while the tab was open, so at most the last couple seconds are lost.
+      if (viaKeepalive && body.length > 60000) return
       try {
         fetch(`/api/projects/${currentProject!.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ files: filesPayload }),
-          keepalive: true,
+          body,
+          keepalive: viaKeepalive,
         }).catch(() => {})
       } catch { /* unload — nothing we can do anyway */ }
     }
-    const onVis = () => { if (document.visibilityState === 'hidden') flush() }
+    const onVis = () => { if (document.visibilityState === 'hidden') flush(false) }
+    const onHide = () => flush(true)
     window.addEventListener('visibilitychange', onVis)
-    window.addEventListener('pagehide', flush)
+    window.addEventListener('pagehide', onHide)
     return () => {
       window.removeEventListener('visibilitychange', onVis)
-      window.removeEventListener('pagehide', flush)
+      window.removeEventListener('pagehide', onHide)
     }
   }, [session?.user?.id, currentProject?.id, html, vfsFiles, buildTarget])
 
