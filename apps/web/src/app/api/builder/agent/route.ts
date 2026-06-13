@@ -464,7 +464,7 @@ export async function POST(req: NextRequest) {
   // Google iframe with a static map", "make the menu responsive") need to
   // list_files + read 3-4 files + write 2-3 files + done — easily 6-8
   // turns, leaving no headroom for a recovery turn if Claude makes a typo.
-  const maxIterations = Math.min(body.maxIterations ?? 14, 20)
+  const maxIterations = Math.min(body.maxIterations ?? 18, 20)
 
   // VFS: start from the client's snapshot. If projectId is provided we also
   // persist writes to Mongo so the saved project stays in sync.
@@ -805,15 +805,17 @@ export async function POST(req: NextRequest) {
           if (response.stop_reason !== 'tool_use') break
         }
 
-        if (!doneSummary) {
-          // Loop cap hit without explicit done()
-          send('error', {
-            message: `Agent hit iteration cap (${iterations}/${maxIterations}) without calling done(). Partial changes have been applied.`,
-          })
-          doneSummary = `Stopped after ${iterations} iterations.`
+        const capHit = !doneSummary
+        if (capHit) {
+          // Ran out of steps before calling done() — NOT a failure. The changes
+          // made so far are already applied + persisted; the agent just needs
+          // another pass. A clear "say continue" beats a scary "Stopped after N
+          // iterations" (which reads as a crash). `capHit` lets the client show
+          // (or auto-trigger) a continue.
+          doneSummary = `Made changes across ${iterations} steps — there's a little more to do. Say "continue" and I'll finish the rest.`
         }
 
-        send('done', { summary: doneSummary, iterations })
+        send('done', { summary: doneSummary, iterations, capHit })
         safeClose()
 
         // ── Server-side build persistence + notify ──────────────────────────
