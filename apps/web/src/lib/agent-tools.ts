@@ -27,6 +27,7 @@ import {
 } from '@/lib/cms'
 import { gradeHtml, gradeWebsite } from '@/lib/grader'
 import { publishSite } from '@/lib/publish'
+import { provisionAppBackend, webstewDbClientScript, backendUsageGuide } from '@/lib/app-backend'
 import {
   SUPPORTED_TOOLKITS,
   listUserConnections,
@@ -374,6 +375,23 @@ export const TOOLS: Anthropic.Messages.Tool[] = [
       properties: {
         name: { type: 'string', description: "Optional site name (also seeds the slug). Defaults to the project name." },
         slug: { type: 'string', description: "Optional preferred subdomain (lowercase-hyphenated). Ignored if already taken or if the project was published before (the existing slug is kept)." },
+      },
+    },
+  },
+  {
+    name: 'provision_backend',
+    description:
+      "Give this site a REAL backend — user auth (signup/login) + a database — when the user asks " +
+      "for anything a static page can't do: accounts / login, saving form submissions, a jobs board / " +
+      "member area / dashboard / profiles with persisted data. Call this ONCE, then it returns a " +
+      "<script> SDK block (window.WebstewDB) plus exact usage. Put the <script> in <head> of every " +
+      "page that uses data, and write real onsubmit handlers that call WebstewDB.auth.* and " +
+      "WebstewDB.collection(name).create/list/update. This is how you build a working contractor " +
+      "login + leads/jobs-board — NOT a fake static form. Idempotent: same project keeps the same backend.",
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        name: { type: 'string', description: "Optional backend name (defaults to the project name)." },
       },
     },
   },
@@ -813,6 +831,23 @@ export async function executeTool(
           return { ok: true, content: JSON.stringify(summary, null, 2) }
         } catch (e: any) {
           return { ok: false, content: `grade_site failed: ${e?.message || String(e)}` }
+        }
+      }
+      case 'provision_backend': {
+        const owner = vfs.userId || vfs.cms?.userId
+        if (!owner) {
+          return { ok: false, content: 'A backend needs a signed-in user. Ask the user to sign in, then retry.' }
+        }
+        try {
+          const { appId, apiKey } = await provisionAppBackend(
+            owner,
+            vfs.cms?.projectId || null,
+            String(input?.name || vfs.projectName || 'App backend'),
+          )
+          const script = webstewDbClientScript(appId, apiKey)
+          return { ok: true, content: `${script}\n\n${backendUsageGuide(appId)}` }
+        } catch (e: any) {
+          return { ok: false, content: `provision_backend failed: ${e?.message || String(e)}` }
         }
       }
       case 'publish_site': {
