@@ -554,6 +554,49 @@ export async function POST(req: NextRequest) {
       ? `\n\nCURRENT FILE COUNT: ${Object.keys(vfsFiles).length} files. Call list_files() to see them.`
       : '\n\nNOTE: project has NO files yet. You may need to call write_file to create them from scratch.')
 
+  // ---- Prompt caching (the single biggest cost lever for this loop) ----
+  // This loop runs up to `maxIterations` times, and EACH iteration re-sends
+  // the full system prompt + tool schemas + the entire growing transcript
+  // (tool_results are capped at 60K chars EACH and accumulate). Without
+  // caching, a single build was re-billing ~580K input tokens. Anthropic
+  // ephemeral caching lets iterations 2..N read the stable prefix at 10% of
+  // input price. We cache three regions: the system prompt, the tool schemas,
+  // and — via a rolling breakpoint set per-iteration — the conversation
+  // prefix. Three breakpoints, under Anthropic's limit of four.
+  const systemBlocks: Anthropic.Messages.TextBlockParam[] = [
+    { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
+  ]
+  // Clone TOOLS so we never mutate the shared import; cache the schema by
+  // marking the last tool block (caches everything up to and including tools).
+  const cachedTools = (TOOLS as Anthropic.Messages.Tool[]).map((t, i) =>
+    i === TOOLS.length - 1
+      ? ({ ...t, cache_control: { type: 'ephemeral' as const } })
+      : t
+  )
+  // Build a per-call view of `messages` with a single cache breakpoint on the
+  // last content block of the last turn. `messages` itself stays clean (no
+  // cache_control persisted) so breakpoints don't pile up past the limit; the
+  // rolling breakpoint extends the cached prefix as the transcript grows.
+  const withRollingCache = (
+    msgs: Anthropic.Messages.MessageParam[]
+  ): Anthropic.Messages.MessageParam[] => {
+    if (msgs.length === 0) return msgs
+    const out = msgs.slice()
+    const last = out[out.length - 1]
+    const blocks = (
+      typeof last.content === 'string'
+        ? [{ type: 'text' as const, text: last.content }]
+        : last.content.map((b) => ({ ...b }))
+    ) as any[]
+    if (blocks.length === 0) return msgs
+    blocks[blocks.length - 1] = {
+      ...blocks[blocks.length - 1],
+      cache_control: { type: 'ephemeral' },
+    }
+    out[out.length - 1] = { ...last, content: blocks }
+    return out
+  }
+
   // SSE stream setup
   const encoder = new TextEncoder()
   // Track client-disconnect so the agent loop can bail early instead of
@@ -620,6 +663,10 @@ export async function POST(req: NextRequest) {
       // iteration. Reduces Mongo write amplification.
       let totalInputTokens = 0
       let totalOutputTokens = 0
+      // Cache visibility — lets us confirm the breakpoints are landing. A
+      // healthy multi-iteration build shows cacheRead >> input after turn 1.
+      let totalCacheRead = 0
+      let totalCacheWrite = 0
 
       // Server-side build record — lets the build survive the client closing
       // the tab (the loop continues below on a mere disconnect) and lets us
@@ -658,13 +705,15 @@ export async function POST(req: NextRequest) {
             // the loop finishes the rest across iterations. Sonnet/Opus 4.x
             // support up to 64K if we ever need more.
             max_tokens: 32000,
-            system: systemPrompt,
-            tools: TOOLS,
-            messages,
+            system: systemBlocks,
+            tools: cachedTools,
+            messages: withRollingCache(messages),
           }).finalMessage()
           // Accumulate usage — trackUsage is called once at end-of-stream.
           totalInputTokens  += response.usage?.input_tokens  || 0
           totalOutputTokens += response.usage?.output_tokens || 0
+          totalCacheRead    += response.usage?.cache_read_input_tokens     || 0
+          totalCacheWrite   += response.usage?.cache_creation_input_tokens || 0
 
           // Developer Mode: stream the prose so the user can follow reasoning.
           // Default modes: collect text but don't stream — Claude's intermediate
@@ -803,13 +852,26 @@ export async function POST(req: NextRequest) {
         // Fire-and-forget usage tracking. We only meter calls that used OUR
         // Anthropic key — BYOK users pay Anthropic directly. 1 credit per
         // turn keeps the math simple for the monthlyCredits cap.
+        // Cache hit-rate over the whole turn — surfaced in Render logs so a
+        // regression (breakpoints not landing → cacheRead near zero) is caught
+        // before it shows up on the Anthropic bill.
+        console.log(
+          `[agent] tokens in=${totalInputTokens} out=${totalOutputTokens} ` +
+          `cacheRead=${totalCacheRead} cacheWrite=${totalCacheWrite} ` +
+          `(cache hit ${Math.round((totalCacheRead / Math.max(1, totalCacheRead + totalInputTokens)) * 100)}%) ` +
+          `over ${iterations} iterations`
+        )
+
         if (!usingBYOK) {
           try {
             await trackUsage(session.user.id, {
               type: 'chat',
               provider: 'anthropic',
               model,
-              tokensUsed: totalInputTokens + totalOutputTokens,
+              // Include cache read/write — they're billed (cache read @10%,
+              // write @125% of input) and excluded from input_tokens, so
+              // omitting them under-reports real Anthropic volume.
+              tokensUsed: totalInputTokens + totalOutputTokens + totalCacheRead + totalCacheWrite,
               creditsUsed: 1,
               metadata: {
                 projectId: body.projectId,
