@@ -62,6 +62,63 @@ export function pagesFromHtmlFiles(
   return pages.length > 1 ? pages : []
 }
 
+export interface ParsedProject {
+  html: string                          // index.html content
+  pages: PageLike[] | null              // multi-page tree (null = single-page / framework)
+  activePageId: string | null
+  vfsFiles: Record<string, string>      // genuine non-page files (framework projects)
+  buildTarget: string | null
+  chat: ChatMsg[] | null
+}
+
+// The INVERSE of buildProjectFiles: turn a stored `files[]` array back into a
+// workspace project. One definition used by BOTH project loaders (the list
+// loader and loadProject), so the file shape is interpreted identically and the
+// agent's individual-<slug>.html pages are never misread as a framework project.
+export function parseStoredProjectFiles(
+  files: Array<{ path: string; content: string }>,
+  fallbackHtml = '',
+): ParsedProject {
+  const vfsFiles: Record<string, string> = {}
+  const htmlPageFiles: Record<string, string> = {}
+  let buildTarget: string | null = null
+  let pages: PageLike[] | null = null
+  let activePageId: string | null = null
+  let chat: ChatMsg[] | null = null
+  let html = ''
+
+  for (const f of files || []) {
+    if (f.path === META_SIDECAR) {
+      try { buildTarget = JSON.parse(f.content).buildTarget ?? null } catch { /* ignore */ }
+    } else if (f.path === PAGES_SIDECAR) {
+      try {
+        const parsed = JSON.parse(f.content)
+        if (Array.isArray(parsed?.pages)) { pages = parsed.pages; activePageId = parsed.activePageId ?? null }
+      } catch { /* ignore */ }
+    } else if (f.path === CHAT_SIDECAR) {
+      chat = parseChatSidecar(f.content)
+    } else if (f.path === 'index.html') {
+      html = f.content
+    } else if (/\.html?$/i.test(f.path)) {
+      htmlPageFiles[f.path] = f.content
+    } else {
+      vfsFiles[f.path] = f.content
+    }
+  }
+
+  // No pages sidecar but the agent left individual <slug>.html pages → rebuild
+  // the page list (website only). Otherwise keep the html files in the VFS.
+  let rebuilt = false
+  if (!pages && (!buildTarget || buildTarget === 'website') && Object.keys(htmlPageFiles).length > 0) {
+    const r = pagesFromHtmlFiles(html || fallbackHtml, htmlPageFiles)
+    if (r.length > 0) { pages = r; activePageId = 'home'; rebuilt = true }
+  }
+  if (!rebuilt) Object.assign(vfsFiles, htmlPageFiles)
+  if (pages && pages.length > 0) buildTarget = 'website'
+
+  return { html, pages, activePageId, vfsFiles, buildTarget, chat }
+}
+
 // Build the canonical full `files[]` payload for a project: multi-target VFS +
 // meta, OR a multi-page HTML site (index + pages sidecar), OR a single page —
 // plus the chat sidecar. One definition for every save path.

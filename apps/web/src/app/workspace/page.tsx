@@ -170,7 +170,7 @@ import { ShipPanel } from './components/ShipPanel'
 import { ProjectList } from './components/ProjectList'
 import { NewProjectChooser } from './components/NewProjectChooser'
 import type { ImportedProject } from '@/lib/import-project'
-import { buildProjectFiles, chatSidecarFile, parseChatSidecar, pagesFromHtmlFiles } from '@/lib/project-sidecars'
+import { buildProjectFiles, chatSidecarFile, parseStoredProjectFiles } from '@/lib/project-sidecars'
 import { WhatsNextCoach } from './components/WhatsNextCoach'
 import { EnvPanel } from './components/EnvPanel'
 import { ConsolePanel } from './components/ConsolePanel'
@@ -2675,46 +2675,9 @@ function WorkspaceContent() {
         // Keep local projects that aren't in DB, and add all DB projects
         const localOnly = prev.filter(p => !dbProjectIds.has(p.id))
         const dbProjects = projectHook.projects.map(p => {
-          // Reconstruct VFS from the files array. _webstew_meta.json carries
-          // the buildTarget; _webstew_pages.json carries the multi-page tree
-          // for single-target HTML projects (multi-target uses vfsFiles).
-          const vfsFromFiles: Record<string, string> = {}
-          const htmlPageFiles: Record<string, string> = {}
-          let restoredTarget: BuildTarget | undefined
-          let restoredPages: ProjectPage[] | undefined
-          let restoredActivePageId: string | undefined
-          let restoredHtml = ''
-          if (p.files && p.files.length > 0) {
-            for (const f of p.files) {
-              if (f.path === '_webstew_meta.json') {
-                try { restoredTarget = JSON.parse(f.content).buildTarget } catch {}
-              } else if (f.path === '_webstew_pages.json') {
-                try {
-                  const parsed = JSON.parse(f.content)
-                  if (Array.isArray(parsed?.pages)) {
-                    restoredPages = parsed.pages
-                    restoredActivePageId = parsed.activePageId
-                  }
-                } catch {}
-              } else if (f.path === 'index.html') {
-                restoredHtml = f.content
-              } else if (/\.html?$/i.test(f.path)) {
-                htmlPageFiles[f.path] = f.content
-              } else if (f.path !== '_webstew_chat.json') {
-                vfsFromFiles[f.path] = f.content
-              }
-            }
-          }
-          // Agent-built multi-page site (individual <slug>.html, no sidecar) →
-          // rebuild pages so it isn't misread as a framework project (which left
-          // the .html files in vfsFiles and made loadProject skip its detail
-          // fetch). Shared with loadProject via pagesFromHtmlFiles.
-          let rebuiltFromHtml = false
-          if (!restoredPages && (!restoredTarget || restoredTarget === 'website') && Object.keys(htmlPageFiles).length > 0) {
-            const rebuilt = pagesFromHtmlFiles(restoredHtml || p.html || '', htmlPageFiles)
-            if (rebuilt.length > 0) { restoredPages = rebuilt as ProjectPage[]; restoredActivePageId = 'home'; rebuiltFromHtml = true }
-          }
-          if (!rebuiltFromHtml) Object.assign(vfsFromFiles, htmlPageFiles)
+          // parseStoredProjectFiles interprets the stored files[] the same way
+          // loadProject does (incl. rebuilding agent-written <slug>.html pages).
+          const parsed = parseStoredProjectFiles(p.files || [], p.html || '')
           return {
             id: p.id,
             name: p.name,
@@ -2724,8 +2687,8 @@ function WorkspaceContent() {
             createdAt: p.createdAt,
             updatedAt: p.updatedAt,
             role: (p as any).role as ('owner' | 'editor' | 'viewer' | undefined),
-            ...(Object.keys(vfsFromFiles).length > 0 && { vfsFiles: vfsFromFiles, buildTarget: restoredTarget }),
-            ...(restoredPages && restoredPages.length > 0 && { pages: restoredPages, activePageId: restoredActivePageId, buildTarget: 'website' as BuildTarget }),
+            ...(Object.keys(parsed.vfsFiles).length > 0 && { vfsFiles: parsed.vfsFiles, buildTarget: parsed.buildTarget as BuildTarget }),
+            ...(parsed.pages && parsed.pages.length > 0 && { pages: parsed.pages as ProjectPage[], activePageId: parsed.activePageId ?? undefined, buildTarget: 'website' as BuildTarget }),
           } as Project & { pages?: ProjectPage[]; activePageId?: string }
         })
         return [...dbProjects, ...localOnly]
@@ -3838,79 +3801,29 @@ function WorkspaceContent() {
           const data = await res.json()
           const p = data?.project || data
           if (p) {
-            // Reconstruct VFS + sidecars the same way the bulk loader does.
-            const vfsFromFiles: Record<string, string> = {}
-            // Non-index <slug>.html files the agent wrote as individual pages.
-            // Held aside so we can rebuild the page list from them (instead of
-            // dumping them in the VFS, which misclassified the site).
-            const htmlPageFiles: Record<string, string> = {}
-            let restoredTarget: BuildTarget | undefined
-            let restoredPages: ProjectPage[] | undefined
-            let restoredActivePageId: string | undefined
-            // The home page's markup. Auto-save stores it in files['index.html']
-            // (NOT a top-level `html` field), so we MUST read it back from here —
-            // otherwise every auto-saved project loads blank ("no code yet").
-            let restoredHtml = ''
-            for (const f of (p.files || [])) {
-              if (f.path === '_webstew_meta.json') {
-                try { restoredTarget = JSON.parse(f.content).buildTarget } catch {}
-              } else if (f.path === '_webstew_pages.json') {
-                try {
-                  const parsed = JSON.parse(f.content)
-                  if (Array.isArray(parsed?.pages)) {
-                    restoredPages = parsed.pages
-                    restoredActivePageId = parsed.activePageId
-                  }
-                } catch {}
-              } else if (f.path === '_webstew_chat.json') {
-                restoredChat = (parseChatSidecar(f.content) as typeof chatMessages | null) ?? undefined
-              } else if (f.path === 'index.html') {
-                restoredHtml = f.content
-              } else if (/\.html?$/i.test(f.path)) {
-                htmlPageFiles[f.path] = f.content
-              } else {
-                vfsFromFiles[f.path] = f.content
-              }
-            }
-            // The /api/projects/[id] route also returns the multi-page
-            // tree from the `pages` collection. Use it when present —
-            // sidecar files are the legacy storage path.
-            if (Array.isArray(p.pages) && p.pages.length > 0 && !restoredPages) {
-              restoredPages = p.pages.map((page: any) => ({
-                id: page.id,
-                name: page.name,
-                slug: page.slug,
-                isHome: !!page.isHome,
-                html: page.html || '',
+            // Same interpreter as the list loader — sidecars, agent <slug>.html
+            // pages, and VFS all handled in one place.
+            const parsed = parseStoredProjectFiles(p.files || [], p.html || '')
+            restoredChat = (parsed.chat as typeof chatMessages | null) ?? undefined
+            let pages = parsed.pages
+            let activePageId = parsed.activePageId
+            // The /api/projects/[id] route also returns the multi-page tree from
+            // the `pages` collection — use it when the file sidecars had none.
+            if ((!pages || pages.length === 0) && Array.isArray(p.pages) && p.pages.length > 0) {
+              const mapped = p.pages.map((page: any) => ({
+                id: page.id, name: page.name, slug: page.slug, isHome: !!page.isHome, html: page.html || '',
               }))
-              const home = restoredPages?.find((pg: any) => pg.isHome)
-              restoredActivePageId = home?.id || restoredPages?.[0]?.id
+              pages = mapped
+              activePageId = (mapped.find((pg: any) => pg.isHome)?.id) || mapped[0]?.id || null
             }
-            // No pages sidecar, but the agent left individual <slug>.html files →
-            // rebuild the page list from them so an agent-built multi-page site
-            // restores as real, navigable pages instead of being lost in the VFS
-            // (and misread as a framework project). Only for website projects.
-            let rebuiltFromHtml = false
-            if (!restoredPages && (!restoredTarget || restoredTarget === 'website') && Object.keys(htmlPageFiles).length > 0) {
-              const rebuilt = pagesFromHtmlFiles(restoredHtml || p.html || '', htmlPageFiles)
-              if (rebuilt.length > 0) {
-                restoredPages = rebuilt as ProjectPage[]
-                restoredActivePageId = 'home'
-                rebuiltFromHtml = true
-              }
-            }
-            // If we didn't turn the html files into pages (framework / single
-            // page), keep them in the VFS so nothing is dropped.
-            if (!rebuiltFromHtml) Object.assign(vfsFromFiles, htmlPageFiles)
-
             full = {
               ...project,
-              html: p.html || restoredHtml || '',
+              html: p.html || parsed.html || '',
               envVars: p.envVars || project.envVars || [],
-              ...(Object.keys(vfsFromFiles).length > 0 && { vfsFiles: vfsFromFiles, buildTarget: restoredTarget }),
-              ...(restoredPages && restoredPages.length > 0 && {
-                pages: restoredPages,
-                activePageId: restoredActivePageId,
+              ...(Object.keys(parsed.vfsFiles).length > 0 && { vfsFiles: parsed.vfsFiles, buildTarget: parsed.buildTarget as BuildTarget }),
+              ...(pages && pages.length > 0 && {
+                pages: pages as ProjectPage[],
+                activePageId: activePageId ?? undefined,
                 buildTarget: 'website' as BuildTarget,
               }),
             }
