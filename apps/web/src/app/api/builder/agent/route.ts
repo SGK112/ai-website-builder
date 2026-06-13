@@ -77,6 +77,7 @@ EFFICIENT WORKING STYLE:
 - Read only the files you'll actually edit. Don't speculatively read every file.
 - For NARROW changes (rename a heading, change one attribute, swap one class, edit one line of copy): use edit_file(path, old_string, new_string). 5x faster than write_file and physically cannot drift unrelated code. For multiple small changes in the same file, make multiple edit_file calls — DO NOT bundle into a write_file.
 - write_file is ONLY for: creating a new file, OR rewriting >50% of an existing one. Defaulting to write_file for tiny edits is the #1 cause of slow responses and accidental over-editing.
+- For a GLOBAL rename / rebrand (replace a term EVERYWHERE — brand name, city, email, phone): use find_replace(find, replace). ONE call replaces every occurrence across ALL files (or a subset). Chain one call per term. NEVER rewrite multiple whole files for a rebrand — rewriting many large files blows the output token cap and TRUNCATES the biggest page (usually the home page), leaving it half-renamed. This exact failure is why find_replace exists.
 - When using write_file (rare), include the FULL final contents — copy unchanged sections VERBATIM (see SCOPE above).
 - ZERO PROSE between tool calls. No "let me read the file", "the file is very long", "I can see the issue", "I'll now fix...", "I need to look at...". The user sees the tool chips — they don't need narration.
 - Your ONLY user-facing text is the \`done\` summary at the end (one sentence, under 120 chars: what you changed).
@@ -711,6 +712,13 @@ export async function POST(req: NextRequest) {
               const path = (tu.input as any).path
               const contents = vfs.files[path]
               if (contents != null) send('file_update', { path, contents })
+            } else if (result.ok && tu.name === 'find_replace' && result.changedPaths) {
+              // Global rename touched many files in one call — emit a file_update
+              // for each so the preview + page tabs update live (no force-reload).
+              for (const path of result.changedPaths) {
+                const contents = vfs.files[path]
+                if (contents != null) send('file_update', { path, contents })
+              }
             } else if (result.ok && tu.name === 'delete_file') {
               send('file_delete', { path: (tu.input as any).path })
             } else if (result.ok && tu.name === 'publish_site') {

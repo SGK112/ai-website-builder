@@ -123,6 +123,29 @@ export const TOOLS: Anthropic.Messages.Tool[] = [
     },
   },
   {
+    name: 'find_replace',
+    description:
+      'Replace EVERY occurrence of a literal string across ALL project files (or a given subset) in ONE call. ' +
+      'This is the RIGHT tool for global renames / rebrands — e.g. "Fix It Pro" → "Scottsdale Handyman", ' +
+      '"Portland" → "Scottsdale". Do NOT rewrite whole files with write_file for this: rewriting many large ' +
+      'files blows the output token cap and truncates (leaving the biggest page — usually the home page — ' +
+      'half-renamed). find_replace is server-side, cheap, and cannot truncate. ' +
+      'Chain several calls for a multi-term rebrand (one per term). Match is literal (no regex), case-sensitive.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        find: { type: 'string', description: 'Exact literal text to find (case-sensitive, not a regex).' },
+        replace: { type: 'string', description: 'Replacement text (may be empty to delete).' },
+        files: {
+          type: 'array' as const,
+          items: { type: 'string' as const },
+          description: 'Optional: limit to these file paths. Omit to apply across every file.',
+        },
+      },
+      required: ['find', 'replace'],
+    },
+  },
+  {
     name: 'delete_file',
     description: 'Delete a file from the project. Use sparingly.',
     input_schema: {
@@ -375,6 +398,9 @@ export const TOOLS: Anthropic.Messages.Tool[] = [
 export interface ToolResult {
   ok: boolean
   content: string
+  // Files mutated by a multi-file tool (find_replace). The agent route emits a
+  // file_update for each so the client preview/tabs stay in sync.
+  changedPaths?: string[]
 }
 
 // Cap on individual file sizes (chars) so a runaway model can't dump a
@@ -446,6 +472,33 @@ export async function executeTool(
         vfs.files[path] = updated
         if (vfs.onWrite) await vfs.onWrite(path, updated)
         return { ok: true, content: `Edited ${path} (${oldStr.length} → ${newStr.length} chars at offset ${idx})` }
+      }
+      case 'find_replace': {
+        const find = String(input?.find ?? '')
+        const replace = String(input?.replace ?? '')
+        if (!find) return { ok: false, content: 'find is required and must be non-empty' }
+        const scope: string[] | null =
+          Array.isArray(input?.files) && input.files.length ? input.files.map((p: any) => String(p)) : null
+        const changedPaths: string[] = []
+        const report: string[] = []
+        let total = 0
+        for (const p of Object.keys(vfs.files)) {
+          if (scope && !scope.includes(p)) continue
+          const content = vfs.files[p]
+          if (typeof content !== 'string' || !content.includes(find)) continue
+          const count = content.split(find).length - 1
+          const updated = content.split(find).join(replace)
+          if (updated.length > MAX_FILE_BYTES) { report.push(`${p}: SKIPPED (would exceed size limit)`); continue }
+          vfs.files[p] = updated
+          if (vfs.onWrite) await vfs.onWrite(p, updated)
+          changedPaths.push(p)
+          report.push(`${p}: ${count}`)
+          total += count
+        }
+        if (total === 0) {
+          return { ok: false, content: `No occurrences of "${find}" found in ${scope ? scope.join(', ') : 'any file'}.` }
+        }
+        return { ok: true, content: `Replaced ${total} occurrence(s) of "${find}" → "${replace}":\n${report.join('\n')}`, changedPaths }
       }
       case 'delete_file': {
         const path = String(input?.path || '').trim()
