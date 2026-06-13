@@ -2188,6 +2188,12 @@ function WorkspaceContent() {
     })
   }
   const bridgeActive = bridgeConnected && bridgePathEnabled
+  // After a bridge failover, skip the bridge for a cooldown so we don't re-hang
+  // on a dead-but-still-"connected" bridge on every message. Without this, each
+  // turn waited ~9s for the bridge before falling back — repeatedly.
+  const bridgeFailedUntilRef = useRef(0)
+  const bridgeReady = () => bridgeActive && Date.now() >= bridgeFailedUntilRef.current
+  const markBridgeFailed = () => { bridgeFailedUntilRef.current = Date.now() + 60_000 }
   const [userCredits, setUserCredits] = useState<number | null>(null)
   const [userPlan, setUserPlan] = useState<string>('free')
   const [apiKeys, setApiKeys] = useState<{
@@ -5203,7 +5209,7 @@ ${html}
     try {
       const BRIDGE_FAILOVER_NOTICE =
         '⚠️ Local bridge did not respond within 180s. Check that webstew-bridge connect … is running in your terminal.'
-      let viaBridge = bridgeActive
+      let viaBridge = bridgeReady()
       let data: any = null
 
       // Resilient generation — if the bridge is asked for but drops (route
@@ -5228,7 +5234,7 @@ ${html}
         // Bridge dropped between our status poll and this request — the route
         // 503s rather than silently billing API credits. Fail over.
         if (viaBridge && res.status === 503) {
-          addToast('warning', BRIDGE_FAILOVER_NOTICE, 12000)
+          addToast('warning', BRIDGE_FAILOVER_NOTICE, 12000); markBridgeFailed()
           viaBridge = false
           continue
         }
@@ -5278,7 +5284,7 @@ ${html}
           // A bridge wedge surfaces as a thrown error carrying the route's
           // 180s bridge-timeout message. Fail over once before giving up.
           if (viaBridge && /bridge/i.test(String(genErr?.message || ''))) {
-            addToast('warning', BRIDGE_FAILOVER_NOTICE, 12000)
+            addToast('warning', BRIDGE_FAILOVER_NOTICE, 12000); markBridgeFailed()
             viaBridge = false
             continue
           }
@@ -7080,9 +7086,9 @@ ${html}
         return 'ok'
       }
 
-      let outcome = await streamAgentTurn(bridgeActive)
+      let outcome = await streamAgentTurn(bridgeReady())
       if (outcome === 'bridge-failed') {
-        addToast('warning', BRIDGE_FAILOVER_NOTICE, 12000)
+        addToast('warning', BRIDGE_FAILOVER_NOTICE, 12000); markBridgeFailed()
         outcome = await streamAgentTurn(false)
       }
       if (outcome === 'credit') return
