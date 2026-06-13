@@ -309,6 +309,7 @@ export function dispatchToBridge(
   const buffer: BridgeResponse[] = []
   let chunkResolver: ((c: BridgeResponse | null) => void) | null = null
   let done = false
+  let gotFirst = false // flips true on the first real chunk (bridge proved alive)
   let idleTimer: ReturnType<typeof setTimeout> | null = null
   // Assigned once timeoutMs is known (below). Resets the idle watchdog —
   // every chunk from the bridge proves it's alive, so a long-but-healthy
@@ -317,8 +318,9 @@ export function dispatchToBridge(
   const clearIdle = () => { if (idleTimer) { clearTimeout(idleTimer); idleTimer = null } }
   const push = (c: BridgeResponse) => {
     if (done) return
-    // A real chunk means the bridge is responding — restart the watchdog.
-    if (c.kind !== 'done' && c.kind !== 'error') armIdle()
+    // A real chunk means the bridge is alive — mark it picked up (so the
+    // watchdog switches from the short pickup window to the long idle window).
+    if (c.kind !== 'done' && c.kind !== 'error') { gotFirst = true; armIdle() }
     if (chunkResolver) {
       const r = chunkResolver
       chunkResolver = null
@@ -375,6 +377,14 @@ export function dispatchToBridge(
   // the false "did not respond" warning. The window still exceeds the bridge
   // runner's own hard cap (270s) so a single slow step between chunks is safe.
   const timeoutMs = opts.timeoutMs ?? 285_000
+  // Fast-pickup window: BEFORE the first chunk, fail over quickly if the bridge
+  // isn't actually there. If no poller accepted the job (`!delivered`) it's
+  // almost certainly not running — short grace for a poll-cycle gap. If a poller
+  // did accept, allow for first-token latency. After the first chunk, the long
+  // idle watchdog (timeoutMs) governs between-chunk gaps on a healthy build.
+  // This turns the old "wait 285s then fail over" into ~9s when the bridge is
+  // simply not running.
+  const pickupMs = delivered ? 25_000 : 9_000
   armIdle = () => {
     clearIdle()
     idleTimer = setTimeout(() => {
@@ -383,15 +393,16 @@ export function dispatchToBridge(
         requestId,
         kind: 'error',
         data: {
-          message:
-            'Local bridge went quiet for ' +
-            Math.floor(timeoutMs / 1000) +
-            's. Check that `webstew-bridge connect …` is running in your terminal.',
+          message: gotFirst
+            ? 'Local bridge went quiet for ' + Math.floor(timeoutMs / 1000) +
+              's. Check that `webstew-bridge connect …` is running in your terminal.'
+            : "Local bridge didn't respond in " + Math.floor(pickupMs / 1000) +
+              "s — it doesn't look like it's running, so I switched to the cloud.",
         },
       })
-    }, timeoutMs)
+    }, gotFirst ? timeoutMs : pickupMs)
   }
-  armIdle() // start the watchdog
+  armIdle() // start the short pickup watchdog
 
   const stream: AsyncIterable<BridgeResponse> = {
     [Symbol.asyncIterator]() {
