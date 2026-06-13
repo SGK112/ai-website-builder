@@ -3839,6 +3839,15 @@ function WorkspaceContent() {
       try {
         addTerminalLine('info', `Loading ${project.name}…`)
         const res = await fetch(`/api/projects/${encodeURIComponent(project.id)}`, { cache: 'no-store' })
+        // Stale reference — the server has no such project (deleted, or a
+        // localStorage id from another DB/session). Drop it from the Files list
+        // instead of loading a blank shell + re-404ing on every click.
+        if (res.status === 404) {
+          setProjects(prev => prev.filter(p => p.id !== project.id))
+          if (currentProject?.id === project.id) setCurrentProject(null)
+          addToast('info', `"${project.name}" no longer exists — removed from your list.`)
+          return
+        }
         if (res.ok) {
           const data = await res.json()
           const p = data?.project || data
