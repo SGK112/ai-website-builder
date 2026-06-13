@@ -169,6 +169,7 @@ import { ContentPanel } from '@/components/builder/ContentPanel'
 import { ShipPanel } from './components/ShipPanel'
 import { ProjectList } from './components/ProjectList'
 import { NewProjectChooser } from './components/NewProjectChooser'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import type { ImportedProject } from '@/lib/import-project'
 import { buildProjectFiles, chatSidecarFile, parseStoredProjectFiles } from '@/lib/project-sidecars'
 import { WhatsNextCoach } from './components/WhatsNextCoach'
@@ -13555,8 +13556,13 @@ function CloudLoader() {
 
 export default function WorkspacePage() {
   return (
-    <Suspense fallback={<CloudLoader />}>
-      <WorkspaceContent />
-    </Suspense>
+    // Crash boundary: a render error in the workspace now shows a recovery UI
+    // instead of a white screen (the ErrorBoundary component was orphaned —
+    // dead code that's actually a reliability asset once wired).
+    <ErrorBoundary>
+      <Suspense fallback={<CloudLoader />}>
+        <WorkspaceContent />
+      </Suspense>
+    </ErrorBoundary>
   )
 }
