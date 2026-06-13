@@ -168,6 +168,8 @@ import { StylePresetPicker, ComponentPicker, ThemeBuilder } from '@/components/b
 import { ContentPanel } from '@/components/builder/ContentPanel'
 import { ShipPanel } from './components/ShipPanel'
 import { ProjectList } from './components/ProjectList'
+import { NewProjectChooser } from './components/NewProjectChooser'
+import type { ImportedProject } from '@/lib/import-project'
 import { WhatsNextCoach } from './components/WhatsNextCoach'
 import { EnvPanel } from './components/EnvPanel'
 import { ConsolePanel } from './components/ConsolePanel'
@@ -1441,6 +1443,7 @@ function WorkspaceContent() {
   const [selectedPreset, setSelectedPreset] = useState<string>('modern-dark')
   const [hasInitialized, setHasInitialized] = useState(false)
   const [showProjectsDropdown, setShowProjectsDropdown] = useState(false)
+  const [showNewProjectChooser, setShowNewProjectChooser] = useState(false)
   const [editingProjectName, setEditingProjectName] = useState(false)
   const [showChatModelSelector, setShowChatModelSelector] = useState(false)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
@@ -3958,6 +3961,45 @@ function WorkspaceContent() {
     setHistoryIndex(-1)
     addTerminalLine('info', 'New project created')
     addToast('success', 'New project ready — describe what to cook up.')
+    setShowProjectsDropdown(false)
+  }
+
+  // Load a project parsed from an uploaded .zip into the workspace as a fresh
+  // draft. The draft-autosave (above) then creates the cloud row + lands it in
+  // the Files tab — same as any new build, so an import is never lost either.
+  const importProject = (proj: ImportedProject) => {
+    if (isThinking || isGenerating) {
+      addToast('info', 'Pause or finish the current build before importing.')
+      return
+    }
+    setCurrentProject(null)
+    setProjectName(proj.name)
+    setSelectedElement(null)
+    setPendingChatImages([])
+    setStewIngredients([])
+    setChatMessages([])
+    setConversationIntent(null)
+    setHistory([])
+    setHistoryIndex(-1)
+    setTerminalLines([])
+    if (proj.buildTarget === 'website' && proj.pages.length > 0) {
+      setBuildTarget('website')
+      setVfsFiles({})
+      setPages(proj.pages)
+      const home = proj.pages.find(p => p.isHome) || proj.pages[0]
+      setActivePageId(home.id)
+      setHtml(home.html)
+    } else {
+      setBuildTarget(proj.buildTarget)
+      setVfsFiles(proj.vfsFiles)
+      setHtml('')
+      setPages([{ id: 'home', name: 'Home', slug: 'index', html: '', isHome: true }])
+      setActivePageId('home')
+    }
+    setPreviewBumpKey(k => k + 1)
+    const count = proj.pages.length || Object.keys(proj.vfsFiles).length
+    addTerminalLine('success', `Imported "${proj.name}" — ${count} file${count === 1 ? '' : 's'}`)
+    addToast('success', 'Project imported — saving to your Files.')
     setShowProjectsDropdown(false)
   }
 
@@ -8148,6 +8190,15 @@ npx eas build --platform all
       </AnimatePresence>
 
 
+      {/* "+New" chooser — start blank or import an existing project (.zip) */}
+      <NewProjectChooser
+        isDark={isDark}
+        open={showNewProjectChooser}
+        onClose={() => setShowNewProjectChooser(false)}
+        onStartNew={newProject}
+        onImported={importProject}
+      />
+
       {/* Credit wall modal — shown when /api/builder/generate or /converse hits 402 */}
       <AnimatePresence>
         {creditWall.show && (
@@ -8693,7 +8744,7 @@ npx eas build --platform all
                 isDark={isDark}
                 projects={projects}
                 currentProjectId={currentProject?.id || null}
-                onNewProject={newProject}
+                onNewProject={() => setShowNewProjectChooser(true)}
                 onLoadProject={(id) => { const p = projects.find(x => x.id === id); if (p) loadProject(p) }}
                 onDeleteProject={deleteProject}
               />
