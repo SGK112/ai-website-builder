@@ -3058,6 +3058,13 @@ function WorkspaceContent() {
         buildTarget,
         history: historySnap,
         historyIndex: Math.min(historyIndex, historySnap.length - 1),
+        // Persist the conversation locally too, so a hard refresh (cmd+R) of the
+        // workspace doesn't drop the chat. Capped + truncated to fit the quota.
+        chatMessages: chatMessagesRef.current.slice(-40).map(m => ({
+          role: m.role,
+          content: typeof m.content === 'string' ? m.content.slice(0, 6000) : '',
+          ...(m.suggestions ? { suggestions: m.suggestions } : {}),
+        })),
       }
       // Serialize VFS for non-website projects. Cap per-file at 50KB to
       // avoid blowing the 5MB localStorage quota on large generated projects.
@@ -3131,6 +3138,10 @@ function WorkspaceContent() {
               if (saved.activePageId && saved.pages.some((p: ProjectPage) => p.id === saved.activePageId)) {
                 setActivePageId(saved.activePageId)
               }
+            }
+            // Restore the conversation so a hard refresh doesn't drop the chat.
+            if (Array.isArray(saved.chatMessages) && saved.chatMessages.length > 0) {
+              setChatMessages(saved.chatMessages)
             }
             addTerminalLine('system', '⏪ Restored previous session from auto-save')
             addConsoleLog('info', 'Auto-save restored - your work is safe!')
@@ -4528,7 +4539,9 @@ ${html}
       }])
       addToHistory(rendered, `Loaded ${template.label} template`)
     } else {
-      void handleChatMessage(`Build me a ${template.label.toLowerCase()}`)
+      // Prompt-based template (e.g. Portfolio, AI Startup) — fire its full,
+      // detailed prompt, not a generic "build me a portfolio".
+      void handleChatMessage(template.prompt || `Build me a ${template.label.toLowerCase()}`)
     }
   }
 
@@ -4547,7 +4560,9 @@ ${html}
       setProjectName(template.label)
       addTerminalLine('success', `Loaded template: ${template.label}`)
     } else {
-      void handleChatMessage(`Build me a ${template.label.toLowerCase()} website`)
+      // Prompt-based template — use its full prompt so it generates the real
+      // designed site, not a generic one.
+      void handleChatMessage(template.prompt || `Build me a ${template.label.toLowerCase()} website`)
     }
   }
 
