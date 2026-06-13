@@ -42,6 +42,26 @@ export function parseChatSidecar(content: string): ChatMsg[] | null {
   }
 }
 
+// Rebuild a website's page list from individual <slug>.html files (the shape the
+// AGENT writes pages in). Used by both project loaders so an agent-built
+// multi-page site restores as real pages instead of being misread as a framework
+// project / lost in the VFS. Returns [] when there's nothing beyond the home page
+// (caller then keeps the single-page / framework handling).
+export function pagesFromHtmlFiles(
+  homeHtml: string,
+  htmlFiles: Record<string, string>,
+): PageLike[] {
+  const titleCase = (s: string) =>
+    s.split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || s
+  const pages: PageLike[] = [{ id: 'home', name: 'Home', slug: 'index', html: homeHtml, isHome: true }]
+  for (const [path, content] of Object.entries(htmlFiles)) {
+    const slug = path.replace(/\.html?$/i, '').toLowerCase()
+    if (slug === 'index' || pages.some(p => p.slug === slug)) continue
+    pages.push({ id: `page-${slug}`, name: titleCase(slug), slug, html: content, isHome: false })
+  }
+  return pages.length > 1 ? pages : []
+}
+
 // Build the canonical full `files[]` payload for a project: multi-target VFS +
 // meta, OR a multi-page HTML site (index + pages sidecar), OR a single page —
 // plus the chat sidecar. One definition for every save path.
