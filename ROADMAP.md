@@ -5,6 +5,53 @@ the journey stage it serves, and any decisions needed. Sequence is at the bottom
 
 ---
 
+## 🚩 FLAGSHIP INITIATIVE — Real full-stack builder (auth + backend + payments)
+
+The bet: Webstew builds real full-stack sites & apps from a prompt — OAuth login,
+actual backends (DB + server logic), and Stripe checkout/stores — not static
+pages with fake login forms. This is the Lovable-tier capability and the reason a
+contractor jobs-board, a store, or a member area is buildable at all. Effort: L
+(multi-phase). Today the agent fakes these on a static site and says "done."
+
+**What already EXISTS (the foundation):**
+- Managed backend: `/api/backend/provision` (appId+apiKey), `/[appId]/auth`
+  (email/password, bcrypt), `/[appId]/[collection]` (DB CRUD), `/[appId]/actions`.
+- Multi-target builders: `/api/builder/app` (Expo), `/nextjs`, `/react`, `/astro`.
+- Composio integrations (external API calls) + platform Stripe (marketplace/credits).
+
+**The GAPS (what makes it not work today):**
+1. The **AI doesn't wire the backend** — no agent tool to provision a backend,
+   define collections, or inject a data/auth client. So it can't build a working
+   jobs-board/profile/member area; it writes a dead static page instead.
+2. **No OAuth login** — managed auth is email/password only (no Google/GitHub).
+3. **No Stripe checkout for generated stores** — platform Stripe exists, but a
+   site owner can't take payments on their OWN site (needs Stripe Connect + a
+   per-site checkout flow).
+4. **Static is the default** — auth/store/backend requests don't route to the
+   app/full-stack target; they get answered as static HTML.
+
+**Phased plan (each phase is independently shippable):**
+- **P0 — Honesty (S, ship now):** when asked for auth/database/server features on a
+  STATIC site, the agent says so + builds only the UI, instead of faking a login
+  page. Stops the lying while the real work happens.
+- **P1 — AI-wired backend (L):** agent tools — `provision_backend`,
+  `define_collection`, `add_auth` — + auto-inject a WebstewDB client. Makes the
+  contractor jobs-board (profiles + leads + claim-a-job) actually buildable on the
+  managed backend (email/password first).
+- **P2 — OAuth login (M):** Google/GitHub in `/[appId]/auth`; agent wires "Sign in
+  with Google" into generated apps.
+- **P3 — Stripe checkout / stores (L):** Stripe Connect per site owner + a managed
+  checkout the agent drops into a generated store (cart → pay → order record).
+- **P4 — Full-stack by default (M):** detect backend/auth/store intent → route to
+  the app target + provision the backend automatically (the "1-prompt full-stack"
+  moment).
+
+**Decision needed:** confirm the phase order (P0 now, then P1 since it unblocks the
+contractor platform you actually asked for), and whether P3 (Stripe stores) jumps
+ahead of P2 (OAuth) for you.
+
+---
+
 ## ⭐ North Star — Easy as 1‑2‑3 (mobile-first)
 
 The whole product is ONE obvious linear path. No dead ends, one primary action
