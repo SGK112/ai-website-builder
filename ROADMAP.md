@@ -50,6 +50,8 @@ separate, not like steps of one flow.
   (static sites render via inlined assets; frameworks import to the VFS)
 - **#7a chat history** — conversation persists per project (`_webstew_chat.json`
   sidecar) and restores on reopen (Saved-Prompts library still pending)
+- **#4b Import from GitHub** — paste a repo URL → project (private repos via the
+  connected GitHub token; shares the zip-import mapping)
 - Dead "stew is cooked" email link (`localhost:5001` → canonical public origin)
 - Grader limit tiered by plan (free 3 · starter 25 · pro 100 · scale 500 ·
   enterprise/admin ∞); widget shows "Unlimited" for enterprise
@@ -105,9 +107,10 @@ again") + capturing prompt→outcome for the 7b loop.
 **Build:**
 - ~~**4a. ZIP / folder upload**~~ ✅ done (jszip, static-site asset inlining,
   framework→VFS detection, common-root strip).
-- **4b. GitHub import** → reuse existing GitHub OAuth (`/api/github/connect`,
-  `/api/deploy/github`) → list repos → pull a branch → same import pipeline.
-**Effort:** M + M · new `ProjectImport` UI, `/api/projects/import`, repo-list route
+- ~~**4b. GitHub import**~~ ✅ done (`/api/projects/import-github` + repo-URL field
+  in the chooser; reuses `fetchRepoFiles` + `buildProjectFromFiles`).
+**Possible follow-up:** a repo *picker* (list the user's repos) instead of pasting
+a URL; folder/multi-file drag-drop.
 
 ### 5. Mobile "workspace app, not website" · serves the 1‑2‑3 spine
 **State:** step 1 shipped (drawer no longer auto-opens). Manifest exists
