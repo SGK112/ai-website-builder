@@ -2196,7 +2196,15 @@ function WorkspaceContent() {
   // turn waited ~9s for the bridge before falling back — repeatedly.
   const bridgeFailedUntilRef = useRef(0)
   const bridgeReady = () => bridgeActive && Date.now() >= bridgeFailedUntilRef.current
-  const markBridgeFailed = () => { bridgeFailedUntilRef.current = Date.now() + 60_000 }
+  // A bridge that didn't respond isn't working — turn the path OFF entirely (not
+  // just a cooldown) so every later build goes STRAIGHT to the cloud with no
+  // wait and no failover re-run. Persisted, so it stays off across reloads. The
+  // user re-enables it from the header toggle once their CLI is reconnected.
+  const markBridgeFailed = () => {
+    bridgeFailedUntilRef.current = Date.now() + 60_000
+    setBridgePathEnabled(false)
+    try { localStorage.setItem('webstew-bridge-path-enabled', '0') } catch {}
+  }
   const [userCredits, setUserCredits] = useState<number | null>(null)
   const [userPlan, setUserPlan] = useState<string>('free')
   const [apiKeys, setApiKeys] = useState<{
@@ -5211,7 +5219,7 @@ ${html}
     addConsoleLog('info', `Starting ${target} build: ${promptText.slice(0, 60)}…`)
     try {
       const BRIDGE_FAILOVER_NOTICE =
-        '⚠️ Local bridge did not respond within 180s. Check that webstew-bridge connect … is running in your terminal.'
+        '⚠️ Local bridge isn’t responding — switched to the cloud and turned the bridge off. Re-enable it from the header once your CLI is connected.'
       let viaBridge = bridgeReady()
       let data: any = null
 
@@ -6794,7 +6802,7 @@ ${html}
       // 'bridge-failed' so the caller can transparently re-run the same turn
       // on the server's Anthropic key — the user never hits a dead end.
       const BRIDGE_FAILOVER_NOTICE =
-        '⚠️ Local bridge did not respond within 180s. Check that webstew-bridge connect … is running in your terminal.'
+        '⚠️ Local bridge isn’t responding — switched to the cloud and turned the bridge off. Re-enable it from the header once your CLI is connected.'
       const streamAgentTurn = async (
         viaBridge: boolean,
       ): Promise<'ok' | 'credit' | 'bridge-failed'> => {
