@@ -6596,13 +6596,20 @@ ${html}
 
   // Feed a captured preview runtime error to the agent as a fix request.
   const fixPreviewError = () => {
-    if (previewErrors.length === 0 || isGenerating || isThinking) return
+    if (previewErrors.length === 0) return
+    // Don't silently no-op when a build is mid-flight — tell the user why.
+    if (isGenerating || isThinking) {
+      addToast('info', 'Finishing the current task — tap "Fix with AI" again when it settles.')
+      return
+    }
     const latest = previewErrors[previewErrors.length - 1]
     const detail = latest.stack
       ? `${latest.message}\n\nStack:\n${latest.stack}`
       : latest.line != null ? `${latest.message} (line ${latest.line})` : latest.message
     handleChatMessage(
-      `The live preview is throwing a runtime error. Find the cause in the code and fix it — change only what's needed.\n\nError:\n${detail}`,
+      `The live preview is throwing a runtime error. Find the cause in the code and fix it — change only what's needed.\n\n` +
+      `If it's an external embed using a placeholder API key or an undefined variable (e.g. Google Maps with YOUR_API_KEY / YOUR_LAT / YOUR_LNG), REPLACE it with a zero-config alternative: a keyless OpenStreetMap iframe, or a static map image via /api/media?q=CITY+map. The page must run with NO API keys.\n\n` +
+      `Error:\n${detail}`,
     )
   }
 

@@ -43,6 +43,12 @@ CRITICAL OUTPUT RULES:
 5. Make it responsive with md: and lg: breakpoints
 6. Include ALL sections with REAL content (not placeholders)
 7. Add SEO meta tags: description, Open Graph, Twitter cards
+8. ZERO-CONFIG — the page MUST run with no API keys and no setup. NEVER embed
+   Google Maps or any <script src> that needs an API key, and NEVER reference
+   undefined globals like YOUR_LAT, YOUR_LNG, or YOUR_API_KEY. For a map, use a
+   keyless OpenStreetMap iframe (https://www.openstreetmap.org/export/embed.html?bbox=LON1,LAT1,LON2,LAT2&marker=LAT,LON)
+   or a static map IMAGE via /api/media?q=CITY+map. Every line of JS must run
+   error-free on first load — no undefined variables, no missing callbacks.
 
 ⚠️ MANDATORY IMAGE REQUIREMENTS - USE THESE EXACT FORMATS:
 Every image MUST use the /api/media proxy. It hits Pexels (real on-topic
@@ -229,6 +235,11 @@ CRITICAL OUTPUT RULES:
 2. Return ONLY the HTML - no markdown, no \`\`\`, no explanations
 3. Generate a COMPLETE, production-ready website
 4. Code must be clean, semantic, and accessible
+5. ZERO-CONFIG — runs with no API keys, no setup. NEVER embed Google Maps or any
+   <script src> needing an API key, and NEVER reference undefined globals like
+   YOUR_LAT / YOUR_LNG / YOUR_API_KEY. For a map use a keyless OpenStreetMap
+   iframe or a static map image (/api/media?q=CITY+map). All JS must run
+   error-free on first load.
 
 ⛔ MINIMUM OUTPUT BAR — ANY OUTPUT THAT FAILS THIS IS BROKEN:
 A site that ships only a nav + hero + footer is FAILURE. Every page MUST contain at least all of:

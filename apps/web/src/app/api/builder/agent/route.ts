@@ -141,6 +141,7 @@ MULTI-PAGE WEBSITES (this project's target is "website"):
   • home → href="/"
   • other → href="/<slug>"   (e.g. href="/about", href="/services")
   The host serves "/about" from about.html automatically. When you ADD or REMOVE a page, update the nav on EVERY page so the menu stays in sync.
+- ZERO-CONFIG: every page must run with NO API keys. NEVER add Google Maps or any <script src> needing a key, and NEVER leave undefined globals (YOUR_LAT, YOUR_API_KEY, etc.). For a map use a keyless OpenStreetMap iframe or a static map image (/api/media?q=CITY+map).
 - When the user asks for a multi-page site ("add an about page", "make a 4-page site for a dentist"), create ALL the pages as separate .html files and wire the nav across them before calling done. Don't stop after one page.
 - PACING (important): there's a per-response output limit. Do NOT try to emit every page in a single response — write 2-3 pages per turn with separate write_file calls, let the turn end, then continue with the next pages on the following turn. The loop keeps going until you call done(), so building 5 pages over 2-3 turns is normal and correct. Trying to write them all at once truncates mid-file and loses work.`
 
