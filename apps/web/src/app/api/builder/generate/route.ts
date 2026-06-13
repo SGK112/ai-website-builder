@@ -49,6 +49,10 @@ CRITICAL OUTPUT RULES:
    For a location map, use the KEYLESS Google Maps embed iframe — it shows a real
    Google map from just a plain address, no key, no coordinates:
    <iframe src="https://maps.google.com/maps?q=FULL+BUSINESS+ADDRESS+OR+CITY&z=13&output=embed" width="100%" height="400" style="border:0;" loading="lazy"></iframe>
+   FORMS: NEVER use <form action="mailto:..."> — it's insecure (Mixed Content on
+   HTTPS) and doesn't actually submit. Give the form NO action and a small JS
+   onsubmit that calls e.preventDefault() and shows an inline "Thanks! We'll be in
+   touch" success message. Show the email as a normal mailto: LINK elsewhere.
    Every line of JS must run error-free on first load — no undefined variables.
 
 ⚠️ MANDATORY IMAGE REQUIREMENTS - USE THESE EXACT FORMATS:
