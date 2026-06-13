@@ -335,9 +335,20 @@ export function dispatchToBridge(
       clearIdle()
     }
   }
+  // Drop this request from the pending queue. CRITICAL: when a request is
+  // abandoned (client failed over to the cloud, stream closed, or the watchdog
+  // timed it out), it must NOT linger in the queue — otherwise a bridge that
+  // reconnects later pulls and RUNS the stale request, dumping an old build onto
+  // whatever the user is working on now ("the builder came back to life and
+  // built a totally different site").
+  const removeFromQueue = () => {
+    const i = q.pending.findIndex((r) => r.requestId === requestId)
+    if (i >= 0) q.pending.splice(i, 1)
+  }
   const close = () => {
     done = true
     clearIdle()
+    removeFromQueue()
     if (chunkResolver) {
       const r = chunkResolver
       chunkResolver = null
@@ -389,6 +400,9 @@ export function dispatchToBridge(
     clearIdle()
     idleTimer = setTimeout(() => {
       if (done) return
+      // Timed out → abandon it: remove from the queue so a late-reconnecting
+      // bridge can't run this stale request against the user's current project.
+      removeFromQueue()
       push({
         requestId,
         kind: 'error',
@@ -431,6 +445,7 @@ export function dispatchToBridge(
   const cancel = () => {
     done = true
     clearIdle()
+    removeFromQueue()
     responseStreams.delete(requestId)
   }
 
