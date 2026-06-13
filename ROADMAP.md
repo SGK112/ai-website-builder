@@ -43,6 +43,11 @@ separate, not like steps of one flow.
 - **Tier 1 #2** — AI bound to the previewed project (no project switch mid-build)
 - **Tier 1 #3** — "+New" does a full reset to a fresh draft (was leaving the old
   site in the preview)
+- **Draft autosave** — every site auto-creates a cloud project + lands in the
+  Files tab automatically (fixes "I keep having to start over"; drafts used to
+  never persist without a manual Save)
+- **#4a Import (.zip)** — "+New" chooser: Start new OR import an existing project
+  (static sites render via inlined assets; frameworks import to the VFS)
 - Dead "stew is cooked" email link (`localhost:5001` → canonical public origin)
 - Grader limit tiered by plan (free 3 · starter 25 · pro 100 · scale 500 ·
   enterprise/admin ∞); widget shows "Unlimited" for enterprise
@@ -96,11 +101,11 @@ a per-user **Saved Prompts** library (star / reuse / "run again").
 **Effort:** M · `page.tsx`, `/api/projects/[id]`, new prompts-library UI + route
 
 ### 4. Import / upload existing projects · BUILD (start)
-**State:** no import flow (`/api/upload` is media only).
+**State:** ✅ **4a SHIPPED** — `lib/import-project` (unzip + map + asset inline) +
+`NewProjectChooser`. 4b GitHub still pending.
 **Build:**
-- **4a. ZIP / folder upload** → unzip → map to `files[]` → create project → load.
-  Start here (no auth needed). Guardrails: size/file-count caps, binary handling,
-  static-vs-app target detection.
+- ~~**4a. ZIP / folder upload**~~ ✅ done (jszip, static-site asset inlining,
+  framework→VFS detection, common-root strip).
 - **4b. GitHub import** → reuse existing GitHub OAuth (`/api/github/connect`,
   `/api/deploy/github`) → list repos → pull a branch → same import pipeline.
 **Effort:** M + M · new `ProjectImport` UI, `/api/projects/import`, repo-list route
