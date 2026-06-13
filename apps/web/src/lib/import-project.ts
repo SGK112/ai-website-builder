@@ -75,7 +75,9 @@ function detectTarget(files: Record<string, string>): ImportedProject['buildTarg
   return 'website'
 }
 
-function toProject(name: string, files: Record<string, string>): ImportedProject {
+// Map a flat { path: content } file set into a workspace project. Shared by zip
+// upload, folder/multi-file upload, and GitHub import (server-fetched files).
+export function buildProjectFromFiles(name: string, files: Record<string, string>): ImportedProject {
   const target = detectTarget(files)
   const htmlPaths = Object.keys(files).filter(p => /\.html?$/i.test(p) && !SKIP_PATH.test(p))
 
@@ -119,7 +121,7 @@ export async function parseProjectZip(file: File): Promise<ImportedProject> {
   for (const [p, c] of Object.entries(raw)) files[root ? p.slice(root.length) : p] = c
 
   const baseName = file.name.replace(/\.zip$/i, '').replace(/[-_]/g, ' ').trim() || 'Imported project'
-  return toProject(baseName, files)
+  return buildProjectFromFiles(baseName, files)
 }
 
 // Browser File[] (folder / multi-file picker) → same shape, no unzip needed.
@@ -134,5 +136,5 @@ export async function parseProjectFiles(files: File[]): Promise<ImportedProject>
   const root = stripCommonRoot(Object.keys(map))
   const rooted: Record<string, string> = {}
   for (const [p, c] of Object.entries(map)) rooted[root ? p.slice(root.length) : p] = c
-  return toProject('Imported project', rooted)
+  return buildProjectFromFiles('Imported project', rooted)
 }

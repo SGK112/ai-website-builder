@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, FilePlus2, Upload, Loader2, Github } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -21,6 +21,13 @@ export function NewProjectChooser({ isDark, open, onClose, onStartNew, onImporte
   const zipInputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [ghMode, setGhMode] = useState(false)
+  const [repoUrl, setRepoUrl] = useState('')
+
+  // Reset transient state each time the chooser closes.
+  useEffect(() => {
+    if (!open) { setGhMode(false); setRepoUrl(''); setError(null); setBusy(false) }
+  }, [open])
 
   const handleZip = async (file: File | undefined) => {
     if (!file) return
@@ -31,6 +38,27 @@ export function NewProjectChooser({ isDark, open, onClose, onStartNew, onImporte
       onClose()
     } catch (e: any) {
       setError(e?.message || 'Could not read that archive.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleGithub = async () => {
+    if (!repoUrl.trim()) return
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/projects/import-github', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repoUrl: repoUrl.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Import failed')
+      onImported(data.project)
+      onClose()
+    } catch (e: any) {
+      setError(e?.message || 'Could not import that repo.')
     } finally {
       setBusy(false)
     }
@@ -91,15 +119,38 @@ export function NewProjectChooser({ isDark, open, onClose, onStartNew, onImporte
                 </div>
               </button>
 
-              <button className={cn(optionClass, 'cursor-not-allowed')} disabled title="GitHub import is coming next">
-                <div className={cn('mt-0.5 p-2 rounded-lg', isDark ? 'bg-white/5 text-zinc-500' : 'bg-slate-100 text-slate-400')}>
+              <button className={optionClass} disabled={busy} onClick={() => { setGhMode(v => !v); setError(null) }}>
+                <div className={cn('mt-0.5 p-2 rounded-lg', isDark ? 'bg-white/5 text-zinc-300' : 'bg-slate-100 text-slate-700')}>
                   <Github className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className="text-sm font-medium flex items-center gap-2">Import from GitHub <span className={cn('text-[9px] px-1.5 py-0.5 rounded-full', isDark ? 'bg-white/10 text-zinc-400' : 'bg-slate-200 text-slate-600')}>Soon</span></div>
-                  <div className={cn('text-xs mt-0.5', isDark ? 'text-zinc-500' : 'text-slate-400')}>Pull a repo straight in.</div>
+                  <div className="text-sm font-medium">Import from GitHub</div>
+                  <div className={cn('text-xs mt-0.5', isDark ? 'text-zinc-400' : 'text-slate-500')}>Pull a public repo by URL. Private repos need GitHub connected.</div>
                 </div>
               </button>
+
+              {ghMode && (
+                <div className="flex gap-2 pl-1">
+                  <input
+                    autoFocus
+                    value={repoUrl}
+                    onChange={(e) => setRepoUrl(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !busy) handleGithub() }}
+                    placeholder="github.com/owner/repo"
+                    className={cn(
+                      'flex-1 min-w-0 px-3 py-2 rounded-lg text-sm border outline-none',
+                      isDark ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-violet-500/50' : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-violet-400',
+                    )}
+                  />
+                  <button
+                    onClick={handleGithub}
+                    disabled={busy || !repoUrl.trim()}
+                    className="px-3 py-2 rounded-lg text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-50 shrink-0"
+                  >
+                    {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Import'}
+                  </button>
+                </div>
+              )}
             </div>
 
             {error && <p className="mt-3 text-xs text-red-500">{error}</p>}
