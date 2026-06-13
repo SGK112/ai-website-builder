@@ -48,6 +48,8 @@ separate, not like steps of one flow.
   never persist without a manual Save)
 - **#4a Import (.zip)** — "+New" chooser: Start new OR import an existing project
   (static sites render via inlined assets; frameworks import to the VFS)
+- **#7a chat history** — conversation persists per project (`_webstew_chat.json`
+  sidecar) and restores on reopen (Saved-Prompts library still pending)
 - Dead "stew is cooked" email link (`localhost:5001` → canonical public origin)
 - Grader limit tiered by plan (free 3 · starter 25 · pro 100 · scale 500 ·
   enterprise/admin ∞); widget shows "Unlimited" for enterprise
@@ -91,14 +93,11 @@ reads as "nothing happened." No blank project record created.
 
 ## Tier 2 — Features
 
-### 7a. Persist & restore chat history + prompts  ⭐ (pairs with #1) · BUILD
-**State:** chat history is NOT persisted anywhere. Project schema has
-`generationPrompts: []` / `generationHistory: []` (`projects/route.ts:99`) but they
-are never populated. Reload loses everything.
-**Build:** save `chatMessages` per project (populate `generationHistory`) and
-restore on load; capture every prompt + its outcome into `generationPrompts`; add
-a per-user **Saved Prompts** library (star / reuse / "run again").
-**Effort:** M · `page.tsx`, `/api/projects/[id]`, new prompts-library UI + route
+### 7a. Persist & restore chat history + prompts  ⭐ · BUILD
+**State:** ✅ chat persistence SHIPPED (`_webstew_chat.json` sidecar, restored on
+reopen). REMAINING: the per-user **Saved Prompts** library (star / reuse / "run
+again") + capturing prompt→outcome for the 7b loop.
+**Effort:** S (remaining) · new prompts-library UI + route
 
 ### 4. Import / upload existing projects · BUILD (start)
 **State:** ✅ **4a SHIPPED** — `lib/import-project` (unzip + map + asset inline) +
