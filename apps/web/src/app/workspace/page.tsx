@@ -164,7 +164,9 @@ import {
   onBroadcastBuildEvent,
 } from '@/lib/notifications'
 import { MonacoCodeEditor } from '@/components/editor'
-import { StylePresetPicker, ComponentPicker, ThemeBuilder } from '@/components/builder'
+import { StylePresetPicker } from '@/components/builder/StylePresetPicker'
+import { ComponentPicker } from '@/components/builder/ComponentPicker'
+import { ThemeBuilder } from '@/components/builder/ThemeBuilder'
 import { ContentPanel } from '@/components/builder/ContentPanel'
 import { ShipPanel } from './components/ShipPanel'
 import { ProjectList } from './components/ProjectList'
