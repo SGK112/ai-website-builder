@@ -2311,6 +2311,25 @@ function WorkspaceContent() {
   const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string; suggestions?: string[]; source?: 'bridge' | 'api'; permission?: { permissionId: string; action: string; approveLabel: string; denyLabel: string; resolved?: 'approved' | 'denied' } }[]>([
     { role: 'assistant', content: "Welcome to Webstew — I'm your creative assistant. What should we build today?", suggestions: ['Build a website', 'Generate an image', 'Create a video'] }
   ])
+  // Always-current chat snapshot so autosave can attach the conversation without
+  // adding chatMessages to its deps (which would thrash the 3s timer on every
+  // streamed token).
+  const chatMessagesRef = useRef(chatMessages)
+  chatMessagesRef.current = chatMessages
+  // Persist the conversation as a project sidecar (_webstew_chat.json) so
+  // reopening a project restores its chat. Capped to the last 60 turns and
+  // truncated per-message to stay well under Mongo's 16MB doc limit.
+  const buildChatSidecar = () => ({
+    path: '_webstew_chat.json',
+    content: JSON.stringify({
+      messages: chatMessagesRef.current.slice(-60).map(m => ({
+        role: m.role,
+        content: typeof m.content === 'string' ? m.content.slice(0, 8000) : '',
+        ...(m.suggestions ? { suggestions: m.suggestions } : {}),
+      })),
+    }),
+    type: 'json' as const,
+  })
   const [chatSuggestions, setChatSuggestions] = useState<string[]>(['Build a website', 'Generate an image', 'Create a video'])
   const [conversationIntent, setConversationIntent] = useState<'website' | 'image' | 'video' | 'edit' | null>(null)
   const [isThinking, setIsThinking] = useState(false)
@@ -2688,7 +2707,7 @@ function WorkspaceContent() {
                     restoredActivePageId = parsed.activePageId
                   }
                 } catch {}
-              } else if (f.path !== 'index.html') {
+              } else if (f.path !== 'index.html' && f.path !== '_webstew_chat.json') {
                 vfsFromFiles[f.path] = f.content
               }
             }
@@ -3243,6 +3262,8 @@ function WorkspaceContent() {
                   },
                 ]
               : [{ path: 'index.html', content: html, type: 'html' as const }])
+        // Attach the conversation so reopening this project restores its chat.
+        if (chatMessagesRef.current.length > 1) filesPayload.push(buildChatSidecar())
 
         let targetId = currentProject?.id || ''
 
@@ -3327,9 +3348,12 @@ function WorkspaceContent() {
     const flush = () => {
       if ((!html || html.length < 100) && Object.keys(vfsFiles).length === 0) return
       const isMulti = buildTarget !== 'website' && Object.keys(vfsFiles).length > 0
-      const filesPayload = isMulti
-        ? Object.entries(vfsFiles).map(([path, content]) => ({ path, content, type: 'other' as const }))
-        : [{ path: 'index.html', content: html, type: 'html' as const }]
+      const filesPayload = [
+        ...(isMulti
+          ? Object.entries(vfsFiles).map(([path, content]) => ({ path, content, type: 'other' as const }))
+          : [{ path: 'index.html', content: html, type: 'html' as const }]),
+        ...(chatMessagesRef.current.length > 1 ? [buildChatSidecar()] : []),
+      ]
       try {
         fetch(`/api/projects/${currentProject!.id}`, {
           method: 'PATCH',
@@ -3750,6 +3774,7 @@ function WorkspaceContent() {
               },
             ]
           : []
+        const chatFiles = chatMessagesRef.current.length > 1 ? [buildChatSidecar() as any] : []
         const filesPayload = isMultiTarget
           ? [
               ...Object.entries(vfsFiles).map(([path, content]) => ({
@@ -3758,8 +3783,9 @@ function WorkspaceContent() {
                 type: (path.endsWith('.html') ? 'html' : path.endsWith('.css') ? 'css' : path.endsWith('.js') || path.endsWith('.ts') || path.endsWith('.tsx') || path.endsWith('.jsx') ? 'javascript' : 'other') as any,
               })),
               { path: '_webstew_meta.json', content: JSON.stringify({ buildTarget }), type: 'json' as any },
+              ...chatFiles,
             ]
-          : multiPageSidecar.length > 0 ? multiPageSidecar : undefined
+          : multiPageSidecar.length > 0 ? [...multiPageSidecar, ...chatFiles] : undefined
         const savedProject = await projectHook.saveProject({
           id: currentProject?.id,
           name: projectName,
@@ -3800,6 +3826,9 @@ function WorkspaceContent() {
     // the in-memory version if the detail fetch fails (offline / local-
     // only project). This was the "0.0 KB / empty preview" bug.
     let full: Project & { pages?: ProjectPage[]; activePageId?: string } = project
+    // Restored conversation for this project (from the _webstew_chat.json
+    // sidecar), applied after we swap currentProject below.
+    let restoredChat: typeof chatMessages | undefined
     const looksLightweight =
       (!project.html || project.html.length === 0) &&
       (!project.vfsFiles || Object.keys(project.vfsFiles).length === 0)
@@ -3830,6 +3859,11 @@ function WorkspaceContent() {
                     restoredPages = parsed.pages
                     restoredActivePageId = parsed.activePageId
                   }
+                } catch {}
+              } else if (f.path === '_webstew_chat.json') {
+                try {
+                  const parsed = JSON.parse(f.content)
+                  if (Array.isArray(parsed?.messages)) restoredChat = parsed.messages
                 } catch {}
               } else if (f.path === 'index.html') {
                 restoredHtml = f.content
@@ -3868,6 +3902,13 @@ function WorkspaceContent() {
     setCurrentProject(full)
     setProjectName(full.name)
     setHtml(full.html)
+    // Restore this project's saved conversation (or reset to the welcome so the
+    // previous project's chat doesn't bleed into this one).
+    setChatMessages(
+      restoredChat && restoredChat.length > 0
+        ? restoredChat
+        : [{ role: 'assistant', content: "Welcome back — what should we change on this one?", suggestions: [] }],
+    )
     // Push the loaded HTML straight to the preview too. The iframe renders the
     // throttled `previewHtml` (which the throttle effect only refreshes AFTER
     // render), so when loadProject also bumps previewBumpKey the iframe
