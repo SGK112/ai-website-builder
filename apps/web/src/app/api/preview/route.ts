@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getApiSession } from '@/lib/api-auth'
+import { inlineTailwind } from '@/lib/tailwind-compile'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 import { createSnapshot, listSnapshotsByUser } from '@/lib/preview-store'
 
@@ -21,9 +22,12 @@ export async function POST(req: NextRequest) {
     if (!html || typeof html !== 'string') {
       return NextResponse.json({ error: 'html (string) is required' }, { status: 400 })
     }
+    // Shared preview is a public artifact — compile Tailwind to static CSS so it
+    // doesn't depend on the runtime CDN (falls back to the original on any miss).
+    const builtHtml = await inlineTailwind(html)
 
     const { token, expiresAt } = await createSnapshot({
-      html,
+      html: builtHtml,
       name,
       userId: session?.user?.id || null,
       type: type === 'proposal' ? 'proposal' : 'preview',

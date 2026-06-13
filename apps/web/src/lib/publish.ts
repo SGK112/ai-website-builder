@@ -12,6 +12,7 @@
 // core here means the two call sites can't drift apart.
 
 import { connectDB } from '@/lib/db'
+import { inlineTailwind } from '@/lib/tailwind-compile'
 
 // The apex the published sites live under. Override per-env; defaults to the
 // production domain. The serving path (/s/<slug>) always works regardless, so
@@ -86,7 +87,18 @@ export async function publishSite(input: PublishInput): Promise<PublishResult> {
   if (!cleanFiles.some((f) => f.path === 'index.html')) {
     return { ok: false, error: 'Site must include an index.html entry point.', status: 400 }
   }
-  const totalBytes = cleanFiles.reduce((n, f) => n + Buffer.byteLength(f.content, 'utf8'), 0)
+
+  // Production handoff: compile each page's Tailwind to static CSS so the live
+  // site drops the runtime cdn.tailwindcss.com (slow JIT, "not for production").
+  // inlineTailwind falls back to the original HTML on any uncertainty, so this
+  // never makes a page worse. The editor preview keeps the CDN for instant JIT.
+  const builtFiles = await Promise.all(
+    cleanFiles.map(async (f) =>
+      /\.html?$/i.test(f.path) ? { ...f, content: await inlineTailwind(f.content) } : f,
+    ),
+  )
+
+  const totalBytes = builtFiles.reduce((n, f) => n + Buffer.byteLength(f.content, 'utf8'), 0)
   if (totalBytes > MAX_SITE_BYTES) {
     return {
       ok: false,
@@ -131,7 +143,7 @@ export async function publishSite(input: PublishInput): Promise<PublishResult> {
         userId: input.userId,
         projectId: projectId || null,
         name,
-        files: cleanFiles,
+        files: builtFiles,
         bytes: totalBytes,
         published: true,
         updatedAt: now,
@@ -147,7 +159,7 @@ export async function publishSite(input: PublishInput): Promise<PublishResult> {
     slug,
     url: `${proto}://${slug}.${PUBLISH_DOMAIN}`,
     path: `/s/${slug}`,
-    pages: cleanFiles.length,
+    pages: builtFiles.length,
   }
 }
 
