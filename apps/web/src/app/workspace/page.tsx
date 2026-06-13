@@ -170,6 +170,7 @@ import { ShipPanel } from './components/ShipPanel'
 import { ProjectList } from './components/ProjectList'
 import { NewProjectChooser } from './components/NewProjectChooser'
 import type { ImportedProject } from '@/lib/import-project'
+import { buildProjectFiles, chatSidecarFile, parseChatSidecar } from '@/lib/project-sidecars'
 import { WhatsNextCoach } from './components/WhatsNextCoach'
 import { EnvPanel } from './components/EnvPanel'
 import { ConsolePanel } from './components/ConsolePanel'
@@ -2313,23 +2314,9 @@ function WorkspaceContent() {
   ])
   // Always-current chat snapshot so autosave can attach the conversation without
   // adding chatMessages to its deps (which would thrash the 3s timer on every
-  // streamed token).
+  // streamed token). Serialization lives in lib/project-sidecars.
   const chatMessagesRef = useRef(chatMessages)
   chatMessagesRef.current = chatMessages
-  // Persist the conversation as a project sidecar (_webstew_chat.json) so
-  // reopening a project restores its chat. Capped to the last 60 turns and
-  // truncated per-message to stay well under Mongo's 16MB doc limit.
-  const buildChatSidecar = () => ({
-    path: '_webstew_chat.json',
-    content: JSON.stringify({
-      messages: chatMessagesRef.current.slice(-60).map(m => ({
-        role: m.role,
-        content: typeof m.content === 'string' ? m.content.slice(0, 8000) : '',
-        ...(m.suggestions ? { suggestions: m.suggestions } : {}),
-      })),
-    }),
-    type: 'json' as const,
-  })
   const [chatSuggestions, setChatSuggestions] = useState<string[]>(['Build a website', 'Generate an image', 'Create a video'])
   const [conversationIntent, setConversationIntent] = useState<'website' | 'image' | 'video' | 'edit' | null>(null)
   const [isThinking, setIsThinking] = useState(false)
@@ -3239,31 +3226,10 @@ function WorkspaceContent() {
     const timer = setTimeout(async () => {
       setSaveStatus('saving')
       try {
-        const isMulti = buildTarget !== 'website' && Object.keys(vfsFiles).length > 0
-        const filesPayload = isMulti
-          ? [
-              ...Object.entries(vfsFiles).map(([path, content]) => ({
-                path,
-                content,
-                type: 'other' as const,
-              })),
-              { path: '_webstew_meta.json', content: JSON.stringify({ buildTarget }), type: 'json' as const },
-            ]
-          : (pages.length > 1
-              ? [
-                  { path: 'index.html', content: html, type: 'html' as const },
-                  {
-                    path: '_webstew_pages.json',
-                    content: JSON.stringify({
-                      activePageId,
-                      pages: pages.map(p => ({ id: p.id, name: p.name, slug: p.slug, html: p.html, isHome: p.isHome })),
-                    }),
-                    type: 'json' as const,
-                  },
-                ]
-              : [{ path: 'index.html', content: html, type: 'html' as const }])
-        // Attach the conversation so reopening this project restores its chat.
-        if (chatMessagesRef.current.length > 1) filesPayload.push(buildChatSidecar())
+        const filesPayload = buildProjectFiles({
+          html, vfsFiles, pages, activePageId, buildTarget,
+          chatMessages: chatMessagesRef.current,
+        })
 
         let targetId = currentProject?.id || ''
 
@@ -3347,13 +3313,10 @@ function WorkspaceContent() {
     if (!session?.user?.id || !isCloudProjectId(currentProject?.id)) return
     const flush = (viaKeepalive: boolean) => {
       if ((!html || html.length < 100) && Object.keys(vfsFiles).length === 0) return
-      const isMulti = buildTarget !== 'website' && Object.keys(vfsFiles).length > 0
-      const filesPayload = [
-        ...(isMulti
-          ? Object.entries(vfsFiles).map(([path, content]) => ({ path, content, type: 'other' as const }))
-          : [{ path: 'index.html', content: html, type: 'html' as const }]),
-        ...(chatMessagesRef.current.length > 1 ? [buildChatSidecar()] : []),
-      ]
+      const filesPayload = buildProjectFiles({
+        html, vfsFiles, pages, activePageId, buildTarget,
+        chatMessages: chatMessagesRef.current,
+      })
       const body = JSON.stringify({ files: filesPayload })
       // keepalive request bodies are capped at ~64KB by the browser; a rich
       // multi-page site blows past that and the fetch rejects with the recurring
@@ -3379,7 +3342,7 @@ function WorkspaceContent() {
       window.removeEventListener('visibilitychange', onVis)
       window.removeEventListener('pagehide', onHide)
     }
-  }, [session?.user?.id, currentProject?.id, html, vfsFiles, buildTarget])
+  }, [session?.user?.id, currentProject?.id, html, vfsFiles, pages, activePageId, buildTarget])
 
   // Warn the user if they try to leave / refresh during an in-flight generation
   // ONLY when the server can't recover the result on return — i.e. anonymous
@@ -3783,7 +3746,8 @@ function WorkspaceContent() {
               },
             ]
           : []
-        const chatFiles = chatMessagesRef.current.length > 1 ? [buildChatSidecar() as any] : []
+        const chatSidecar = chatSidecarFile(chatMessagesRef.current)
+        const chatFiles = chatSidecar ? [chatSidecar as any] : []
         const filesPayload = isMultiTarget
           ? [
               ...Object.entries(vfsFiles).map(([path, content]) => ({
@@ -3879,10 +3843,7 @@ function WorkspaceContent() {
                   }
                 } catch {}
               } else if (f.path === '_webstew_chat.json') {
-                try {
-                  const parsed = JSON.parse(f.content)
-                  if (Array.isArray(parsed?.messages)) restoredChat = parsed.messages
-                } catch {}
+                restoredChat = (parseChatSidecar(f.content) as typeof chatMessages | null) ?? undefined
               } else if (f.path === 'index.html') {
                 restoredHtml = f.content
               } else {
