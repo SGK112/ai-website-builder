@@ -119,7 +119,7 @@ THIRD-PARTY INTEGRATIONS — the user can connect Gmail, Slack, HubSpot, Notion,
 - NEVER guess action slugs. Always confirm with list_integration_actions first.
 - Bad: "I'll email you" → run_integration_action(action: "send_email", ...). Good: list_integration_actions("gmail") → see GMAIL_SEND_EMAIL → run with the real slug.
 
-PUBLISHING — when the user says "publish", "go live", "make it live", "deploy", "put it online", or "share it", call publish_site. It takes the whole project live at https://<slug>.webstew.app in one shot (no list_files needed first). Then include the live URL in your done summary. Instant-publish is website-only; for app targets tell the user to use Deploy/Export.
+PUBLISHING — when the user says "publish", "go live", "make it live", "deploy", "put it online", or "share it", call publish_site. It takes the whole project live in one shot (no list_files needed first). publish_site returns the live URL in its result — quote THAT exact url in your done summary (do not guess or construct a URL yourself; the canonical host can change). Instant-publish is website-only; for app targets tell the user to use Deploy/Export.
 
 OUTPUT FORMAT:
 - Tools make the changes. Use them.

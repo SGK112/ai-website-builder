@@ -154,10 +154,20 @@ export async function publishSite(input: PublishInput): Promise<PublishResult> {
   )
 
   const proto = input.proto || 'https'
+  // The pretty {slug}.webstew.app subdomain needs DNS that isn't configured yet
+  // (webstew.app has no records), so those Go-Live URLs are dead. Default the
+  // canonical URL to the path on the live app domain — it works today and is
+  // fully navigable (the serve layer rebases the site's root-relative links
+  // under /s/<slug>). Flip PUBLISH_USE_SUBDOMAIN=1 once *.webstew.app DNS + TLS
+  // are live to hand out the prettier subdomain URL again.
+  const siteBase = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXTAUTH_URL || 'https://www.webstew.net').replace(/\/+$/, '')
+  const url = process.env.PUBLISH_USE_SUBDOMAIN === '1'
+    ? `${proto}://${slug}.${PUBLISH_DOMAIN}`
+    : `${siteBase}/s/${slug}`
   return {
     ok: true,
     slug,
-    url: `${proto}://${slug}.${PUBLISH_DOMAIN}`,
+    url,
     path: `/s/${slug}`,
     pages: builtFiles.length,
   }
