@@ -36,6 +36,28 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
   })
 }
 
+// Hot in-process cache (single Render instance). A repeat query then skips the
+// Mongo round-trip entirely — a warm hit drops from a ~300ms DB lookup to ~0ms,
+// which matters when a page loads 10-40 images at once. The durable cache still
+// lives in Mongo (media_cache); this is just the fast lane in front of it.
+// FIFO-capped so it can't grow unbounded.
+const MEM_MAX = 3000
+const memUrl = new Map<string, string>()
+const memVariants = new Map<string, string[]>()
+function memSet<T>(m: Map<string, T>, k: string, val: T) {
+  if (m.size >= MEM_MAX) {
+    const first = m.keys().next().value
+    if (first !== undefined) m.delete(first)
+  }
+  m.set(k, val)
+}
+function mediaRedirect(url: string): NextResponse {
+  return NextResponse.redirect(url, {
+    status: 302,
+    headers: { 'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800' },
+  })
+}
+
 interface PexelsPhoto {
   id: number
   url: string
@@ -97,27 +119,27 @@ export async function GET(req: NextRequest) {
     ? `pexels:${type}:${normQuery}:${w}x${h}:batch6`
     : `pexels:${type}:${normQuery}:${w}x${h}`
 
-  // Try the cache, but never let a slow/down Mongo block the route.
-  // withTimeout returns null on miss/timeout/error so we fall through to
-  // a direct Pexels call.
+  // Fastest lane: in-process cache — no network, no DB.
+  const memHit = isBatch ? memVariants.get(cacheKey)?.[v!] : memUrl.get(cacheKey)
+  if (memHit) return mediaRedirect(memHit)
+
+  // Durable cache (Mongo). Tight timeout so a slow/cold Mongo connection
+  // fast-fails to the direct Pexels call instead of stalling the request.
   const cached = await withTimeout(
     (async () => {
       const client = await clientPromise
       const db = client.db('ai-website-builder')
       return db.collection('media_cache').findOne({ key: cacheKey })
     })(),
-    3000
+    1500
   )
   if (cached) {
+    if (isBatch && Array.isArray(cached.variants)) memSet(memVariants, cacheKey, cached.variants)
+    else if (!isBatch && cached.url) memSet(memUrl, cacheKey, cached.url)
     const hitUrl = isBatch
       ? (Array.isArray(cached.variants) ? cached.variants[v!] : undefined)
       : cached.url
-    if (hitUrl) {
-      return NextResponse.redirect(hitUrl, {
-        status: 302,
-        headers: { 'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800' },
-      })
-    }
+    if (hitUrl) return mediaRedirect(hitUrl)
   }
 
   // Cache miss (or unreachable) — call Pexels. For variant requests we
@@ -134,7 +156,7 @@ export async function GET(req: NextRequest) {
     const res = await fetch(endpoint, {
       headers: { Authorization: apiKey },
       cache: 'no-store',
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(4000),
     })
     if (!res.ok) {
       console.warn(`[/api/media] Pexels ${res.status} for "${q}" — falling back to picsum`)
@@ -195,6 +217,11 @@ export async function GET(req: NextRequest) {
     // variant index is out of range) — fall back.
     return NextResponse.redirect(fallback, { status: 302 })
   }
+
+  // Populate the in-process fast lane immediately (the Mongo write below is
+  // fire-and-forget and may lag or be skipped).
+  if (isBatch && variants) memSet(memVariants, cacheKey, variants)
+  else if (!isBatch) memSet(memUrl, cacheKey, url)
 
   // Fire-and-forget cache write. Time-boxed so a slow Mongo doesn't
   // make the user wait. Errors are swallowed (cache is optional).
