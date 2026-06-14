@@ -2862,6 +2862,9 @@ function WorkspaceContent() {
         router.replace('/workspace', { scroll: false })
         try { localStorage.setItem('webstew-onboarding-complete', 'true') } catch {}
         setHasCompletedOnboarding(true)
+        // A template is a NEW project — never let it autosave over an open one.
+        setCurrentProject(null)
+        try { localStorage.removeItem('webstew-autosave') } catch {}
         setProjectName(tpl.name)
         if (tpl.files && tpl.buildTarget) {
           // App template — a multi-file project. Load it into the VFS and let
@@ -4542,11 +4545,24 @@ ${html}
     }
   }
 
+  // Loading a template/starter must begin a NEW project — detach the open one
+  // so autosave creates a fresh row instead of PATCHing the template content
+  // over whatever was open. This is what scrambled saved projects (a template
+  // loaded over an open project overwrote it on the next autosave).
+  const detachForNewProject = () => {
+    setCurrentProject(null)
+    setVfsFiles({})
+    setPages([{ id: 'home', name: 'Home', slug: 'index', html: '', isHome: true }])
+    setActivePageId('home')
+    try { localStorage.removeItem('webstew-autosave') } catch {}
+  }
+
   // Build-panel empty-state quick-start tile. Premade → load HTML to preview +
   // announce in chat; otherwise route the request through chat.
   const loadInlineTemplate = (id: string) => {
     const template = quickStartTemplates.find(t => t.id === id)
     if (!template) return
+    detachForNewProject()
     if (template.htmlTemplate && template.isPremade) {
       const rendered = template.templateVariables
         ? applyTemplateVariables(template.htmlTemplate, template.templateVariables)
@@ -4572,6 +4588,7 @@ ${html}
   const runQuickStartTemplate = (id: string) => {
     const template = quickStartTemplates.find(t => t.id === id)
     if (!template) return
+    detachForNewProject()
     if (template.isPremade && template.htmlTemplate) {
       const rendered = template.templateVariables
         ? applyTemplateVariables(template.htmlTemplate, template.templateVariables)
@@ -4590,6 +4607,8 @@ ${html}
   // kicks off a multi-target generation from the starter prompt.
   const startMobileTemplate = async (starterPrompt: string) => {
     if (isGenerating || isThinking) return
+    setCurrentProject(null) // fresh project — don't overwrite the open one
+    try { localStorage.removeItem('webstew-autosave') } catch {}
     setHtml(''); setVfsFiles({}); setVfsProjectMeta(null)
     setPages([{ id: 'home', name: 'Home', slug: 'index', html: '', isHome: true }])
     setActivePageId('home'); setPreviewBumpKey(k => k + 1)
