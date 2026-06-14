@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CustomDomainCard } from '@/components/builder/CustomDomainCard'
+import { ConnectPayouts } from './ConnectPayouts'
 import type { SkillLevel, WorkspaceSettings, BuildTarget } from '../types'
 
 type ToastType = 'success' | 'error' | 'info' | 'warning'
@@ -339,6 +340,10 @@ export function ShipPanel(props: ShipPanelProps) {
             </div>
           </div>
         </button>
+
+        {/* Store payouts — connect Stripe so storefront sales pay out to the
+            owner. Checkout is blocked server-side until this is 'enabled'. */}
+        <ConnectPayouts isDark={isDark} />
 
         {/* Add a backend — one-click managed DB + auth, no Supabase setup */}
         {showBackend && (<>
