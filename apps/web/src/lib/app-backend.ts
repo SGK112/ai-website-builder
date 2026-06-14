@@ -137,6 +137,13 @@ export function webstewDbClientScript(appId: string, apiKey: string): string {
         update: function(id,obj){ return req("/"+name+"?id="+encodeURIComponent(id),"PUT",obj); },
         remove: function(id){ return req("/"+name+"?id="+encodeURIComponent(id),"DELETE"); }
       };
+    },
+    // Stripe checkout for a store/cart. Pass items with prices in CENTS; the
+    // browser is redirected to Stripe's hosted checkout, then back to your site.
+    checkout: async function(opts){
+      var d = await req("/checkout","POST",opts||{});
+      if(d && d.url){ try{ window.top.location.href = d.url; }catch(e){ window.location.href = d.url; } }
+      return d;
     }
   };
 })();
@@ -154,6 +161,10 @@ export function backendUsageGuide(appId: string): string {
     `   await WebstewDB.collection("leads").create({ name, phone, service, message })`,
     `   const jobs = await WebstewDB.collection("leads").list()      // newest first`,
     `   await WebstewDB.collection("leads").update(id, { status:"claimed" })`,
+    `4. Store checkout / cart (real Stripe — no keys needed, the platform handles it):`,
+    `   await WebstewDB.checkout({ items:[{ name:"Blue Hoodie", amount:4500, quantity:2 }] })`,
+    `   amount is in CENTS. It redirects to Stripe, then back to your site (?paid=1).`,
+    `   Each completed order is saved to the "orders" collection automatically.`,
     `Use real onsubmit handlers (e.preventDefault() + await) — NEVER action="mailto:".`,
     `This is a static-site backend: data is shared per app (fine for a jobs board).`,
   ].join('\n')

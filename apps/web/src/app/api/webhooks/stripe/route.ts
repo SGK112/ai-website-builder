@@ -95,6 +95,34 @@ export async function POST(req: NextRequest) {
       case 'checkout.session.completed': {
         const sess: any = event.data.object
 
+        // Generated-app store order (WebstewDB.checkout). The order row lives in
+        // app_data (Mongoose-default DB) keyed by stripeSessionId; flip pending
+        // → paid so the app owner sees fulfilled orders in Data Studio. Trusting
+        // the redirect alone would let a buyer mark their own order paid.
+        if (sess?.metadata?.type === 'app_order') {
+          try {
+            const appId = String(sess.metadata.appId || '')
+            const orderId = String(sess.metadata.orderId || '')
+            const appDb = mongoose.connection.db
+            if (appDb && appId && orderId) {
+              await appDb.collection('app_data').updateOne(
+                { appId, collection: 'orders', docId: orderId, 'data.status': 'pending' },
+                { $set: {
+                    'data.status': 'paid',
+                    'data.stripePaymentIntentId': sess.payment_intent,
+                    'data.amountTotalCents': sess.amount_total,
+                    'data.paidAt': new Date(),
+                    updatedAt: new Date(),
+                } },
+              )
+              console.log(`[app-order] paid ${orderId} for app ${appId}`)
+            }
+          } catch (e: any) {
+            console.error('[app-order] checkout.completed handler:', e?.message || e)
+          }
+          break
+        }
+
         // Domain purchase → register + auto-DNS to the user's published site.
         // Stripe confirms money moved; registration only happens here.
         if (sess?.metadata?.type === 'domain_purchase') {
