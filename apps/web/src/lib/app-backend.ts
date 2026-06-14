@@ -108,7 +108,13 @@ export function webstewDbClientScript(appId: string, apiKey: string): string {
 <script>
 (function(){
   var BASE=${JSON.stringify(base)}, KEY=${JSON.stringify(apiKey)}, TK="wsdb_token_${appId}";
-  function tok(){ try{ return localStorage.getItem(TK)||""; }catch(e){ return ""; } }
+  // Token store. localStorage is blocked inside the sandboxed editor preview, so
+  // fall back to an in-memory token there (login still works for testing); on the
+  // real published site localStorage persists it across reloads.
+  var MEM=null;
+  function tok(){ try{ return localStorage.getItem(TK)||MEM||""; }catch(e){ return MEM||""; } }
+  function setTok(t){ MEM=t; try{ localStorage.setItem(TK,t); }catch(e){} }
+  function clearTok(){ MEM=null; try{ localStorage.removeItem(TK); }catch(e){} }
   function headers(){ var h={"Content-Type":"application/json","x-webstew-key":KEY}; var t=tok(); if(t) h["Authorization"]="Bearer "+t; return h; }
   async function req(path, method, body){
     var r = await fetch(BASE+path, { method:method||"GET", headers:headers(), body: body?JSON.stringify(body):undefined });
@@ -118,9 +124,9 @@ export function webstewDbClientScript(appId: string, apiKey: string): string {
   }
   window.WebstewDB = {
     auth: {
-      signup: async function(email, password){ var d=await req("/auth","POST",{action:"signup",email:email,password:password}); if(d.token){ try{localStorage.setItem(TK,d.token);}catch(e){} } return d; },
-      login:  async function(email, password){ var d=await req("/auth","POST",{action:"login", email:email,password:password}); if(d.token){ try{localStorage.setItem(TK,d.token);}catch(e){} } return d; },
-      logout: function(){ try{ localStorage.removeItem(TK); }catch(e){} },
+      signup: async function(email, password){ var d=await req("/auth","POST",{action:"signup",email:email,password:password}); if(d.token) setTok(d.token); return d; },
+      login:  async function(email, password){ var d=await req("/auth","POST",{action:"login", email:email,password:password}); if(d.token) setTok(d.token); return d; },
+      logout: function(){ clearTok(); },
       isLoggedIn: function(){ return !!tok(); }
     },
     collection: function(name){
