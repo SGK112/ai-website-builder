@@ -2170,17 +2170,16 @@ function WorkspaceContent() {
       document.removeEventListener('visibilitychange', onFocus)
     }
   }, [])
-  // Per-session toggle: when ON + bridge connected, requests skip
-  // Webstew credits entirely and bill against the user's Claude
-  // subscription. When OFF, requests use the server's Anthropic key
-  // (decrementing monthlyCredits as before). Defaults ON so paired
-  // users get the cheaper path automatically; persisted so a
-  // deliberate "use Webstew credits" choice sticks across sessions.
-  const [bridgePathEnabled, setBridgePathEnabled] = useState(true)
+  // Per-session toggle: when ON + bridge connected, requests route through the
+  // user's local Claude CLI instead of Webstew credits. Now defaults OFF
+  // (opt-in): a connected-but-not-actually-processing bridge was timing out and
+  // blocking EVERY build for users who never deliberately chose it. The cloud
+  // path is the reliable default; power users flip it on from the header toggle.
+  const [bridgePathEnabled, setBridgePathEnabled] = useState(false)
   useEffect(() => {
     try {
       const raw = localStorage.getItem('webstew-bridge-path-enabled')
-      if (raw === '0') setBridgePathEnabled(false)
+      if (raw === '1') setBridgePathEnabled(true) // only ON when explicitly enabled
     } catch {}
   }, [])
   const toggleBridgePath = () => {
@@ -4658,6 +4657,25 @@ ${html}
     const consoleScript = `
 <script>
 (function() {
+  // Storage shim: the preview iframe is sandboxed WITHOUT allow-same-origin, so
+  // localStorage/sessionStorage THROW on access — any generated code (or the
+  // WebstewDB auth SDK) that touches them crashes the whole page. Swap in an
+  // in-memory store when the real one is blocked, so login/state works for
+  // testing in the preview (the published site uses real storage).
+  (function(){
+    function mem(){ var m={}; return {
+      getItem:function(k){ return Object.prototype.hasOwnProperty.call(m,k)?m[k]:null; },
+      setItem:function(k,v){ m[k]=String(v); },
+      removeItem:function(k){ delete m[k]; },
+      clear:function(){ for(var k in m) delete m[k]; },
+      key:function(i){ return Object.keys(m)[i]||null; },
+      get length(){ return Object.keys(m).length; }
+    }; }
+    ['localStorage','sessionStorage'].forEach(function(name){
+      var ok=false; try{ window[name] && window[name].getItem('__probe__'); ok=true; }catch(e){}
+      if(!ok){ try{ Object.defineProperty(window, name, { value: mem(), configurable:true }); }catch(e){} }
+    });
+  })();
   // Intercept link navigation. Original hrefs were rewritten to javascript:void(0)
   // before the HTML reached this iframe (parent did href→data-href swap), so the
   // iframe can never navigate itself. We read data-href, then route:
@@ -6570,9 +6588,13 @@ ${html}
     const detail = latest.stack
       ? `${latest.message}\n\nStack:\n${latest.stack}`
       : latest.line != null ? `${latest.message} (line ${latest.line})` : latest.message
+    // Only mention Google Maps when the error is actually map-related — otherwise
+    // the hint is confusing noise (it kept dragging Maps into unrelated errors).
+    const mapHint = /YOUR_(LAT|LNG|API_KEY)|maps\.google|google\.maps|initMap/i.test(detail)
+      ? ` If it's a Google Maps embed using a placeholder key / undefined variable, replace it with the keyless embed iframe: <iframe src="https://maps.google.com/maps?q=ADDRESS&output=embed" width="100%" height="400" style="border:0;" loading="lazy"></iframe>.`
+      : ''
     handleChatMessage(
-      `The live preview is throwing a runtime error. Find the cause in the code and fix it — change only what's needed.\n\n` +
-      `If it's an external embed using a placeholder API key or an undefined variable (e.g. Google Maps with YOUR_API_KEY / YOUR_LAT / YOUR_LNG), REPLACE it with the KEYLESS Google Maps embed iframe (a real map from a plain address, no key needed): <iframe src="https://maps.google.com/maps?q=FULL+ADDRESS+OR+CITY&z=13&output=embed" width="100%" height="400" style="border:0;" loading="lazy"></iframe>. The page must run with NO API keys.\n\n` +
+      `The live preview is throwing a runtime error. Find the cause in the code and fix it — change only what's needed.${mapHint}\n\n` +
       `Error:\n${detail}`,
     )
   }
