@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/db'
 import { getStripe } from '@/lib/stripe'
 import { randomUUID } from 'crypto'
+import { ObjectId } from 'mongodb'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,13 +27,29 @@ function cors(res: NextResponse): NextResponse {
 
 export async function OPTIONS() { return cors(new NextResponse(null, { status: 204 })) }
 
+// Storefront platform fee (basis points). Separate from the marketplace's 30%
+// — physical-goods storefronts run a thin fee. Default 5%. Tune via env.
+const STORE_PLATFORM_FEE_BPS = Math.min(Math.max(parseInt(process.env.STORE_PLATFORM_FEE_BPS || '500', 10) || 500, 0), 5000)
+
 async function authApp(appId: string, key: string | null) {
   if (!key) return null
   const mongoose = await connectDB()
   const db = mongoose.connection.db
   if (!db) return null
-  const b = await db.collection('app_backends').findOne({ appId }, { projection: { apiKey: 1 } })
-  return b && b.apiKey === key ? db : null
+  const b = await db.collection('app_backends').findOne({ appId }, { projection: { apiKey: 1, userId: 1 } })
+  return b && b.apiKey === key ? { db, ownerId: b.userId as string } : null
+}
+
+// The store owner's Stripe Connect account, if they've finished payout setup.
+// When present, store payments are routed to THEM (destination charge) and
+// Webstew keeps only the platform fee; otherwise the charge falls back to the
+// platform balance and the order is flagged so the owner is nudged to connect.
+async function ownerConnect(db: any, ownerId: string): Promise<{ accountId: string | null; ready: boolean }> {
+  if (!ownerId) return { accountId: null, ready: false }
+  const _id = ObjectId.isValid(ownerId) ? new ObjectId(ownerId) : ownerId
+  const u = await db.collection('users').findOne({ _id }, { projection: { stripe_account_id: 1, stripeAccountId: 1, stripe_charges_enabled: 1 } })
+  const accountId = u?.stripe_account_id || u?.stripeAccountId || null
+  return { accountId, ready: !!accountId && !!u?.stripe_charges_enabled }
 }
 
 // Default the redirect targets to the page that initiated checkout so the app
@@ -47,8 +64,9 @@ interface Ctx { params: { appId: string } }
 export async function POST(req: NextRequest, { params }: Ctx) {
   const { appId } = params
   const key = req.headers.get('x-webstew-key') || req.nextUrl.searchParams.get('key')
-  const db = await authApp(appId, key)
-  if (!db) return cors(NextResponse.json({ error: 'Invalid or missing app key.' }, { status: 401 }))
+  const auth = await authApp(appId, key)
+  if (!auth) return cors(NextResponse.json({ error: 'Invalid or missing app key.' }, { status: 401 }))
+  const { db, ownerId } = auth
 
   const stripe = await getStripe()
   if (!stripe) return cors(NextResponse.json({ error: 'Payments are not configured for this platform.' }, { status: 503 }))
@@ -92,6 +110,16 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   }
   const sep = (u: string) => (u.includes('?') ? '&' : '?')
 
+  // Route the money to the STORE OWNER's Stripe Connect account when they've
+  // finished payout setup: a destination charge sends them the sale minus
+  // Webstew's platform fee (application_fee_amount). If they haven't connected
+  // payouts yet, the charge falls back to the platform balance and the order is
+  // flagged payoutsConnected:false so the owner can be nudged to connect (the
+  // funds are held by Webstew until then). Tune the fee via STORE_PLATFORM_FEE_BPS.
+  const connect = await ownerConnect(db, ownerId)
+  const feeCents = Math.floor((total * STORE_PLATFORM_FEE_BPS) / 10000)
+  const orderMeta = { type: 'app_order', appId, orderId: docId }
+
   let session
   try {
     session = await stripe.checkout.sessions.create({
@@ -101,7 +129,16 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       line_items: lineItems,
       success_url: `${successUrl}${sep(successUrl)}session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: cancelUrl,
-      metadata: { type: 'app_order', appId, orderId: docId },
+      metadata: orderMeta,
+      ...(connect.ready && connect.accountId
+        ? {
+            payment_intent_data: {
+              application_fee_amount: feeCents,
+              transfer_data: { destination: connect.accountId },
+              metadata: orderMeta,
+            },
+          }
+        : {}),
     })
   } catch (e: any) {
     console.error('[backend checkout] stripe error', e?.message)
@@ -120,9 +157,14 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       items: lineItems.map((l) => ({ name: l.price_data.product_data.name, amount: l.price_data.unit_amount, quantity: l.quantity })),
       stripeSessionId: session.id,
       customerEmail: typeof body?.customerEmail === 'string' ? body.customerEmail : null,
+      // Payout routing for this order.
+      payoutsConnected: connect.ready,
+      paidTo: connect.ready ? 'owner' : 'platform',
+      destinationAccount: connect.ready ? connect.accountId : null,
+      platformFeeCents: connect.ready ? feeCents : total,
     },
     createdAt: now, updatedAt: now,
   })
 
-  return cors(NextResponse.json({ url: session.url, sessionId: session.id, orderId: docId }))
+  return cors(NextResponse.json({ url: session.url, sessionId: session.id, orderId: docId, payoutsConnected: connect.ready }))
 }
