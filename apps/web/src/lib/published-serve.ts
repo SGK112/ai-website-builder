@@ -44,11 +44,56 @@ interface PublishedSite { slug?: string; files?: Array<{ path: string; content: 
  * Resolve a request path against a published site's files and return the
  * response. `pathParts` is the path after the host/slug (e.g. ['about']).
  */
+function htmlResponse(html: string, label?: string): NextResponse {
+  return new NextResponse(html, {
+    status: 200,
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'public, max-age=60, s-maxage=60',
+      ...(label ? { 'x-webstew-published': label } : {}),
+    },
+  })
+}
+
+// Multi-page projects store ALL their pages inside this sidecar (id, name, slug,
+// html, isHome) and only ship a single index.html file — the per-slug .html
+// files are never emitted. Without this, every page except the home page 404s
+// on a published site (e.g. a post-login redirect to /contractor-portal). We
+// resolve page requests from the sidecar so each slug serves its real HTML, and
+// "/" serves the isHome page (not whatever page happened to be active at save).
+const PAGES_SIDECAR = '_webstew_pages.json'
+
+function servePageFromSidecar(byPath: Map<string, string>, reqPath: string, label?: string): NextResponse | null {
+  const raw = byPath.get(PAGES_SIDECAR)
+  if (!raw) return null
+  // Only intercept page navigations — let assets (.css/.js/images) fall through.
+  const isPageReq = reqPath === '' || /\.html?$/i.test(reqPath) || !reqPath.includes('.')
+  if (!isPageReq) return null
+  let pages: Array<{ slug?: string; html?: string; isHome?: boolean }> = []
+  try {
+    const parsed = JSON.parse(raw)
+    pages = Array.isArray(parsed?.pages) ? parsed.pages : []
+  } catch { return null }
+  if (!pages.length) return null
+
+  const want = reqPath.replace(/\.html?$/i, '').replace(/\/index$/i, '').replace(/^\/+|\/+$/g, '').toLowerCase()
+  const page = want === '' || want === 'index'
+    ? (pages.find(p => p.isHome) || pages[0])
+    : pages.find(p => String(p.slug || '').toLowerCase() === want)
+  if (!page || typeof page.html !== 'string') return null
+  return htmlResponse(page.html, label)
+}
+
 export function servePublishedFile(site: PublishedSite | null, pathParts: string[], label?: string): NextResponse {
   if (!site || !Array.isArray(site.files)) return publishedNotFound()
 
   const byPath = new Map(site.files.map(f => [f.path.replace(/^\/+/, ''), f.content]))
   const reqPath = (pathParts || []).join('/').replace(/^\/+/, '')
+
+  // Sidecar pages take precedence for page requests (fixes multi-page routing +
+  // the home page showing the wrong page). Assets fall through to static files.
+  const fromSidecar = servePageFromSidecar(byPath, reqPath, label)
+  if (fromSidecar) return fromSidecar
 
   const candidates = reqPath === ''
     ? ['index.html']

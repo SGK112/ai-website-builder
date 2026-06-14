@@ -4676,6 +4676,23 @@ ${html}
       if(!ok){ try{ Object.defineProperty(window, name, { value: mem(), configurable:true }); }catch(e){} }
     });
   })();
+  // Programmatic navigation bridge. Generated pages redirect via JS after an
+  // action (e.g. after a successful login: location.href = '/contractor-portal').
+  // The parent rewrites those string-literal redirects to window.__wsNav(...)
+  // because a srcDoc sandbox can't follow a real navigation — so without this
+  // the login "does nothing". Same slug→postMessage path as the click handler.
+  window.__wsNav = function(href) {
+    try {
+      href = String(href || '');
+      if (!href || href.toLowerCase().startsWith('javascript:')) return;
+      if (/^https?:\\/\\//i.test(href)) { window.parent.postMessage({ type: 'open-external', href: href }, '*'); return; }
+      var hash = ''; var hi = href.indexOf('#'); if (hi >= 0) { hash = href.slice(hi); href = href.slice(0, hi); }
+      var qi = href.indexOf('?'); if (qi >= 0) { href = href.slice(0, qi); }
+      var slug = href.replace(/^\\//, '').replace(/\\.html$/i, '').toLowerCase();
+      if (!slug || slug === 'index' || slug === 'home') slug = 'index';
+      window.parent.postMessage({ type: 'navigate-page', target: slug, hash: hash }, '*');
+    } catch (_) {}
+  };
   // Intercept link navigation. Original hrefs were rewritten to javascript:void(0)
   // before the HTML reached this iframe (parent did href→data-href swap), so the
   // iframe can never navigate itself. We read data-href, then route:
@@ -5053,6 +5070,22 @@ ${html}
         if (/data-href=/.test(before + after)) return match
         return `<a${before} href=${quote}javascript:void(0)${quote} data-href=${quote}${href}${quote}${after}>`
       }
+    )
+
+    // Reroute programmatic navigation (location.href = '/x', window.location =
+    // '/x', location.assign('/x'), location.replace('/x')) to the page-switch
+    // bridge. A srcDoc sandbox can't follow a JS redirect, so a post-login
+    // `location.href = '/portal'` would silently do nothing in the preview.
+    // Only string-literal targets are rewritten; comparisons (===) and dynamic
+    // values are left untouched. Runs BEFORE the console script is injected so
+    // it never rewrites our own bridge code.
+    result = result.replace(
+      /(?<![.\w])(?:window\s*\.\s*)?location\s*(?:\.\s*href)?\s*=\s*(["'])([^"']+)\1/gi,
+      (_m, q, url) => `window.__wsNav(${q}${url}${q})`
+    )
+    result = result.replace(
+      /(?<![.\w])(?:window\s*\.\s*)?location\s*\.\s*(?:assign|replace)\s*\(\s*(["'])([^"']+)\1\s*\)/gi,
+      (_m, q, url) => `window.__wsNav(${q}${url}${q})`
     )
 
     if (result.includes('</head>')) {
