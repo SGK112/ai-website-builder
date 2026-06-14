@@ -9,7 +9,7 @@ export const AGENCY_PORTFOLIO_TEMPLATE = {
   description: 'Modern dark theme agency portfolio with bold typography, case studies, and team showcase',
   category: 'agency',
   tags: ['agency', 'portfolio', 'dark', 'creative', 'modern', 'bold'],
-  preview: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=800&h=600&fit=crop',
+  preview: 'https://www.webstew.net/api/media?q=creative+agency+office&w=800&h=600',
 
   variables: {
     agencyName: 'APEX',
@@ -18,9 +18,9 @@ export const AGENCY_PORTFOLIO_TEMPLATE = {
     heroSubtitle: 'Award-winning creative studio specializing in brand strategy, web design, and digital experiences.',
     primaryColor: '#a855f7',
     projects: [
-      { title: 'Brand Refresh', client: 'TechCorp', image: 'https://images.unsplash.com/photo-1558655146-9f40138edfeb?w=600&h=400&fit=crop' },
-      { title: 'E-commerce Platform', client: 'StyleHouse', image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&h=400&fit=crop' },
-      { title: 'Mobile App', client: 'FinanceApp', image: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=600&h=400&fit=crop' }
+      { title: 'Brand Refresh', client: 'TechCorp', image: 'https://www.webstew.net/api/media?q=design+studio+workspace&w=600&h=400' },
+      { title: 'E-commerce Platform', client: 'StyleHouse', image: 'https://www.webstew.net/api/media?q=branding+project+mockup&w=600&h=400' },
+      { title: 'Mobile App', client: 'FinanceApp', image: 'https://www.webstew.net/api/media?q=team+collaboration+meeting&w=600&h=400' }
     ],
     stats: [
       { value: '150+', label: 'Projects Delivered' },
@@ -136,7 +136,7 @@ export const AGENCY_PORTFOLIO_TEMPLATE = {
     <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
       <article class="group hover-lift">
         <div class="aspect-[4/3] rounded-2xl overflow-hidden mb-6 bg-white/5">
-          <img src="https://images.unsplash.com/photo-1558655146-9f40138edfeb?w=600&h=400&fit=crop" alt="Project" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+          <img src="https://www.webstew.net/api/media?q=modern+web+design&w=600&h=400" alt="Project" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
         </div>
         <p class="text-sm text-purple-400 mb-2">Brand Strategy</p>
         <h3 class="text-xl font-semibold mb-2">TechCorp Brand Refresh</h3>
@@ -145,7 +145,7 @@ export const AGENCY_PORTFOLIO_TEMPLATE = {
 
       <article class="group hover-lift">
         <div class="aspect-[4/3] rounded-2xl overflow-hidden mb-6 bg-white/5">
-          <img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&h=400&fit=crop" alt="Project" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+          <img src="https://www.webstew.net/api/media?q=marketing+strategy&w=600&h=400" alt="Project" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
         </div>
         <p class="text-sm text-purple-400 mb-2">E-commerce</p>
         <h3 class="text-xl font-semibold mb-2">StyleHouse Platform</h3>
@@ -154,7 +154,7 @@ export const AGENCY_PORTFOLIO_TEMPLATE = {
 
       <article class="group hover-lift">
         <div class="aspect-[4/3] rounded-2xl overflow-hidden mb-6 bg-white/5">
-          <img src="https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=600&h=400&fit=crop" alt="Project" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+          <img src="https://www.webstew.net/api/media?q=creative+portfolio&w=600&h=400" alt="Project" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
         </div>
         <p class="text-sm text-purple-400 mb-2">Mobile App</p>
         <h3 class="text-xl font-semibold mb-2">FinanceApp Mobile</h3>

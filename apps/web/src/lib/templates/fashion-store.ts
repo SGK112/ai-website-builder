@@ -9,7 +9,7 @@ export const FASHION_STORE_TEMPLATE = {
   description: 'Bold modern fashion store with dynamic layouts, product filters, and shopping cart',
   category: 'ecommerce' as const,
   tags: ['fashion', 'clothing', 'modern', 'bold', 'shopping'],
-  preview: 'https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?w=800&h=600&fit=crop',
+  preview: 'https://www.webstew.net/api/media?q=fashion+clothing+model&w=800&h=600',
 
   variables: {
     brandName: 'VOGUE STYLE',
@@ -19,10 +19,10 @@ export const FASHION_STORE_TEMPLATE = {
     primaryColor: '#000000',
     accentColor: '#ff4081',
     products: [
-      { name: 'Casual Blazer', price: '$189', originalPrice: '$249', image: 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?w=400&h=500&fit=crop', category: 'Women' },
-      { name: 'Denim Jacket', price: '$129', image: 'https://images.unsplash.com/photo-1576871337622-98d48d1cf531?w=400&h=500&fit=crop', category: 'Men' },
-      { name: 'Summer Dress', price: '$159', image: 'https://images.unsplash.com/photo-1572804013427-4d7ca7268217?w=400&h=500&fit=crop', category: 'Women' },
-      { name: 'Leather Bag', price: '$299', image: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400&h=500&fit=crop', category: 'Accessories' },
+      { name: 'Casual Blazer', price: '$189', originalPrice: '$249', image: 'https://www.webstew.net/api/media?q=stylish+outfit&w=400&h=500', category: 'Women' },
+      { name: 'Denim Jacket', price: '$129', image: 'https://www.webstew.net/api/media?q=apparel+boutique&w=400&h=500', category: 'Men' },
+      { name: 'Summer Dress', price: '$159', image: 'https://www.webstew.net/api/media?q=trendy+streetwear&w=400&h=500', category: 'Women' },
+      { name: 'Leather Bag', price: '$299', image: 'https://www.webstew.net/api/media?q=fashion+accessory&w=400&h=500', category: 'Accessories' },
     ]
   },
 
@@ -83,7 +83,7 @@ export const FASHION_STORE_TEMPLATE = {
 <!-- Hero Section -->
 <section class="pt-16 relative min-h-[80vh] flex items-center bg-gradient-to-br from-gray-50 to-gray-100 overflow-hidden">
   <div class="absolute inset-0">
-    <img src="https://images.unsplash.com/photo-1558171813-4c088753af8f?w=1920&h=1080&fit=crop"
+    <img src="https://www.webstew.net/api/media?q=denim+jacket+style&w=1920&h=1080"
          alt="Hero" class="w-full h-full object-cover opacity-30">
   </div>
   <div class="relative z-10 max-w-7xl mx-auto px-4 md:px-8 py-20">
@@ -110,7 +110,7 @@ export const FASHION_STORE_TEMPLATE = {
   <div class="max-w-7xl mx-auto">
     <div class="grid md:grid-cols-3 gap-6">
       <a href="#" class="group relative h-80 overflow-hidden bg-gray-100 rounded-lg">
-        <img src="https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=600&h=400&fit=crop"
+        <img src="https://www.webstew.net/api/media?q=summer+dress+fashion&w=600&h=400"
              alt="Women" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700">
         <div class="absolute inset-0 bg-black/30 flex items-end p-6">
           <div>
@@ -120,7 +120,7 @@ export const FASHION_STORE_TEMPLATE = {
         </div>
       </a>
       <a href="#" class="group relative h-80 overflow-hidden bg-gray-100 rounded-lg">
-        <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&h=400&fit=crop"
+        <img src="https://www.webstew.net/api/media?q=leather+boots&w=600&h=400"
              alt="Men" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700">
         <div class="absolute inset-0 bg-black/30 flex items-end p-6">
           <div>
@@ -130,7 +130,7 @@ export const FASHION_STORE_TEMPLATE = {
         </div>
       </a>
       <a href="#" class="group relative h-80 overflow-hidden bg-gray-100 rounded-lg">
-        <img src="https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600&h=400&fit=crop"
+        <img src="https://www.webstew.net/api/media?q=fashion+clothing+model&w=600&h=400"
              alt="Accessories" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700">
         <div class="absolute inset-0 bg-black/30 flex items-end p-6">
           <div>
@@ -159,7 +159,7 @@ export const FASHION_STORE_TEMPLATE = {
     <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
       <div class="group">
         <div class="relative aspect-[3/4] bg-gray-100 rounded-lg overflow-hidden mb-4">
-          <img src="https://images.unsplash.com/photo-1594938298603-c8148c4dae35?w=400&h=500&fit=crop"
+          <img src="https://www.webstew.net/api/media?q=stylish+outfit&w=400&h=500"
                alt="Product" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
           <div class="absolute top-3 left-3 px-2 py-1 bg-pink-500 text-white text-xs font-medium rounded">
             SALE
@@ -183,7 +183,7 @@ export const FASHION_STORE_TEMPLATE = {
 
       <div class="group">
         <div class="relative aspect-[3/4] bg-gray-100 rounded-lg overflow-hidden mb-4">
-          <img src="https://images.unsplash.com/photo-1576871337622-98d48d1cf531?w=400&h=500&fit=crop"
+          <img src="https://www.webstew.net/api/media?q=apparel+boutique&w=400&h=500"
                alt="Product" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
           <button class="absolute top-3 right-3 p-2 bg-white/90 rounded-full opacity-0 group-hover:opacity-100 transition">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -201,7 +201,7 @@ export const FASHION_STORE_TEMPLATE = {
 
       <div class="group">
         <div class="relative aspect-[3/4] bg-gray-100 rounded-lg overflow-hidden mb-4">
-          <img src="https://images.unsplash.com/photo-1572804013427-4d7ca7268217?w=400&h=500&fit=crop"
+          <img src="https://www.webstew.net/api/media?q=trendy+streetwear&w=400&h=500"
                alt="Product" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
           <div class="absolute top-3 left-3 px-2 py-1 bg-black text-white text-xs font-medium rounded">
             NEW
@@ -222,7 +222,7 @@ export const FASHION_STORE_TEMPLATE = {
 
       <div class="group">
         <div class="relative aspect-[3/4] bg-gray-100 rounded-lg overflow-hidden mb-4">
-          <img src="https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400&h=500&fit=crop"
+          <img src="https://www.webstew.net/api/media?q=fashion+accessory&w=400&h=500"
                alt="Product" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
           <button class="absolute top-3 right-3 p-2 bg-white/90 rounded-full opacity-0 group-hover:opacity-100 transition">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

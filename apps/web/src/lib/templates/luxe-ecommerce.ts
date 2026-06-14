@@ -10,7 +10,7 @@ export const LUXE_ECOMMERCE_TEMPLATE = {
   description: 'Apple-inspired luxury e-commerce template with hero slider, product grids, and elegant typography',
   category: 'ecommerce',
   tags: ['luxury', 'fashion', 'minimal', 'elegant', 'apple-style'],
-  preview: 'https://picsum.photos/seed/luxe/800/600',
+  preview: 'https://www.webstew.net/api/media?q=designer+handbag&w=800&h=600',
 
   // Variables that can be customized
   variables: {
@@ -20,10 +20,10 @@ export const LUXE_ECOMMERCE_TEMPLATE = {
     heroSubtitle: 'Discover the perfect gift',
     accentColor: '#bf4800',
     products: [
-      { name: 'Product 1', price: '$299', image: 'https://picsum.photos/seed/prod1/400/500' },
-      { name: 'Product 2', price: '$349', image: 'https://picsum.photos/seed/prod2/400/500' },
-      { name: 'Product 3', price: '$199', image: 'https://picsum.photos/seed/prod3/400/500' },
-      { name: 'Product 4', price: '$449', image: 'https://picsum.photos/seed/prod4/400/500' },
+      { name: 'Product 1', price: '$299', image: 'https://www.webstew.net/api/media?q=premium+jewelry&w=400&h=500' },
+      { name: 'Product 2', price: '$349', image: 'https://www.webstew.net/api/media?q=elegant+watch&w=400&h=500' },
+      { name: 'Product 3', price: '$199', image: 'https://www.webstew.net/api/media?q=luxury+boutique+interior&w=400&h=500' },
+      { name: 'Product 4', price: '$449', image: 'https://www.webstew.net/api/media?q=high+fashion+model&w=400&h=500' },
     ]
   },
 
@@ -99,7 +99,7 @@ export const LUXE_ECOMMERCE_TEMPLATE = {
 <section class="relative w-full h-[70vh] md:h-[90vh] min-h-[500px] max-h-[1000px] bg-black overflow-hidden">
   <!-- Background Image -->
   <div class="absolute inset-[-5%]" style="animation: kenBurns 12s ease-in-out infinite alternate">
-    <img src="https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=1920&q=85&fit=crop"
+    <img src="https://www.webstew.net/api/media?q=luxury+fashion+product&w=1920&h=600"
          alt="" class="w-full h-full object-cover">
   </div>
 
@@ -184,7 +184,7 @@ export const LUXE_ECOMMERCE_TEMPLATE = {
       <!-- Product Card 1 -->
       <div class="group cursor-pointer">
         <div class="relative aspect-[4/5] bg-gray-100 mb-4 overflow-hidden">
-          <img src="https://picsum.photos/seed/bag1/400/500" alt="Product"
+          <img src="https://www.webstew.net/api/media?q=silk+scarf+luxury&w=400&h=500" alt="Product"
                class="w-full h-full object-cover group-hover:scale-105 transition duration-700">
           <button class="absolute bottom-4 left-4 right-4 bg-white/95 backdrop-blur py-3 text-xs tracking-[0.15em] uppercase font-medium opacity-0 group-hover:opacity-100 transition transform translate-y-2 group-hover:translate-y-0">
             Quick Add
@@ -198,7 +198,7 @@ export const LUXE_ECOMMERCE_TEMPLATE = {
       <!-- Product Card 2 -->
       <div class="group cursor-pointer">
         <div class="relative aspect-[4/5] bg-gray-100 mb-4 overflow-hidden">
-          <img src="https://picsum.photos/seed/bag2/400/500" alt="Product"
+          <img src="https://www.webstew.net/api/media?q=perfume+bottle+elegant&w=400&h=500" alt="Product"
                class="w-full h-full object-cover group-hover:scale-105 transition duration-700">
           <button class="absolute bottom-4 left-4 right-4 bg-white/95 backdrop-blur py-3 text-xs tracking-[0.15em] uppercase font-medium opacity-0 group-hover:opacity-100 transition transform translate-y-2 group-hover:translate-y-0">
             Quick Add
@@ -211,7 +211,7 @@ export const LUXE_ECOMMERCE_TEMPLATE = {
       <!-- Product Card 3 -->
       <div class="group cursor-pointer">
         <div class="relative aspect-[4/5] bg-gray-100 mb-4 overflow-hidden">
-          <img src="https://picsum.photos/seed/bag3/400/500" alt="Product"
+          <img src="https://www.webstew.net/api/media?q=luxury+fashion+product&w=400&h=500" alt="Product"
                class="w-full h-full object-cover group-hover:scale-105 transition duration-700">
           <button class="absolute bottom-4 left-4 right-4 bg-white/95 backdrop-blur py-3 text-xs tracking-[0.15em] uppercase font-medium opacity-0 group-hover:opacity-100 transition transform translate-y-2 group-hover:translate-y-0">
             Quick Add
@@ -225,7 +225,7 @@ export const LUXE_ECOMMERCE_TEMPLATE = {
       <!-- Product Card 4 -->
       <div class="group cursor-pointer">
         <div class="relative aspect-[4/5] bg-gray-100 mb-4 overflow-hidden">
-          <img src="https://picsum.photos/seed/bag4/400/500" alt="Product"
+          <img src="https://www.webstew.net/api/media?q=designer+handbag&w=400&h=500" alt="Product"
                class="w-full h-full object-cover group-hover:scale-105 transition duration-700">
           <button class="absolute bottom-4 left-4 right-4 bg-white/95 backdrop-blur py-3 text-xs tracking-[0.15em] uppercase font-medium opacity-0 group-hover:opacity-100 transition transform translate-y-2 group-hover:translate-y-0">
             Quick Add
@@ -258,21 +258,21 @@ export const LUXE_ECOMMERCE_TEMPLATE = {
 
     <div class="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
       <a href="#" class="group relative aspect-[3/4] overflow-hidden">
-        <img src="https://picsum.photos/seed/cat1/600/800" alt="Handbags" class="w-full h-full object-cover group-hover:scale-105 transition duration-700">
+        <img src="https://www.webstew.net/api/media?q=premium+jewelry&w=600&h=800" alt="Handbags" class="w-full h-full object-cover group-hover:scale-105 transition duration-700">
         <div class="absolute inset-0 bg-black/30 group-hover:bg-black/40 transition"></div>
         <div class="absolute inset-0 flex items-center justify-center">
           <span class="text-white text-lg md:text-xl font-display tracking-wider">Handbags</span>
         </div>
       </a>
       <a href="#" class="group relative aspect-[3/4] overflow-hidden">
-        <img src="https://picsum.photos/seed/cat2/600/800" alt="Wallets" class="w-full h-full object-cover group-hover:scale-105 transition duration-700">
+        <img src="https://www.webstew.net/api/media?q=elegant+watch&w=600&h=800" alt="Wallets" class="w-full h-full object-cover group-hover:scale-105 transition duration-700">
         <div class="absolute inset-0 bg-black/30 group-hover:bg-black/40 transition"></div>
         <div class="absolute inset-0 flex items-center justify-center">
           <span class="text-white text-lg md:text-xl font-display tracking-wider">Wallets</span>
         </div>
       </a>
       <a href="#" class="group relative aspect-[3/4] overflow-hidden col-span-2 md:col-span-1">
-        <img src="https://picsum.photos/seed/cat3/600/800" alt="Accessories" class="w-full h-full object-cover group-hover:scale-105 transition duration-700">
+        <img src="https://www.webstew.net/api/media?q=luxury+boutique+interior&w=600&h=800" alt="Accessories" class="w-full h-full object-cover group-hover:scale-105 transition duration-700">
         <div class="absolute inset-0 bg-black/30 group-hover:bg-black/40 transition"></div>
         <div class="absolute inset-0 flex items-center justify-center">
           <span class="text-white text-lg md:text-xl font-display tracking-wider">Accessories</span>

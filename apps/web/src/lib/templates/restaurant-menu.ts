@@ -9,7 +9,7 @@ export const RESTAURANT_MENU_TEMPLATE = {
   description: 'Elegant restaurant template with menu sections, reservation system, and online ordering',
   category: 'restaurant' as const,
   tags: ['restaurant', 'food', 'menu', 'reservation', 'ordering'],
-  preview: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=600&fit=crop',
+  preview: 'https://www.webstew.net/api/media?q=fine+dining+plated+dish&w=800&h=600',
 
   variables: {
     restaurantName: 'La Cuisine',
@@ -61,7 +61,7 @@ export const RESTAURANT_MENU_TEMPLATE = {
 <!-- Hero Section -->
 <section class="relative min-h-screen flex items-center justify-center">
   <div class="absolute inset-0">
-    <img src="https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1920&h=1080&fit=crop"
+    <img src="https://www.webstew.net/api/media?q=gourmet+food+closeup&w=1920&h=1080"
          alt="Restaurant" class="w-full h-full object-cover">
     <div class="absolute inset-0 bg-gradient-to-t from-stone-900 via-stone-900/60 to-stone-900/40"></div>
   </div>
@@ -92,7 +92,7 @@ export const RESTAURANT_MENU_TEMPLATE = {
   <div class="max-w-7xl mx-auto">
     <div class="grid md:grid-cols-2 gap-12 items-center">
       <div class="relative">
-        <img src="https://images.unsplash.com/photo-1600565193348-f74bd3c7ccdf?w=600&h=800&fit=crop"
+        <img src="https://www.webstew.net/api/media?q=elegant+restaurant+interior&w=600&h=800"
              alt="Chef" class="w-full rounded-lg">
         <div class="absolute -bottom-6 -right-6 w-48 h-48 border-2 border-[var(--gold)] rounded-lg -z-10"></div>
       </div>
@@ -143,7 +143,7 @@ export const RESTAURANT_MENU_TEMPLATE = {
     <!-- Menu Items -->
     <div class="grid md:grid-cols-2 gap-x-12 gap-y-8">
       <div class="flex gap-4 p-4 hover:bg-white/5 rounded-lg transition group">
-        <img src="https://images.unsplash.com/photo-1544025162-d76694265947?w=120&h=120&fit=crop"
+        <img src="https://www.webstew.net/api/media?q=chef+cooking+kitchen&w=120&h=120"
              alt="Dish" class="w-24 h-24 rounded-lg object-cover">
         <div class="flex-1">
           <div class="flex items-start justify-between mb-2">
@@ -155,7 +155,7 @@ export const RESTAURANT_MENU_TEMPLATE = {
       </div>
 
       <div class="flex gap-4 p-4 hover:bg-white/5 rounded-lg transition group">
-        <img src="https://images.unsplash.com/photo-1558030006-450675393462?w=120&h=120&fit=crop"
+        <img src="https://www.webstew.net/api/media?q=pasta+gourmet&w=120&h=120"
              alt="Dish" class="w-24 h-24 rounded-lg object-cover">
         <div class="flex-1">
           <div class="flex items-start justify-between mb-2">
@@ -167,7 +167,7 @@ export const RESTAURANT_MENU_TEMPLATE = {
       </div>
 
       <div class="flex gap-4 p-4 hover:bg-white/5 rounded-lg transition group">
-        <img src="https://images.unsplash.com/photo-1473093295043-cdd812d0e601?w=120&h=120&fit=crop"
+        <img src="https://www.webstew.net/api/media?q=steak+fine+dining&w=120&h=120"
              alt="Dish" class="w-24 h-24 rounded-lg object-cover">
         <div class="flex-1">
           <div class="flex items-start justify-between mb-2">
@@ -179,7 +179,7 @@ export const RESTAURANT_MENU_TEMPLATE = {
       </div>
 
       <div class="flex gap-4 p-4 hover:bg-white/5 rounded-lg transition group">
-        <img src="https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=120&h=120&fit=crop"
+        <img src="https://www.webstew.net/api/media?q=dessert+plating&w=120&h=120"
              alt="Dish" class="w-24 h-24 rounded-lg object-cover">
         <div class="flex-1">
           <div class="flex items-start justify-between mb-2">
@@ -191,7 +191,7 @@ export const RESTAURANT_MENU_TEMPLATE = {
       </div>
 
       <div class="flex gap-4 p-4 hover:bg-white/5 rounded-lg transition group">
-        <img src="https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=120&h=120&fit=crop"
+        <img src="https://www.webstew.net/api/media?q=wine+glass+dining&w=120&h=120"
              alt="Dish" class="w-24 h-24 rounded-lg object-cover">
         <div class="flex-1">
           <div class="flex items-start justify-between mb-2">
@@ -203,7 +203,7 @@ export const RESTAURANT_MENU_TEMPLATE = {
       </div>
 
       <div class="flex gap-4 p-4 hover:bg-white/5 rounded-lg transition group">
-        <img src="https://images.unsplash.com/photo-1579954115545-a95591f28bfc?w=120&h=120&fit=crop"
+        <img src="https://www.webstew.net/api/media?q=fine+dining+plated+dish&w=120&h=120"
              alt="Dish" class="w-24 h-24 rounded-lg object-cover">
         <div class="flex-1">
           <div class="flex items-start justify-between mb-2">
@@ -279,7 +279,7 @@ export const RESTAURANT_MENU_TEMPLATE = {
         </form>
       </div>
       <div class="relative hidden md:block">
-        <img src="https://images.unsplash.com/photo-1559339352-11d035aa65de?w=600&h=700&fit=crop"
+        <img src="https://www.webstew.net/api/media?q=gourmet+food+closeup&w=600&h=700"
              alt="Restaurant Interior" class="w-full rounded-lg">
       </div>
     </div>

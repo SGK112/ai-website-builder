@@ -9,7 +9,7 @@ export const SAAS_LANDING_TEMPLATE = {
   description: 'Modern SaaS landing page with gradient accents, feature grids, pricing tables, and testimonials',
   category: 'saas',
   tags: ['saas', 'startup', 'tech', 'gradient', 'modern', 'pricing'],
-  preview: 'https://images.unsplash.com/photo-1551434678-e076c223a692?w=800&h=600&fit=crop',
+  preview: 'https://www.webstew.net/api/media?q=modern+saas+dashboard&w=800&h=600',
 
   variables: {
     productName: 'FlowSync',
@@ -98,7 +98,7 @@ export const SAAS_LANDING_TEMPLATE = {
           <div class="w-3 h-3 rounded-full bg-yellow-400"></div>
           <div class="w-3 h-3 rounded-full bg-green-400"></div>
         </div>
-        <img src="https://images.unsplash.com/photo-1551434678-e076c223a692?w=1200&h=600&fit=crop" alt="Dashboard" class="w-full">
+        <img src="https://www.webstew.net/api/media?q=software+team+working&w=1200&h=600" alt="Dashboard" class="w-full">
       </div>
     </div>
   </div>

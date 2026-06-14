@@ -9,7 +9,7 @@ export const SAAS_MULTIPAGE_TEMPLATE = {
   description: 'Full-featured SaaS template with pricing tables, feature sections, testimonials, and FAQ',
   category: 'saas' as const,
   tags: ['saas', 'software', 'pricing', 'features', 'startup', 'tech'],
-  preview: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=600&fit=crop',
+  preview: 'https://www.webstew.net/api/media?q=modern+saas+dashboard&w=800&h=600',
 
   variables: {
     productName: 'FlowSync',
@@ -99,7 +99,7 @@ export const SAAS_MULTIPAGE_TEMPLATE = {
 
     <!-- Dashboard Preview -->
     <div class="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl shadow-indigo-500/10">
-      <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1200&h=700&fit=crop"
+      <img src="https://www.webstew.net/api/media?q=software+team+working&w=1200&h=700"
            alt="Dashboard" class="w-full">
       <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent"></div>
     </div>
