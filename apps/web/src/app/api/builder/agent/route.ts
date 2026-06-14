@@ -693,6 +693,15 @@ export async function POST(req: NextRequest) {
         // How many times we've bounced a done() call back for broken inline JS.
         // Capped so a page the agent genuinely can't fix doesn't hang the loop.
         let doneRejections = 0
+        // How many turns were truncated at the output cap. Capped so a build
+        // that keeps overflowing eventually stops cleanly instead of looping.
+        let maxTokensRetries = 0
+        // A single model turn shouldn't take longer than this. A healthy turn
+        // (even a full 32K-token one) finishes well under it; if the upstream
+        // stream hangs, this aborts the turn so the build errors instead of
+        // spinning forever behind the keep-alive heartbeat. Cloud-only failure
+        // mode — the bridge runs locally with no such hang.
+        const STALL_TIMEOUT_MS = 280_000
 
         while (iterations < maxIterations && doneSummary == null) {
           // Stop ONLY on an explicit user cancel (Stop button → /api/builder/
@@ -707,20 +716,37 @@ export async function POST(req: NextRequest) {
           // call ("Streaming is required for operations that may take longer
           // than 10 minutes"). finalMessage() still resolves to the complete
           // Message, so the loop below is unchanged.
-          const response: Anthropic.Messages.Message = await client.messages.stream({
-            model,
-            // 32K output budget. 16K was too tight for multi-page builds:
-            // writing several full HTML pages in one turn blew the cap
-            // mid-write_file, flipping stop_reason to 'max_tokens' and bailing
-            // with "output token cap hit" before any page landed. A single
-            // page is 3-8K tokens, so 32K comfortably fits 3-4 pages/turn and
-            // the loop finishes the rest across iterations. Sonnet/Opus 4.x
-            // support up to 64K if we ever need more.
-            max_tokens: 32000,
-            system: systemBlocks,
-            tools: cachedTools,
-            messages: withRollingCache(messages),
-          }).finalMessage()
+          // Abort the turn if the upstream stream hangs (no timeout on
+          // finalMessage() otherwise → the build spins forever behind the
+          // keep-alive heartbeat with no progress).
+          let response: Anthropic.Messages.Message
+          const turnAbort = new AbortController()
+          const stallTimer = setTimeout(() => turnAbort.abort(), STALL_TIMEOUT_MS)
+          try {
+            response = await client.messages.stream({
+              model,
+              // 32K output budget. 16K was too tight for multi-page builds:
+              // writing several full HTML pages in one turn blew the cap
+              // mid-write_file, flipping stop_reason to 'max_tokens' and bailing
+              // with "output token cap hit" before any page landed. A single
+              // page is 3-8K tokens, so 32K comfortably fits 3-4 pages/turn and
+              // the loop finishes the rest across iterations. Sonnet/Opus 4.x
+              // support up to 64K if we ever need more.
+              max_tokens: 32000,
+              system: systemBlocks,
+              tools: cachedTools,
+              messages: withRollingCache(messages),
+            }, { signal: turnAbort.signal }).finalMessage()
+          } catch (streamErr: any) {
+            if (turnAbort.signal.aborted) {
+              send('error', { message: 'The build stalled waiting on the model and was stopped so it wouldn\'t hang. Your changes so far are saved — say "continue" to resume.' })
+              doneSummary = `Stopped: a build step stalled at iteration ${iterations}.`
+              break
+            }
+            throw streamErr
+          } finally {
+            clearTimeout(stallTimer)
+          }
           // Accumulate usage — trackUsage is called once at end-of-stream.
           totalInputTokens  += response.usage?.input_tokens  || 0
           totalOutputTokens += response.usage?.output_tokens || 0
@@ -756,6 +782,30 @@ export async function POST(req: NextRequest) {
             }
             doneSummary = textPieces.join('\n').trim() || 'Done.'
             break
+          }
+
+          // A turn truncated at the output cap leaves its last tool call
+          // (usually a write_file) INCOMPLETE — running it ships a half-written
+          // file, which is exactly the broken markup/SVG that shows up in the
+          // preview. Don't execute the truncated turn; tell the model to write
+          // less and continue, instead of shipping garbage and giving up.
+          if (response.stop_reason === 'max_tokens') {
+            maxTokensRetries++
+            messages.push({
+              role: 'user',
+              content: toolUses.map((tu) => ({
+                type: 'tool_result' as const,
+                tool_use_id: tu.id,
+                content: 'Your response was cut off at the output limit, so this call was NOT run (it may be incomplete). Write LESS per turn — one file, or a few short sections at a time — then continue. Do NOT repeat work already saved in earlier turns.',
+                is_error: true,
+              })),
+            })
+            send('text', { text: maxTokensRetries === 1 ? 'That step was large — breaking it into smaller pieces…' : 'Continuing in smaller pieces…' })
+            if (maxTokensRetries >= 4) {
+              doneSummary = `Made changes across ${iterations} steps — this build is large. Say "continue" and I'll finish the rest.`
+              break
+            }
+            continue
           }
 
           // Execute each tool call, collect tool_result blocks
@@ -822,18 +872,8 @@ export async function POST(req: NextRequest) {
           // Push the tool_results as a single user turn (Anthropic's required shape).
           messages.push({ role: 'user', content: toolResults })
 
-          // If the model ended its turn naturally, we're done. But surface
-          // a specific message when stop_reason was `max_tokens` — that
-          // means the model ran out of output budget mid-tool_use, which
-          // looks identical to "iteration cap hit" but is a different bug
-          // (model needs more headroom, not more iterations).
-          if (response.stop_reason === 'max_tokens') {
-            send('error', {
-              message: 'Output token cap hit mid-edit. The file may be too large for a single rewrite. Try splitting the request, or ask for narrower changes.',
-            })
-            doneSummary = `Stopped: output token cap hit at iteration ${iterations}.`
-            break
-          }
+          // max_tokens is handled before tool execution (truncation guard
+          // above); here we only need the natural end-of-turn exit.
           if (response.stop_reason !== 'tool_use') break
         }
 
