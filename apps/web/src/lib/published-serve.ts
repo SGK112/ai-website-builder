@@ -54,22 +54,27 @@ interface PublishedSite { slug?: string; files?: Array<{ path: string; content: 
 function rebaseHtml(html: string, basePath: string): string {
   const pfx = (basePath || '').replace(/\/+$/, '')
   if (!pfx) return html
+  // Root-relative refs that point at a Webstew PLATFORM endpoint (/api/media for
+  // images, /api/* in general) live at the app root, not under the site — they
+  // must stay root-relative so they resolve to www.webstew.net/api/... . Only
+  // the site's OWN pages/assets get the base prefix.
+  const isPlatform = (rest: string) => /^api(\/|$)/i.test(rest)
   // Nav/asset attributes pointing at a root-relative path (not protocol-relative
   // //, not external, not #hash, not mailto:/data:).
   html = html.replace(
     /(?<![.\w-])(data-href|href|src|action)\s*=\s*(["'])\/(?!\/)([^"']*)\2/gi,
-    (_m, attr, q, rest) => `${attr}=${q}${pfx}/${rest}${q}`,
+    (m, attr, q, rest) => (isPlatform(rest) ? m : `${attr}=${q}${pfx}/${rest}${q}`),
   )
   // Programmatic navigation in inline scripts: location.href = '/x',
   // window.location = '/x'. Comparisons (===) and dynamic values are untouched
   // because the value must be a root-relative string literal.
   html = html.replace(
     /((?:window\s*\.\s*)?location\s*(?:\.\s*href)?\s*=\s*)(["'])\/(?!\/)([^"']*)\2/gi,
-    (_m, pre, q, rest) => `${pre}${q}${pfx}/${rest}${q}`,
+    (m, pre, q, rest) => (isPlatform(rest) ? m : `${pre}${q}${pfx}/${rest}${q}`),
   )
   html = html.replace(
     /((?:window\s*\.\s*)?location\s*\.\s*(?:assign|replace)\s*\(\s*)(["'])\/(?!\/)([^"']*)\2/gi,
-    (_m, pre, q, rest) => `${pre}${q}${pfx}/${rest}${q}`,
+    (m, pre, q, rest) => (isPlatform(rest) ? m : `${pre}${q}${pfx}/${rest}${q}`),
   )
   return html
 }
