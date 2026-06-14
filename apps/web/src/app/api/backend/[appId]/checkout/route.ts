@@ -15,6 +15,7 @@ import { connectDB } from '@/lib/db'
 import { getStripe } from '@/lib/stripe'
 import { randomUUID } from 'crypto'
 import { ObjectId } from 'mongodb'
+import { backendRateLimited } from '@/lib/backend-ratelimit'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,6 +64,8 @@ interface Ctx { params: { appId: string } }
 
 export async function POST(req: NextRequest, { params }: Ctx) {
   const { appId } = params
+  const limited = backendRateLimited(req, appId, 'checkout', 'marketplaceBuy')
+  if (limited) return limited
   const key = req.headers.get('x-webstew-key') || req.nextUrl.searchParams.get('key')
   const auth = await authApp(appId, key)
   if (!auth) return cors(NextResponse.json({ error: 'Invalid or missing app key.' }, { status: 401 }))

@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/db'
 import bcrypt from 'bcryptjs'
 import { createHmac, randomUUID } from 'crypto'
+import { backendRateLimited } from '@/lib/backend-ratelimit'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,6 +46,9 @@ interface Ctx { params: { appId: string } }
 
 export async function POST(req: NextRequest, { params }: Ctx) {
   const { appId } = params
+  // Tight per-(app, ip) cap — auth is the prime credential-stuffing / signup-spam target.
+  const limited = backendRateLimited(req, appId, 'auth', 'auth')
+  if (limited) return limited
   const key = req.headers.get('x-webstew-key') || req.nextUrl.searchParams.get('key')
   const db = await authApp(appId, key)
   if (!db) return cors(NextResponse.json({ error: 'Invalid or missing app key.' }, { status: 401 }))

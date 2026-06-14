@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/db'
 import { getAction, runAction } from '@/lib/app-actions'
+import { backendRateLimited } from '@/lib/backend-ratelimit'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,6 +34,8 @@ interface Ctx { params: { appId: string; name: string } }
 
 export async function POST(req: NextRequest, { params }: Ctx) {
   const { appId, name } = params
+  const limited = backendRateLimited(req, appId, 'action', 'communityAction')
+  if (limited) return limited
   const key = req.headers.get('x-webstew-key') || req.nextUrl.searchParams.get('key')
   if (!(await authApp(appId, key))) {
     return cors(NextResponse.json({ error: 'Invalid or missing app key.' }, { status: 401 }))

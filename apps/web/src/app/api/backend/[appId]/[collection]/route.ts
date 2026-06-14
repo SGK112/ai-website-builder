@@ -15,6 +15,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/db'
 import { randomUUID } from 'crypto'
+import { backendRateLimited } from '@/lib/backend-ratelimit'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,6 +62,8 @@ async function guard(req: NextRequest, params: Ctx['params']) {
 }
 
 export async function GET(req: NextRequest, { params }: Ctx) {
+  const limited = backendRateLimited(req, params.appId, 'read', 'api')
+  if (limited) return limited
   const g = await guard(req, params)
   if ('err' in g) return g.err
   const { appId, collection } = params
@@ -81,6 +84,8 @@ export async function GET(req: NextRequest, { params }: Ctx) {
 }
 
 export async function POST(req: NextRequest, { params }: Ctx) {
+  const limited = backendRateLimited(req, params.appId, 'write', 'communityAction')
+  if (limited) return limited
   const g = await guard(req, params)
   if ('err' in g) return g.err
   const { appId, collection } = params
@@ -93,6 +98,8 @@ export async function POST(req: NextRequest, { params }: Ctx) {
 }
 
 export async function PUT(req: NextRequest, { params }: Ctx) {
+  const limited = backendRateLimited(req, params.appId, 'write', 'communityAction')
+  if (limited) return limited
   const g = await guard(req, params)
   if ('err' in g) return g.err
   const { appId, collection } = params
@@ -110,6 +117,8 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
 }
 
 export async function DELETE(req: NextRequest, { params }: Ctx) {
+  const limited = backendRateLimited(req, params.appId, 'write', 'communityAction')
+  if (limited) return limited
   const g = await guard(req, params)
   if ('err' in g) return g.err
   const { appId, collection } = params
