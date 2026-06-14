@@ -312,7 +312,9 @@ export default function TemplatesPage() {
     }
     // Anonymous users hitting free templates can still try them — workspace
     // itself enforces credits, and free tier has 100 demo credits.
-    router.push(`/workspace?template=${template.id}`)
+    // Param MUST be `templateId` — that's what the workspace reads (it ignores
+    // `template`), and it matches the paid path's checkout success_url.
+    router.push(`/workspace?templateId=${template.id}`)
   }
 
   return (
