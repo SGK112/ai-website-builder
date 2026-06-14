@@ -457,9 +457,13 @@ export function dispatchToBridge(
 // state above so all module copies (across Next.js dev HMR + per-route
 // compilation) share one Map instance.
 
-export function pushBridgeResponse(chunk: BridgeResponse): boolean {
+export function pushBridgeResponse(chunk: BridgeResponse, userId?: string): boolean {
   const s = responseStreams.get(chunk.requestId)
   if (!s) return false
+  // Isolation: only the bridge belonging to the stream's OWNER may push into it.
+  // requestIds are unguessable, but without this a bridge authed as user B could
+  // inject chunks into user A's build stream by reusing A's requestId.
+  if (userId && s.userId !== userId) return false
   s.push(chunk)
   if (chunk.kind === 'done' || chunk.kind === 'error') {
     // Give consumers a tick to drain, then drop.

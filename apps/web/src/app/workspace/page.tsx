@@ -5461,8 +5461,10 @@ ${html}
         }
         break
       }
-      if (!data?.files || typeof data.files !== 'object') {
-        throw new Error('Generator returned no files')
+      if (!data?.files || typeof data.files !== 'object' || Object.keys(data.files).length === 0) {
+        // typeof {} === 'object', so an empty object slipped through and booted
+        // WebContainer with zero files → "Installing…" spinner forever.
+        throw new Error('The build came back empty — please try again.')
       }
       setVfsFiles(data.files)
       setVfsProjectMeta({ name: data.name || `${target} project`, slug: data.slug || target })
@@ -9857,7 +9859,11 @@ npx eas build --platform all
               </button>
             )}
 
-            {/* Style Preset Picker - Auto-applies on selection */}
+            {/* Style Preset Picker — website target only. Theme presets rewrite
+                the HTML's <style> block; app targets (React/Astro/etc) keep their
+                styles in VFS files, so the picker would be a dead control there.
+                Hidden rather than shown-and-broken. */}
+            {buildTarget === 'website' && (
             <div data-tour="styles" className="flex items-center gap-1">
               <StylePresetPicker
                 selected={selectedPreset}
@@ -9888,6 +9894,7 @@ npx eas build --platform all
                 )} />
               </button>
             </div>
+            )}
 
             {/* Component Library */}
             <ComponentPicker
