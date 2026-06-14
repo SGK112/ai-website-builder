@@ -2876,7 +2876,11 @@ function WorkspaceContent() {
             { role: 'assistant', content: `Loaded the "${tpl.name}" app template — it's booting in the preview. Tell me what to change and I'll edit the files directly.` }
           ])
         } else {
-          setHtml(tpl.html)
+          // Substitute the template's {{placeholders}} (brandName, heroTitle,
+          // accentColor, …) — without this the catalog path rendered the raw
+          // template with literal "{{brandName}}" text + broken CSS. The
+          // in-workspace tiles already do this; the catalog route didn't.
+          setHtml(tpl.variables ? applyTemplateVariables(tpl.html, tpl.variables) : tpl.html)
           setChatMessages([
             { role: 'assistant', content: `Loaded the "${tpl.name}" template. ${tpl.description} Type any change you want to make and I'll edit the site directly.` }
           ])
