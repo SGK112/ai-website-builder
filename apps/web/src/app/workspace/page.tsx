@@ -2890,7 +2890,36 @@ function WorkspaceContent() {
         }
         addToast('success', `Template loaded — refine it in chat.`)
       } else {
-        addToast('error', `Template "${templateId}" not found`)
+        // Not a bundled template → it's a community/Supabase template (UUID id).
+        // Fetch its source from /api/templates (authed callers get html_content)
+        // and load it, so EVERY catalog template works — not just the 10 bundled
+        // ones. Previously these all dead-ended on "not found".
+        router.replace('/workspace', { scroll: false })
+        setCurrentProject(null)
+        try { localStorage.removeItem('webstew-autosave') } catch {}
+        void (async () => {
+          try {
+            const res = await fetch(`/api/templates?id=${encodeURIComponent(templateId)}`)
+            const data = await res.json().catch(() => ({}))
+            const t = data?.templates?.[0]
+            const content: string = t?.html_content || t?.html || ''
+            if (!t || content.trim().length < 200) {
+              addToast('error', `"${templateId}" isn't available — it has no content yet.`)
+              return
+            }
+            try { localStorage.setItem('webstew-onboarding-complete', 'true') } catch {}
+            setHasCompletedOnboarding(true)
+            setProjectName(t.name || 'Template')
+            setHtml(content)
+            setPreviewBumpKey(k => k + 1)
+            setChatMessages([
+              { role: 'assistant', content: `Loaded the "${t.name}" template. Type any change you want and I'll edit it directly.` },
+            ])
+            addToast('success', `Template loaded — refine it in chat.`)
+          } catch {
+            addToast('error', `Couldn't load that template — please try again.`)
+          }
+        })()
       }
       setHasInitialized(true)
     } else if (remixSlug) {

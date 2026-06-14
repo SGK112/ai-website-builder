@@ -103,9 +103,10 @@ export async function GET(req: NextRequest) {
         query += `id=eq.${id}&select=id,name,description,category,industry,thumbnail_url,preview_url,is_premium,price_credits,created_at`
       }
     } else {
-      // List view — metadata only regardless of auth state. Same fields for
-      // anon + authed so the catalog UI is consistent.
-      query += `select=id,name,description,category,industry,thumbnail_url,preview_url,is_premium,price_credits,created_at`
+      // List view — metadata only in the RESPONSE, but we also pull html_content
+      // here so we can drop empty/stub rows (templates that would load blank).
+      // html_content is stripped before returning (anon-safe posture preserved).
+      query += `select=id,name,description,category,industry,thumbnail_url,preview_url,is_premium,price_credits,created_at,html_content`
 
       if (category) {
         query += `&category=eq.${category}`
@@ -143,6 +144,11 @@ export async function GET(req: NextRequest) {
           if (/^untitled\b/i.test(name)) return false
           // Stubs the user kept hitting — short auto-gen names with epoch suffixes.
           if (/test \d{10,}/i.test(name)) return false
+          // Drop EMPTY/STUB rows — a template with no real html_content loads
+          // blank in the workspace. This is the #1 reason the library looked
+          // broken (6 stub rows like "Real Estate Pro" had ~100 chars of
+          // placeholder). Keep only rows with genuine content.
+          if ((t?.html_content || '').trim().length < 300) return false
           return true
         })
 
@@ -158,10 +164,15 @@ export async function GET(req: NextRequest) {
     const localFiltered = (category || industry)
       ? LOCAL_TEMPLATES.filter((t) => t.category === (category || industry))
       : LOCAL_TEMPLATES
-    const merged = [
-      ...localFiltered.map((t) => localToTemplate(t, false)),
-      ...cleanedList,
-    ]
+    const localTiles = localFiltered.map((t) => localToTemplate(t, false))
+    // Dedupe: a Supabase row whose name matches a curated local template
+    // (e.g. "Luxe E-commerce", "SaaS Landing") is a duplicate — show only the
+    // curated local one. Strip html_content from the response (anon-safe).
+    const localNames = new Set(localTiles.map((t) => t.name.trim().toLowerCase()))
+    const remoteTiles = cleanedList
+      .filter((t) => !localNames.has((t.name || '').trim().toLowerCase()))
+      .map((t) => ({ ...t, html_content: '' }))
+    const merged = [...localTiles, ...remoteTiles]
     return NextResponse.json({
       templates: merged,
       count: merged.length,
