@@ -34,8 +34,52 @@ import {
   listToolkitActions,
   executeAction,
 } from '@/lib/composio'
+import vm from 'vm'
 
 export type VfsMap = Record<string, string>
+
+// Catches the #1 silent-death bug in generated pages: an inline <script> with a
+// real JS syntax error (e.g. `function foo(){ await bar() }` — await without
+// async) fails to parse, so EVERY handler in that block is undefined and the
+// page's buttons/forms do nothing. The browser swallows it as a console error
+// the builder never sees. We compile each classic inline script in script mode
+// (V8, no execution) so the agent gets the error back and fixes it before done.
+export function inlineScriptSyntaxErrors(path: string, html: string): string | null {
+  if (!/\.html?$/i.test(path)) return null
+  const errors: string[] = []
+  const re = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi
+  let m: RegExpExecArray | null
+  let n = 0
+  while ((m = re.exec(html))) {
+    n++
+    const attrs = m[1] || ''
+    const code = m[2] || ''
+    if (/\bsrc\s*=/i.test(attrs)) continue // external script — nothing inline to parse
+    const type = (attrs.match(/\btype\s*=\s*["']?([^"'\s>]+)/i) || [])[1]
+    // Only validate classic JavaScript. Skip modules (top-level await is legal
+    // there) and non-JS payloads (JSON-LD, x-template, text/babel, etc).
+    if (type && !/^(text|application)\/javascript$/i.test(type)) continue
+    if (!code.trim()) continue
+    try {
+      new vm.Script(code, { filename: `${path}#script${n}` })
+    } catch (e: any) {
+      errors.push(`inline <script> #${n}: ${e?.message || String(e)}`)
+    }
+  }
+  return errors.length ? errors.join('\n') : null
+}
+
+// Appends a loud, must-fix warning to a successful write result when the
+// written HTML contains a broken inline script. We still write the file (so the
+// agent can edit it in place) but make the failure impossible to miss.
+function withSyntaxWarning(path: string, contents: string, okMsg: string): ToolResult {
+  const err = inlineScriptSyntaxErrors(path, contents)
+  if (!err) return { ok: true, content: okMsg }
+  return {
+    ok: true,
+    content: `${okMsg}\n\n⚠️ SYNTAX ERROR — this page's JavaScript will NOT run as written, so its buttons/forms are dead. You MUST fix this before calling done():\n${err}\n\nCommon cause: a function uses \`await\` but is not declared \`async\`. Mark the handler \`async function name(...)\`.`,
+  }
+}
 
 export interface AgentVfs {
   files: VfsMap
@@ -458,7 +502,7 @@ export async function executeTool(
         }
         vfs.files[path] = contents
         if (vfs.onWrite) await vfs.onWrite(path, contents)
-        return { ok: true, content: `Wrote ${path} (${contents.length} chars)` }
+        return withSyntaxWarning(path, contents, `Wrote ${path} (${contents.length} chars)`)
       }
       case 'edit_file': {
         const path = String(input?.path || '').trim()
@@ -489,7 +533,7 @@ export async function executeTool(
         }
         vfs.files[path] = updated
         if (vfs.onWrite) await vfs.onWrite(path, updated)
-        return { ok: true, content: `Edited ${path} (${oldStr.length} → ${newStr.length} chars at offset ${idx})` }
+        return withSyntaxWarning(path, updated, `Edited ${path} (${oldStr.length} → ${newStr.length} chars at offset ${idx})`)
       }
       case 'find_replace': {
         const find = String(input?.find ?? '')
@@ -516,7 +560,13 @@ export async function executeTool(
         if (total === 0) {
           return { ok: false, content: `No occurrences of "${find}" found in ${scope ? scope.join(', ') : 'any file'}.` }
         }
-        return { ok: true, content: `Replaced ${total} occurrence(s) of "${find}" → "${replace}":\n${report.join('\n')}`, changedPaths }
+        const synWarnings = changedPaths
+          .map((p) => { const e = inlineScriptSyntaxErrors(p, vfs.files[p]); return e ? `${p}:\n${e}` : null })
+          .filter(Boolean)
+        const warnSuffix = synWarnings.length
+          ? `\n\n⚠️ This replacement broke inline JavaScript — fix before done():\n${synWarnings.join('\n')}`
+          : ''
+        return { ok: true, content: `Replaced ${total} occurrence(s) of "${find}" → "${replace}":\n${report.join('\n')}${warnSuffix}`, changedPaths }
       }
       case 'delete_file': {
         const path = String(input?.path || '').trim()

@@ -39,7 +39,7 @@ import { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { TOOLS, executeTool, type AgentVfs } from '@/lib/agent-tools'
+import { TOOLS, executeTool, inlineScriptSyntaxErrors, type AgentVfs } from '@/lib/agent-tools'
 import { startBuild, completeBuild, failBuild, markBuildCancelled, isCancelled, type BuildFile } from '@/lib/builds-store'
 import { sendMail } from '@/lib/mailer'
 import { getRecentNegativeNotes } from '@/lib/feedback-store'
@@ -145,7 +145,8 @@ MULTI-PAGE WEBSITES (this project's target is "website"):
 - ZERO-CONFIG: every page must run with NO API keys. NEVER use the Google Maps JavaScript API (maps.googleapis.com/maps/api/js — needs a key) and NEVER leave undefined globals (YOUR_LAT, YOUR_API_KEY, etc.). For a location map use the KEYLESS Google Maps embed iframe (a real map from a plain address, no key): <iframe src="https://maps.google.com/maps?q=FULL+ADDRESS+OR+CITY&z=13&output=embed" width="100%" height="400" style="border:0;" loading="lazy"></iframe>
 - When the user asks for a multi-page site ("add an about page", "make a 4-page site for a dentist"), create ALL the pages as separate .html files and wire the nav across them before calling done. Don't stop after one page.
 - PACING (important): there's a per-response output limit. Do NOT try to emit every page in a single response — write 2-3 pages per turn with separate write_file calls, let the turn end, then continue with the next pages on the following turn. The loop keeps going until you call done(), so building 5 pages over 2-3 turns is normal and correct. Trying to write them all at once truncates mid-file and loses work.
-- REAL BACKEND — when the user asks for accounts / login, saving form submissions, a jobs board / member area / dashboard / profiles with persisted data, OR an online store / checkout / cart: call provision_backend ONCE. It returns a <script> SDK (window.WebstewDB) + usage. Put the <script> in <head> of every data page, then write REAL onsubmit handlers (e.preventDefault() + await) that call the SDK. Capabilities, all REAL and live: (1) Auth — WebstewDB.auth.signup/login/logout/isLoggedIn (email + password). (2) Database — WebstewDB.collection(name).create/list/update/get/remove. (3) Store checkout — WebstewDB.checkout({ items:[{ name, amount /*CENTS*/, quantity }] }) charges a real card via Stripe (platform-managed, the user needs NO Stripe keys), redirects to Stripe then back (?paid=1), and records each order in the "orders" collection. Build login, jobs boards, member areas, AND store checkout THIS way — never as fake static forms. The ONLY thing still unsupported: "Sign in with Google/OAuth" social login (use email/password instead and tell the user). Never imply something works when it doesn't.`
+- REAL BACKEND — when the user asks for accounts / login, saving form submissions, a jobs board / member area / dashboard / profiles with persisted data, OR an online store / checkout / cart: call provision_backend ONCE. It returns a <script> SDK (window.WebstewDB) + usage. Put the <script> in <head> of every data page, then write REAL onsubmit handlers (e.preventDefault() + await) that call the SDK. Capabilities, all REAL and live: (1) Auth — WebstewDB.auth.signup/login/logout/isLoggedIn (email + password). (2) Database — WebstewDB.collection(name).create/list/update/get/remove. (3) Store checkout — WebstewDB.checkout({ items:[{ name, amount /*CENTS*/, quantity }] }) charges a real card via Stripe (platform-managed, the user needs NO Stripe keys), redirects to Stripe then back (?paid=1), and records each order in the "orders" collection. Build login, jobs boards, member areas, AND store checkout THIS way — never as fake static forms. The ONLY thing still unsupported: "Sign in with Google/OAuth" social login (use email/password instead and tell the user). Never imply something works when it doesn't.
+- ASYNC HANDLERS (critical): any function that uses \`await\` MUST be declared \`async\` — write \`async function emailLogin(e){…await…}\` or \`onsubmit="emailLogin(event)"\` with \`async function emailLogin\`. \`await\` inside a plain \`function(){}\` is a SYNTAX ERROR that kills the ENTIRE <script> block, so every handler on the page becomes undefined and buttons/forms silently do nothing. This is the #1 cause of "the login does nothing". The build will refuse to finish if any inline <script> has a syntax error — so get it right the first time.`
 
 interface AgentRequest {
   prompt: string
@@ -682,6 +683,9 @@ export async function POST(req: NextRequest) {
       try {
         let iterations = 0
         let doneSummary: string | null = null
+        // How many times we've bounced a done() call back for broken inline JS.
+        // Capped so a page the agent genuinely can't fix doesn't hang the loop.
+        let doneRejections = 0
 
         while (iterations < maxIterations && doneSummary == null) {
           // Stop ONLY on an explicit user cancel (Stop button → /api/builder/
@@ -751,6 +755,24 @@ export async function POST(req: NextRequest) {
           const toolResults: Anthropic.Messages.ToolResultBlockParam[] = []
           for (const tu of toolUses) {
             const result = await executeTool(tu.name, tu.input, vfs)
+            // Final safety net: never let the agent finish while a page has a
+            // broken inline <script> — that's how dead login forms / no-op
+            // buttons ship. Bounce done() back with the exact errors so it
+            // fixes them first (capped, so an unfixable page can't hang us).
+            if (tu.name === 'done' && result.ok && doneRejections < 2) {
+              const broken = Object.entries(vfs.files)
+                .map(([p, c]) => {
+                  if (typeof c !== 'string') return null
+                  const e = inlineScriptSyntaxErrors(p, c)
+                  return e ? `${p}:\n${e}` : null
+                })
+                .filter(Boolean) as string[]
+              if (broken.length) {
+                doneRejections++
+                result.ok = false
+                result.content = `Cannot finish yet — these pages have inline <script> syntax errors, so their buttons/forms do nothing. Fix them, then call done(). Most common cause: a handler uses \`await\` but isn't declared \`async\` — change \`function name(\` to \`async function name(\`.\n\n${broken.join('\n\n')}`
+              }
+            }
             send('tool_result', { tool_use_id: tu.id, ok: result.ok, content: result.content.slice(0, 4000) })
             // For file mutations, emit a separate event so the client can update its view
             if (result.ok && tu.name === 'write_file') {
@@ -776,8 +798,10 @@ export async function POST(req: NextRequest) {
               // up its "Live at …" state without re-fetching /api/publish.
               try { send('published', JSON.parse(result.content)) } catch {}
             }
-            // If the model called `done`, capture the summary and end the loop.
-            if (tu.name === 'done') {
+            // If the model called `done`, capture the summary and end the loop —
+            // unless the done-guard above flipped result.ok to false (broken
+            // inline JS), in which case we keep looping so it gets fixed.
+            if (tu.name === 'done' && result.ok) {
               doneSummary = String((tu.input as any).summary || 'Done.')
             }
             toolResults.push({
