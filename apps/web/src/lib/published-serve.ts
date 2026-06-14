@@ -44,8 +44,38 @@ interface PublishedSite { slug?: string; files?: Array<{ path: string; content: 
  * Resolve a request path against a published site's files and return the
  * response. `pathParts` is the path after the host/slug (e.g. ['about']).
  */
-function htmlResponse(html: string, label?: string): NextResponse {
-  return new NextResponse(html, {
+// Published pages use ROOT-RELATIVE links (href="/contractor-login",
+// location.href = '/portal'). Those only resolve when the site is the origin
+// root (a {slug}.webstew.app subdomain or a custom domain). When the SAME site
+// is viewed at www.webstew.net/s/<slug>/…, a root-relative "/contractor-login"
+// escapes to the Webstew app root and 404s. So when we're serving under a
+// sub-path, prefix every internal nav/asset reference with that base. basePath
+// is '' for root hosts (subdomain / custom domain) — then this is a no-op.
+function rebaseHtml(html: string, basePath: string): string {
+  const pfx = (basePath || '').replace(/\/+$/, '')
+  if (!pfx) return html
+  // Nav/asset attributes pointing at a root-relative path (not protocol-relative
+  // //, not external, not #hash, not mailto:/data:).
+  html = html.replace(
+    /(?<![.\w-])(data-href|href|src|action)\s*=\s*(["'])\/(?!\/)([^"']*)\2/gi,
+    (_m, attr, q, rest) => `${attr}=${q}${pfx}/${rest}${q}`,
+  )
+  // Programmatic navigation in inline scripts: location.href = '/x',
+  // window.location = '/x'. Comparisons (===) and dynamic values are untouched
+  // because the value must be a root-relative string literal.
+  html = html.replace(
+    /((?:window\s*\.\s*)?location\s*(?:\.\s*href)?\s*=\s*)(["'])\/(?!\/)([^"']*)\2/gi,
+    (_m, pre, q, rest) => `${pre}${q}${pfx}/${rest}${q}`,
+  )
+  html = html.replace(
+    /((?:window\s*\.\s*)?location\s*\.\s*(?:assign|replace)\s*\(\s*)(["'])\/(?!\/)([^"']*)\2/gi,
+    (_m, pre, q, rest) => `${pre}${q}${pfx}/${rest}${q}`,
+  )
+  return html
+}
+
+function htmlResponse(html: string, label?: string, basePath = ''): NextResponse {
+  return new NextResponse(rebaseHtml(html, basePath), {
     status: 200,
     headers: {
       'content-type': 'text/html; charset=utf-8',
@@ -63,7 +93,7 @@ function htmlResponse(html: string, label?: string): NextResponse {
 // "/" serves the isHome page (not whatever page happened to be active at save).
 const PAGES_SIDECAR = '_webstew_pages.json'
 
-function servePageFromSidecar(byPath: Map<string, string>, reqPath: string, label?: string): NextResponse | null {
+function servePageFromSidecar(byPath: Map<string, string>, reqPath: string, label?: string, basePath = ''): NextResponse | null {
   const raw = byPath.get(PAGES_SIDECAR)
   if (!raw) return null
   // Only intercept page navigations — let assets (.css/.js/images) fall through.
@@ -81,10 +111,10 @@ function servePageFromSidecar(byPath: Map<string, string>, reqPath: string, labe
     ? (pages.find(p => p.isHome) || pages[0])
     : pages.find(p => String(p.slug || '').toLowerCase() === want)
   if (!page || typeof page.html !== 'string') return null
-  return htmlResponse(page.html, label)
+  return htmlResponse(page.html, label, basePath)
 }
 
-export function servePublishedFile(site: PublishedSite | null, pathParts: string[], label?: string): NextResponse {
+export function servePublishedFile(site: PublishedSite | null, pathParts: string[], label?: string, basePath = ''): NextResponse {
   if (!site || !Array.isArray(site.files)) return publishedNotFound()
 
   const byPath = new Map(site.files.map(f => [f.path.replace(/^\/+/, ''), f.content]))
@@ -92,7 +122,7 @@ export function servePublishedFile(site: PublishedSite | null, pathParts: string
 
   // Sidecar pages take precedence for page requests (fixes multi-page routing +
   // the home page showing the wrong page). Assets fall through to static files.
-  const fromSidecar = servePageFromSidecar(byPath, reqPath, label)
+  const fromSidecar = servePageFromSidecar(byPath, reqPath, label, basePath)
   if (fromSidecar) return fromSidecar
 
   const candidates = reqPath === ''
@@ -104,6 +134,10 @@ export function servePublishedFile(site: PublishedSite | null, pathParts: string
     if (byPath.has(c)) { hit = c; break }
   }
   if (hit === undefined) return publishedNotFound()
+
+  // Rebase internal links in HTML files served under a sub-path; assets stream
+  // unchanged.
+  if (/\.html?$/i.test(hit)) return htmlResponse(byPath.get(hit)!, label, basePath)
 
   return new NextResponse(byPath.get(hit)!, {
     status: 200,

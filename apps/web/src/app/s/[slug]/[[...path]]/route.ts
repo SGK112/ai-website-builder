@@ -26,5 +26,16 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   if (!db) return new NextResponse('Service unavailable', { status: 503 })
 
   const site = await db.collection('published_sites').findOne({ slug, published: true })
-  return servePublishedFile(site as any, params.path || [], slug)
+
+  // Root-relative links in the site need a base prefix UNLESS the browser is
+  // already at the site's root. A {slug}.webstew.app subdomain (rewritten here
+  // by middleware) keeps the browser at the root → no prefix. A direct
+  // www.webstew.net/s/<slug> link lives under a sub-path → prefix it so nav
+  // doesn't escape to the Webstew app and 404.
+  const host = (_req.headers.get('host') || '').split(':')[0].toLowerCase()
+  const publishDomain = (process.env.NEXT_PUBLIC_PUBLISH_DOMAIN || 'webstew.app').toLowerCase()
+  const atRoot = host.endsWith(`.${publishDomain}`) || host === publishDomain
+  const basePath = atRoot ? '' : `/s/${slug}`
+
+  return servePublishedFile(site as any, params.path || [], slug, basePath)
 }
