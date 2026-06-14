@@ -3098,6 +3098,13 @@ function WorkspaceContent() {
         }
         autoSaveData.vfsFiles = vfsCapped
       }
+      // Only cache UNSAVED drafts here. A SAVED project's source of truth is the
+      // cloud row; caching it locally is what let a stale draft (e.g. a template
+      // someone loaded) get restored over a DIFFERENT open project and overwrite
+      // it. For a saved project, clear the draft cache instead of writing it.
+      if (currentProject?.id) {
+        try { localStorage.removeItem('webstew-autosave') } catch { /* ignore */ }
+      } else {
       try {
         localStorage.setItem('webstew-autosave', JSON.stringify(autoSaveData))
       } catch {
@@ -3108,9 +3115,10 @@ function WorkspaceContent() {
           localStorage.setItem('webstew-autosave', JSON.stringify(autoSaveData))
         } catch { /* quota still exceeded — skip */ }
       }
+      }
     }, 800)
     return () => clearTimeout(handle)
-  }, [html, projectName, selectedPreset, pages, activePageId, buildTarget, vfsFiles, history, historyIndex])
+  }, [html, projectName, selectedPreset, pages, activePageId, buildTarget, vfsFiles, history, historyIndex, currentProject?.id])
 
   // Load auto-saved work on mount (if no URL params AND no fresh template/
   // prompt/project load already happened this mount — otherwise this effect
@@ -3806,6 +3814,11 @@ function WorkspaceContent() {
       addToast('info', 'Pause or finish the current build before switching projects.')
       return
     }
+    // Opening a saved project discards any stale local draft cache so it can't
+    // be restored over (and then autosaved on top of) this project — the loop
+    // that kept overwriting saved projects with a previously-loaded template.
+    loadedFromUrlRef.current = true
+    try { localStorage.removeItem('webstew-autosave') } catch { /* ignore */ }
     // The list endpoint (/api/projects) strips file content to keep the
     // listing payload small — so the `project` we get from the dropdown
     // has empty html/files. Fetch the full record on click; fall back to
