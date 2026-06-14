@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getApiSession } from '@/lib/api-auth'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
-import { loadProjectCms } from '@/lib/cms-store'
+import { injectPublishedCms } from '@/lib/cms-publish'
 import { getUserCredential } from '@/lib/credentials-store'
 
 // Env defaults — used only when the user hasn't stored their own credentials.
@@ -188,101 +188,6 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     )
   }
-}
-
-// Bake the project's published CMS items into the file tree so the deployed
-// site can read them. Two formats:
-//   • `cms/<collection>.json` — array of published items. Universal; any
-//     framework can fetch / import this at build or runtime.
-//   • For Astro projects (package.json has `astro`), additionally write each
-//     item as a markdown file in `src/content/<collection>/<slug>.md` with
-//     YAML frontmatter — that's the idiomatic Astro Content Collections shape.
-//
-// Files already present in the project (e.g. user wrote their own
-// `cms/services.json` manually) are NOT overwritten.
-async function injectPublishedCms(
-  files: ProjectFile[],
-  projectId: string,
-  userId: string,
-): Promise<{ files: ProjectFile[]; counts: Record<string, number> }> {
-  try {
-    const loaded = await loadProjectCms(projectId, userId)
-    if (!loaded.ok) {
-      console.warn('[deploy] CMS load skipped:', loaded.error)
-      return { files, counts: {} }
-    }
-    const { cms } = loaded
-    const counts: Record<string, number> = {}
-    const isAstro = files.some(f =>
-      (f.path === 'package.json' || f.path.endsWith('/package.json')) &&
-      /"astro"\s*:/.test(f.content)
-    )
-    const existingPaths = new Set(files.map(f => f.path))
-    const extra: ProjectFile[] = []
-
-    for (const slug of Object.keys(cms.schemas)) {
-      const items = Object.values(cms.items[slug] || {})
-        .filter((item: any) => item.status === 'published')
-      counts[slug] = items.length
-      if (items.length === 0) continue
-
-      // Universal JSON dump — keep this even for Astro; the agent might want
-      // to use the json instead of the markdown collection.
-      const jsonPath = `cms/${slug}.json`
-      if (!existingPaths.has(jsonPath)) {
-        extra.push({
-          path: jsonPath,
-          content: JSON.stringify(items.map((i: any) => ({
-            slug: i.slug,
-            ...i.fields,
-            updatedAt: i.updatedAt,
-          })), null, 2),
-        })
-      }
-
-      // Astro-idiomatic markdown
-      if (isAstro) {
-        for (const item of items as any[]) {
-          const mdPath = `src/content/${slug}/${item.slug}.md`
-          if (existingPaths.has(mdPath)) continue
-          extra.push({ path: mdPath, content: toAstroMarkdown(item) })
-        }
-      }
-    }
-    return { files: [...files, ...extra], counts }
-  } catch (e: any) {
-    // Never block deploy on a CMS injection failure — just log and continue
-    // with the un-injected files. Missing CMS content is better than a failed
-    // deploy.
-    console.error('[deploy] CMS injection failed:', e?.message || e)
-    return { files, counts: {} }
-  }
-}
-
-function toAstroMarkdown(item: any): string {
-  const fields = { ...item.fields }
-  // Pull `body` out — it becomes the markdown body, everything else is frontmatter.
-  // Common keys for body: body, content, description, markdown. Prefer in order.
-  const bodyKey = ['body', 'content', 'markdown', 'description'].find(k => typeof fields[k] === 'string')
-  const body = bodyKey ? fields[bodyKey] : ''
-  if (bodyKey) delete fields[bodyKey]
-  // Astro picks up `pubDate` / `description` as common conventions; we just
-  // pass through whatever the schema defined.
-  const yaml = Object.entries(fields)
-    .map(([k, v]) => `${k}: ${yamlValue(v)}`)
-    .join('\n')
-  return `---\n${yaml}\n---\n\n${body}\n`
-}
-
-function yamlValue(v: any): string {
-  if (v === null || v === undefined) return 'null'
-  if (typeof v === 'boolean' || typeof v === 'number') return String(v)
-  if (v instanceof Date) return `"${v.toISOString()}"`
-  // Strings: quote and escape minimal characters. Multi-line falls back to a
-  // block scalar so YAML stays valid for paragraph-long fields.
-  const s = String(v)
-  if (s.includes('\n')) return `|\n  ${s.replace(/\n/g, '\n  ')}`
-  return JSON.stringify(s)
 }
 
 async function createGitHubRepo(name: string, files: ProjectFile[], token: string): Promise<string> {

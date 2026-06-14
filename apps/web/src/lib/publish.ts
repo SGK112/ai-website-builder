@@ -13,6 +13,7 @@
 
 import { connectDB } from '@/lib/db'
 import { inlineTailwind } from '@/lib/tailwind-compile'
+import { injectPublishedCms } from '@/lib/cms-publish'
 
 // The apex the published sites live under. Override per-env; defaults to the
 // production domain. The serving path (/s/<slug>) always works regardless, so
@@ -98,7 +99,13 @@ export async function publishSite(input: PublishInput): Promise<PublishResult> {
     ),
   )
 
-  const totalBytes = builtFiles.reduce((n, f) => n + Buffer.byteLength(f.content, 'utf8'), 0)
+  // Bake published CMS items into cms/<collection>.json so the live site can
+  // fetch them (the agent is told this file exists). Shared with the deploy path.
+  const filesToStore = projectId
+    ? (await injectPublishedCms(builtFiles, projectId, input.userId)).files
+    : builtFiles
+
+  const totalBytes = filesToStore.reduce((n, f) => n + Buffer.byteLength(f.content, 'utf8'), 0)
   if (totalBytes > MAX_SITE_BYTES) {
     return {
       ok: false,
@@ -143,7 +150,7 @@ export async function publishSite(input: PublishInput): Promise<PublishResult> {
         userId: input.userId,
         projectId: projectId || null,
         name,
-        files: builtFiles,
+        files: filesToStore,
         bytes: totalBytes,
         published: true,
         updatedAt: now,
