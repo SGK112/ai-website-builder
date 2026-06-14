@@ -106,14 +106,43 @@ export function parseStoredProjectFiles(
     }
   }
 
-  // No pages sidecar but the agent left individual <slug>.html pages → rebuild
-  // the page list (website only). Otherwise keep the html files in the VFS.
-  let rebuilt = false
-  if (!pages && (!buildTarget || buildTarget === 'website') && Object.keys(htmlPageFiles).length > 0) {
+  // Reconcile individual <slug>.html files (the shape the AGENT writes pages in)
+  // with the sidecar:
+  //   • No sidecar → rebuild the page list from the html files.
+  //   • Sidecar AND html files BOTH present → the agent edited/added pages via
+  //     write_file AFTER the sidecar was saved. Overlay the (newer) html files
+  //     onto the sidecar tree — index.html → home, <slug>.html → matching page
+  //     (or a new page) — so the edits aren't misfiled into the VFS and lost.
+  //     This was a real data-loss bug: agent edits to a saved multi-page site
+  //     showed the STALE sidecar and dropped any newly-added pages.
+  const titleCase = (s: string) =>
+    s.split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || s
+  const isWebsite = !buildTarget || buildTarget === 'website'
+  const hasHtmlFiles = Object.keys(htmlPageFiles).length > 0
+  let consumedHtmlFiles = false
+
+  if (!pages && isWebsite && hasHtmlFiles) {
     const r = pagesFromHtmlFiles(html || fallbackHtml, htmlPageFiles)
-    if (r.length > 0) { pages = r; activePageId = 'home'; rebuilt = true }
+    if (r.length > 0) { pages = r; activePageId = 'home'; consumedHtmlFiles = true }
+  } else if (pages && isWebsite && hasHtmlFiles) {
+    const home = pages.find(p => p.isHome)
+    if (home && html) home.html = html
+    const bySlug = new Map(pages.map(p => [p.slug, p]))
+    for (const [path, content] of Object.entries(htmlPageFiles)) {
+      const slug = path.replace(/\.html?$/i, '').toLowerCase()
+      if (slug === 'index') continue
+      const existing = bySlug.get(slug)
+      if (existing) {
+        existing.html = content
+      } else {
+        const np: PageLike = { id: `page-${slug}`, name: titleCase(slug), slug, html: content, isHome: false }
+        pages.push(np)
+        bySlug.set(slug, np)
+      }
+    }
+    consumedHtmlFiles = true
   }
-  if (!rebuilt) Object.assign(vfsFiles, htmlPageFiles)
+  if (!consumedHtmlFiles) Object.assign(vfsFiles, htmlPageFiles)
   if (pages && pages.length > 0) buildTarget = 'website'
 
   return { html, pages, activePageId, vfsFiles, buildTarget, chat }
