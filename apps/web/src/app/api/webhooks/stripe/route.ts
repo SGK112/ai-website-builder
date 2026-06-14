@@ -37,10 +37,6 @@ async function resolveUser(metadataUserId: string | undefined, email: string | u
   return null
 }
 
-// Track processed event IDs to prevent duplicate processing (in production, use Redis/DB)
-const processedEvents = new Set<string>()
-const MAX_PROCESSED_EVENTS = 1000
-
 export async function POST(req: NextRequest) {
   const stripe = await getStripe()
   if (!stripe) {
@@ -71,24 +67,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
-  // Idempotency check - prevent duplicate event processing
-  if (processedEvents.has(event.id)) {
-    console.log(`Event ${event.id} already processed, skipping`)
-    return NextResponse.json({ received: true, duplicate: true })
-  }
-
-  // Add to processed events (cleanup if too many)
-  if (processedEvents.size > MAX_PROCESSED_EVENTS) {
-    const iterator = processedEvents.values()
-    for (let i = 0; i < 100; i++) {
-      const result = iterator.next()
-      if (result.done || !result.value) break
-      processedEvents.delete(result.value)
-    }
-  }
-  processedEvents.add(event.id)
-
   await connectDB()
+
+  // Idempotency — DB-backed so it survives restarts/deploys. The old in-memory
+  // Set lost its dedup state on every restart, so a Stripe retry that landed
+  // after a restart could re-grant credits. Atomic insert keyed by event.id;
+  // a duplicate (E11000) means we already handled this event → skip.
+  try {
+    await mongoose.connection.db!.collection('stripe_webhook_events').insertOne({
+      _id: event.id as any,
+      type: event.type,
+      at: new Date(),
+    })
+  } catch (e: any) {
+    if (e?.code === 11000) {
+      console.log(`Event ${event.id} already processed, skipping`)
+      return NextResponse.json({ received: true, duplicate: true })
+    }
+    // Don't drop a real event over an idempotency-store hiccup — log and proceed.
+    console.warn('[stripe webhook] idempotency store error (continuing):', e?.message)
+  }
 
   try {
     switch (event.type) {
