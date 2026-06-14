@@ -26,7 +26,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { getTemplateById } from '@/lib/templates'
+import { getTemplateById, applyTemplateVariables } from '@/lib/templates'
 
 interface Template {
   id: string
@@ -211,8 +211,12 @@ export default function TemplatesPage() {
   // white iframe.
   const previewHtml = useMemo(() => {
     if (!previewTemplate) return null
-    const builtin = getTemplateById(previewTemplate.id)
-    if (builtin?.html) return builtin.html
+    // Catalog ids are prefixed `local-`; the in-bundle registry keys are not —
+    // strip it or every local template falsely showed "preview unavailable".
+    const builtin = getTemplateById(previewTemplate.id.replace(/^local-/, ''))
+    if (builtin?.html) {
+      return builtin.variables ? applyTemplateVariables(builtin.html, builtin.variables) : builtin.html
+    }
     const supabaseHtml = (previewTemplate as any).html_content
     if (typeof supabaseHtml === 'string' && supabaseHtml.length > 0) return supabaseHtml
     return null

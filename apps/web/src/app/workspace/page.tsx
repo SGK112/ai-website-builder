@@ -4666,30 +4666,67 @@ ${html}
 
   const loadSupabaseTemplate = async (templateId: string, templateName: string) => {
     try {
+      // A template starts a NEW project — never overwrite the open one.
+      detachForNewProject()
+
+      // Bundled templates (local-*) carry their source IN-APP. App templates
+      // (resource/dashboard/tracker/mobile) ship as FILES with no html — so we
+      // must resolve them from the in-bundle registry, NOT round-trip through the
+      // API (which only returns html_content and made them look like empty stubs:
+      // the "appears to be a stub" bug). Load files as a real app project.
+      if (templateId.startsWith('local-')) {
+        const tpl = getTemplateById(templateId.replace(/^local-/, ''))
+        if (tpl) {
+          setProjectName(tpl.name)
+          if (tpl.files && tpl.buildTarget) {
+            setBuildTarget(tpl.buildTarget)
+            setVfsFiles({ ...tpl.files })
+            setVfsProjectMeta({ name: tpl.name, slug: tpl.id })
+            setHtml('')
+            setPreviewBumpKey(k => k + 1)
+            setChatMessages([{ role: 'assistant', content: `Loaded the "${tpl.name}" app template — it's booting in the preview. Tell me what to change and I'll edit the files directly.` }])
+          } else {
+            const rendered = tpl.variables ? applyTemplateVariables(tpl.html, tpl.variables) : tpl.html
+            setHtml(rendered)
+            setViewMode('preview')
+            addToHistory(rendered, `Loaded ${tpl.name} template`)
+            setChatMessages([{ role: 'assistant', content: `Loaded the "${tpl.name}" template. Tell me what to change and I'll edit the site directly.` }])
+          }
+          addTerminalLine('success', `✓ Loaded "${tpl.name}" template`)
+          addToast('success', `Loaded "${tpl.name}" — refine it in chat.`)
+          return
+        }
+        // Not in the bundle (shouldn't happen) — fall through to the API.
+      }
+
+      // Community/Supabase template (UUID) — fetch its source.
       addTerminalLine('info', `Loading template: ${templateName}…`)
-      const res = await fetch(`/api/templates?id=${templateId}`)
+      const res = await fetch(`/api/templates?id=${encodeURIComponent(templateId)}`)
       if (!res.ok) {
         addTerminalLine('error', `Template fetch failed (${res.status})`)
+        addToast('error', `Couldn't load "${templateName}" — please try again.`)
         return
       }
       const data = await res.json()
       const template = data.templates?.[0]
-      const content: string = template?.html_content || ''
-      // Guard against stub/empty templates that just render as a near-blank page.
-      // These were the "test" entries that confused users — show a clear message
-      // instead of loading 50 chars of placeholder HTML and pretending it worked.
-      if (!content.trim() || content.trim().length < 500) {
-        addTerminalLine('error', `Template "${templateName}" is incomplete (${content.length} chars). Use a Quick Start tile instead.`)
-        addToast('error', `Template "${templateName}" appears to be a stub — try a Quick Start tile`)
+      const content: string = template?.html_content || template?.html || ''
+      // Only genuinely-empty community rows are stubs now (the catalog already
+      // hides them) — guard so a blank one shows a clear message, not a blank page.
+      if (content.trim().length < 200) {
+        addTerminalLine('error', `Template "${templateName}" has no content yet.`)
+        addToast('error', `"${templateName}" isn't available yet.`)
         return
       }
+      setProjectName(template.name || templateName)
       setHtml(content)
       setViewMode('preview')
       addTerminalLine('success', `✓ Loaded "${templateName}" template`)
-      addConsoleLog('success', `Template "${templateName}" loaded successfully`)
       addToHistory(content, `Loaded ${templateName} template`)
+      setChatMessages([{ role: 'assistant', content: `Loaded the "${template.name || templateName}" template. Tell me what to change and I'll edit the site directly.` }])
+      addToast('success', `Loaded "${templateName}" — refine it in chat.`)
     } catch (error) {
-      addTerminalLine('error', `Failed to load template: ${error}`)
+      addTerminalLine('error', `Failed to load template`)
+      addToast('error', `Couldn't load "${templateName}" — please try again.`)
     }
   }
 
