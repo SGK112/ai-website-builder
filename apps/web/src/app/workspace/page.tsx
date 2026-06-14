@@ -7839,16 +7839,34 @@ npx eas build --platform all
             : { action: 'text-to-video', prompt: videoPrompt, model: videoModel }
         )
       })
-      setVideoStatus(isImageMode ? 'Animating... ~60-90 seconds' : 'Processing... this takes ~60 seconds')
       const data = await response.json()
-      if (response.ok && data.success && data.output) {
-        const url = Array.isArray(data.output) ? data.output[0] : data.output
-        setGeneratedVideoUrl(url)
-        setVideoStatus('✓ Video ready!')
-        addTerminalLine('success', isImageMode ? '✓ Image animated!' : '✓ Video generated!')
-      } else {
+      // Replicate is async: the POST starts a prediction and returns { id,
+      // status:'starting' }. The result isn't ready yet — we MUST poll until it
+      // succeeds. (The old code expected a one-shot {success,output} that never
+      // came, so every video "failed" instantly.)
+      if (!response.ok || !data.id) {
         throw new Error(data.error || `Video generation failed (HTTP ${response.status})`)
       }
+      setVideoStatus(isImageMode ? 'Animating your image… ~60-90s' : 'Processing… ~60s')
+      let videoUrl: string | null = null
+      for (let i = 0; i < 60; i++) { // up to ~3 min
+        await new Promise((r) => setTimeout(r, 3000))
+        const sres = await fetch('/api/ai/video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'status', predictionId: data.id }),
+        })
+        const sdata = await sres.json()
+        if (sdata.status === 'succeeded' && sdata.videoUrl) { videoUrl = sdata.videoUrl; break }
+        if (sdata.status === 'failed' || sdata.status === 'canceled') {
+          throw new Error(sdata.error || 'Video generation failed')
+        }
+        setVideoStatus(`${isImageMode ? 'Animating' : 'Processing'}… ${i * 3}s`)
+      }
+      if (!videoUrl) throw new Error('Video timed out — please try again')
+      setGeneratedVideoUrl(videoUrl)
+      setVideoStatus('✓ Video ready!')
+      addTerminalLine('success', isImageMode ? '✓ Image animated!' : '✓ Video generated!')
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Failed'
       setVideoError(msg)
