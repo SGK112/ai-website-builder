@@ -4564,6 +4564,10 @@ ${html}
   // loaded over an open project overwrote it on the next autosave).
   const detachForNewProject = () => {
     setCurrentProject(null)
+    // Reset the name too — otherwise the new project inherits the OPEN project's
+    // name (every template ended up titled "Scottsdale Handyman"). Callers set a
+    // real name right after; this is the safe default if they don't.
+    setProjectName('Untitled Project')
     setVfsFiles({})
     setPages([{ id: 'home', name: 'Home', slug: 'index', html: '', isHome: true }])
     setActivePageId('home')
@@ -4576,6 +4580,7 @@ ${html}
     const template = quickStartTemplates.find(t => t.id === id)
     if (!template) return
     detachForNewProject()
+    setProjectName(template.label)
     if (template.htmlTemplate && template.isPremade) {
       const rendered = template.templateVariables
         ? applyTemplateVariables(template.htmlTemplate, template.templateVariables)
