@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getStripe } from '@/lib/stripe'
-import { searchDomains } from '@/lib/domains'
+import { searchDomains, REGISTRAR_LIVE } from '@/lib/domains'
 import clientPromise from '@/lib/mongodb'
 
 export const dynamic = 'force-dynamic'
@@ -27,6 +27,16 @@ export async function POST(req: NextRequest) {
   const projectId = body?.projectId ? String(body.projectId) : null
   if (!/^[a-z0-9-]+\.[a-z]{2,}$/.test(domain)) {
     return NextResponse.json({ error: 'Enter a valid domain, e.g. mycafe.com' }, { status: 400 })
+  }
+
+  // NEVER take money when we can't actually register the domain. Without a live
+  // registrar (Cloudflare keys), availability is mocked and registration is a
+  // no-op — so a purchase would charge a real card for nothing. Hard-block it.
+  if (!REGISTRAR_LIVE) {
+    return NextResponse.json({
+      error: "Buying domains isn't enabled yet. You can still connect a domain you already own.",
+      code: 'registrar_unavailable',
+    }, { status: 503 })
   }
 
   // Re-price + re-check availability server-side (never trust client price).

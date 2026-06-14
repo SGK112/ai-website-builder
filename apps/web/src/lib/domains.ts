@@ -20,7 +20,6 @@
 //   3. A default registrant contact configured on the account.
 //   4. Accept the Domain Registration Agreement on the registrations page.
 
-import { createHash } from 'crypto'
 
 const CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN
 const CF_ACCOUNT = process.env.CLOUDFLARE_ACCOUNT_ID
@@ -53,12 +52,6 @@ function applyMarkup(costCents: number): number {
 
 function retailCentsMock(tld: string): number {
   return applyMarkup(TLD_WHOLESALE_CENTS[tld] ?? DEFAULT_WHOLESALE_CENTS)
-}
-
-// Deterministic mock availability so repeated searches are stable.
-function mockAvailable(domain: string): boolean {
-  const h = createHash('sha1').update(domain.toLowerCase()).digest()[0]
-  return h % 3 !== 0
 }
 
 function normalizeRoot(query: string): string {
@@ -141,7 +134,10 @@ export async function searchDomains(query: string): Promise<{ live: boolean; roo
   const results: DomainResult[] = tlds.map(tld => {
     const domain = `${root}.${tld}`
     const priceCents = retailCentsMock(tld)
-    return { domain, tld, available: REGISTRAR_LIVE ? false : mockAvailable(domain), priceCents, premium: priceCents >= 5000 }
+    // Without a live registrar we cannot know real availability — never claim a
+    // domain is available (that's how taken domains like google.com showed as
+    // buyable). Show pricing as a preview, but available:false so nothing sells.
+    return { domain, tld, available: false, priceCents, premium: priceCents >= 5000 }
   })
   return { live: REGISTRAR_LIVE, root, results }
 }
