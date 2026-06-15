@@ -159,13 +159,28 @@ async function uploadToCloudinary(
 
   const data = await response.json()
 
+  // iPhone HEIC/HEIF can be *uploaded* to Cloudinary, but the raw asset is
+  // undecodable downstream: browsers can't render it, and the Replicate
+  // image-to-video models (PIL-based) throw "cannot identify image file
+  // …heic". Deliver a transcoded JPEG instead by injecting an f_jpg
+  // transformation into the delivery URL (Cloudinary transcodes + caches it).
+  // Only touch HEIC/HEIF — other formats keep their original (and any alpha).
+  let url: string = data.secure_url
+  let format: string = data.format
+  const rawFmt = (data.format || '').toLowerCase()
+  const isHeic = rawFmt === 'heic' || rawFmt === 'heif'
+  if (data.resource_type === 'image' && isHeic && url.includes('/image/upload/')) {
+    url = url.replace('/image/upload/', '/image/upload/f_jpg,q_auto/').replace(/\.(heic|heif)$/i, '.jpg')
+    format = 'jpg'
+  }
+
   return {
     id: data.public_id,
-    url: data.secure_url,
+    url,
     publicId: data.public_id,
     width: data.width,
     height: data.height,
-    format: data.format,
+    format,
     size: data.bytes,
   }
 }
