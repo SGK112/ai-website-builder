@@ -11,7 +11,9 @@
     "build": "npx turbo run build",
     "lint": "npx turbo run lint",
     "clean": "npx turbo run clean",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "test": "npm --workspace apps/web run test:run",
+    "test:integration": "RUN_INTEGRATION=1 npm --workspace apps/web run test:run"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

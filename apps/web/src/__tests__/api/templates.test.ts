@@ -2,8 +2,9 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { NextRequest } from 'next/server'
 import { GET, POST } from '@/app/api/templates/route'
 
-// Use real Supabase API - no mocking
-describe('Templates API (Real Supabase)', () => {
+// Hits real Supabase — integration only. Skipped unless RUN_INTEGRATION=1
+// (with real Supabase creds). Keeps the default `npm test` deterministic.
+describe.skipIf(!process.env.RUN_INTEGRATION)('Templates API (Real Supabase)', () => {
   beforeAll(() => {
     // Ensure real API keys are set
     expect(process.env.NEXT_PUBLIC_SUPABASE_URL).toBeDefined()

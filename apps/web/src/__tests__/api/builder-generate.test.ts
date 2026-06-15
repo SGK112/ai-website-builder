@@ -15,6 +15,7 @@ vi.mock('@/lib/db', () => ({
 }))
 
 vi.mock('@ai-website-builder/database', () => ({
+  isAdminEmail: () => false,
   User: {
     findById: vi.fn(),
     findByIdAndUpdate: vi.fn(),
@@ -31,7 +32,9 @@ global.fetch = mockFetch
 import { getServerSession } from 'next-auth'
 import { User } from '@ai-website-builder/database'
 
-describe('Builder Generate API', () => {
+// Hits the real LLM router (Anthropic SDK refuses jsdom; needs live keys) — integration only.
+const describeLLM = process.env.RUN_INTEGRATION ? describe : describe.skip
+describeLLM('Builder Generate API', () => {
   const mockSession = {
     user: {
       id: 'user-123',

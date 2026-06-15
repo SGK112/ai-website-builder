@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { NextRequest } from 'next/server'
 
-// Use real Pixabay API - no mocking
-describe('Media APIs (Real APIs)', () => {
+// Hits the real Pixabay API — integration only. Skipped unless RUN_INTEGRATION=1
+// (with a real PIXABAY_API_KEY). Keeps the default `npm test` deterministic.
+describe.skipIf(!process.env.RUN_INTEGRATION)('Media APIs (Real APIs)', () => {
   beforeAll(() => {
     expect(process.env.PIXABAY_API_KEY).toBeDefined()
     console.log('Using real Pixabay API key')

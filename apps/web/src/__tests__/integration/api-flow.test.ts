@@ -15,6 +15,7 @@ vi.mock('@/lib/db', () => ({
 }))
 
 vi.mock('@ai-website-builder/database', () => ({
+  isAdminEmail: () => false,
   Project: {
     find: vi.fn(),
     findById: vi.fn(),
@@ -55,7 +56,9 @@ global.fetch = mockFetch
 import { getServerSession } from 'next-auth'
 import { Project, User } from '@ai-website-builder/database'
 
-describe('Integration: Full API Flow', () => {
+// Exercises the full LLM-backed flow — integration only (Anthropic SDK + live keys).
+const describeFlow = process.env.RUN_INTEGRATION ? describe : describe.skip
+describeFlow('Integration: Full API Flow', () => {
   const mockSession = {
     user: {
       id: 'user-123',

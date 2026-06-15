@@ -15,6 +15,7 @@ vi.mock('@/lib/db', () => ({
 }))
 
 vi.mock('@ai-website-builder/database', () => ({
+  isAdminEmail: () => false,
   CommunityPost: {
     find: vi.fn().mockReturnValue({
       populate: vi.fn().mockReturnThis(),
@@ -88,6 +89,12 @@ describe('Community Posts API', () => {
     },
   ]
 
+  // POST goes through guardAnonAbuse, which 403s requests with an empty/bot
+  // User-Agent before auth is even checked. Real browsers always send a UA,
+  // so the tests must too — otherwise every POST short-circuits to 403.
+  const BROWSER_UA =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
+
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -149,6 +156,7 @@ describe('Community Posts API', () => {
 
       const req = new NextRequest('http://localhost:3000/api/community/posts', {
         method: 'POST',
+        headers: { 'user-agent': BROWSER_UA },
         body: JSON.stringify({
           type: 'template',
           title: 'New Post',
@@ -174,6 +182,7 @@ describe('Community Posts API', () => {
 
       const req = new NextRequest('http://localhost:3000/api/community/posts', {
         method: 'POST',
+        headers: { 'user-agent': BROWSER_UA },
         body: JSON.stringify({
           title: 'New Post',
           content: 'Content',
@@ -192,6 +201,7 @@ describe('Community Posts API', () => {
 
       const req = new NextRequest('http://localhost:3000/api/community/posts', {
         method: 'POST',
+        headers: { 'user-agent': BROWSER_UA },
         body: JSON.stringify({ content: 'Missing title' }),
       })
 
@@ -211,6 +221,7 @@ describe('Community Posts API', () => {
 
       const req = new NextRequest('http://localhost:3000/api/community/posts', {
         method: 'POST',
+        headers: { 'user-agent': BROWSER_UA },
         body: JSON.stringify({
           title: 'Test Post',
           content: 'Valid content here',

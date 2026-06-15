@@ -3,7 +3,11 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-describe('Credits API - Demo Mode', () => {
+// These exercise live routes (DB / HuggingFace) without mocks — integration
+// only. Skipped unless RUN_INTEGRATION=1 so default `npm test` stays green.
+const describeLive = process.env.RUN_INTEGRATION ? describe : describe.skip
+
+describeLive('Credits API - Demo Mode', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -52,7 +56,7 @@ describe('Credits API - Demo Mode', () => {
   })
 })
 
-describe('Builder Generate API - Model Selection', () => {
+describeLive('Builder Generate API - Model Selection', () => {
   it('works with claude-3-haiku model', async () => {
     const res = await fetch('http://localhost:3000/api/builder/generate', {
       method: 'POST',

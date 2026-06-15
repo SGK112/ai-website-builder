@@ -15,6 +15,7 @@ vi.mock('@/lib/db', () => ({
 }))
 
 vi.mock('@ai-website-builder/database', () => ({
+  isAdminEmail: () => false,
   Project: {
     find: vi.fn(),
     findById: vi.fn(),
@@ -30,13 +31,13 @@ vi.mock('@ai-website-builder/ai-agents', () => ({
   CODE_GENERATION_PROMPTS: {},
 }))
 
-vi.mock('mongoose', () => ({
-  default: {
-    Types: {
-      ObjectId: vi.fn().mockImplementation((id) => id || 'mock-object-id'),
-    },
-  },
-}))
+vi.mock('mongoose', () => {
+  const ObjectId: any = vi.fn().mockImplementation((id) => id || 'mock-object-id')
+  // Routes call the static mongoose.Types.ObjectId.isValid(); the mock omitted
+  // it → "isValid is not a function" → 500. Provide a real-ish 24-hex check.
+  ObjectId.isValid = (id: any) => typeof id === 'string' && /^[a-f0-9]{24}$/i.test(id)
+  return { default: { Types: { ObjectId } } }
+})
 
 import { getServerSession } from 'next-auth'
 import { Project } from '@ai-website-builder/database'
@@ -76,28 +77,25 @@ describe('Projects API', () => {
 
       expect(response.status).toBe(200)
       expect(data.projects).toHaveLength(2)
-      expect(Project.find).toHaveBeenCalledWith({ userId: 'user-123' })
+      // Route queries with a collaborator-aware $or (own projects + shared),
+      // scoped to this user's id — not a bare { userId } match.
+      const calledWith = vi.mocked(Project.find).mock.calls[0][0] as any
+      expect(calledWith).toHaveProperty('$or')
+      expect(calledWith.$or).toContainEqual({ userId: 'user-123' })
     })
 
-    it('returns all projects when not authenticated (dev mode)', async () => {
-      const mockProjects = [
-        { _id: '1', name: 'Public Project', type: 'website' },
-      ]
-
+    it('returns an empty list when not authenticated', async () => {
+      // Anon users must NOT see other users' projects (was a dev-mode leak).
+      // The route short-circuits to [] without ever touching the DB.
       vi.mocked(getServerSession).mockResolvedValueOnce(null)
-      vi.mocked(Project.find).mockReturnValue({
-        sort: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        lean: vi.fn().mockResolvedValue(mockProjects),
-      } as any)
 
       const req = new NextRequest('http://localhost:3000/api/projects')
       const response = await GET(req)
       const data = await response.json()
 
       expect(response.status).toBe(200)
-      expect(Project.find).toHaveBeenCalledWith({})
+      expect(data.projects).toEqual([])
+      expect(Project.find).not.toHaveBeenCalled()
     })
 
     it('limits results to 50 projects', async () => {

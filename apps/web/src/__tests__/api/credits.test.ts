@@ -15,9 +15,12 @@ vi.mock('@/lib/db', () => ({
 }))
 
 vi.mock('@ai-website-builder/database', () => ({
+  isAdminEmail: () => false,
   User: {
     findById: vi.fn(),
+    findOne: vi.fn(),
     findByIdAndUpdate: vi.fn(),
+    findOneAndUpdate: vi.fn(),
   },
 }))
 
@@ -56,7 +59,8 @@ describe('Credits API', () => {
   describe('GET /api/credits', () => {
     it('returns credits for authenticated user', async () => {
       vi.mocked(getServerSession).mockResolvedValueOnce(mockSession as any)
-      vi.mocked(User.findById).mockResolvedValueOnce(mockUser as any)
+      // Route resolves a non-ObjectId session id via User.findOne(email).
+      vi.mocked(User.findOne).mockResolvedValueOnce(mockUser as any)
 
       const req = new NextRequest('http://localhost:3000/api/credits')
       const response = await GET(req)
@@ -82,7 +86,7 @@ describe('Credits API', () => {
 
     it('returns 404 when user not found', async () => {
       vi.mocked(getServerSession).mockResolvedValueOnce(mockSession as any)
-      vi.mocked(User.findById).mockResolvedValueOnce(null)
+      vi.mocked(User.findOne).mockResolvedValueOnce(null)
 
       const req = new NextRequest('http://localhost:3000/api/credits')
       const response = await GET(req)
@@ -94,7 +98,7 @@ describe('Credits API', () => {
 
     it('includes plan information', async () => {
       vi.mocked(getServerSession).mockResolvedValueOnce(mockSession as any)
-      vi.mocked(User.findById).mockResolvedValueOnce({ ...mockUser, plan: 'pro' } as any)
+      vi.mocked(User.findOne).mockResolvedValueOnce({ ...mockUser, plan: 'pro' } as any)
 
       const req = new NextRequest('http://localhost:3000/api/credits')
       const response = await GET(req)
