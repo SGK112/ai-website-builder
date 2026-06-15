@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, FolderOpen, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -37,6 +38,22 @@ export function ProjectList({
   const owned = projects.filter(p => !p.role || p.role === 'owner')
   const shared = projects.filter(p => p.role === 'editor' || p.role === 'viewer')
 
+  // Two-step delete: first click arms a "Confirm?" state, second click deletes.
+  // Auto-resets after a few seconds so a forgotten armed button can't bite later.
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (resetTimer.current) clearTimeout(resetTimer.current) }, [])
+  const armDelete = (id: string) => {
+    setPendingDeleteId(id)
+    if (resetTimer.current) clearTimeout(resetTimer.current)
+    resetTimer.current = setTimeout(() => setPendingDeleteId(null), 4000)
+  }
+  const confirmDelete = (id: string) => {
+    if (resetTimer.current) clearTimeout(resetTimer.current)
+    setPendingDeleteId(null)
+    onDeleteProject(id)
+  }
+
   const card = (project: ProjectSummary) => (
     <div
       key={project.id}
@@ -58,18 +75,38 @@ export function ProjectList({
           </div>
         </div>
         {(!project.role || project.role === 'owner') ? (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onDeleteProject(project.id)
-            }}
-            className={cn(
-              'p-1.5 rounded hover:bg-red-500/15 hover:text-red-600 dark:hover:text-red-400',
-              isDark ? 'text-zinc-500' : 'text-slate-500',
-            )}
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          pendingDeleteId === project.id ? (
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={(e) => { e.stopPropagation(); confirmDelete(project.id) }}
+                aria-label={`Confirm delete project ${project.name}`}
+                className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-red-500/15 text-red-600 dark:text-red-400 hover:bg-red-500/25"
+              >
+                Confirm?
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setPendingDeleteId(null) }}
+                aria-label="Cancel delete"
+                className={cn('text-[10px] px-1.5 py-0.5 rounded', isDark ? 'text-zinc-400 hover:bg-white/10' : 'text-slate-500 hover:bg-slate-200')}
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                armDelete(project.id)
+              }}
+              aria-label={`Delete project ${project.name}`}
+              className={cn(
+                'p-1.5 rounded hover:bg-red-500/15 hover:text-red-600 dark:hover:text-red-400',
+                isDark ? 'text-zinc-500' : 'text-slate-500',
+              )}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )
         ) : (
           <span className={cn('text-[9px] px-1.5 py-0.5 rounded capitalize shrink-0', isDark ? 'bg-violet-500/15 text-violet-300' : 'bg-violet-100 text-violet-700')}>
             {project.role}

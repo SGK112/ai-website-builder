@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   Download,
   FileCode,
@@ -10,6 +10,8 @@ import {
   Loader2,
   CheckCircle,
   Copy,
+  Check,
+  AlertCircle,
   ExternalLink,
   Settings,
   Package,
@@ -93,11 +95,27 @@ export function ExportPanel({
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('html')
   const [isExporting, setIsExporting] = useState(false)
   const [exportSuccess, setExportSuccess] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(false)
   const [previewContent, setPreviewContent] = useState('')
   const [includeAssets, setIncludeAssets] = useState(true)
   const [minify, setMinify] = useState(false)
   const [addMetaTags, setAddMetaTags] = useState(true)
+
+  // Copy only makes sense for single-file text formats; zip/static/nextjs are
+  // multi-file bundles and there's nothing meaningful to put on the clipboard.
+  const isTextFormat = selectedFormat === 'html' || selectedFormat === 'json'
+
+  // Close on Escape while the panel is open.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
 
   const generateSlug = (name: string) => {
     return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
@@ -276,6 +294,7 @@ export function ExportPanel({
   const handleExport = useCallback(async () => {
     setIsExporting(true)
     setExportSuccess(false)
+    setExportError(null)
 
     try {
       const slug = generateSlug(projectName)
@@ -347,18 +366,35 @@ export function ExportPanel({
       setTimeout(() => setExportSuccess(false), 3000)
     } catch (error) {
       console.error('Export error:', error)
+      setExportError(
+        error instanceof Error ? error.message : 'Export failed. Please try again.'
+      )
     } finally {
       setIsExporting(false)
     }
   }, [selectedFormat, projectName, files, generateHTML, generateJSONExport, generateStaticSite, generateNextJSProject])
 
   const copyToClipboard = useCallback(async () => {
-    const content = selectedFormat === 'html' ? generateHTML() : generateJSONExport()
-    await navigator.clipboard.writeText(content)
-  }, [selectedFormat, generateHTML, generateJSONExport])
+    if (!isTextFormat) return
+    setCopyError(null)
+    try {
+      const content = selectedFormat === 'html' ? generateHTML() : generateJSONExport()
+      await navigator.clipboard.writeText(content)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (error) {
+      console.error('Clipboard error:', error)
+      setCopyError('Could not copy to clipboard')
+    }
+  }, [isTextFormat, selectedFormat, generateHTML, generateJSONExport])
 
   return (
-    <div className={cn('bg-slate-900 border-l border-slate-800 flex flex-col', className)}>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Export Project"
+      className={cn('bg-slate-900 border-l border-slate-800 flex flex-col', className)}
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
         <h2 className="font-semibold text-white flex items-center gap-2">
@@ -367,6 +403,7 @@ export function ExportPanel({
         </h2>
         <button
           onClick={onClose}
+          aria-label="Close export panel"
           className="p-1 text-slate-400 hover:text-white transition-colors"
         >
           <X className="w-4 h-4" />
@@ -433,15 +470,24 @@ export function ExportPanel({
             <span className="text-sm text-slate-300">Minify output</span>
           </label>
 
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={includeAssets}
-              onChange={(e) => setIncludeAssets(e.target.checked)}
-              className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-purple-500 focus:ring-purple-500"
-            />
-            <span className="text-sm text-slate-300">Include all assets</span>
-          </label>
+          {/* "Include all assets" only affects the JSON export's metadata, so it's
+              hidden for the other formats where it would silently do nothing. */}
+          {selectedFormat === 'json' && (
+            <div className="space-y-1">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeAssets}
+                  onChange={(e) => setIncludeAssets(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-purple-500 focus:ring-purple-500"
+                />
+                <span className="text-sm text-slate-300">Include all assets</span>
+              </label>
+              <p className="text-xs text-slate-500 pl-7">
+                Records asset details in the JSON export metadata.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Preview Section */}
@@ -493,16 +539,43 @@ export function ExportPanel({
             <FileText className="w-4 h-4 mr-2" />
             Preview
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={copyToClipboard}
-            className="flex-1"
-          >
-            <Copy className="w-4 h-4 mr-2" />
-            Copy
-          </Button>
+          {/* Copy is only offered for single-file text formats; multi-file
+              bundles (zip/static/nextjs) have nothing to put on the clipboard. */}
+          {isTextFormat && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={copyToClipboard}
+              className="flex-1"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-4 h-4 mr-2 text-green-400" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4 mr-2" />
+                  Copy
+                </>
+              )}
+            </Button>
+          )}
         </div>
+
+        {copyError && (
+          <p className="flex items-center gap-1.5 text-xs text-red-400">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            {copyError}
+          </p>
+        )}
+
+        {exportError && (
+          <p className="flex items-center gap-1.5 text-xs text-red-400">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            {exportError}
+          </p>
+        )}
 
         <Button
           onClick={handleExport}

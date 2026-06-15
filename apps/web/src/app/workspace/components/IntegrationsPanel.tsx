@@ -65,6 +65,9 @@ export function IntegrationsPanel({
   onEnvValueChange,
   onAddToWebsite,
 }: IntegrationsPanelProps) {
+  const visibleIntegrations = integrations.filter(
+    int => integrationFilter === 'all' || int.category === integrationFilter
+  )
   return (
     <motion.div
       key="integrations"
@@ -115,9 +118,16 @@ export function IntegrationsPanel({
 
       {/* Integrations List */}
       <div className="p-2 space-y-2">
-        {integrations
-          .filter(int => integrationFilter === 'all' || int.category === integrationFilter)
-          .map(integration => (
+        {visibleIntegrations.length === 0 ? (
+          <div className={cn(
+            'flex flex-col items-center justify-center text-center gap-1.5 py-10 px-4',
+            isDark ? 'text-zinc-600' : 'text-slate-400',
+          )}>
+            <Plug className="w-6 h-6 opacity-50" />
+            <p className="text-xs font-medium">No integrations in this category yet</p>
+            <p className="text-[10px] opacity-80">Try a different category or check back later.</p>
+          </div>
+        ) : visibleIntegrations.map(integration => (
             <div
               key={integration.id}
               className={cn(
@@ -176,7 +186,11 @@ export function IntegrationsPanel({
                   )}
                   <button
                     onClick={() => onToggle(integration)}
-                    className="p-1"
+                    role="switch"
+                    aria-checked={integration.enabled}
+                    aria-label={`${integration.enabled ? 'Disable' : 'Enable'} ${integration.name} integration`}
+                    title={`${integration.enabled ? 'Disable' : 'Enable'} ${integration.name}`}
+                    className="p-1.5 flex items-center justify-center min-w-[44px] min-h-[44px]"
                   >
                     {integration.enabled ? (
                       <ToggleRight className="w-6 h-6 text-violet-400" />

@@ -153,10 +153,16 @@ export function WhatsNextCoach({
             <span>{shipLabel}</span>
           </button>
           {/* full-stack devs are likely to want data/auth before they ship —
-              surface the managed backend right in the coach. */}
+              surface the managed backend right in the coach. NOTE: there's no
+              dedicated backend handler in props, so this lands in the same Ship
+              panel as "Ship it" (which hosts the Provision-backend card). The
+              title makes the shared destination explicit so the CTA isn't
+              misread as a separate flow. Follow-up: thread an onOpenBackend from
+              page.tsx that scrolls the backend card into view (like onOpenDomain). */}
           {skillLevel === 'full-stack' && (
             <button
               onClick={onOpenDeploy}
+              title="Opens the Ship panel — provision a managed backend (DB + auth) there"
               className={cn(
                 'shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] font-medium transition-colors',
                 isDark ? 'bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/25' : 'bg-cyan-50 text-cyan-700 hover:bg-cyan-100'

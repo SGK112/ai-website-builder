@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { RotateCcw, XCircle, AlertTriangle, Info, Terminal, CheckCircle2 } from 'lucide-react'
+import { Trash2, XCircle, AlertTriangle, Info, Terminal, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ConsoleLog, ConsoleLogType } from '../types'
 
@@ -69,17 +69,21 @@ export function ConsolePanel({ isDark, logs, filter, onFilterChange, onClear }: 
         </div>
         <button
           onClick={onClear}
+          aria-label="Clear console"
+          title="Clear console"
           className={cn(
             'p-1 rounded',
             isDark ? 'hover:bg-white/5 text-zinc-500 hover:text-white' : 'hover:bg-slate-100 text-slate-500 hover:text-slate-900',
           )}
         >
-          <RotateCcw className="w-3 h-3" />
+          <Trash2 className="w-3 h-3" />
         </button>
       </div>
 
       <div
         ref={scrollRef}
+        role="log"
+        aria-live="polite"
         className={cn(
           'flex-1 overflow-y-auto p-2 font-mono text-xs space-y-0.5',
           // High-contrast bg per theme so logs pop. Black-on-white
@@ -87,7 +91,17 @@ export function ConsolePanel({ isDark, logs, filter, onFilterChange, onClear }: 
           isDark ? 'bg-zinc-950' : 'bg-white',
         )}
       >
-        {filteredLogs.map((log, i) => (
+        {filteredLogs.length === 0 ? (
+          <div className={cn(
+            'flex flex-col items-center justify-center h-full text-center gap-1.5 py-8',
+            isDark ? 'text-zinc-600' : 'text-slate-400',
+          )}>
+            <Terminal className="w-5 h-5 opacity-60" />
+            <p className="text-[11px]">
+              {filter === 'all' ? 'No console output yet' : `No ${filter} messages`}
+            </p>
+          </div>
+        ) : filteredLogs.map((log, i) => (
           <div
             key={i}
             className={cn(
