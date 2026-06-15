@@ -99,9 +99,13 @@ export async function POST(request: NextRequest) {
   try {
     const { action } = body || ({} as VideoRequest)
 
+    // NOTE: these MUST be awaited. `return somePromise()` (un-awaited) lets a
+    // rejection escape this try/catch — Next then emits an empty-body 500 and
+    // the client throws "Unexpected end of JSON input" instead of seeing the
+    // real error. Awaiting keeps failures inside the catch → clean JSON 500.
     if (action === 'status') {
       if (!body.predictionId) return NextResponse.json({ error: 'predictionId required' }, { status: 400 })
-      return pollOnce(body.predictionId)
+      return await pollOnce(body.predictionId)
     }
 
     const modelKey = (body.model as ModelKey) || 'seedance'
@@ -109,12 +113,12 @@ export async function POST(request: NextRequest) {
 
     if (action === 'image-to-video') {
       if (!body.imageUrl) return NextResponse.json({ error: 'imageUrl required' }, { status: 400 })
-      return startPrediction(buildImageToVideoInput(body, model, modelKey), model)
+      return await startPrediction(buildImageToVideoInput(body, model, modelKey), model)
     }
 
     // text-to-video
     if (!body.prompt) return NextResponse.json({ error: 'prompt required' }, { status: 400 })
-    return startPrediction(buildTextToVideoInput(body, model, modelKey), model)
+    return await startPrediction(buildTextToVideoInput(body, model, modelKey), model)
 
   } catch (e: any) {
     console.error('[video] error:', e?.message)
@@ -137,7 +141,11 @@ export async function GET(request: NextRequest) {
       configured: !!TOKEN,
     })
   }
-  return pollOnce(id)
+  try {
+    return await pollOnce(id)
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || 'Failed to check status' }, { status: 500 })
+  }
 }
 
 // ── Input builders ───────────────────────────────────────────────────────────
