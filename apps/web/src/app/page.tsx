@@ -31,14 +31,6 @@ import { BuildTargetModal, type BuildTargetId } from '@/components/builder/Build
 import { SiteGraderWidget } from '@/components/landing/SiteGraderWidget'
 import { VoiceBuilderPreview } from '@/components/landing/VoiceBuilderPreview'
 
-const examplePrompts = [
-  "A modern SaaS landing page for a project management tool",
-  "An e-commerce store for handmade jewelry",
-  "A portfolio website for a UX designer with animations",
-  "A restaurant website with online ordering",
-  "A fitness app landing page with pricing tiers",
-]
-
 const examplePromptsByTarget: Record<'website' | 'webapp' | 'mobile', string[]> = {
   website: [
     "A modern SaaS landing page for a project management tool",
@@ -234,7 +226,6 @@ export default function HomePage() {
   const [showTargetModal, setShowTargetModal] = useState(false)
   const [projectTheme, setProjectTheme] = useState<'light' | 'dark'>('dark')
   const [buildTarget, setBuildTarget] = useState<'website' | 'webapp' | 'mobile'>('website')
-  const [placeholderIndex, setPlaceholderIndex] = useState(0)
   const [showAllTemplates, setShowAllTemplates] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [rotatingWordIdx, setRotatingWordIdx] = useState(0)
@@ -254,13 +245,6 @@ export default function HomePage() {
   }, [])
 
   const visibleTemplates = showAllTemplates ? templateGallery : templateGallery.slice(0, 8)
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setPlaceholderIndex(i => (i + 1) % examplePrompts.length)
-    }, 4000)
-    return () => clearInterval(interval)
-  }, [])
 
   // Headline word rotation — swaps every 2.5s. Skipped while user is typing
   // so it doesn't feel chatty over their input.

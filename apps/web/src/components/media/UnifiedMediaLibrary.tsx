@@ -429,7 +429,7 @@ export function UnifiedMediaLibrary({ onSelect, onClose, allowMultiple = false }
           )}
 
           {onClose && (
-            <Button variant="ghost" size="icon" onClick={onClose}>
+            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close">
               <X className="w-4 h-4" />
             </Button>
           )}
@@ -586,7 +586,7 @@ function IntegrationSettings({ onClose, onUpdate }: { onClose: () => void; onUpd
       <div className="bg-background rounded-xl border shadow-xl w-full max-w-lg max-h-[80vh] overflow-hidden">
         <div className="p-4 border-b flex items-center justify-between">
           <h2 className="font-semibold">Connect Media Services</h2>
-          <Button variant="ghost" size="icon" onClick={onClose}>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close">
             <X className="w-4 h-4" />
           </Button>
         </div>

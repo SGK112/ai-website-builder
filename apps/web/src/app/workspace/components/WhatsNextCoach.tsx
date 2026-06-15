@@ -198,6 +198,7 @@ export function WhatsNextCoach({
       <button
         onClick={onDismiss}
         title="Hide"
+        aria-label="Hide"
         className={cn(
           'shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-colors',
           isDark ? 'text-zinc-500 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'

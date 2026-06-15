@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   Film,
@@ -58,6 +59,7 @@ export function VideoPanel({
   onInsert,
   onCopyUrl,
 }: VideoPanelProps) {
+  const [videoLoadError, setVideoLoadError] = useState(false)
   return (
     <motion.div
       key="video"
@@ -102,6 +104,7 @@ export function VideoPanel({
               onClick={onClearSource}
               className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 hover:bg-black/90 text-white"
               title="Remove image"
+              aria-label="Remove image"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -222,14 +225,21 @@ export function VideoPanel({
       {generatedVideoUrl && (
         <div className={cn('p-4 rounded-xl border', isDark ? 'bg-white/[0.02] border-white/[0.05]' : 'bg-slate-50 border-slate-200')}>
           <label className={cn('block text-xs mb-2', isDark ? 'text-zinc-400' : 'text-slate-600')}>Generated Video</label>
-          <video
-            src={generatedVideoUrl}
-            controls
-            autoPlay
-            loop
-            muted
-            className="w-full rounded-lg mb-3"
-          />
+          {videoLoadError ? (
+            <div className="w-full rounded-lg mb-3 p-4 text-center text-xs text-red-400 bg-red-500/10 border border-red-500/20">
+              Couldn&apos;t load video
+            </div>
+          ) : (
+            <video
+              src={generatedVideoUrl}
+              controls
+              autoPlay
+              loop
+              muted
+              onError={() => setVideoLoadError(true)}
+              className="w-full rounded-lg mb-3"
+            />
+          )}
 
           {/* Insert into Website Button */}
           <button

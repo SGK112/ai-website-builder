@@ -513,6 +513,7 @@ export function WebContainerPreview({
                 const c = PREVIEW_SIZES[s]; const Icon = c.icon; const active = previewSize === s
                 return (
                   <button key={s} onClick={() => setPreviewSize(s)} title={c.label}
+                    aria-label={c.label} aria-pressed={active}
                     className={`w-7 h-7 rounded-md flex items-center justify-center transition ${active ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'}`}>
                     <Icon className="w-3.5 h-3.5" />
                   </button>
@@ -533,15 +534,18 @@ export function WebContainerPreview({
           )}
           {phase === 'running' && serverUrl && !isExpoWeb && (
             <button onClick={() => setShowQr(v => !v)} title="Test on a device"
+              aria-label="Test on a device" aria-pressed={showQr}
               className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition ${showQr ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'}`}>
               <Smartphone className="w-3 h-3" />
             </button>
           )}
           <button onClick={() => setLogsOpen((v) => !v)} title="Logs"
+            aria-label="Logs" aria-pressed={logsOpen}
             className="flex items-center gap-1 text-xs text-slate-400 hover:text-white px-2 py-1 rounded transition">
             <Terminal className="w-3 h-3" />
           </button>
           <button onClick={() => setBumpKey((k) => k + 1)} title="Restart"
+            aria-label="Restart"
             className="flex items-center gap-1 text-xs text-slate-400 hover:text-white px-2 py-1 rounded transition">
             <RefreshCw className="w-3 h-3" />
           </button>

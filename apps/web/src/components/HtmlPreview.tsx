@@ -30,6 +30,7 @@ type PreviewSize = keyof typeof PREVIEW_SIZES
 export function HtmlPreview({ files }: Props) {
   const [previewSize, setPreviewSize] = useState<PreviewSize>('desktop')
   const [bumpKey, setBumpKey] = useState(0)
+  const [popupBlocked, setPopupBlocked] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
   // Pick the main HTML file. Prefer index.html; fall back to the first .html.
@@ -45,13 +46,23 @@ export function HtmlPreview({ files }: Props) {
   // Open in new tab — turn the HTML into a blob URL so the user gets a real
   // full-window preview (useful for sharing, screen-sharing, dev-tools).
   const openInNewTab = () => {
+    setPopupBlocked(false)
     try {
       const blob = new Blob([html], { type: 'text/html' })
       const url = URL.createObjectURL(blob)
-      window.open(url, '_blank', 'noopener')
+      const win = window.open(url, '_blank', 'noopener')
+      // window.open returns null when a popup blocker silently blocks it —
+      // tell the user instead of failing invisibly.
+      if (!win) {
+        setPopupBlocked(true)
+        URL.revokeObjectURL(url)
+        return
+      }
       // Don't immediately revoke — the new tab needs to fetch.
       setTimeout(() => URL.revokeObjectURL(url), 60_000)
-    } catch {}
+    } catch {
+      setPopupBlocked(true)
+    }
   }
 
   return (
@@ -90,6 +101,7 @@ export function HtmlPreview({ files }: Props) {
           <button
             onClick={() => setBumpKey((k) => k + 1)}
             title="Refresh"
+            aria-label="Refresh preview"
             className="flex items-center gap-1 text-xs text-slate-400 hover:text-white px-2 py-1 rounded transition"
           >
             <RefreshCw className="w-3 h-3" />
@@ -97,12 +109,19 @@ export function HtmlPreview({ files }: Props) {
           <button
             onClick={openInNewTab}
             title="Open in new tab"
+            aria-label="Open preview in new tab"
             className="flex items-center gap-1 text-xs text-slate-400 hover:text-white px-2 py-1 rounded transition"
           >
             <ExternalLink className="w-3 h-3" />
           </button>
         </div>
       </div>
+
+      {popupBlocked && (
+        <div role="alert" className="px-4 py-2 text-xs text-amber-300 bg-amber-500/10 border-b border-amber-500/20">
+          Your browser blocked the popup. Allow popups for this site to open the preview in a new tab.
+        </div>
+      )}
 
       {/* Iframe stage */}
       <div className="flex-1 min-h-0 flex items-center justify-center bg-gradient-to-br from-zinc-900 via-black to-zinc-900 p-4 overflow-hidden">

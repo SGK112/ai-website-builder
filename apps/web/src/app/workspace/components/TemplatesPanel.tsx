@@ -117,7 +117,18 @@ export function TemplatesPanel({
                   <img
                     src={template.thumbnail_url}
                     alt={template.name}
+                    loading="lazy"
                     className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-300"
+                    onError={(e) => {
+                      // Broken thumbnail → swap for a deterministic fallback
+                      // derived from the template id so the card stays
+                      // presentable instead of showing the broken-image icon.
+                      const img = e.currentTarget
+                      const seed = encodeURIComponent(template.id || template.name || 'template')
+                      const fallback = `https://www.webstew.net/api/media?q=${seed}/800/600`
+                      if (img.src !== fallback) img.src = fallback
+                      else img.style.display = 'none'
+                    }}
                   />
                 </div>
                 <div className="p-2">
