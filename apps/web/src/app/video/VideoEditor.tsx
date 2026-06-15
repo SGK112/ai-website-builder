@@ -7,12 +7,13 @@ import {
   Type, Music, Zap, ChevronDown, Check, Copy, Loader2,
   ImageIcon, Video, Captions, Sparkles, Share2, Clock,
   RotateCcw, Volume2, VolumeX, Maximize2, X, Plus,
-  ArrowRight, Instagram, Youtube, MonitorPlay,
+  ArrowRight, Instagram, Youtube, MonitorPlay, Clapperboard,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import VideoDirectorChat from './VideoDirectorChat'
+import Storyboard from './Storyboard'
 
-type Tab = 'create' | 'edit' | 'library'
+type Tab = 'create' | 'storyboard' | 'edit' | 'library'
 type AspectRatio = '16:9' | '9:16' | '1:1' | '4:5'
 type GenerateMode = 'text' | 'image'
 
@@ -333,6 +334,7 @@ export default function VideoEditor() {
         <div className="flex items-center gap-1 bg-white/[0.04] rounded-xl p-1 border border-white/[0.06]">
           {([
             { id: 'create' as Tab, icon: Wand2, label: 'Create' },
+            { id: 'storyboard' as Tab, icon: Clapperboard, label: 'Storyboard' },
             { id: 'edit' as Tab, icon: Scissors, label: 'Edit' },
             { id: 'library' as Tab, icon: Film, label: 'Library', count: library.length },
           ]).map(({ id, icon: Icon, label, count }) => (
@@ -682,6 +684,9 @@ export default function VideoEditor() {
             </div>
           </div>
         )}
+
+        {/* ── STORYBOARD TAB ── */}
+        {tab === 'storyboard' && <Storyboard />}
 
         {/* ── EDIT TAB ── */}
         {tab === 'edit' && (
