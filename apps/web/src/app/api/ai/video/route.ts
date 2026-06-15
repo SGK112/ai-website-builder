@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
+import { spendCredits } from '@/lib/credits'
 
 // Caps on user-supplied text/array inputs forwarded to PAID APIs — keeps a
 // malicious client from inflating token/transfer cost or smuggling huge payloads.
@@ -171,6 +172,9 @@ export async function POST(request: NextRequest) {
       }, { status: 503 })
     }
 
+    // Validate inputs and build the start fn BEFORE charging, so a bad request
+    // never costs credits.
+    let start: () => Promise<NextResponse>
     if (action === 'image-to-video') {
       // Grok accepts several images; Replicate models take one. Normalize both
       // the legacy single `imageUrl` and the new `imageUrls[]` into one list.
@@ -183,14 +187,32 @@ export async function POST(request: NextRequest) {
         .filter((u): u is string => typeof u === 'string' && /^https?:\/\//i.test(u))
         .slice(0, MAX_IMAGES)
       if (!images.length) return NextResponse.json({ error: 'A valid image URL is required.' }, { status: 400 })
-      if (model.provider === 'xai') return await startXaiVideo(body, model, images)
-      return await startPrediction(buildImageToVideoInput({ ...body, imageUrl: images[0] }, model, modelKey), model)
+      start = model.provider === 'xai'
+        ? () => startXaiVideo(body, model, images)
+        : () => startPrediction(buildImageToVideoInput({ ...body, imageUrl: images[0] }, model, modelKey), model)
+    } else {
+      if (!body.prompt) return NextResponse.json({ error: 'prompt required' }, { status: 400 })
+      start = model.provider === 'xai'
+        ? () => startXaiVideo(body, model, [])
+        : () => startPrediction(buildTextToVideoInput(body, model, modelKey), model)
     }
 
-    // text-to-video
-    if (!body.prompt) return NextResponse.json({ error: 'prompt required' }, { status: 400 })
-    if (model.provider === 'xai') return await startXaiVideo(body, model, [])
-    return await startPrediction(buildTextToVideoInput(body, model, modelKey), model)
+    // Meter credits (video_generation = 20). Enterprise/admins are unmetered.
+    // Refund if the paid job fails to even start — the user shouldn't pay for a
+    // generation that never launched.
+    const spend = await spendCredits(session, 'video_generation')
+    if (!spend.ok) {
+      return NextResponse.json(
+        { error: spend.error, ...(spend.status === 402 ? { reason: 'insufficient_credits' } : {}) },
+        { status: spend.status || 402 },
+      )
+    }
+    try {
+      return await start()
+    } catch (e) {
+      await spend.refund()
+      throw e
+    }
 
   } catch (e: any) {
     console.error('[video] error:', e?.message)
