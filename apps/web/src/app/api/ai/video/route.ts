@@ -90,6 +90,7 @@ interface VideoRequest {
   prompt?: string
   imageUrl?: string
   imageUrls?: string[]   // multi-image (Grok only) — first frame, references, etc.
+  negativePrompt?: string // "what to avoid" — only diffusion models that support it
   model?: string
   duration?: number
   fps?: number
@@ -194,6 +195,19 @@ export async function GET(request: NextRequest) {
 
 // ── Input builders ───────────────────────────────────────────────────────────
 
+// Default "avoid" list — the artifacts users hit most (mangled hands, warped
+// text, duplicated subjects). Merged with any user-supplied negative prompt.
+// NOTE: only zeroscope + animatediff actually accept a negative prompt (and
+// animatediff calls the field `n_prompt`). seedance/svd/wan/grok have no such
+// field — for those, artifact control lives in the positive prompt (the AI
+// Director bakes it in).
+const DEFAULT_NEGATIVE = 'extra fingers, extra hands, deformed hands, mutated limbs, duplicated limbs, distorted faces, warped text, garbled text, blurry, low quality, watermark'
+
+function negativeFor(body: VideoRequest): string {
+  const user = (body.negativePrompt || '').trim()
+  return user ? `${user}, ${DEFAULT_NEGATIVE}` : DEFAULT_NEGATIVE
+}
+
 function buildTextToVideoInput(body: VideoRequest, model: typeof MODELS[ModelKey], key: ModelKey) {
   const prompt = enhancePrompt(body.prompt!, body.style)
   const duration = Math.min(body.duration ?? 5, model.maxDuration)
@@ -210,18 +224,20 @@ function buildTextToVideoInput(body: VideoRequest, model: typeof MODELS[ModelKey
     }
   }
   if (key === 'animatediff') {
+    // This model's negative field is `n_prompt` and its step field is `steps`
+    // — the old code sent `negative_prompt`/`num_inference_steps`/`num_frames`,
+    // none of which exist on this version, so they were silently dropped.
     return {
       prompt,
-      negative_prompt: 'bad quality, blurry, distorted, low resolution',
-      num_frames: Math.min(duration * (body.fps ?? 8), 32),
-      num_inference_steps: 25,
+      n_prompt: negativeFor(body),
+      steps: 25,
       guidance_scale: 7.5,
     }
   }
   if (key === 'zeroscope') {
     return {
       prompt,
-      negative_prompt: 'bad quality, low resolution',
+      negative_prompt: negativeFor(body),
       num_frames: Math.min(duration * 8, 24),
       fps: body.fps ?? 8,
     }

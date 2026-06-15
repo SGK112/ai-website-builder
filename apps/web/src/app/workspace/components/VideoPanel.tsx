@@ -14,8 +14,15 @@ import {
   Copy,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import VideoDirectorChat from '@/app/video/VideoDirectorChat'
 
 type VideoModel = 'animate-diff' | 'zeroscope' | 'svd'
+
+const MODEL_LABELS: Record<VideoModel, string> = {
+  'animate-diff': 'AnimateDiff',
+  zeroscope: 'Zeroscope',
+  svd: 'Stable Video Diffusion',
+}
 
 interface VideoPanelProps {
   isDark: boolean
@@ -60,6 +67,8 @@ export function VideoPanel({
   onCopyUrl,
 }: VideoPanelProps) {
   const [videoLoadError, setVideoLoadError] = useState(false)
+  const [directorOpen, setDirectorOpen] = useState(false)
+  const effectiveModel: VideoModel = videoSourceImage ? 'svd' : videoModel
   return (
     <motion.div
       key="video"
@@ -155,6 +164,14 @@ export function VideoPanel({
               : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400',
           )}
         />
+
+        <button
+          onClick={() => setDirectorOpen(true)}
+          className="mb-3 w-full flex items-center justify-center gap-1.5 rounded-lg border border-violet-500/40 bg-gradient-to-r from-violet-600/15 to-fuchsia-600/15 hover:from-violet-600/25 hover:to-fuchsia-600/25 text-violet-200 text-xs font-medium py-2 transition-colors"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          AI Director — help me craft this prompt
+        </button>
 
         <div className="mb-3">
           <label className={cn('block text-xs mb-1.5', isDark ? 'text-zinc-400' : 'text-slate-600')}>Model</label>
@@ -295,6 +312,19 @@ export function VideoPanel({
           </p>
         </div>
       </div>
+
+      <VideoDirectorChat
+        open={directorOpen}
+        initialPrompt={videoPrompt}
+        context={{
+          mode: videoSourceImage ? 'image' : 'text',
+          model: effectiveModel,
+          modelLabel: MODEL_LABELS[effectiveModel],
+          imageCount: videoSourceImage ? 1 : 0,
+        }}
+        onApply={(p) => onVideoPromptChange(p)}
+        onClose={() => setDirectorOpen(false)}
+      />
     </motion.div>
   )
 }

@@ -60,6 +60,7 @@ export default function VideoEditor() {
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('16:9')
   const [model, setModel] = useState('seedance')
   const [style, setStyle] = useState('')
+  const [negativePrompt, setNegativePrompt] = useState('')
   const [duration, setDuration] = useState(5)
   const [generating, setGenerating] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -93,6 +94,9 @@ export default function VideoEditor() {
   // Only Grok accepts more than one source image; everything else is single-image.
   const selectedModel = VIDEO_MODELS.find(m => m.id === model)
   const isMultiImage = !!selectedModel?.multi
+  // Only these diffusion models accept a negative prompt; for the rest, the
+  // Director steers artifacts via the positive prompt instead.
+  const supportsNegative = model === 'animatediff' || model === 'zeroscope'
 
   // AI Director (prompt-crafting layer in front of the generator).
   const [directorOpen, setDirectorOpen] = useState(false)
@@ -129,6 +133,7 @@ export default function VideoEditor() {
         duration,
         style: style || undefined,
       }
+      if (supportsNegative && negativePrompt.trim()) body.negativePrompt = negativePrompt.trim()
       if (generateMode === 'image' && uploadedImages.length) {
         // Grok takes several images (images[]); everything else takes one.
         if (isMultiImage && uploadedImages.length > 1) body.imageUrls = uploadedImages
@@ -466,6 +471,23 @@ export default function VideoEditor() {
                   AI Director — help me craft this prompt
                 </button>
               </div>
+
+              {/* Negative prompt — only for models that support it */}
+              {supportsNegative && (
+                <div>
+                  <label className="block text-xs font-medium text-zinc-400 mb-2">
+                    Avoid in video <span className="text-zinc-600">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={negativePrompt}
+                    onChange={e => setNegativePrompt(e.target.value)}
+                    placeholder="e.g. extra fingers, blurry, text, watermark…"
+                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50"
+                  />
+                  <p className="mt-1 text-[10px] text-zinc-600">Common artifact fixes are always applied — add your own here.</p>
+                </div>
+              )}
 
               {/* Style presets */}
               <div>
