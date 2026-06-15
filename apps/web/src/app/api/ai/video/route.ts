@@ -6,52 +6,78 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
 const TOKEN = process.env.REPLICATE_API_TOKEN
+const XAI_KEY = process.env.XAI_API_KEY
 
 // ── Model registry ──────────────────────────────────────────────────────────
-// isOfficial=true  → POST to /v1/models/{owner}/{name}/predictions
-// isOfficial=false → POST to /v1/predictions with { version: "sha256..." }
+// provider 'replicate':
+//   isOfficial=true  → POST to /v1/models/{owner}/{name}/predictions
+//   isOfficial=false → POST to /v1/predictions with { version: "sha256..." }
+// provider 'xai':
+//   POST to https://api.x.ai/v1/videos/generations, poll GET /v1/videos/{id}
 //
-// Seedance is the default — fastest quality-per-second model right now.
-// Supports both text-to-video AND image-to-video with the same endpoint.
+// Seedance is the default Replicate model — fastest quality-per-second. Grok
+// Imagine (xAI) is the only model that accepts MULTIPLE input images and tends
+// to handle people/hands/text better, so it's the recommended higher-fidelity
+// option. Every entry carries the same keys so the union stays uniform.
 
 const MODELS = {
   seedance: {
     id: 'bytedance/seedance-1-lite:78c9c4b0a7056c911b0483f58349b9931aff30d6465e7ab665e6c852949ce6d5',
     label: 'Seedance 1 Lite',
+    provider: 'replicate',
     isOfficial: false,
     supportsImage: true,
+    supportsMultiImage: false,
     maxDuration: 12,
     resolutions: ['480p', '720p', '1080p'],
+  },
+  grok: {
+    id: 'grok-imagine-video',
+    label: 'Grok Imagine (xAI)',
+    provider: 'xai',
+    isOfficial: false,
+    supportsImage: true,
+    supportsMultiImage: true,
+    maxDuration: 8,
+    resolutions: [],
   },
   animatediff: {
     id: 'lucataco/animate-diff:beecf59c4aee8d81bf04f0381033dfa10dc16e845b4ae00d281e2fa377e48a9f',
     label: 'AnimateDiff',
+    provider: 'replicate',
     isOfficial: false,
     supportsImage: false,
+    supportsMultiImage: false,
     maxDuration: 4,
     resolutions: [],
   },
   zeroscope: {
     id: 'anotherjesse/zeroscope-v2-xl:9f747673945c62801b13b84701c783929c0ee784e4748ec062204894dda1a351',
     label: 'Zeroscope XL',
+    provider: 'replicate',
     isOfficial: false,
     supportsImage: false,
+    supportsMultiImage: false,
     maxDuration: 3,
     resolutions: [],
   },
   wan: {
     id: 'wan-video/wan2.1-t2v-480p',
     label: 'Wan 2.1',
+    provider: 'replicate',
     isOfficial: true,
     supportsImage: false,
+    supportsMultiImage: false,
     maxDuration: 5,
     resolutions: [],
   },
   svd: {
     id: 'stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172438',
     label: 'Stable Video Diffusion',
+    provider: 'replicate',
     isOfficial: false,
     supportsImage: true,
+    supportsMultiImage: false,
     maxDuration: 4,
     resolutions: [],
   },
@@ -63,6 +89,7 @@ interface VideoRequest {
   action: 'text-to-video' | 'image-to-video' | 'status'
   prompt?: string
   imageUrl?: string
+  imageUrls?: string[]   // multi-image (Grok only) — first frame, references, etc.
   model?: string
   duration?: number
   fps?: number
@@ -79,14 +106,6 @@ export async function POST(request: NextRequest) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   }
-  if (!TOKEN) {
-    return NextResponse.json({
-      error: 'AI video is not available on this instance — REPLICATE_API_TOKEN is not configured. Ask an admin to set it, or use the image tools instead.',
-      feature: 'video',
-      reason: 'replicate_unconfigured',
-    }, { status: 503 })
-  }
-
   // Parse the body defensively — an empty/malformed body used to throw inside
   // the try and surface as a confusing 500 "Unexpected end of JSON input".
   let body: VideoRequest
@@ -111,13 +130,35 @@ export async function POST(request: NextRequest) {
     const modelKey = (body.model as ModelKey) || 'seedance'
     const model = MODELS[modelKey] ?? MODELS.seedance
 
+    // Provider-aware credential check — Grok needs XAI_API_KEY, the rest need
+    // REPLICATE_API_TOKEN. (Was a single early !TOKEN gate that blocked Grok.)
+    if (model.provider === 'xai' && !XAI_KEY) {
+      return NextResponse.json({
+        error: 'Grok video is not available on this instance — XAI_API_KEY is not configured. Pick another model or ask an admin to set it.',
+        feature: 'video', reason: 'xai_unconfigured',
+      }, { status: 503 })
+    }
+    if (model.provider === 'replicate' && !TOKEN) {
+      return NextResponse.json({
+        error: 'AI video is not available on this instance — REPLICATE_API_TOKEN is not configured. Ask an admin to set it, or use the image tools instead.',
+        feature: 'video', reason: 'replicate_unconfigured',
+      }, { status: 503 })
+    }
+
     if (action === 'image-to-video') {
-      if (!body.imageUrl) return NextResponse.json({ error: 'imageUrl required' }, { status: 400 })
-      return await startPrediction(buildImageToVideoInput(body, model, modelKey), model)
+      // Grok accepts several images; Replicate models take one. Normalize both
+      // the legacy single `imageUrl` and the new `imageUrls[]` into one list.
+      const images = (body.imageUrls && body.imageUrls.length)
+        ? body.imageUrls.filter(Boolean)
+        : (body.imageUrl ? [body.imageUrl] : [])
+      if (!images.length) return NextResponse.json({ error: 'imageUrl required' }, { status: 400 })
+      if (model.provider === 'xai') return await startXaiVideo(body, model, images)
+      return await startPrediction(buildImageToVideoInput({ ...body, imageUrl: images[0] }, model, modelKey), model)
     }
 
     // text-to-video
     if (!body.prompt) return NextResponse.json({ error: 'prompt required' }, { status: 400 })
+    if (model.provider === 'xai') return await startXaiVideo(body, model, [])
     return await startPrediction(buildTextToVideoInput(body, model, modelKey), model)
 
   } catch (e: any) {
@@ -128,18 +169,21 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   const id = new URL(request.url).searchParams.get('id')
-  if (!TOKEN) return NextResponse.json({
-    error: 'AI video is not available on this instance — REPLICATE_API_TOKEN is not configured.',
-    feature: 'video',
-    reason: 'replicate_unconfigured',
-  }, { status: 503 })
   if (!id) {
-    return NextResponse.json({
-      models: Object.entries(MODELS).map(([k, v]) => ({
-        id: k, label: v.label, supportsImage: v.supportsImage, maxDuration: v.maxDuration,
-      })),
-      configured: !!TOKEN,
-    })
+    // Model list — only surface models whose provider is actually configured,
+    // and tell the client which support image / multi-image input so it can
+    // render the right upload affordance.
+    const models = Object.entries(MODELS)
+      .filter(([, v]) => (v.provider === 'xai' ? !!XAI_KEY : !!TOKEN))
+      .map(([k, v]) => ({
+        id: k,
+        label: v.label,
+        provider: v.provider,
+        supportsImage: v.supportsImage,
+        supportsMultiImage: v.supportsMultiImage,
+        maxDuration: v.maxDuration,
+      }))
+    return NextResponse.json({ models, configured: !!TOKEN || !!XAI_KEY })
   }
   try {
     return await pollOnce(id)
@@ -247,6 +291,10 @@ async function startPrediction(input: Record<string, unknown>, model: typeof MOD
 }
 
 async function pollOnce(predictionId: string) {
+  // Grok jobs are tagged with an "xai:" prefix at creation so status checks
+  // route to xAI instead of Replicate (the client re-sends whatever id we gave).
+  if (predictionId.startsWith('xai:')) return pollXai(predictionId)
+
   const res = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
     headers: { Authorization: `Token ${TOKEN}` },
   })
@@ -269,4 +317,54 @@ function enhancePrompt(prompt: string, style?: string): string {
     return `${prompt}, ${style} style, ${suffix}`
   }
   return `${prompt}, ${suffix}`
+}
+
+// ── xAI (Grok Imagine) helpers ───────────────────────────────────────────────
+// Async API: POST /v1/videos/generations → { request_id }; poll GET
+// /v1/videos/{id} → 202 {status:"pending",progress} until {status:"done",
+// video:{url}}. Grok is the only model that accepts MULTIPLE input images,
+// passed as reference_images:[{url},…] (1 or many — same field).
+
+async function startXaiVideo(body: VideoRequest, model: typeof MODELS[ModelKey], images: string[]) {
+  const basePrompt = body.prompt || (images.length ? 'Animate these images with smooth, natural motion' : '')
+  const payload: Record<string, unknown> = { model: model.id, prompt: enhancePrompt(basePrompt, body.style) }
+  // xAI takes guidance images via `reference_images: [{url}]` (the older
+  // `image`/`images` fields are deprecated and rejected at generation time).
+  // One element or several — same field.
+  if (images.length) payload.reference_images = images.map((url) => ({ url }))
+
+  const res = await fetch('https://api.x.ai/v1/videos/generations', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${XAI_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({} as any))
+    throw new Error(err.error || err.message || `xAI error ${res.status}`)
+  }
+  const j = await res.json()
+  if (!j.request_id) throw new Error('xAI did not return a request id')
+  // Prefix so pollOnce routes the client's status checks back to xAI.
+  return NextResponse.json({ id: `xai:${j.request_id}`, status: 'starting' })
+}
+
+async function pollXai(prefixedId: string) {
+  const rid = prefixedId.slice('xai:'.length)
+  const res = await fetch(`https://api.x.ai/v1/videos/${rid}`, {
+    headers: { Authorization: `Bearer ${XAI_KEY}` },
+  })
+  // 202 = still pending (not an error); other non-2xx are real failures.
+  if (!res.ok && res.status !== 202) throw new Error(`Failed to check status (xAI ${res.status})`)
+  const p = await res.json().catch(() => ({} as any))
+  const raw = String(p.status || '').toLowerCase()
+  const status = raw === 'done' ? 'succeeded'
+    : (raw === 'failed' || raw === 'error') ? 'failed'
+    : 'processing'   // pending / processing / unknown → keep polling
+  return NextResponse.json({
+    id: prefixedId,                              // keep prefix → next poll still hits xAI
+    status,
+    videoUrl: p.video?.url || null,
+    error: p.error || null,
+    logs: p.progress != null ? `${p.progress}%` : null,
+  })
 }

@@ -39,11 +39,12 @@ const ASPECT_RATIOS: { id: AspectRatio; label: string; icon: React.ElementType; 
 ]
 
 const VIDEO_MODELS = [
-  { id: 'seedance', label: 'Seedance', speed: 'Fast', quality: 'Best', badge: '🔥 Hot' },
-  { id: 'wan', label: 'Wan 2.1', speed: 'Medium', quality: 'Great', badge: 'Open' },
-  { id: 'animatediff', label: 'AnimateDiff', speed: 'Fast', quality: 'Good', badge: '' },
-  { id: 'zeroscope', label: 'Zeroscope XL', speed: 'Fast', quality: 'Good', badge: '' },
-  { id: 'svd', label: 'Stable Video', speed: 'Medium', quality: 'Great', badge: 'Img→Vid' },
+  { id: 'seedance', label: 'Seedance', speed: 'Fast', quality: 'Best', badge: '🔥 Hot', multi: false },
+  { id: 'grok', label: 'Grok Imagine', speed: 'Medium', quality: 'Premium', badge: '✨ Multi-image', multi: true },
+  { id: 'wan', label: 'Wan 2.1', speed: 'Medium', quality: 'Great', badge: 'Open', multi: false },
+  { id: 'animatediff', label: 'AnimateDiff', speed: 'Fast', quality: 'Good', badge: '', multi: false },
+  { id: 'zeroscope', label: 'Zeroscope XL', speed: 'Fast', quality: 'Good', badge: '', multi: false },
+  { id: 'svd', label: 'Stable Video', speed: 'Medium', quality: 'Great', badge: 'Img→Vid', multi: false },
 ]
 
 const STYLE_PRESETS = [
@@ -65,7 +66,7 @@ export default function VideoEditor() {
   const [error, setError] = useState<string | null>(null)
   const [library, setLibrary] = useState<GeneratedVideo[]>([])
   const [selectedVideo, setSelectedVideo] = useState<GeneratedVideo | null>(null)
-  const [uploadedImage, setUploadedImage] = useState<string | null>(null)
+  const [uploadedImages, setUploadedImages] = useState<string[]>([])
   const [uploadingImage, setUploadingImage] = useState(false)
   const [uploadedVideo, setUploadedVideo] = useState<File | null>(null)
   const [editingVideo, setEditingVideo] = useState<GeneratedVideo | null>(null)
@@ -88,10 +89,12 @@ export default function VideoEditor() {
   const [processing, setProcessing] = useState(false)
 
   const isDark = true // video editor is always dark
+  // Only Grok accepts more than one source image; everything else is single-image.
+  const isMultiImage = !!VIDEO_MODELS.find(m => m.id === model)?.multi
 
   const generate = async () => {
     if (generateMode === 'text' && !prompt.trim()) return
-    if (generateMode === 'image' && !uploadedImage) return
+    if (generateMode === 'image' && uploadedImages.length === 0) return
     setGenerating(true)
     setProgress(5)
     setProgressLabel('Sending to Seedance…')
@@ -107,7 +110,11 @@ export default function VideoEditor() {
         duration,
         style: style || undefined,
       }
-      if (generateMode === 'image' && uploadedImage) body.imageUrl = uploadedImage
+      if (generateMode === 'image' && uploadedImages.length) {
+        // Grok takes several images (images[]); everything else takes one.
+        if (isMultiImage && uploadedImages.length > 1) body.imageUrls = uploadedImages
+        else body.imageUrl = uploadedImages[0]
+      }
 
       const res = await fetch('/api/ai/video', {
         method: 'POST',
@@ -172,38 +179,42 @@ export default function VideoEditor() {
   }
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
+    // Single-image models only ever use the first file; Grok can use several.
+    const toUpload = isMultiImage ? files : files.slice(0, 1)
 
-    // Image-to-video sends `uploadedImage` straight to Replicate as
-    // `imageUrl`. Replicate fetches that URL server-side and can't
-    // resolve `data:` URLs — so we MUST end up with a public HTTPS
-    // URL here, never a base64 data URL. Upload to /api/upload and
-    // reject any data: response (means Cloudinary isn't configured).
+    // Image-to-video sends these URLs straight to the model, which fetches them
+    // server-side and can't resolve `data:` URLs — so each must end up a public
+    // HTTPS URL. Upload to /api/upload and reject any data: response (means
+    // Cloudinary isn't configured).
     setError(null)
     setUploadingImage(true)
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      const res = await fetch('/api/upload', { method: 'POST', body: formData })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || `Upload failed (${res.status})`)
+      const urls: string[] = []
+      for (const file of toUpload) {
+        const formData = new FormData()
+        formData.append('file', file)
+        const res = await fetch('/api/upload', { method: 'POST', body: formData })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          throw new Error(err.error || `Upload failed (${res.status})`)
+        }
+        const json = await res.json()
+        if (!json.url) throw new Error('Upload returned no URL')
+        if (json.url.startsWith('data:')) {
+          throw new Error('Image storage isn\'t configured on this server. Ask an admin to set CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET on the Webstew service.')
+        }
+        urls.push(json.url)
       }
-      const json = await res.json()
-      if (!json.url) throw new Error('Upload returned no URL')
-      if (json.url.startsWith('data:')) {
-        // Cloudinary not configured on this server — refuse to set a data:
-        // URL because Replicate can't fetch it. Surfaces the real cause
-        // instead of letting the generation silently time out 5 minutes later.
-        throw new Error('Image storage isn\'t configured on this server. Ask an admin to set CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET on the Webstew service.')
-      }
-      setUploadedImage(json.url)
+      // Single-image models replace; multi-image appends (up to a sane cap).
+      setUploadedImages(prev => (isMultiImage ? [...prev, ...urls].slice(0, 6) : urls))
     } catch (e: any) {
       setError(e?.message || 'Image upload failed')
-      setUploadedImage(null)
     } finally {
       setUploadingImage(false)
+      // Allow re-selecting the same file(s) again.
+      if (imageInputRef.current) imageInputRef.current.value = ''
     }
   }
 
@@ -364,21 +375,39 @@ export default function VideoEditor() {
               {/* Image upload (image mode) */}
               {generateMode === 'image' && (
                 <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-2">Source Image</label>
+                  <label className="block text-xs font-medium text-zinc-400 mb-2">
+                    {isMultiImage ? 'Source Images' : 'Source Image'}
+                    {isMultiImage && <span className="ml-1.5 text-[10px] text-fuchsia-400/80">Grok can blend up to 6</span>}
+                  </label>
                   {uploadingImage ? (
                     <div className="w-full aspect-video rounded-xl border-2 border-dashed border-fuchsia-500/40 bg-fuchsia-500/5 flex flex-col items-center justify-center gap-2 text-zinc-400">
                       <div className="w-6 h-6 rounded-full border-2 border-fuchsia-500/40 border-t-fuchsia-500 animate-spin" />
                       <span className="text-xs">Uploading to image storage…</span>
                     </div>
-                  ) : uploadedImage ? (
-                    <div className="relative rounded-xl overflow-hidden aspect-video bg-zinc-900">
-                      <img src={uploadedImage} alt="" className="w-full h-full object-cover" />
-                      <button
-                        onClick={() => setUploadedImage(null)}
-                        className="absolute top-2 right-2 p-1 rounded-md bg-black/60 text-white hover:bg-black/80"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
+                  ) : uploadedImages.length > 0 ? (
+                    <div className="grid grid-cols-3 gap-2">
+                      {uploadedImages.map((url, i) => (
+                        <div key={url + i} className="relative rounded-lg overflow-hidden aspect-square bg-zinc-900">
+                          <img src={url} alt="" className="w-full h-full object-cover" />
+                          <button
+                            onClick={() => setUploadedImages(prev => prev.filter((_, idx) => idx !== i))}
+                            className="absolute top-1 right-1 p-1 rounded-md bg-black/60 text-white hover:bg-black/80"
+                            aria-label="Remove image"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                      {/* Add-more tile (multi-image models only) */}
+                      {isMultiImage && uploadedImages.length < 6 && (
+                        <button
+                          onClick={() => imageInputRef.current?.click()}
+                          className="aspect-square rounded-lg border-2 border-dashed border-white/[0.1] hover:border-fuchsia-500/50 hover:bg-fuchsia-500/5 transition-all flex flex-col items-center justify-center gap-1 text-zinc-500"
+                        >
+                          <Upload className="w-5 h-5" />
+                          <span className="text-[10px]">Add</span>
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <button
@@ -386,11 +415,11 @@ export default function VideoEditor() {
                       className="w-full aspect-video rounded-xl border-2 border-dashed border-white/[0.1] hover:border-fuchsia-500/50 hover:bg-fuchsia-500/5 transition-all flex flex-col items-center justify-center gap-2 text-zinc-500"
                     >
                       <Upload className="w-8 h-8" />
-                      <span className="text-xs">Click to upload image</span>
-                      <span className="text-[10px] text-zinc-600">JPG, PNG, WebP</span>
+                      <span className="text-xs">{isMultiImage ? 'Click to upload images' : 'Click to upload image'}</span>
+                      <span className="text-[10px] text-zinc-600">JPG, PNG, WebP, HEIC</span>
                     </button>
                   )}
-                  <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                  <input ref={imageInputRef} type="file" accept="image/*" multiple={isMultiImage} className="hidden" onChange={handleImageUpload} />
                 </div>
               )}
 
@@ -516,7 +545,7 @@ export default function VideoEditor() {
               {/* Generate button */}
               <button
                 onClick={generate}
-                disabled={generating || uploadingImage || (!prompt.trim() && generateMode === 'text') || (!uploadedImage && generateMode === 'image') || (generateMode === 'image' && uploadedImage?.startsWith('data:'))}
+                disabled={generating || uploadingImage || (!prompt.trim() && generateMode === 'text') || (generateMode === 'image' && uploadedImages.length === 0) || (generateMode === 'image' && uploadedImages.some(u => u.startsWith('data:')))}
                 className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:brightness-110 text-white font-semibold transition-all shadow-lg shadow-violet-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {generating ? (
