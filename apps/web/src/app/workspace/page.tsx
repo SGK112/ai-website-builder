@@ -171,6 +171,7 @@ import { ContentPanel } from '@/components/builder/ContentPanel'
 import { ShipPanel } from './components/ShipPanel'
 import { ProjectList } from './components/ProjectList'
 import { NewProjectChooser } from './components/NewProjectChooser'
+import { useElementActions } from './hooks/useElementActions'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import type { ImportedProject } from '@/lib/import-project'
 import { buildProjectFiles, chatSidecarFile, parseStoredProjectFiles } from '@/lib/project-sidecars'
@@ -4585,6 +4586,12 @@ ${html}
     setHistoryIndex(prev => Math.min(prev + 1, 29))
   }, [historyIndex])
 
+  // Element-level edit actions (delete / duplicate / move section) — robust
+  // find/replace + toasts live in the hook, out of this page.
+  const { deleteElement, duplicateElement, moveSection } = useElementActions({
+    html, setHtml, addToHistory, addToast,
+  })
+
   const handleUndo = () => {
     if (historyIndex > 0) {
       setHistoryIndex(historyIndex - 1)
@@ -5908,35 +5915,15 @@ ${html}
 
   // Simple delete - just remove the outerHTML from the page
   const deleteSelectedElement = useCallback(() => {
-    if (!selectedElement || !html) return false
-
-    const outerHtml = selectedElement.outerHTML
-    const tag = selectedElement.tagName?.toLowerCase() || 'element'
-
-    // Don't delete critical elements
-    if (['HTML', 'BODY', 'HEAD'].includes(selectedElement.tagName)) {
-      addConsoleLog('warn', 'Cannot delete page structure')
-      return false
-    }
-
-    // Simple: just remove the outerHTML
-    if (outerHtml && html.includes(outerHtml)) {
-      const newHtml = html.replace(outerHtml, '')
-      setHtml(newHtml)
-      addToHistory(newHtml, `Deleted <${tag}>`)
-      addConsoleLog('success', `Deleted <${tag}>`)
-      addToast('success', `Deleted ${tag}`)
+    if (!selectedElement) return false
+    // Robust match + success/failure toast handled by the hook.
+    const ok = deleteElement(selectedElement)
+    if (ok) {
       setSelectedElement(null)
       setSelectMode(false)
-      return true
     }
-
-    // The serialized outerHTML didn't byte-match the source — tell the user
-    // instead of failing silently (was console-only, invisible to no-code).
-    addConsoleLog('warn', 'Could not find element to delete')
-    addToast('error', "Couldn't delete that element — re-select it and try again.")
-    return false
-  }, [html, selectedElement, addConsoleLog, addToHistory, addToast])
+    return ok
+  }, [selectedElement, deleteElement])
 
   // Keyboard: Delete/Backspace to delete, Escape to deselect
   useEffect(() => {
@@ -10347,22 +10334,7 @@ npx eas build --platform all
 
                   {/* DUPLICATE */}
                   <button
-                    onClick={() => {
-                      if (selectedElement.outerHTML && html) {
-                        const newHtml = html.replace(
-                          selectedElement.outerHTML,
-                          selectedElement.outerHTML + '\n' + selectedElement.outerHTML
-                        )
-                        if (newHtml !== html) {
-                          setHtml(newHtml)
-                          addToHistory(newHtml, `Duplicated <${selectedElement.tagName?.toLowerCase()}>`)
-                          addToast('success', 'Duplicated')
-                        } else {
-                          addToast('error', "Couldn't duplicate that element — re-select it and try again.")
-                        }
-                        setSelectedElement(null)
-                      }
-                    }}
+                    onClick={() => { if (duplicateElement(selectedElement)) setSelectedElement(null) }}
                     title="Duplicate"
                     aria-label="Duplicate element"
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-xs font-medium transition-colors"
@@ -10400,61 +10372,18 @@ npx eas build --platform all
                   </button>
 
                   {/* Move up/down only work on section-level tags — hide them
-                      for other elements instead of showing dead buttons that
-                      always say "not a section". */}
+                      for other elements instead of showing dead buttons. */}
                   {['SECTION','NAV','HEADER','FOOTER','MAIN','ASIDE','ARTICLE'].includes((selectedElement.tagName || '').toUpperCase()) && (<>
-                  {/* MOVE UP — swaps with previous sibling at the section level */}
                   <button
-                    onClick={() => {
-                      if (!selectedElement.outerHTML || !html) return
-                      // Find the section's index and the prior section's outer HTML, then swap
-                      const sectionPattern = /(<(?:section|nav|header|footer|main|aside|article)\b[^>]*>[\s\S]*?<\/\1>)/g
-                      const sections: { html: string; start: number; end: number }[] = []
-                      let m
-                      while ((m = sectionPattern.exec(html)) !== null) {
-                        sections.push({ html: m[1], start: m.index, end: m.index + m[1].length })
-                      }
-                      const idx = sections.findIndex(s => s.html === selectedElement.outerHTML)
-                      if (idx > 0) {
-                        const prev = sections[idx - 1]
-                        const cur = sections[idx]
-                        const newHtml = html.slice(0, prev.start) + cur.html + html.slice(prev.end, cur.start) + prev.html + html.slice(cur.end)
-                        setHtml(newHtml)
-                        addToHistory(newHtml, `Moved <${selectedElement.tagName?.toLowerCase()}> up`)
-                      } else {
-                        addToast('info', 'Already at top, or not a section')
-                      }
-                      setSelectedElement(null)
-                    }}
+                    onClick={() => { if (moveSection(selectedElement, 'up')) setSelectedElement(null) }}
                     title="Move section up"
                     aria-label="Move section up"
                     className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white transition-colors"
                   >
                     <ChevronUp className="w-3.5 h-3.5" />
                   </button>
-
-                  {/* MOVE DOWN */}
                   <button
-                    onClick={() => {
-                      if (!selectedElement.outerHTML || !html) return
-                      const sectionPattern = /(<(?:section|nav|header|footer|main|aside|article)\b[^>]*>[\s\S]*?<\/\1>)/g
-                      const sections: { html: string; start: number; end: number }[] = []
-                      let m
-                      while ((m = sectionPattern.exec(html)) !== null) {
-                        sections.push({ html: m[1], start: m.index, end: m.index + m[1].length })
-                      }
-                      const idx = sections.findIndex(s => s.html === selectedElement.outerHTML)
-                      if (idx >= 0 && idx < sections.length - 1) {
-                        const cur = sections[idx]
-                        const next = sections[idx + 1]
-                        const newHtml = html.slice(0, cur.start) + next.html + html.slice(cur.end, next.start) + cur.html + html.slice(next.end)
-                        setHtml(newHtml)
-                        addToHistory(newHtml, `Moved <${selectedElement.tagName?.toLowerCase()}> down`)
-                      } else {
-                        addToast('info', 'Already at bottom, or not a section')
-                      }
-                      setSelectedElement(null)
-                    }}
+                    onClick={() => { if (moveSection(selectedElement, 'down')) setSelectedElement(null) }}
                     title="Move section down"
                     aria-label="Move section down"
                     className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white transition-colors"
