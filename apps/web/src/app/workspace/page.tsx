@@ -172,6 +172,7 @@ import { ShipPanel } from './components/ShipPanel'
 import { ProjectList } from './components/ProjectList'
 import { NewProjectChooser } from './components/NewProjectChooser'
 import { useElementActions } from './hooks/useElementActions'
+import { MobileStepBar, type WorkspaceStep } from './components/MobileStepBar'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import type { ImportedProject } from '@/lib/import-project'
 import { buildProjectFiles, chatSidecarFile, parseStoredProjectFiles } from '@/lib/project-sidecars'
@@ -9664,6 +9665,31 @@ npx eas build --platform all
               </button>
             </div>
           </header>
+        )}
+
+        {/* Mobile step-by-step build flow. Surfaces the 4 core stages as an
+            always-visible, accessible stepper (the full 11-panel set stays
+            behind the hamburger for power users). Sits on the top plane so it
+            never collides with the global bottom tab nav. */}
+        {isMobile && (
+          <MobileStepBar
+            isDark={isDark}
+            canShip={!!html.trim() || Object.keys(vfsFiles).length > 0}
+            current={
+              !sidebarCollapsed
+                ? (activePanel === 'build' ? 'describe' : activePanel === 'deploy' ? 'ship' : 'customize')
+                : 'preview'
+            }
+            onStep={(step: WorkspaceStep) => {
+              if (step === 'preview') {
+                setSidebarCollapsed(true)
+              } else {
+                setActivePanel(step === 'describe' ? 'build' : step === 'ship' ? 'deploy' : 'templates')
+                setSidebarCollapsed(false)
+                if (step === 'describe') setTimeout(() => inputRef.current?.focus(), 80)
+              }
+            }}
+          />
         )}
 
         {/* Toolbar - High z-index so dropdowns appear above preview.
