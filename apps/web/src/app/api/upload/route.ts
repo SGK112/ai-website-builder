@@ -41,19 +41,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'video/mp4', 'video/webm']
-    if (!allowedTypes.includes(file.type)) {
+    // Accept any image or video (incl. iPhone HEIC photos and .mov/quicktime
+    // videos — the most common formats for our mostly-mobile audience) plus
+    // PDFs. The narrow exact allow-list used to 400 every iPhone photo/video.
+    // Empty type (some browsers omit it) passes through to storage to sniff.
+    const type = (file.type || '').toLowerCase()
+    const isAllowed = type === '' || type.startsWith('image/') || type.startsWith('video/') || type === 'application/pdf'
+    if (!isAllowed) {
       return NextResponse.json(
-        { error: 'Invalid file type. Allowed: JPEG, PNG, GIF, WebP, SVG, MP4, WebM' },
+        { error: 'That file type isn’t supported. Upload an image, a video, or a PDF.' },
         { status: 400 }
       )
     }
 
-    // Check file size (10MB max)
-    const maxSize = 10 * 1024 * 1024
+    // Size cap — checked before buffering. Videos get more headroom (a short
+    // phone clip is tens of MB); images/PDFs stay tighter.
+    const isVideo = type.startsWith('video/')
+    const maxSize = isVideo ? 100 * 1024 * 1024 : 15 * 1024 * 1024
     if (file.size > maxSize) {
       return NextResponse.json(
-        { error: 'File too large. Maximum size is 10MB' },
+        { error: `That file is too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max is ${isVideo ? '100MB for video' : '15MB'}.` },
         { status: 400 }
       )
     }

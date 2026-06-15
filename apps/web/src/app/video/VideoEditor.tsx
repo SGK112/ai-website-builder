@@ -114,8 +114,10 @@ export default function VideoEditor() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to start generation')
+      // Defensive parse — never let an empty/non-JSON response surface as a
+      // cryptic "Unexpected end of JSON input"; fall back to a clean message.
+      const data = await res.json().catch(() => ({} as any))
+      if (!res.ok) throw new Error(data.error || `Couldn't start generation (HTTP ${res.status}).`)
 
       const predictionId = data.id
       if (!predictionId) throw new Error('No prediction ID returned')
@@ -132,7 +134,7 @@ export default function VideoEditor() {
         setProgress(Math.min(88, 8 + attempts * 1.1))
 
         const poll = await fetch(`/api/ai/video?id=${predictionId}`)
-        const pollData = await poll.json()
+        const pollData = await poll.json().catch(() => ({} as any))
 
         if (pollData.status === 'succeeded') {
           videoUrl = pollData.videoUrl

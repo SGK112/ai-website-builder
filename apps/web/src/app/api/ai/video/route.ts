@@ -87,9 +87,17 @@ export async function POST(request: NextRequest) {
     }, { status: 503 })
   }
 
+  // Parse the body defensively — an empty/malformed body used to throw inside
+  // the try and surface as a confusing 500 "Unexpected end of JSON input".
+  let body: VideoRequest
   try {
-    const body: VideoRequest = await request.json()
-    const { action } = body
+    body = await request.json() as VideoRequest
+  } catch {
+    return NextResponse.json({ error: 'Invalid or empty request body.' }, { status: 400 })
+  }
+
+  try {
+    const { action } = body || ({} as VideoRequest)
 
     if (action === 'status') {
       if (!body.predictionId) return NextResponse.json({ error: 'predictionId required' }, { status: 400 })
