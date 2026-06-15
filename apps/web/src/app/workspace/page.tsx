@@ -3718,6 +3718,7 @@ function WorkspaceContent() {
           const idx = prev.indexOf(oldText)
           if (idx === -1) {
             addConsoleLog('warn', `Inline edit: couldn't find "${oldText.slice(0, 60)}" in source`)
+            addToast('error', "Couldn't save that edit — try editing in code view.")
             return prev
           }
           const second = prev.indexOf(oldText, idx + oldText.length)
@@ -5924,14 +5925,18 @@ ${html}
       setHtml(newHtml)
       addToHistory(newHtml, `Deleted <${tag}>`)
       addConsoleLog('success', `Deleted <${tag}>`)
+      addToast('success', `Deleted ${tag}`)
       setSelectedElement(null)
       setSelectMode(false)
       return true
     }
 
+    // The serialized outerHTML didn't byte-match the source — tell the user
+    // instead of failing silently (was console-only, invisible to no-code).
     addConsoleLog('warn', 'Could not find element to delete')
+    addToast('error', "Couldn't delete that element — re-select it and try again.")
     return false
-  }, [html, selectedElement, addConsoleLog, addToHistory])
+  }, [html, selectedElement, addConsoleLog, addToHistory, addToast])
 
   // Keyboard: Delete/Backspace to delete, Escape to deselect
   useEffect(() => {
@@ -8077,9 +8082,17 @@ npx eas build --platform all
         imgCount++
         return match
       })
-      setHtml(newHtml)
-      addToHistory(newHtml, `Replaced image with ${altText}`)
-      addConsoleLog('success', `Replaced image ${(selectedMediaElement.index || 0) + 1}`)
+      // Only record success + a history entry if the swap actually changed the
+      // HTML — otherwise we'd push a no-op undo step and tell the user it
+      // worked when the target image wasn't found.
+      if (newHtml !== html) {
+        setHtml(newHtml)
+        addToHistory(newHtml, `Replaced image with ${altText}`)
+        addConsoleLog('success', `Replaced image ${(selectedMediaElement.index || 0) + 1}`)
+        addToast('success', 'Image replaced.')
+      } else {
+        addToast('error', "Couldn't find that image to replace — re-select it and try again.")
+      }
       setSelectedMediaElement(null)
       setShowMediaReplacer(false)
     } else {
@@ -9350,6 +9363,7 @@ npx eas build --platform all
                   onClick={stopAgent}
                   className="w-8 h-8 rounded-lg flex items-center justify-center bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-500 transition-all"
                   title="Stop"
+                  aria-label="Stop generating"
                 >
                   <Square className="w-3.5 h-3.5 fill-current" />
                 </button>
@@ -9357,6 +9371,7 @@ npx eas build --platform all
                 <button
                   onClick={handleCommandSubmit}
                   disabled={!commandInput.trim() && pendingChatImages.length === 0}
+                  aria-label="Send message"
                   className={cn(
                     'w-8 h-8 rounded-lg flex items-center justify-center transition-all',
                     (commandInput.trim() || pendingChatImages.length > 0)
@@ -10342,11 +10357,14 @@ npx eas build --platform all
                           setHtml(newHtml)
                           addToHistory(newHtml, `Duplicated <${selectedElement.tagName?.toLowerCase()}>`)
                           addToast('success', 'Duplicated')
+                        } else {
+                          addToast('error', "Couldn't duplicate that element — re-select it and try again.")
                         }
                         setSelectedElement(null)
                       }
                     }}
                     title="Duplicate"
+                    aria-label="Duplicate element"
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-xs font-medium transition-colors"
                   >
                     <Copy className="w-3.5 h-3.5" />
