@@ -147,6 +147,12 @@ export interface RegisterResult {
   domain: string
   mock: boolean
   message: string
+  // True ONLY when registration definitively failed and nothing was/will be
+  // registered (so it's safe to auto-refund). Undefined/false for ambiguous
+  // states — in_progress (slow registry), action_required, or a network error
+  // where the registration may still complete. The caller must NOT auto-refund
+  // those (it would refund a domain that later registers, double-charging us).
+  terminal?: boolean
 }
 
 /**
@@ -171,20 +177,31 @@ export async function registerDomain(domain: string): Promise<RegisterResult> {
     }
     if (ok && (state === 'in_progress' || status === 202)) {
       // Async registration — poll the status endpoint briefly.
+      let hardFailed = false
       for (let i = 0; i < 6; i++) {
         await new Promise(r => setTimeout(r, 2500))
         const poll = await cf(`/accounts/${CF_ACCOUNT}/registrar/registrations/${encodeURIComponent(domain)}/registration-status`)
         const s = poll.json?.result?.state
         if (s === 'succeeded') return { ok: true, domain, mock: false, message: 'Registered.' }
-        if (s === 'failed' || s === 'blocked') break
-        if (s === 'action_required') return { ok: false, domain, mock: false, message: 'Registration needs manual action in the Cloudflare dashboard.' }
+        if (s === 'failed' || s === 'blocked') { hardFailed = true; break }
+        if (s === 'action_required') return { ok: false, domain, mock: false, terminal: false, message: 'Registration needs manual action in the Cloudflare dashboard.' }
       }
-      return { ok: false, domain, mock: false, message: 'Registration still in progress — check the Cloudflare dashboard.' }
+      // hardFailed → registry rejected it (terminal, safe to refund).
+      // Otherwise we only timed out waiting (~15s) — the registration may still
+      // complete at Cloudflare, so this is NOT terminal: keep the money, mark
+      // needs_attention, resolve via dashboard/retry. Never auto-refund here.
+      return hardFailed
+        ? { ok: false, domain, mock: false, terminal: true, message: 'Registry rejected the registration (failed/blocked).' }
+        : { ok: false, domain, mock: false, terminal: false, message: 'Registration still in progress — check the Cloudflare dashboard.' }
     }
+    // Non-2xx response to the registration POST itself — the request was
+    // rejected, nothing was registered → terminal (safe to refund).
     const err = json?.errors?.[0]?.message || `Cloudflare returned ${status} (state=${state || 'unknown'})`
-    return { ok: false, domain, mock: false, message: err }
+    return { ok: false, domain, mock: false, terminal: true, message: err }
   } catch (e: any) {
-    return { ok: false, domain, mock: false, message: `Registrar error: ${e?.message || 'unknown'}` }
+    // Network/exception — ambiguous (the POST may have reached Cloudflare).
+    // NOT terminal: don't auto-refund a domain that might be registered.
+    return { ok: false, domain, mock: false, terminal: false, message: `Registrar error: ${e?.message || 'unknown'}` }
   }
 }
 

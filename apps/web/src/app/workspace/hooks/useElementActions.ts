@@ -34,14 +34,21 @@ interface Deps {
 }
 
 const SECTION_TAGS = ['SECTION', 'NAV', 'HEADER', 'FOOTER', 'MAIN', 'ASIDE', 'ARTICLE']
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 /**
  * Find `element` in `targetHtml` and replace it. `replacement` is either the
  * literal new markup or a fn receiving the matched markup (for duplicate).
  * Returns the new HTML, or null if the element couldn't be located.
- * Multi-strategy: exact → whitespace-normalized → tag+attribute regex →
- * text-content regex.
+ *
+ * CONSERVATIVE by design: only an EXACT match, or a whole-element
+ * whitespace-normalized match, counts. These callers (delete / duplicate)
+ * are structural and destructive, and `SelectedElement` carries no
+ * distinguishing attributes — so the looser "tag + first-50-chars" / bare
+ * "<tag>…</tag>" / text-content regex strategies are deliberately NOT used:
+ * they would match the wrong element or mis-bound nested same-tag elements
+ * and silently corrupt the document while reporting success. When we can't
+ * locate the element with certainty we return null and the caller shows an
+ * honest "re-select it" error instead of mangling the HTML.
  */
 export function findAndReplaceElementHtml(
   targetHtml: string,
@@ -58,7 +65,9 @@ export function findAndReplaceElementHtml(
     return targetHtml.slice(0, exactIdx) + newContent + targetHtml.slice(exactIdx + outerHTML.length)
   }
 
-  // Strategy 2: whitespace-normalized line-window match.
+  // Strategy 2: whole-element whitespace-normalized match. A contiguous block
+  // of source lines whose normalized form EQUALS the normalized outerHTML —
+  // never a partial/opening-tag-only match.
   const normalizeWs = (s: string) => s.replace(/\s+/g, ' ').replace(/>\s+</g, '><').trim()
   const normalizedOuter = normalizeWs(outerHTML)
   if (normalizeWs(targetHtml).includes(normalizedOuter)) {
@@ -66,45 +75,17 @@ export function findAndReplaceElementHtml(
     for (let i = 0; i < lines.length; i++) {
       for (let j = i; j < lines.length; j++) {
         const chunk = lines.slice(i, j + 1).join('\n')
-        if (normalizeWs(chunk) === normalizedOuter || chunk.includes(outerHTML.slice(0, 50))) {
+        if (normalizeWs(chunk) === normalizedOuter) {
           const newContent = typeof replacement === 'function' ? replacement(chunk) : replacement
           const before = lines.slice(0, i).join('\n')
           const after = lines.slice(j + 1).join('\n')
           return before + (before ? '\n' : '') + newContent + (after ? '\n' : '') + after
         }
+        // The window's normalized length already exceeds the target — no point
+        // extending j further (keeps the O(n^2) loop from running away).
+        if (normalizeWs(chunk).length > normalizedOuter.length) break
       }
     }
-  }
-
-  // Strategy 3: tag + a distinguishing attribute (id / class / src / href).
-  const tag = element.tagName.toLowerCase()
-  let pattern = `<${tag}`
-  if (element.id) pattern += `[^>]*id=["']${escapeRe(element.id)}["']`
-  else if (element.className) {
-    const firstClass = element.className.split(' ')[0]
-    if (firstClass) pattern += `[^>]*class=["'][^"']*${escapeRe(firstClass)}[^"']*["']`
-  } else if (element.src) pattern += `[^>]*src=["']${escapeRe(element.src)}["']`
-  else if (element.href) pattern += `[^>]*href=["']${escapeRe(element.href)}["']`
-  const selfClosing = ['img', 'br', 'hr', 'input', 'meta', 'link'].includes(tag)
-  pattern += selfClosing ? `[^>]*/?>` : `[^>]*>[\\s\\S]*?</${tag}>`
-  try {
-    const match = targetHtml.match(new RegExp(pattern, 'i'))
-    if (match) {
-      const newContent = typeof replacement === 'function' ? replacement(match[0]) : replacement
-      return targetHtml.replace(match[0], newContent)
-    }
-  } catch { /* bad regex — fall through */ }
-
-  // Strategy 4: text-heavy elements — match by leading text content.
-  if (element.textContent && element.textContent.length > 10) {
-    const escapedText = escapeRe(element.textContent.slice(0, 50))
-    try {
-      const match = targetHtml.match(new RegExp(`<${tag}[^>]*>[^<]*${escapedText}[^<]*</${tag}>`, 'i'))
-      if (match) {
-        const newContent = typeof replacement === 'function' ? replacement(match[0]) : replacement
-        return targetHtml.replace(match[0], newContent)
-      }
-    } catch { /* bad regex — fall through */ }
   }
 
   return null
@@ -149,11 +130,15 @@ export function useElementActions({ html, setHtml, addToHistory, addToast }: Dep
       addToast('info', 'Only page sections can be moved.')
       return false
     }
-    const sectionPattern = /(<(?:section|nav|header|footer|main|aside|article)\b[^>]*>[\s\S]*?<\/\1>)/g
+    // Capture the tag name (group 1) so the \1 backreference closes the SAME
+    // tag — the old /(?:...)\1/ used a non-capturing group, so \1 referenced
+    // the whole outer group (never closed) and matched nothing → move was a
+    // silent no-op. m[0] is the full <tag>…</tag>.
+    const sectionPattern = /<(section|nav|header|footer|main|aside|article)\b[^>]*>[\s\S]*?<\/\1>/gi
     const sections: { html: string; start: number; end: number }[] = []
     let m: RegExpExecArray | null
     while ((m = sectionPattern.exec(html)) !== null) {
-      sections.push({ html: m[1], start: m.index, end: m.index + m[1].length })
+      sections.push({ html: m[0], start: m.index, end: m.index + m[0].length })
     }
     const idx = sections.findIndex((s) => s.html === element.outerHTML)
     const tag = element.tagName.toLowerCase()

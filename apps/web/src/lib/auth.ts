@@ -170,7 +170,13 @@ export const authOptions: NextAuthOptions = {
       }
       return true
     },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, trigger, session }) {
+      // useSession().update({ name }) (e.g. after a profile save) re-runs this
+      // with trigger==='update'; without handling it the token name is stale
+      // and the header/avatar won't reflect the new name until re-login.
+      if (trigger === 'update' && session?.name) {
+        token.name = session.name
+      }
       if (user) {
         await connectDB()
         // Match the same lookup priority as signIn: provider ID first, then
@@ -200,6 +206,8 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id
         session.user.plan = token.plan
         session.user.githubAccessToken = token.githubAccessToken
+        // Surface the (possibly just-updated) name from the token.
+        if (typeof token.name === 'string') session.user.name = token.name
       }
       return session
     },

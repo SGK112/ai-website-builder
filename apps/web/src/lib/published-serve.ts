@@ -71,7 +71,9 @@ function rebaseHtml(html: string, basePath: string): string {
   html = html.replace(
     /(\bsrcset\s*=\s*)(["'])([^"']*)\2/gi,
     (m: string, attr: string, q: string, list: string) => {
-      const rebased = list.split(',').map((part) => {
+      // Split only on commas that begin a NEW candidate (followed by a URL),
+      // so commas inside a URL (query strings, data: URIs) don't get split.
+      const rebased = list.split(/\s*,\s*(?=\/|https?:|data:|\.|#|[a-z0-9_-]+\/|$)/i).map((part) => {
         const seg = part.trim()
         const sp = seg.match(/^\/(?!\/)([^\s]*)(\s+.+)?$/) // root-relative URL + optional descriptor
         if (!sp) return seg
