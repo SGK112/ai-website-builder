@@ -17,7 +17,7 @@ import { ObjectId } from 'mongodb'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const blocked = guardAnonAbuse(req, { rateLimit: 'communityAction' })
+  const blocked = await guardAnonAbuse(req, { rateLimit: 'communityAction' })
   if (blocked) return blocked
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {

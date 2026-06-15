@@ -14,7 +14,7 @@ const MAX_SOURCE_LEN = 80
 // Body: { email: string, feature: string, source?: string }
 // Returns: { ok: true } or { error }
 export async function POST(req: NextRequest) {
-  const blocked = guardAnonAbuse(req, { rateLimit: 'waitlist' })
+  const blocked = await guardAnonAbuse(req, { rateLimit: 'waitlist' })
   if (blocked) return blocked
 
   let body: { email?: unknown; feature?: unknown; source?: unknown }

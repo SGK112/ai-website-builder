@@ -34,7 +34,7 @@ const PLATFORM_FEE_BPS = Math.max(0, parseInt(process.env.MARKETPLACE_PLATFORM_F
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://www.webstew.net').replace(/\/$/, '')
 
 export async function POST(req: NextRequest, { params }: { params: { postId: string } }) {
-  const blocked = guardAnonAbuse(req, { rateLimit: 'marketplaceBuy' })
+  const blocked = await guardAnonAbuse(req, { rateLimit: 'marketplaceBuy' })
   if (blocked) return blocked
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })

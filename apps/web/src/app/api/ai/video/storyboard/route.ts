@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Authentication required', requireAuth: true }, { status: 401 })
     }
     try {
-      checkApiRateLimit(request, 'aiGeneration')
+      await checkApiRateLimit(request, 'aiGeneration')
     } catch (error) {
       const limited = handleRateLimitError(error)
       if (limited) return limited

@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     )
   }
   // Bot/reputation guard still applies (defense-in-depth).
-  const blocked = guardAnonAbuse(req)
+  const blocked = await guardAnonAbuse(req)
   if (blocked) return blocked
 
   let body: { url?: string; result?: any }

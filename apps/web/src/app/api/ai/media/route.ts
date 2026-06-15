@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
 
   // Rate limit: 20 AI generations per minute
   try {
-    checkApiRateLimit(request, 'aiGeneration')
+    await checkApiRateLimit(request, 'aiGeneration')
   } catch (error) {
     const rateLimitResponse = handleRateLimitError(error)
     if (rateLimitResponse) return rateLimitResponse

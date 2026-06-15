@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
     // Rate limit: 10 deployments per hour
     try {
-      checkApiRateLimit(req, 'deployment')
+      await checkApiRateLimit(req, 'deployment')
     } catch (error) {
       const rateLimitResponse = handleRateLimitError(error)
       if (rateLimitResponse) return rateLimitResponse

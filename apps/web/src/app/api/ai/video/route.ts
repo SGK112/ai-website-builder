@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
     // 20/min/user: generous enough for a multi-clip storyboard, tight enough to
     // stop a script from draining the budget.
     try {
-      checkApiRateLimit(request, 'aiGeneration')
+      await checkApiRateLimit(request, 'aiGeneration')
     } catch (error) {
       const limited = handleRateLimitError(error)
       if (limited) return limited

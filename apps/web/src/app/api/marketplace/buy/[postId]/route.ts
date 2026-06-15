@@ -26,7 +26,7 @@ import { connectDB } from '@/lib/db'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest, { params }: { params: { postId: string } }) {
-  const blocked = guardAnonAbuse(req, { rateLimit: 'marketplaceBuy' })
+  const blocked = await guardAnonAbuse(req, { rateLimit: 'marketplaceBuy' })
   if (blocked) return blocked
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {

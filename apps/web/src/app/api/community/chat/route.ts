@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
 
 // POST - Send a chat message
 export async function POST(request: NextRequest) {
-  const blocked = guardAnonAbuse(request, { rateLimit: 'communityAction' })
+  const blocked = await guardAnonAbuse(request, { rateLimit: 'communityAction' })
   if (blocked) return blocked
   try {
     const body = await request.json()

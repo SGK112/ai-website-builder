@@ -14,7 +14,7 @@ const signupSchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
-  const blocked = guardAnonAbuse(req, { rateLimit: 'signup' })
+  const blocked = await guardAnonAbuse(req, { rateLimit: 'signup' })
   if (blocked) return blocked
 
   try {

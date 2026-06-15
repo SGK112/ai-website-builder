@@ -25,7 +25,7 @@ const CENTS_PER_CREDIT = Math.max(1, parseInt(process.env.MARKETPLACE_CREDIT_USD
 const MIN_PAYOUT_CENTS = Math.max(100, parseInt(process.env.MARKETPLACE_PAYOUT_MIN_CENTS || '500', 10) || 500)
 
 export async function POST(req: NextRequest) {
-  const blocked = guardAnonAbuse(req, { rateLimit: 'marketplacePayout' })
+  const blocked = await guardAnonAbuse(req, { rateLimit: 'marketplacePayout' })
   if (blocked) return blocked
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {

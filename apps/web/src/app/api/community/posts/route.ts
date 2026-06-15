@@ -134,7 +134,7 @@ export async function GET(request: NextRequest) {
 
 // POST - Create a new community post
 export async function POST(request: NextRequest) {
-  const blocked = guardAnonAbuse(request, { rateLimit: 'marketplacePublish' })
+  const blocked = await guardAnonAbuse(request, { rateLimit: 'marketplacePublish' })
   if (blocked) return blocked
   try {
     // SECURITY: Require authentication

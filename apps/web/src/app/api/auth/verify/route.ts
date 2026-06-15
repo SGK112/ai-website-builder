@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   // Rate-limited — this sends email; an open resend endpoint is an
   // inbox-spam vector otherwise.
-  const blocked = guardAnonAbuse(req, { rateLimit: 'waitlist', allowBotUa: true })
+  const blocked = await guardAnonAbuse(req, { rateLimit: 'waitlist', allowBotUa: true })
   if (blocked) return blocked
 
   // Email comes from the session (logged-in resend) or the request body

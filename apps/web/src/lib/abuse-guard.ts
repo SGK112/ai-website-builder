@@ -89,11 +89,11 @@ export interface AnonGuardOptions {
 }
 
 // Returns a NextResponse if the request should be rejected; null otherwise.
-// Callers do: `const blocked = guardAnonAbuse(req, {...}); if (blocked) return blocked;`
-export function guardAnonAbuse(
+// Callers do: `const blocked = await guardAnonAbuse(req, {...}); if (blocked) return blocked;`
+export async function guardAnonAbuse(
   req: NextRequest,
   opts: AnonGuardOptions = {}
-): NextResponse | null {
+): Promise<NextResponse | null> {
   const ip = getClientIp(req)
 
   if (isBlockedIp(ip) || isBlockedAsn(req)) {
@@ -113,7 +113,7 @@ export function guardAnonAbuse(
 
   if (opts.rateLimit) {
     try {
-      checkApiRateLimit(req, opts.rateLimit)
+      await checkApiRateLimit(req, opts.rateLimit)
     } catch (err) {
       const limited = handleRateLimitError(err)
       if (limited) return limited

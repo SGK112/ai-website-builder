@@ -2346,11 +2346,11 @@ export async function POST(req: NextRequest) {
     // reputation checks; signed-in users get the looser `aiGeneration` bucket
     // because there's already a per-user plan-credit ceiling enforced below.
     if (!session?.user?.id) {
-      const blocked = guardAnonAbuse(req, { rateLimit: 'anonAi' })
+      const blocked = await guardAnonAbuse(req, { rateLimit: 'anonAi' })
       if (blocked) return blocked
     } else {
       try {
-        checkApiRateLimit(req, 'aiGeneration')
+        await checkApiRateLimit(req, 'aiGeneration')
       } catch (error) {
         const rateLimitResponse = handleRateLimitError(error)
         if (rateLimitResponse) return rateLimitResponse

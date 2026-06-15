@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     // Rate limit: 10 RunPod requests per minute (GPU operations are expensive)
     try {
-      checkApiRateLimit(request, 'aiGeneration')
+      await checkApiRateLimit(request, 'aiGeneration')
     } catch (error) {
       const rateLimitResponse = handleRateLimitError(error)
       if (rateLimitResponse) return rateLimitResponse

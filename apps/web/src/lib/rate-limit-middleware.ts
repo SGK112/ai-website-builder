@@ -6,6 +6,7 @@ import {
   rateLimitConfigs,
   type RateLimitType,
 } from '@ai-website-builder/shared'
+import { redisRateLimit } from './redis-ratelimit'
 
 /**
  * Get client identifier from request
@@ -91,20 +92,29 @@ export function withRateLimit<T extends (...args: unknown[]) => Promise<NextResp
 }
 
 /**
- * Check rate limit and throw if exceeded
- * Use in API route handlers
+ * Check rate limit and throw if exceeded. Use in API route handlers.
+ *
+ * Async because it prefers the shared Redis counter (correct across Render's
+ * multi-instance fleet) when UPSTASH_REDIS_REST_* is configured, and falls back
+ * to the per-process in-memory limiter otherwise (or if Redis errors). Still
+ * throws RateLimitError on limit, so existing try/catch + handleRateLimitError
+ * call sites are unchanged apart from awaiting.
  */
-export function checkApiRateLimit(
+export async function checkApiRateLimit(
   request: NextRequest,
   type: RateLimitType
-): { remaining: number; limit: number; reset: number } {
+): Promise<{ remaining: number; limit: number; reset: number }> {
   const identifier = getClientIdentifier(request)
-  const result = rateLimit(identifier, type)
+  const config = rateLimitConfigs[type]
+
+  // Redis first (shared across instances); null = unconfigured or transient
+  // error → fall back to in-memory so a Redis blip never 500s the request.
+  const result = (await redisRateLimit(type, identifier, config)) ?? rateLimit(identifier, type)
 
   if (!result.success) {
     // Pass the preset's own message so the 429 explains which limit was
     // hit (e.g. "Too many listings…") instead of a generic line.
-    throw new RateLimitError(result, rateLimitConfigs[type].message)
+    throw new RateLimitError(result, config.message)
   }
 
   return {

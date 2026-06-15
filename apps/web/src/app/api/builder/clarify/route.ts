@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
     const session = await getServerSession(authOptions)
 
     try {
-      checkApiRateLimit(request, 'aiGeneration')
+      await checkApiRateLimit(request, 'aiGeneration')
     } catch (error) {
       const rateLimitResponse = handleRateLimitError(error)
       if (rateLimitResponse) return rateLimitResponse

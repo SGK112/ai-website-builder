@@ -41,7 +41,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const blocked = guardAnonAbuse(request, { rateLimit: 'communityAction' })
+  const blocked = await guardAnonAbuse(request, { rateLimit: 'communityAction' })
   if (blocked) return blocked
   try {
     // SECURITY: Require authentication for likes
@@ -118,7 +118,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const blocked = guardAnonAbuse(request, { rateLimit: 'communityAction' })
+  const blocked = await guardAnonAbuse(request, { rateLimit: 'communityAction' })
   if (blocked) return blocked
   try {
     // SECURITY: Require authentication

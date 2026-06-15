@@ -10,7 +10,7 @@ import { createSnapshot, listSnapshotsByUser } from '@/lib/preview-store'
 export async function POST(req: NextRequest) {
   try {
     try {
-      checkApiRateLimit(req, 'aiGeneration') // reuse the existing 20/min IP bucket
+      await checkApiRateLimit(req, 'aiGeneration') // reuse the existing 20/min IP bucket
     } catch (error) {
       const rateLimitResponse = handleRateLimitError(error)
       if (rateLimitResponse) return rateLimitResponse

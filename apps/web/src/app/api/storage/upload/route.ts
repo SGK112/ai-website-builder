@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     // Rate limit: 30 uploads per minute
     try {
-      checkApiRateLimit(request, 'api')
+      await checkApiRateLimit(request, 'api')
     } catch (error) {
       const rateLimitResponse = handleRateLimitError(error)
       if (rateLimitResponse) return rateLimitResponse

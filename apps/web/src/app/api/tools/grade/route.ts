@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
   const isAuthed = !!session?.user?.id
 
   // Bot UA / reputation guard regardless of auth — applies to everyone.
-  const blocked = guardAnonAbuse(req, isAuthed ? undefined : { rateLimit: 'anonAi' })
+  const blocked = await guardAnonAbuse(req, isAuthed ? undefined : { rateLimit: 'anonAi' })
   if (blocked) return blocked
 
   // Anon: cookie-based lifetime cap. 3 free grades per browser.
