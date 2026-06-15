@@ -64,6 +64,7 @@ export default function AdminPage() {
   const isAdmin = ADMIN_EMAIL_HINTS.includes(userEmail)
 
   const [stats, setStats] = useState<Stats | null>(null)
+  const [statsError, setStatsError] = useState<string | null>(null)
   const [users, setUsers] = useState<AdminUser[]>([])
   const [total, setTotal] = useState(0)
   const [q, setQ] = useState('')
@@ -71,16 +72,24 @@ export default function AdminPage() {
   const [offset, setOffset] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editPlan, setEditPlan] = useState('')
   const [editCredits, setEditCredits] = useState<string>('')
   const limit = 50
 
   const loadStats = useCallback(async () => {
+    setStatsError(null)
     try {
       const res = await fetch('/api/admin/stats')
-      if (res.ok) setStats(await res.json())
-    } catch {}
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        throw new Error(j.error || `HTTP ${res.status}`)
+      }
+      setStats(await res.json())
+    } catch (e: any) {
+      setStatsError(e?.message || 'Failed to load stats')
+    }
   }, [])
 
   const loadUsers = useCallback(async () => {
@@ -119,12 +128,14 @@ export default function AdminPage() {
   }, [sessionStatus, isAdmin, loadUsers])
 
   const startEdit = (u: AdminUser) => {
+    setSaveError(null)
     setEditingId(u.id)
     setEditPlan(u.plan)
     setEditCredits(u.credits != null ? String(u.credits) : '')
   }
 
   const saveEdit = async (id: string) => {
+    setSaveError(null)
     const body: any = { plan: editPlan }
     if (editCredits !== '') {
       const n = parseInt(editCredits, 10)
@@ -138,13 +149,13 @@ export default function AdminPage() {
       })
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
-        alert(j.error || `Update failed (HTTP ${res.status})`)
+        setSaveError(j.error || `Update failed (HTTP ${res.status})`)
         return
       }
       setEditingId(null)
       await loadUsers()
     } catch (e: any) {
-      alert(e?.message || 'Update failed')
+      setSaveError(e?.message || 'Update failed')
     }
   }
 
@@ -221,6 +232,21 @@ export default function AdminPage() {
           <Kpi label="New signups 30d" value={stats?.users.new_30d ?? '—'} icon={Calendar} />
         </section>
 
+        {statsError && (
+          <div className="-mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center justify-between gap-2">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+              <div className="text-sm text-red-400">Couldn’t load stats: {statsError}</div>
+            </div>
+            <button
+              onClick={() => loadStats()}
+              className="text-xs px-2 py-1 rounded bg-red-500/15 border border-red-500/30 text-red-200 hover:bg-red-500/25 transition shrink-0"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Plan breakdown */}
         {stats && (
           <section className="bg-card border border-border rounded-2xl p-5">
@@ -278,6 +304,13 @@ export default function AdminPage() {
             <div className="mb-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
               <div className="text-sm text-red-400">{error}</div>
+            </div>
+          )}
+
+          {saveError && (
+            <div className="mb-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+              <div className="text-sm text-red-400">{saveError}</div>
             </div>
           )}
 
@@ -353,7 +386,7 @@ export default function AdminPage() {
                         {editingId === u.id ? (
                           <div className="inline-flex items-center gap-1">
                             <button onClick={() => saveEdit(u.id)} className="p-1.5 rounded bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30" title="Save"><Save className="w-3.5 h-3.5" /></button>
-                            <button onClick={() => setEditingId(null)} className="p-1.5 rounded bg-muted text-muted-foreground hover:bg-muted/80" title="Cancel"><X className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => { setSaveError(null); setEditingId(null) }} className="p-1.5 rounded bg-muted text-muted-foreground hover:bg-muted/80" title="Cancel"><X className="w-3.5 h-3.5" /></button>
                           </div>
                         ) : (
                           <button onClick={() => startEdit(u)} className="text-xs text-violet-300 hover:text-violet-200 font-medium">Edit</button>

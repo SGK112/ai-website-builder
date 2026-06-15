@@ -10,6 +10,7 @@ import {
   ArrowRight, Building2, ChefHat, Hammer, Heart,
   Home, Sparkles, TrendingUp, X, Zap,
 } from 'lucide-react'
+import { useModalA11y } from '@/hooks/useModalA11y'
 
 const INDUSTRIES = [
   { id: 'construction', label: 'Construction / Trades', icon: Hammer, color: 'amber' },
@@ -95,6 +96,7 @@ const colorMap: Record<string, string> = {
 export function IndustryWizard({ isOpen, onComplete, onSkip }: Props) {
   const [step, setStep] = useState<'industry' | 'site-type'>('industry')
   const [selectedIndustry, setSelectedIndustry] = useState<IndustryId | null>(null)
+  const panelRef = useModalA11y<HTMLDivElement>(isOpen, onSkip)
 
   if (!isOpen) return null
 
@@ -110,6 +112,10 @@ export function IndustryWizard({ isOpen, onComplete, onSkip }: Props) {
         className="fixed inset-0 z-[300] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
       >
         <motion.div
+          ref={panelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="industry-wizard-title"
           initial={{ scale: 0.95, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -127,7 +133,7 @@ export function IndustryWizard({ isOpen, onComplete, onSkip }: Props) {
                   }`} />
                 ))}
               </div>
-              <div className="text-white font-semibold">
+              <div id="industry-wizard-title" className="text-white font-semibold">
                 {step === 'industry' ? "What's your industry?" : `What are you building?`}
               </div>
               <div className="text-zinc-500 text-xs mt-0.5">
@@ -136,7 +142,7 @@ export function IndustryWizard({ isOpen, onComplete, onSkip }: Props) {
                   : `${industry?.label} · pick a starting point`}
               </div>
             </div>
-            <button onClick={onSkip} className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-500">
+            <button onClick={onSkip} aria-label="Skip wizard" className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-500">
               <X className="w-4 h-4" />
             </button>
           </div>

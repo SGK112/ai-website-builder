@@ -56,7 +56,7 @@ export default function VideoEditor() {
   const [generateMode, setGenerateMode] = useState<GenerateMode>('text')
   const [prompt, setPrompt] = useState('')
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('16:9')
-  const [model, setModel] = useState('minimax')
+  const [model, setModel] = useState('seedance')
   const [style, setStyle] = useState('')
   const [duration, setDuration] = useState(5)
   const [generating, setGenerating] = useState(false)
@@ -80,6 +80,7 @@ export default function VideoEditor() {
   const videoInputRef = useRef<HTMLInputElement>(null)
 
   // Editor state
+  const [copied, setCopied] = useState<'url' | 'embed' | null>(null)
   const [trimStart, setTrimStart] = useState(0)
   const [trimEnd, setTrimEnd] = useState(100)
   const [captionText, setCaptionText] = useState('')
@@ -245,10 +246,30 @@ export default function VideoEditor() {
   }
 
   const downloadVideo = async (video: GeneratedVideo) => {
-    const a = document.createElement('a')
-    a.href = video.url
-    a.download = `webstew-video-${video.id}.mp4`
-    a.click()
+    // <a download> is ignored for cross-origin URLs (Replicate/Cloudinary) —
+    // the browser would just navigate to the raw .mp4. Fetch a blob so the
+    // file actually saves and the user stays in the editor.
+    try {
+      const res = await fetch(video.url)
+      if (!res.ok) throw new Error()
+      const blobUrl = URL.createObjectURL(await res.blob())
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = `webstew-video-${video.id}.mp4`
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000)
+    } catch {
+      // Fallback: open in a new tab so the user can save manually.
+      window.open(video.url, '_blank', 'noopener')
+    }
+  }
+
+  const copyToClipboard = async (text: string, which: 'url' | 'embed') => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(which)
+      setTimeout(() => setCopied(null), 2000)
+    } catch { /* clipboard unavailable */ }
   }
 
   const formatTime = (s: number) => {
@@ -592,12 +613,11 @@ export default function VideoEditor() {
               <div className="p-4 space-y-2">
                 <p className="text-[10px] uppercase tracking-wider text-zinc-600 font-semibold mb-3">Edit Tools</p>
 
+                {/* Only tools with a real panel below — Text Overlay / Music
+                    scrolled to anchors that don't exist (dead clicks). */}
                 {[
                   { id: 'trim', icon: Scissors, label: 'Trim & Cut', sub: 'Set in/out points' },
                   { id: 'captions', icon: Captions, label: 'AI Captions', sub: 'Auto-generate subtitles' },
-                  { id: 'text', icon: Type, label: 'Text Overlay', sub: 'Add titles & text' },
-                  { id: 'music', icon: Music, label: 'Background Music', sub: 'Add audio track' },
-                  { id: 'export', icon: Download, label: 'Export', sub: 'Download for social' },
                 ].map(({ id, icon: Icon, label, sub }) => (
                   <button
                     key={id}
@@ -670,11 +690,12 @@ export default function VideoEditor() {
                     <div className="flex items-center gap-3 mb-2">
                       <button
                         onClick={() => playing ? videoRef.current?.pause() : videoRef.current?.play()}
+                        aria-label={playing ? 'Pause' : 'Play'}
                         className="w-8 h-8 rounded-full bg-violet-600 flex items-center justify-center hover:bg-violet-500 transition-colors"
                       >
                         {playing ? <Pause className="w-3.5 h-3.5 text-white" /> : <Play className="w-3.5 h-3.5 text-white ml-0.5" />}
                       </button>
-                      <button onClick={() => setMuted(m => !m)} className="text-zinc-500 hover:text-white transition-colors">
+                      <button onClick={() => setMuted(m => !m)} aria-label={muted ? 'Unmute' : 'Mute'} aria-pressed={muted} className="text-zinc-500 hover:text-white transition-colors">
                         {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                       </button>
                       <span className="text-[11px] text-zinc-500 font-mono">
@@ -773,6 +794,9 @@ export default function VideoEditor() {
                     </div>
                     <Download className="w-3 h-3 text-violet-400 ml-auto" />
                   </button>
+                  <p className="text-[10px] text-zinc-600 px-0.5 leading-relaxed">
+                    Downloads the generated video. Trim &amp; caption edits are preview-only for now and aren't burned into the file yet.
+                  </p>
 
                   {/* Coming soon — need platform API keys */}
                   <div className="pt-1">
@@ -800,13 +824,19 @@ export default function VideoEditor() {
 
                 <div className="pt-3 border-t border-white/[0.06]">
                   <p className="text-[10px] text-zinc-600 mb-2 uppercase tracking-wider font-semibold">Insert</p>
-                  <button className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors">
+                  <button
+                    onClick={() => editingVideo && copyToClipboard(`<video src="${editingVideo.url}" controls playsinline style="width:100%;border-radius:12px"></video>`, 'embed')}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors"
+                  >
                     <ArrowRight className="w-3.5 h-3.5" />
-                    Add to Website
+                    {copied === 'embed' ? 'Embed code copied!' : 'Copy embed code'}
                   </button>
-                  <button className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] text-zinc-300 text-xs font-medium transition-colors mt-2">
+                  <button
+                    onClick={() => editingVideo && copyToClipboard(editingVideo.url, 'url')}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] text-zinc-300 text-xs font-medium transition-colors mt-2"
+                  >
                     <Copy className="w-3.5 h-3.5" />
-                    Copy video URL
+                    {copied === 'url' ? 'URL copied!' : 'Copy video URL'}
                   </button>
                 </div>
               </div>
