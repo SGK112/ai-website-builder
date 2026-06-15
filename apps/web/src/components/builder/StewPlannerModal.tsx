@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChefHat, FileText, Layers, Palette, Plug, Sparkles, X } from 'lucide-react'
 import type { StewPlan } from '@/lib/types/stew-planner'
+import { useModalA11y } from '@/hooks/useModalA11y'
 
 interface StewPlannerModalProps {
   open: boolean
@@ -31,6 +32,7 @@ export function StewPlannerModal({
   onClose,
 }: StewPlannerModalProps) {
   const [editedPrompt, setEditedPrompt] = useState(assembledPrompt)
+  const panelRef = useModalA11y<HTMLDivElement>(open, onClose)
 
   // Re-sync when a new plan flows in (the modal instance is reused).
   useEffect(() => {
@@ -62,6 +64,10 @@ export function StewPlannerModal({
           onClick={onClose}
         >
           <motion.div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="stew-planner-title"
             initial={{ opacity: 0, scale: 0.97, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: 8 }}
@@ -74,7 +80,7 @@ export function StewPlannerModal({
                 <ChefHat className="w-5 h-5 text-orange-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className={isDark ? 'text-sm font-semibold text-white' : 'text-sm font-semibold text-slate-900'}>
+                <div id="stew-planner-title" className={isDark ? 'text-sm font-semibold text-white' : 'text-sm font-semibold text-slate-900'}>
                   Your stew is ready
                 </div>
                 <div className={isDark ? 'text-[11px] text-zinc-500' : 'text-[11px] text-slate-500'}>
@@ -83,6 +89,7 @@ export function StewPlannerModal({
               </div>
               <button
                 onClick={onClose}
+                aria-label="Close"
                 className={
                   'w-7 h-7 rounded-md flex items-center justify-center transition-all shrink-0 ' +
                   (isDark ? 'text-zinc-500 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100')

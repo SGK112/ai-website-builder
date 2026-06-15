@@ -1,6 +1,7 @@
 'use client'
 
 import { UnifiedMediaLibrary } from './UnifiedMediaLibrary'
+import { useModalA11y } from '@/hooks/useModalA11y'
 
 interface MediaItem {
   id: string
@@ -22,11 +23,12 @@ interface MediaPickerModalProps {
 }
 
 export function MediaPickerModal({ isOpen, onClose, onSelect, allowMultiple = false }: MediaPickerModalProps) {
+  const panelRef = useModalA11y<HTMLDivElement>(isOpen, onClose)
   if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="w-full max-w-5xl animate-in fade-in zoom-in-95 duration-200">
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-label="Media library" className="w-full max-w-5xl animate-in fade-in zoom-in-95 duration-200">
         <UnifiedMediaLibrary
           onSelect={(item) => {
             onSelect(item)

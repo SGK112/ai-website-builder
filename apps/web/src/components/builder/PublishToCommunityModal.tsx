@@ -10,6 +10,7 @@
 
 import { useEffect, useState } from 'react'
 import { X, Send, Loader2, AlertCircle, Check, Image as ImageIcon, Upload } from 'lucide-react'
+import { useModalA11y } from '@/hooks/useModalA11y'
 
 interface PublishToCommunityModalProps {
   isOpen: boolean
@@ -55,6 +56,7 @@ export function PublishToCommunityModal({
   // on the server. If user uploads a real screenshot, we use that.
   const [thumbnailUrl, setThumbnailUrl] = useState<string>('')
   const [uploadingThumb, setUploadingThumb] = useState(false)
+  const panelRef = useModalA11y<HTMLDivElement>(isOpen, () => { if (!submitting) onClose() })
 
   const handleThumbUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -172,15 +174,19 @@ export function PublishToCommunityModal({
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="publish-community-title"
         className="w-full sm:max-w-lg bg-zinc-900 border border-white/10 rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-4 border-b border-white/10">
           <div>
-            <h2 className="font-semibold text-white">Publish to community</h2>
+            <h2 id="publish-community-title" className="font-semibold text-white">Publish to community</h2>
             <p className="text-xs text-zinc-500 mt-0.5">Anyone can view + remix. You stay the author.</p>
           </div>
-          <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-white/5">
+          <button onClick={onClose} aria-label="Close" className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-white/5">
             <X className="w-4 h-4" />
           </button>
         </div>

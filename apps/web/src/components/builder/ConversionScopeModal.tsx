@@ -15,6 +15,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Smartphone, X, Check, AlertTriangle } from 'lucide-react'
+import { useModalA11y } from '@/hooks/useModalA11y'
 
 export interface ConversionScope {
   screens: string[]
@@ -48,6 +49,7 @@ export function ConversionScopeModal({
   const [screens, setScreens] = useState<string[]>([])
   const [contentMode, setContentMode] = useState<'real' | 'placeholder'>('real')
   const [contactAction, setContactAction] = useState<ConversionScope['contactAction']>('call')
+  const panelRef = useModalA11y<HTMLDivElement>(open, onClose)
 
   // Re-seed each time the modal opens for a site: pre-check the core screens
   // (only the first few when the site is large, to keep the job in budget).
@@ -77,6 +79,10 @@ export function ConversionScopeModal({
           onClick={onClose}
         >
           <motion.div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="conversion-scope-title"
             initial={{ opacity: 0, scale: 0.96, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 12 }}
@@ -90,7 +96,7 @@ export function ConversionScopeModal({
                 <Smartphone className="w-5 h-5 text-violet-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className={'text-sm font-semibold ' + heading}>Convert to a mobile app</div>
+                <div id="conversion-scope-title" className={'text-sm font-semibold ' + heading}>Convert to a mobile app</div>
                 <div className={'text-[11px] truncate ' + sub}>{siteName}</div>
               </div>
               <button

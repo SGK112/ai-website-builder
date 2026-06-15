@@ -6,6 +6,7 @@ import {
   QrCode, Share2, X, FileText, Eye,
 } from 'lucide-react'
 import QRCode from 'qrcode'
+import { useModalA11y } from '@/hooks/useModalA11y'
 
 interface Props {
   open: boolean
@@ -28,6 +29,7 @@ export function ShareProposalModal({ open, onClose, html, projectName, isDark = 
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const qrCanvasRef = useRef<HTMLCanvasElement>(null)
+  const panelRef = useModalA11y<HTMLDivElement>(open, onClose)
 
   // Reset when re-opened for a different project
   useEffect(() => {
@@ -92,6 +94,10 @@ export function ShareProposalModal({ open, onClose, html, projectName, isDark = 
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="share-proposal-title"
         onClick={(e) => e.stopPropagation()}
         className={`w-full max-w-md rounded-2xl border shadow-2xl flex flex-col overflow-hidden ${
           isDark ? 'bg-zinc-900 border-white/10' : 'bg-white border-slate-200'
@@ -101,9 +107,9 @@ export function ShareProposalModal({ open, onClose, html, projectName, isDark = 
         <div className={`px-5 py-3.5 flex items-center justify-between border-b ${isDark ? 'border-white/[0.06]' : 'border-slate-200'}`}>
           <div className="flex items-center gap-2">
             <Share2 className={`w-4.5 h-4.5 ${isDark ? 'text-violet-400' : 'text-violet-600'}`} />
-            <span className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>Share</span>
+            <span id="share-proposal-title" className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>Share</span>
           </div>
-          <button onClick={onClose} className={`p-1.5 rounded-md ${isDark ? 'hover:bg-white/5 text-zinc-400' : 'hover:bg-slate-100 text-slate-500'}`}>
+          <button onClick={onClose} aria-label="Close" className={`p-1.5 rounded-md ${isDark ? 'hover:bg-white/5 text-zinc-400' : 'hover:bg-slate-100 text-slate-500'}`}>
             <X className="w-4 h-4" />
           </button>
         </div>

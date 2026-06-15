@@ -6,6 +6,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { X, UserPlus, Loader2, Crown } from 'lucide-react'
+import { useModalA11y } from '@/hooks/useModalA11y'
 
 interface Collaborator { userId: string | null; email: string; role: 'editor' | 'viewer'; addedAt: string }
 
@@ -26,6 +27,7 @@ export function CollaboratorsModal({
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const panelRef = useModalA11y<HTMLDivElement>(open, onClose)
 
   const load = useCallback(async () => {
     if (!projectId) return
@@ -70,13 +72,13 @@ export function CollaboratorsModal({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className={`w-full max-w-md rounded-2xl border shadow-2xl ${card}`}>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="collaborators-title" onClick={(e) => e.stopPropagation()} className={`w-full max-w-md rounded-2xl border shadow-2xl ${card}`}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
           <div className="flex items-center gap-2">
             <UserPlus className="w-4 h-4 text-violet-400" />
-            <h3 className={isDark ? 'text-white font-semibold' : 'text-slate-900 font-semibold'}>Share project</h3>
+            <h3 id="collaborators-title" className={isDark ? 'text-white font-semibold' : 'text-slate-900 font-semibold'}>Share project</h3>
           </div>
-          <button onClick={onClose} className={sub}><X className="w-5 h-5" /></button>
+          <button onClick={onClose} aria-label="Close" className={sub}><X className="w-5 h-5" /></button>
         </div>
 
         <div className="p-5 space-y-4">

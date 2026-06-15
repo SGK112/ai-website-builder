@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Check, Loader2, Sparkles, X, Zap } from 'lucide-react'
 import { SUBSCRIPTION_PLANS, CREDIT_PACKAGES } from '@/lib/stripe-plans'
 import { cn } from '@/lib/utils'
+import { useModalA11y } from '@/hooks/useModalA11y'
 
 interface Props {
   open: boolean
@@ -21,6 +22,7 @@ export function InlineUpgradeModal({ open, onClose, isDark = true, currentPlan, 
   const [period, setPeriod] = useState<'monthly' | 'annual'>('monthly')
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const panelRef = useModalA11y<HTMLDivElement>(open, onClose)
 
   if (!open) return null
 
@@ -53,6 +55,10 @@ export function InlineUpgradeModal({ open, onClose, isDark = true, currentPlan, 
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="inline-upgrade-title"
         onClick={(e) => e.stopPropagation()}
         className={cn(
           'w-full max-w-xl rounded-2xl border shadow-2xl flex flex-col overflow-hidden',
@@ -69,7 +75,7 @@ export function InlineUpgradeModal({ open, onClose, isDark = true, currentPlan, 
               <Sparkles className="w-3.5 h-3.5 text-white" />
             </div>
             <div>
-              <div className={cn('text-sm font-semibold', isDark ? 'text-white' : 'text-slate-900')}>
+              <div id="inline-upgrade-title" className={cn('text-sm font-semibold', isDark ? 'text-white' : 'text-slate-900')}>
                 {trigger === 'out_of_credits' ? 'Out of credits' : trigger === 'low_credits' ? 'Running low' : 'Upgrade Webstew'}
               </div>
               <div className={cn('text-[11px]', isDark ? 'text-zinc-500' : 'text-slate-400')}>
@@ -83,6 +89,7 @@ export function InlineUpgradeModal({ open, onClose, isDark = true, currentPlan, 
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             className={cn('p-1.5 rounded-lg', isDark ? 'text-zinc-500 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100')}
           >
             <X className="w-4 h-4" />

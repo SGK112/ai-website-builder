@@ -5,6 +5,7 @@ import {
   AlertTriangle, Award, CheckCircle2, ChevronRight, Loader2,
   Lightbulb, RefreshCw, RotateCcw, TrendingUp, Wand2, X,
 } from 'lucide-react'
+import { useModalA11y } from '@/hooks/useModalA11y'
 
 interface GraderResult {
   success?: boolean
@@ -119,6 +120,8 @@ export function SiteGraderModal({ open, onClose, html, deployedUrl, isDark = tru
     if (!open) loopActiveRef.current = false
   }, [open])
 
+  const panelRef = useModalA11y<HTMLDivElement>(open, onClose)
+
   if (!open) return null
 
   const loopInProgress = loopPhase === 'agent' || loopPhase === 'grading'
@@ -132,6 +135,10 @@ export function SiteGraderModal({ open, onClose, html, deployedUrl, isDark = tru
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="site-grader-title"
         onClick={(e) => e.stopPropagation()}
         className={`w-full max-w-2xl max-h-[85vh] overflow-hidden rounded-2xl border shadow-2xl flex flex-col ${
           isDark ? 'bg-zinc-900 border-white/10' : 'bg-white border-slate-200'
@@ -141,7 +148,7 @@ export function SiteGraderModal({ open, onClose, html, deployedUrl, isDark = tru
         <div className={`px-5 py-3 flex items-center justify-between border-b ${isDark ? 'border-white/[0.06]' : 'border-slate-200'}`}>
           <div className="flex items-center gap-2">
             <Award className={`w-5 h-5 ${isDark ? 'text-violet-300' : 'text-violet-700'}`} />
-            <div className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>Site grader</div>
+            <div id="site-grader-title" className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>Site grader</div>
             {loopInProgress && (
               <div className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-violet-500/15 text-violet-300' : 'bg-violet-100 text-violet-700'}`}>
                 <Loader2 className="w-3 h-3 animate-spin" />
@@ -198,6 +205,7 @@ export function SiteGraderModal({ open, onClose, html, deployedUrl, isDark = tru
             )}
             <button
               onClick={onClose}
+              aria-label="Close"
               className={`p-1.5 rounded-md ${isDark ? 'hover:bg-white/5 text-zinc-400' : 'hover:bg-slate-100 text-slate-500'}`}
             >
               <X className="w-4 h-4" />

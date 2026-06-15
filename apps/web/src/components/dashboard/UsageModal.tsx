@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { UsageDashboard } from './UsageDashboard'
 import { useRouter } from 'next/navigation'
+import { useModalA11y } from '@/hooks/useModalA11y'
 
 interface UsageModalProps {
   isOpen: boolean
@@ -13,6 +14,7 @@ interface UsageModalProps {
 export function UsageModal({ isOpen, onClose }: UsageModalProps) {
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
+  const panelRef = useModalA11y<HTMLDivElement>(isOpen, onClose)
 
   useEffect(() => {
     setMounted(true)
@@ -40,12 +42,13 @@ export function UsageModal({ isOpen, onClose }: UsageModalProps) {
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-3xl max-h-[90vh] mx-4 bg-[#0f0f1a] rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="usage-modal-title" className="relative w-full max-w-3xl max-h-[90vh] mx-4 bg-[#0f0f1a] rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-white/10">
-          <h2 className="text-lg font-semibold text-white">Usage & Credits</h2>
+          <h2 id="usage-modal-title" className="text-lg font-semibold text-white">Usage & Credits</h2>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
