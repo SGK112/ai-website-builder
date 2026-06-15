@@ -3976,11 +3976,14 @@ function WorkspaceContent() {
       try {
         await projectHook.deleteProject(projectId)
         addTerminalLine('success', `Project "${project?.name}" deleted from cloud`)
+        addToast('success', `Deleted "${project?.name || 'project'}"`)
       } catch (err) {
         addTerminalLine('error', `Failed to delete from cloud: ${err}`)
+        addToast('error', `Couldn't delete "${project?.name || 'project'}" — try again.`)
       }
     } else {
       addTerminalLine('info', `Project "${project?.name}" deleted locally`)
+      addToast('success', `Deleted "${project?.name || 'project'}"`)
     }
   }
 
@@ -7748,6 +7751,7 @@ npx eas build --platform all
 
       addConsoleLog('info', `${operation} complete`)
       addTerminalLine('success', `✓ ${operation} complete`)
+      addToast('success', `${operation} complete`)
     } catch (error) {
       setImageEdits(prev => prev.map(img =>
         img.id === imageId ? { ...img, status: 'error' } : img
@@ -7755,6 +7759,7 @@ npx eas build --platform all
       const errorMsg = error instanceof Error ? error.message : String(error)
       addConsoleLog('error', `${operation} failed: ${errorMsg}`)
       addTerminalLine('error', `${operation} failed: ${errorMsg}`)
+      addToast('error', `${operation} failed: ${errorMsg}`)
     }
   }
 
@@ -7786,12 +7791,14 @@ npx eas build --platform all
         const url = Array.isArray(data.output) ? data.output[0] : data.output
         setGeneratedImageUrl(url)
         addTerminalLine('success', '✓ Image generated.')
+        addToast('success', 'Image generated.')
       } else {
         throw new Error(data.error || 'Image generation failed')
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Failed'
       addTerminalLine('error', `Image generation failed: ${msg}`)
+      addToast('error', `Image generation failed: ${msg}`)
     }
     setImageGenerating(false)
   }
@@ -7879,11 +7886,15 @@ npx eas build --platform all
       setGeneratedVideoUrl(videoUrl)
       setVideoStatus('✓ Video ready!')
       addTerminalLine('success', isImageMode ? '✓ Image animated!' : '✓ Video generated!')
+      // Video gen runs 60-90s — the user has usually switched panels, so the
+      // in-panel status alone is easy to miss. Surface a toast too.
+      addToast('success', isImageMode ? 'Image animated.' : 'Video generated.')
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Failed'
       setVideoError(msg)
       setVideoStatus('')
       addTerminalLine('error', `Video generation failed: ${msg}`)
+      addToast('error', `Video generation failed: ${msg}`)
     }
     setVideoGenerating(false)
   }
@@ -7913,6 +7924,7 @@ npx eas build --platform all
     const updatedHtml = html.replace('</body>', `${videoHtml}</body>`)
     setHtml(updatedHtml)
     addTerminalLine('success', '✓ Video inserted.')
+    addToast('success', 'Video added to your site.')
     setVideoStatus('Video added to your website')
   }
 
