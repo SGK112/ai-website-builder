@@ -74,13 +74,7 @@ export async function stitchClips(clipUrls: string[], opts: StitchOptions = {}):
     names.push(name)
   }
 
-  // 2. Build the verified filter graph: normalize every clip to WxH@FPS, concat.
-  const chains = names.map((_, i) =>
-    `[${i}:v]scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${FPS}[v${i}]`,
-  )
-  const labels = names.map((_, i) => `[v${i}]`).join('')
-  const filter = `${chains.join(';')};${labels}concat=n=${names.length}:v=1:a=0[outv]`
-
+  // 2. Inputs: clips first, then (optionally) the narration track last.
   const args: string[] = []
   names.forEach((n) => args.push('-i', n))
 
@@ -92,11 +86,19 @@ export async function stitchClips(clipUrls: string[], opts: StitchOptions = {}):
     hasAudio = true
   }
 
+  // 3. Verified filter graph: normalize each clip to WxH@FPS, concat (video only).
+  // When narration is present, apad pads it with silence so that combined with
+  // -shortest the OUTPUT length always equals the VIDEO length — short narration
+  // gets trailing silence, long narration is trimmed; the video is never cut.
+  const chains = names.map((_, i) =>
+    `[${i}:v]scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${FPS}[v${i}]`,
+  )
+  const labels = names.map((_, i) => `[v${i}]`).join('')
+  let filter = `${chains.join(';')};${labels}concat=n=${names.length}:v=1:a=0[outv]`
+  if (hasAudio) filter += `;[${names.length}:a]apad[aout]`
+
   args.push('-filter_complex', filter, '-map', '[outv]')
-  if (hasAudio) {
-    // narration is the last input (index = names.length)
-    args.push('-map', `${names.length}:a`, '-c:a', 'aac', '-shortest')
-  }
+  if (hasAudio) args.push('-map', '[aout]', '-c:a', 'aac', '-shortest')
   // ultrafast keeps the single-threaded encode tolerable; yuv420p for web playback.
   args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', 'out.mp4')
 

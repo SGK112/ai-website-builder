@@ -4,7 +4,10 @@ import { useState } from 'react'
 import {
   Clapperboard, Sparkles, Loader2, Plus, X, ArrowUp, ArrowDown,
   Film, Download, Link2, Wand2, ImageIcon, AlertCircle, Check,
+  Volume2, PenLine,
 } from 'lucide-react'
+
+const TTS_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
 import { stitchClips } from './storyboardStitch'
 
 type ShotStatus = 'idle' | 'generating' | 'done' | 'error'
@@ -37,6 +40,12 @@ export default function Storyboard() {
   const [stitchedUrl, setStitchedUrl] = useState<string | null>(null)
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // Narration (AI scriptwriter + voiceover)
+  const [narrationText, setNarrationText] = useState('')
+  const [script, setScript] = useState('')
+  const [voice, setVoice] = useState('onyx')
+  const [writingScript, setWritingScript] = useState(false)
 
   const newId = () => `s_${shots.length}_${topic.length}_${Math.floor(performance.now())}`
   const doneClips = shots.filter(s => s.status === 'done' && s.clipUrl)
@@ -132,12 +141,47 @@ export default function Storyboard() {
     setGeneratingAll(false)
   }
 
+  // Approx total video length (Grok clips run ~8s) — used to pace the script.
+  const estimatedSeconds = Math.max(3, (doneClips.length || shots.length || 3) * 8)
+
+  async function writeScript() {
+    setWritingScript(true); setError(null)
+    try {
+      const res = await fetch('/api/ai/video/narration', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'write', text: narrationText, topic, totalSeconds: estimatedSeconds }),
+      })
+      const data = await res.json().catch(() => ({} as any))
+      if (!res.ok) throw new Error(data.error || `Couldn't write a script (HTTP ${res.status}).`)
+      setScript(data.script || '')
+    } catch (e: any) {
+      setError(e?.message || 'Scriptwriting failed')
+    } finally {
+      setWritingScript(false)
+    }
+  }
+
   async function stitch() {
     if (doneClips.length < 2) { setError('Generate at least two clips before stitching.'); return }
     setStitching(true); setError(null); setStitchProgress(0); setStitchStage('Starting…')
     setStitchedUrl(null); setShareUrl(null)
+    let audioUrl: string | null = null
     try {
+      // Generate narration audio first (if a script is set), then mux it in.
+      if (script.trim()) {
+        setStitchStage('Generating narration…')
+        const res = await fetch('/api/ai/video/narration', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'speak', script: script.trim(), voice }),
+        })
+        if (!res.ok) {
+          const e = await res.json().catch(() => ({} as any))
+          throw new Error(e.error || `Narration failed (HTTP ${res.status}).`)
+        }
+        audioUrl = URL.createObjectURL(await res.blob())
+      }
       const url = await stitchClips(doneClips.map(s => s.clipUrl!), {
+        audioUrl,
         onStage: setStitchStage,
         onProgress: (r) => setStitchProgress(Math.round(r * 100)),
       })
@@ -146,6 +190,7 @@ export default function Storyboard() {
     } catch (e: any) {
       setError(e?.message || 'Stitching failed — you can still download each clip below.')
     } finally {
+      if (audioUrl) URL.revokeObjectURL(audioUrl) // stitchClips has already read it
       setStitching(false)
     }
   }
@@ -178,7 +223,7 @@ export default function Storyboard() {
     })
   }
 
-  const busy = drafting || generatingAll || stitching
+  const busy = drafting || generatingAll || stitching || writingScript
 
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-4 text-zinc-200">
@@ -275,6 +320,46 @@ export default function Storyboard() {
               {generatingAll ? 'Generating clips…' : 'Generate all clips'}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Narration (optional) */}
+      {shots.length > 0 && (
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-white">
+            <Volume2 className="w-3.5 h-3.5 text-violet-400" /> Narration <span className="text-zinc-500 font-normal">(optional)</span>
+          </div>
+          <textarea
+            value={narrationText}
+            onChange={e => setNarrationText(e.target.value)}
+            rows={2}
+            placeholder="What should the voiceover say? Rough notes are fine — e.g. 'hype up how fast it is, end with build yours free'."
+            className="w-full bg-black/30 border border-white/[0.06] rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50 resize-none"
+          />
+          <button onClick={writeScript} disabled={busy}
+            className="flex items-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/20 text-violet-200 text-xs font-medium px-3 py-1.5 disabled:opacity-40">
+            {writingScript ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PenLine className="w-3.5 h-3.5" />}
+            Write with AI
+          </button>
+          {script && (
+            <>
+              <label className="block text-[11px] text-zinc-400 pt-1">Voiceover script (edit freely)</label>
+              <textarea
+                value={script}
+                onChange={e => setScript(e.target.value)}
+                rows={3}
+                className="w-full bg-black/30 border border-white/[0.06] rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-violet-500/50 resize-none"
+              />
+              <div className="flex items-center gap-2">
+                <label className="text-[11px] text-zinc-400">Voice:</label>
+                <select value={voice} onChange={e => setVoice(e.target.value)}
+                  className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-2 py-1 text-xs text-white capitalize">
+                  {TTS_VOICES.map(v => <option key={v} value={v}>{v}</option>)}
+                </select>
+                <span className="text-[10px] text-zinc-500">~{estimatedSeconds}s of video · spoken when you stitch</span>
+              </div>
+            </>
+          )}
         </div>
       )}
 
