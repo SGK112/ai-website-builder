@@ -150,8 +150,13 @@ export async function POST(req: NextRequest) {
         const mongoose = await connectDB()
         const db = mongoose.connection.db
         if (db && ObjectId.isValid(projectId)) {
+          // IDOR guard: only the project owner may write deploy metadata. userId
+          // is a string on some docs and an ObjectId on others, so match both
+          // (mirrors the GET /api/projects $or pattern).
+          const ownerOr: any[] = [{ userId: session.user.id }]
+          if (ObjectId.isValid(session.user.id)) ownerOr.push({ userId: new ObjectId(session.user.id) })
           await db.collection('projects').updateOne(
-            { _id: new ObjectId(projectId) },
+            { _id: new ObjectId(projectId), $or: ownerOr },
             {
               $set: {
                 deployment: {

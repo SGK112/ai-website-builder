@@ -69,8 +69,9 @@ export async function POST(req: NextRequest) {
     // the SAME response either way, so this can't be used to probe which
     // emails are registered.
     if (user && user.emailVerified === false) {
+      // Attacker-controlled Origin must not steer the verification link (token
+      // phishing/replay). Trusted server config only.
       const origin =
-        req.headers.get('origin') ||
         process.env.NEXT_PUBLIC_APP_URL ||
         process.env.NEXTAUTH_URL ||
         'https://www.webstew.net'

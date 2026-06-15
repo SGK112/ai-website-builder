@@ -127,6 +127,11 @@ ${page.html}
 // GET endpoint to check Render services
 export async function GET() {
   try {
+    // Don't leak platform Render service names/IDs to anonymous callers.
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
     if (!RENDER_API_KEY) {
       return NextResponse.json({ configured: false })
     }

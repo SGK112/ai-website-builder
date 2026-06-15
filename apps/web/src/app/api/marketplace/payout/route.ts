@@ -16,7 +16,7 @@ import { guardAnonAbuse } from '@/lib/abuse-guard'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getStripe } from '@/lib/stripe'
-import clientPromise from '@/lib/mongodb'
+import { connectDB } from '@/lib/db'
 import { ObjectId } from 'mongodb'
 
 export const dynamic = 'force-dynamic'
@@ -38,8 +38,13 @@ export async function POST(req: NextRequest) {
   const stripe = await getStripe()
   if (!stripe) return NextResponse.json({ error: 'Stripe is not configured.' }, { status: 503 })
 
-  const client = await clientPromise
-  const db = client.db('ai-website-builder')
+  // Seller earnings (marketplace_earnings_credits) are written to the
+  // Mongoose-default DB (voiceflow-crm) by the webhook + buy routes. Payout MUST
+  // read/debit the SAME store — it was using client.db('ai-website-builder'),
+  // a different DB, so balances never matched (broken/incorrect payouts).
+  const conn = await connectDB()
+  const db = conn.connection.db
+  if (!db) return NextResponse.json({ error: 'Database unavailable.' }, { status: 503 })
   const userId = new ObjectId(session.user.id)
 
   const user = await db.collection('users').findOne(

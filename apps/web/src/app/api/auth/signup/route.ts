@@ -77,8 +77,10 @@ export async function POST(req: NextRequest) {
           { $set: { emailVerified: false, emailVerifySentAt: new Date() } }
         )
       }
+      // NEVER use the request Origin here — it's attacker-controlled, so a
+      // direct API call could point the verification link at a phishing host
+      // that captures + replays the token. Use only trusted server config.
       const origin =
-        req.headers.get('origin') ||
         process.env.NEXT_PUBLIC_APP_URL ||
         process.env.NEXTAUTH_URL ||
         'https://www.webstew.net'

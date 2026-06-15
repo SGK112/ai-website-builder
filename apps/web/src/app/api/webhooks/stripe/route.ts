@@ -84,8 +84,12 @@ export async function POST(req: NextRequest) {
       console.log(`Event ${event.id} already processed, skipping`)
       return NextResponse.json({ received: true, duplicate: true })
     }
-    // Don't drop a real event over an idempotency-store hiccup — log and proceed.
-    console.warn('[stripe webhook] idempotency store error (continuing):', e?.message)
+    // A non-duplicate store error (e.g. transient DB blip) means we CAN'T prove
+    // this event is new. Proceeding fail-open risks double-crediting on Stripe's
+    // retry. Return 500 so Stripe retries later when the store is healthy and
+    // the dedup insert can do its job — processing exactly once.
+    console.error('[stripe webhook] idempotency store error — asking Stripe to retry:', e?.message)
+    return NextResponse.json({ error: 'Idempotency store unavailable, retry later' }, { status: 500 })
   }
 
   try {
@@ -497,11 +501,13 @@ export async function POST(req: NextRequest) {
             priceCredits > 0 &&
             usersDb
           ) {
+            // Clamp at 0 — a refund AFTER the seller already cashed out must not
+            // push the ledger negative (which would then block future payouts).
             await usersDb
               .collection('users')
               .updateOne(
                 { _id: new ObjectId(purchase.sellerId) },
-                { $inc: { marketplace_earnings_credits: -priceCredits } }
+                [{ $set: { marketplace_earnings_credits: { $max: [{ $subtract: [{ $ifNull: ['$marketplace_earnings_credits', 0] }, priceCredits] }, 0] } } }]
               )
           }
           await mkt.collection('audit_log').insertOne({
