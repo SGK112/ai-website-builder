@@ -321,12 +321,22 @@ export default function UpgradePage() {
                 <h3 className={cn('text-xl font-bold mb-1', isDark ? 'text-white' : 'text-slate-900')}>{plan.name}</h3>
                 <p className={cn('text-sm mb-4', isDark ? 'text-slate-400' : 'text-slate-600')}>{plan.description}</p>
 
-                <div className="flex items-baseline gap-1 mb-6">
+                <div className="flex items-baseline gap-1 mb-1">
                   <span className={cn('text-4xl font-bold', isDark ? 'text-white' : 'text-slate-900')}>${price}</span>
                   {plan.monthlyPrice > 0 && (
                     <span className={cn(isDark ? 'text-slate-400' : 'text-slate-500')}>/mo</span>
                   )}
                 </div>
+                {/* When Yearly is selected the card shows the per-month
+                    equivalent but the charge is the full year up-front — say so. */}
+                <p className={cn(
+                  'text-xs mb-6 h-4',
+                  isDark ? 'text-slate-500' : 'text-slate-500'
+                )}>
+                  {billingPeriod === 'annual' && plan.monthlyPrice > 0
+                    ? `billed annually ($${plan.annualPrice}/yr)`
+                    : ''}
+                </p>
 
                 <button
                   onClick={() => handlePurchase('plan', plan.id)}

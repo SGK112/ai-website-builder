@@ -9,8 +9,8 @@ interface EnvPanelProps {
   isDark: boolean
   envVars: EnvVar[]
   onUpdateVar: (index: number, patch: Partial<EnvVar>) => void
-  onToggleSecret: (key: string) => void
-  onRemove: (key: string) => void
+  onToggleSecret: (index: number) => void
+  onRemove: (index: number) => void
   newEnvKey: string
   onNewEnvKeyChange: (value: string) => void
   newEnvValue: string
@@ -61,7 +61,7 @@ export function EnvPanel({
                 placeholder="KEY"
               />
               <button
-                onClick={() => onToggleSecret(envVar.key)}
+                onClick={() => onToggleSecret(i)}
                 className={cn(
                   'p-1 rounded',
                   isDark ? 'hover:bg-white/5 text-zinc-500' : 'hover:bg-slate-200 text-slate-500',
@@ -70,7 +70,7 @@ export function EnvPanel({
                 {envVar.isSecret ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
               </button>
               <button
-                onClick={() => onRemove(envVar.key)}
+                onClick={() => onRemove(i)}
                 className={cn(
                   'p-1 rounded hover:bg-red-500/15 hover:text-red-600 dark:hover:text-red-400',
                   isDark ? 'text-zinc-500' : 'text-slate-500',

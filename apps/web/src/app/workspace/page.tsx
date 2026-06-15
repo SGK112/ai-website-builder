@@ -4558,13 +4558,16 @@ ${html}
     addConsoleLog('info', `Added env variable: ${newEnvKey}`)
   }
 
-  const removeEnvVar = (key: string) => {
-    setEnvVars(prev => prev.filter(v => v.key !== key))
-    addConsoleLog('info', `Removed env variable: ${key}`)
+  const removeEnvVar = (index: number) => {
+    setEnvVars(prev => {
+      const removed = prev[index]
+      if (removed) addConsoleLog('info', `Removed env variable: ${removed.key}`)
+      return prev.filter((_, i) => i !== index)
+    })
   }
 
-  const toggleEnvSecret = (key: string) => {
-    setEnvVars(prev => prev.map(v => v.key === key ? { ...v, isSecret: !v.isSecret } : v))
+  const toggleEnvSecret = (index: number) => {
+    setEnvVars(prev => prev.map((v, i) => i === index ? { ...v, isSecret: !v.isSecret } : v))
   }
 
   // History management

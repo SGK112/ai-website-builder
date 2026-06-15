@@ -24,6 +24,7 @@ import {
   X,
   Lock,
   Zap,
+  Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getTemplateById, applyTemplateVariables } from '@/lib/templates'
@@ -203,6 +204,10 @@ export default function TemplatesPage() {
   // Per-template purchase entitlements. Populated from /api/templates/owned
   // on mount. Treated alongside hasPremiumAccess as a positive grant.
   const [ownedTemplates, setOwnedTemplates] = useState<string[]>([])
+  // In-flight template id for useTemplate() — disables the button + shows a
+  // spinner so a paid checkout can't be double-submitted (duplicate Stripe
+  // sessions) by an impatient double-click.
+  const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null)
 
   // Get the full template HTML if available.
   // Order: local builtin > API-returned html_content (Supabase templates).
@@ -225,6 +230,19 @@ export default function TemplatesPage() {
   useEffect(() => {
     void loadTemplates()
   }, [])
+
+  // Escape closes whichever modal is open (preview or paywall).
+  useEffect(() => {
+    if (!previewTemplate && !paywallTemplate) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setPaywallTemplate(null)
+        setPreviewTemplate(null)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [previewTemplate, paywallTemplate])
 
   // Seed the search from ?search= so the homepage SearchAction (sitelinks
   // search box) lands on a real, pre-filtered result. Read once on mount.
@@ -270,6 +288,9 @@ export default function TemplatesPage() {
   })
 
   const useTemplate = async (template: Template) => {
+    // Re-entrancy guard — ignore extra clicks while a request is in flight so
+    // a double-click can't open two Stripe Checkout sessions.
+    if (pendingTemplateId) return
     // PURCHASE GATE — premium templates require either:
     //  (a) a paid plan that includes premium templates, OR
     //  (b) an explicit per-template Stripe Checkout purchase.
@@ -281,9 +302,12 @@ export default function TemplatesPage() {
         router.push(`/signup?next=${encodeURIComponent(back)}&reason=premium_template`)
         return
       }
+    }
+    setPendingTemplateId(template.id)
+    try {
       // Plan tier or prior purchase grants access. ownedTemplates is
       // populated on mount by /api/templates/owned.
-      if (!hasPremiumAccess && !ownedTemplates.includes(template.id)) {
+      if (template.is_premium && !hasPremiumAccess && !ownedTemplates.includes(template.id)) {
         // Start a Stripe Checkout for this single template. The webhook at
         // /api/webhooks/stripe ('webstew-template' source) writes the
         // template_purchases row when the session completes; the workspace
@@ -313,12 +337,14 @@ export default function TemplatesPage() {
           return
         }
       }
+      // Anonymous users hitting free templates can still try them — workspace
+      // itself enforces credits, and free tier has 100 demo credits.
+      // Param MUST be `templateId` — that's what the workspace reads (it ignores
+      // `template`), and it matches the paid path's checkout success_url.
+      router.push(`/workspace?templateId=${template.id}`)
+    } finally {
+      setPendingTemplateId(null)
     }
-    // Anonymous users hitting free templates can still try them — workspace
-    // itself enforces credits, and free tier has 100 demo credits.
-    // Param MUST be `templateId` — that's what the workspace reads (it ignores
-    // `template`), and it matches the paid path's checkout success_url.
-    router.push(`/workspace?templateId=${template.id}`)
   }
 
   return (
@@ -495,11 +521,14 @@ export default function TemplatesPage() {
                       </button>
                       <button
                         onClick={() => useTemplate(template)}
-                        className="flex-1 md:flex-none px-3 md:px-4 py-2.5 md:py-3 bg-violet-600 hover:bg-violet-500 rounded-xl text-white text-sm font-medium transition flex items-center justify-center gap-1.5"
+                        disabled={pendingTemplateId === template.id}
+                        className="flex-1 md:flex-none px-3 md:px-4 py-2.5 md:py-3 bg-violet-600 hover:bg-violet-500 rounded-xl text-white text-sm font-medium transition flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        {template.is_premium && !ownedTemplates.includes(template.id) && !hasPremiumAccess
-                          ? <><Crown className="w-4 h-4" />Buy {template.priceUsdCents ? `$${(template.priceUsdCents / 100).toFixed(0)}` : ''}</>
-                          : <><Sparkles className="w-4 h-4" />Use Template</>
+                        {pendingTemplateId === template.id
+                          ? <><Loader2 className="w-4 h-4 animate-spin" />Working…</>
+                          : template.is_premium && !ownedTemplates.includes(template.id) && !hasPremiumAccess
+                            ? <><Crown className="w-4 h-4" />Buy {template.priceUsdCents ? `$${(template.priceUsdCents / 100).toFixed(0)}` : ''}</>
+                            : <><Sparkles className="w-4 h-4" />Use Template</>
                         }
                       </button>
                     </div>
@@ -569,6 +598,8 @@ export default function TemplatesPage() {
                 <div className="hidden sm:flex items-center gap-1 p-1 bg-white/5 rounded-lg">
                   <button
                     onClick={() => setPreviewDevice('desktop')}
+                    aria-label="Desktop preview"
+                    aria-pressed={previewDevice === 'desktop'}
                     className={cn(
                       'p-2 rounded-md transition',
                       previewDevice === 'desktop' ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'
@@ -578,6 +609,8 @@ export default function TemplatesPage() {
                   </button>
                   <button
                     onClick={() => setPreviewDevice('tablet')}
+                    aria-label="Tablet preview"
+                    aria-pressed={previewDevice === 'tablet'}
                     className={cn(
                       'p-2 rounded-md transition',
                       previewDevice === 'tablet' ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'
@@ -587,6 +620,8 @@ export default function TemplatesPage() {
                   </button>
                   <button
                     onClick={() => setPreviewDevice('mobile')}
+                    aria-label="Mobile preview"
+                    aria-pressed={previewDevice === 'mobile'}
                     className={cn(
                       'p-2 rounded-md transition',
                       previewDevice === 'mobile' ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'
@@ -597,13 +632,17 @@ export default function TemplatesPage() {
                 </div>
                 <button
                   onClick={() => useTemplate(previewTemplate)}
-                  className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-white font-medium transition flex items-center gap-2"
+                  disabled={pendingTemplateId === previewTemplate.id}
+                  className="px-4 py-2 bg-violet-600 hover:bg-violet-500 rounded-lg text-white font-medium transition flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  <Sparkles className="w-4 h-4" />
-                  Use Template
+                  {pendingTemplateId === previewTemplate.id
+                    ? <><Loader2 className="w-4 h-4 animate-spin" />Working…</>
+                    : <><Sparkles className="w-4 h-4" />Use Template</>
+                  }
                 </button>
                 <button
                   onClick={() => setPreviewTemplate(null)}
+                  aria-label="Close preview"
                   className="p-2 text-slate-400 hover:text-white transition"
                 >
                   <X className="w-5 h-5" />
@@ -674,11 +713,14 @@ export default function TemplatesPage() {
                     </div>
                     <button
                       onClick={() => useTemplate(previewTemplate)}
-                      className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold flex items-center gap-2"
+                      disabled={pendingTemplateId === previewTemplate.id}
+                      className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      {previewTemplate.is_premium && !ownedTemplates.includes(previewTemplate.id) && !hasPremiumAccess
-                        ? <><Crown className="w-3.5 h-3.5" />Buy ${(previewTemplate.priceUsdCents || 0) / 100}</>
-                        : <><Sparkles className="w-3.5 h-3.5" />Use Template</>
+                      {pendingTemplateId === previewTemplate.id
+                        ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Working…</>
+                        : previewTemplate.is_premium && !ownedTemplates.includes(previewTemplate.id) && !hasPremiumAccess
+                          ? <><Crown className="w-3.5 h-3.5" />Buy ${(previewTemplate.priceUsdCents || 0) / 100}</>
+                          : <><Sparkles className="w-3.5 h-3.5" />Use Template</>
                       }
                     </button>
                   </div>
@@ -736,6 +778,7 @@ export default function TemplatesPage() {
                 </div>
                 <button
                   onClick={() => setPaywallTemplate(null)}
+                  aria-label="Close"
                   className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center text-white"
                 >
                   <X className="w-4 h-4" />

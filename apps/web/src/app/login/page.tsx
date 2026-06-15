@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { signIn, getProviders } from 'next-auth/react'
 import { motion } from 'framer-motion'
-import { Sparkles, Mail, Lock, Loader2, ArrowLeft } from 'lucide-react'
+import { Sparkles, Mail, Lock, Loader2, ArrowLeft, Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { WebstewLogo } from '@/components/brand/WebstewLogo'
 import { useSearchParams } from 'next/navigation'
@@ -27,6 +27,7 @@ export default function LoginPage() {
   // param only covers OAuth redirects). EMAIL_NOT_VERIFIED gets special UI.
   const [loginError, setLoginError] = useState<string | null>(null)
   const [resend, setResend] = useState<'idle' | 'sending' | 'sent'>('idle')
+  const [showPassword, setShowPassword] = useState(false)
 
   useEffect(() => {
     getProviders().then(p => {
@@ -65,14 +66,20 @@ export default function LoginPage() {
     }
     setResend('sending')
     try {
-      await fetch('/api/auth/verify', {
+      const res = await fetch('/api/auth/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim() }),
       })
-      setResend('sent')
+      if (res.ok) {
+        setResend('sent')
+      } else {
+        setResend('idle')
+        setLoginError('Could not resend the verification email. Try again in a moment.')
+      }
     } catch {
       setResend('idle')
+      setLoginError('Could not resend the verification email. Try again in a moment.')
     }
   }
 
@@ -239,11 +246,13 @@ export default function LoginPage() {
           {/* Credentials Form */}
           <form onSubmit={handleCredentialsLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-zinc-400 mb-2">Email</label>
+              <label htmlFor="login-email" className="block text-sm font-medium text-slate-700 dark:text-zinc-400 mb-2">Email</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-zinc-500" />
                 <input
+                  id="login-email"
                   type="email"
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
@@ -254,7 +263,7 @@ export default function LoginPage() {
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-slate-700 dark:text-zinc-400">Password</label>
+                <label htmlFor="login-password" className="block text-sm font-medium text-slate-700 dark:text-zinc-400">Password</label>
                 <Link
                   href={`/forgot-password?callbackUrl=${encodeURIComponent(callbackUrl)}`}
                   className="text-xs text-violet-600 hover:text-violet-500 dark:text-violet-400 dark:hover:text-violet-300"
@@ -265,12 +274,22 @@ export default function LoginPage() {
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-zinc-500" />
                 <input
-                  type="password"
+                  id="login-password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 dark:bg-zinc-800/50 dark:border-zinc-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  className="w-full pl-10 pr-12 py-3 bg-slate-50 border border-slate-200 dark:bg-zinc-800/50 dark:border-zinc-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
             </div>
 

@@ -16,6 +16,10 @@ import { Loader2, Globe, ExternalLink, Check, AlertCircle, Trash2, Copy } from '
 interface Props {
   projectId: string | null
   isDeployed: boolean
+  // Instant-published sites (Go Live / {slug}.webstew.app) can attach a custom
+  // domain too — not just full deploys. Honor this signal so we don't tell a
+  // user with a live site to "deploy first".
+  isPublished?: boolean
   isDark?: boolean
 }
 
@@ -26,7 +30,9 @@ interface CustomDomainState {
   dnsRecords?: Array<{ type: string; name: string; value: string }> | null
 }
 
-export function CustomDomainCard({ projectId, isDeployed, isDark = true }: Props) {
+export function CustomDomainCard({ projectId, isDeployed, isPublished = false, isDark = true }: Props) {
+  // A site is "live enough" to attach a domain if it's deployed OR instant-published.
+  const canConnect = isDeployed || isPublished
   const [state, setState] = useState<CustomDomainState | null>(null)
   const [loading, setLoading] = useState(false)
   const [input, setInput] = useState('')
@@ -98,17 +104,17 @@ export function CustomDomainCard({ projectId, isDeployed, isDark = true }: Props
         <div className={`text-sm font-medium ${isDark ? 'text-zinc-200' : 'text-slate-900'}`}>Custom domain</div>
       </div>
 
-      {!isDeployed && (
+      {!canConnect && (
         <div className={`text-xs ${isDark ? 'text-zinc-500' : 'text-slate-500'}`}>
-          Deploy this project first, then come back to attach your own domain.
+          Publish or deploy this project first, then come back to attach your own domain.
         </div>
       )}
 
-      {isDeployed && loading && (
+      {canConnect && loading && (
         <div className="flex justify-center py-4"><Loader2 className="w-4 h-4 animate-spin text-zinc-500" /></div>
       )}
 
-      {isDeployed && !loading && !state && (
+      {canConnect && !loading && !state && (
         <>
           <div className="flex gap-2">
             <input
@@ -139,7 +145,7 @@ export function CustomDomainCard({ projectId, isDeployed, isDark = true }: Props
         </>
       )}
 
-      {isDeployed && !loading && state && (
+      {canConnect && !loading && state && (
         <DomainStatus state={state} onRemove={remove} onRecheck={refresh} busy={busy} isDark={isDark} />
       )}
 
@@ -188,6 +194,7 @@ function DomainStatus({ state, onRemove, onRecheck, busy, isDark }: {
             disabled={busy}
             className={`p-1 rounded ${isDark ? 'hover:bg-white/5 text-zinc-500 hover:text-white' : 'hover:bg-slate-100 text-slate-500 hover:text-slate-900'}`}
             title="Re-check status"
+            aria-label="Re-check domain status"
           >
             {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <span className="text-[10px]">↻</span>}
           </button>
@@ -196,6 +203,7 @@ function DomainStatus({ state, onRemove, onRecheck, busy, isDark }: {
             disabled={busy}
             className={`p-1 rounded ${isDark ? 'hover:bg-red-500/15 text-zinc-400 hover:text-red-300' : 'hover:bg-red-50 text-slate-500 hover:text-red-600'}`}
             title="Detach domain"
+            aria-label="Detach domain"
           >
             <Trash2 className="w-3 h-3" />
           </button>
@@ -223,9 +231,16 @@ function DomainStatus({ state, onRemove, onRecheck, busy, isDark }: {
 
 function DnsRow({ record, isDark }: { record: { type: string; name: string; value: string }; isDark: boolean }) {
   const [copied, setCopied] = useState(false)
-  const copy = () => {
-    navigator.clipboard.writeText(record.value).catch(() => {})
-    setCopied(true); setTimeout(() => setCopied(false), 1500)
+  const [copyFailed, setCopyFailed] = useState(false)
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(record.value)
+      setCopied(true); setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // Only flag "copied" on real success; surface failure so the user knows
+      // to copy manually (e.g. clipboard blocked / insecure context).
+      setCopyFailed(true); setTimeout(() => setCopyFailed(false), 1500)
+    }
   }
   return (
     <div className="grid grid-cols-12 gap-1 items-center text-[11px] font-mono">
@@ -237,9 +252,14 @@ function DnsRow({ record, isDark }: { record: { type: string; name: string; valu
       <button
         onClick={copy}
         className={`col-span-1 p-1 rounded justify-self-end ${isDark ? 'hover:bg-white/5 text-zinc-500' : 'hover:bg-slate-200 text-slate-500'}`}
-        title="Copy value"
+        title={copyFailed ? 'Copy failed — copy manually' : 'Copy value'}
+        aria-label={copyFailed ? 'Copy failed, copy value manually' : 'Copy value'}
       >
-        {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+        {copied
+          ? <Check className="w-3 h-3 text-emerald-400" />
+          : copyFailed
+            ? <AlertCircle className="w-3 h-3 text-red-400" />
+            : <Copy className="w-3 h-3" />}
       </button>
     </div>
   )

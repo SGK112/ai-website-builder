@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { signIn, getProviders } from 'next-auth/react'
 import { motion } from 'framer-motion'
-import { Sparkles, Mail, Lock, User, Loader2, ArrowLeft, Check } from 'lucide-react'
+import { Sparkles, Mail, Lock, User, Loader2, ArrowLeft, Check, Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { WebstewLogo } from '@/components/brand/WebstewLogo'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -24,6 +24,8 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   // Track which OAuth providers are actually configured server-side. NextAuth
   // exposes them via /api/auth/providers; we hide unconfigured buttons so users
   // don't click GitHub/Google and get a silent failure.
@@ -212,11 +214,13 @@ export default function SignupPage() {
           {/* Signup Form */}
           <form onSubmit={handleSignup} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-zinc-400 mb-2">Name</label>
+              <label htmlFor="signup-name" className="block text-sm font-medium text-slate-700 dark:text-zinc-400 mb-2">Name</label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-zinc-500" />
                 <input
+                  id="signup-name"
                   type="text"
+                  autoComplete="name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Your name"
@@ -227,11 +231,13 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-zinc-400 mb-2">Email</label>
+              <label htmlFor="signup-email" className="block text-sm font-medium text-slate-700 dark:text-zinc-400 mb-2">Email</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-zinc-500" />
                 <input
+                  id="signup-email"
                   type="email"
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
@@ -242,33 +248,53 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-zinc-400 mb-2">Password</label>
+              <label htmlFor="signup-password" className="block text-sm font-medium text-slate-700 dark:text-zinc-400 mb-2">Password</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-zinc-500" />
                 <input
-                  type="password"
+                  id="signup-password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="At least 8 characters"
                   required
                   minLength={8}
-                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 dark:bg-zinc-800/50 dark:border-zinc-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  className="w-full pl-10 pr-12 py-3 bg-slate-50 border border-slate-200 dark:bg-zinc-800/50 dark:border-zinc-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-zinc-400 mb-2">Confirm Password</label>
+              <label htmlFor="signup-confirm-password" className="block text-sm font-medium text-slate-700 dark:text-zinc-400 mb-2">Confirm Password</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-zinc-500" />
                 <input
-                  type="password"
+                  id="signup-confirm-password"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirm your password"
                   required
-                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 dark:bg-zinc-800/50 dark:border-zinc-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  className="w-full pl-10 pr-12 py-3 bg-slate-50 border border-slate-200 dark:bg-zinc-800/50 dark:border-zinc-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((s) => !s)}
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+                >
+                  {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
             </div>
 

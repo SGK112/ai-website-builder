@@ -22,6 +22,7 @@ import {
   Eraser,
   Film,
   Contrast,
+  AlertCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ImageEdit } from '../types'
@@ -107,6 +108,18 @@ export function ImagesPanel({
   onRemoveImage,
 }: ImagesPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const promptInputRef = useRef<HTMLTextAreaElement>(null)
+
+  // After a Quick Tool prefills the prompt, bring the main prompt textarea into
+  // view and focus it so the user sees the next step (they still hit Generate).
+  const focusPrompt = () => {
+    requestAnimationFrame(() => {
+      const el = promptInputRef.current
+      if (!el) return
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.focus()
+    })
+  }
 
   return (
     <motion.div
@@ -141,6 +154,7 @@ export function ImagesPanel({
             </div>
             <button
               onClick={onDeselectMedia}
+              aria-label="Deselect image"
               className="p-1.5 rounded-lg hover:bg-amber-500/20 text-amber-400"
             >
               <X className="w-3.5 h-3.5" />
@@ -164,6 +178,7 @@ export function ImagesPanel({
           AI Image Generator
         </label>
         <textarea
+          ref={promptInputRef}
           value={imagePrompt}
           onChange={(e) => onImagePromptChange(e.target.value)}
           placeholder="Describe the image... e.g., 'modern office workspace with plants and natural lighting'"
@@ -255,6 +270,7 @@ export function ImagesPanel({
               {/* Delete button */}
               <button
                 onClick={onClearGenerated}
+                aria-label="Discard generated image"
                 className="absolute top-2 right-2 w-6 h-6 rounded-full bg-red-500/80 hover:bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
               >
                 <X className="w-3 h-3" />
@@ -303,6 +319,7 @@ export function ImagesPanel({
             if (logoPrompt) {
               onImagePromptChange(`Logo design: ${logoPrompt}, clean vector style, transparent background, professional branding`)
               onImageStyleChange('minimal')
+              focusPrompt()
             }
           }}
           className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 hover:border-emerald-500/40 transition-all"
@@ -318,6 +335,7 @@ export function ImagesPanel({
             if (iconPrompt) {
               onImagePromptChange(`Icon: ${iconPrompt}, flat design, single color, minimal, SVG style`)
               onImageStyleChange('minimal')
+              focusPrompt()
             }
           }}
           className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-all"
@@ -333,6 +351,7 @@ export function ImagesPanel({
             if (bannerPrompt) {
               onImagePromptChange(`Web banner: ${bannerPrompt}, eye-catching, promotional, modern design`)
               onImageAspectRatioChange('16:9')
+              focusPrompt()
             }
           }}
           className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-gradient-to-br from-pink-500/10 to-rose-500/10 border border-pink-500/20 hover:border-pink-500/40 transition-all"
@@ -349,6 +368,7 @@ export function ImagesPanel({
               onImagePromptChange(`Hero image: ${heroPrompt}, high quality, professional photography style, website hero section`)
               onImageAspectRatioChange('16:9')
               onImageStyleChange('professional')
+              focusPrompt()
             }
           }}
           className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-gradient-to-br from-violet-500/10 to-purple-500/10 border border-violet-500/20 hover:border-violet-500/40 transition-all"
@@ -429,6 +449,12 @@ export function ImagesPanel({
                     <Check className="w-3.5 h-3.5 text-white" />
                   </div>
                 )}
+                {image.status === 'error' && (
+                  <div className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-medium">
+                    <AlertCircle className="w-3 h-3" />
+                    Failed
+                  </div>
+                )}
               </div>
 
               {/* Image Actions */}
@@ -437,6 +463,7 @@ export function ImagesPanel({
                   <span className={cn('text-xs truncate flex-1', isDark ? 'text-white' : 'text-slate-900')}>{image.name}</span>
                   <button
                     onClick={() => onRemoveImage(image.id)}
+                    aria-label="Remove image"
                     className="p-1 rounded hover:bg-red-500/20 text-zinc-600 hover:text-red-400"
                   >
                     <Trash2 className="w-3 h-3" />

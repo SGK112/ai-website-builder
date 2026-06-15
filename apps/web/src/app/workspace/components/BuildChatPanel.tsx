@@ -36,9 +36,18 @@ interface QuickStartItem {
 // Lightweight inline markdown: **bold**, "• "/"- " bullets, and "1." numbered
 // lists. Returns one <div> per line. dangerouslySetInnerHTML is scoped to the
 // bold span we generate from the model's own reply.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
 function renderRichText(content: string, isDark: boolean): ReactNode {
   return content.split('\n').map((line, i) => {
-    const bold = line.replace(/\*\*([^*]+)\*\*/g, `<strong class="${isDark ? 'text-white' : 'text-slate-900'} font-semibold">$1</strong>`)
+    // Escape first so model/CMS content can't inject raw HTML, THEN apply the
+    // **bold** → <strong> transform on the already-escaped string.
+    const bold = escapeHtml(line).replace(/\*\*([^*]+)\*\*/g, `<strong class="${isDark ? 'text-white' : 'text-slate-900'} font-semibold">$1</strong>`)
     if (line.startsWith('• ') || line.startsWith('- ')) {
       return (
         <div key={i} className="flex gap-2 ml-1">

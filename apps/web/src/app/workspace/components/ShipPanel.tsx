@@ -643,6 +643,7 @@ export function ShipPanel(props: ShipPanelProps) {
           <CustomDomainCard
             projectId={projectId}
             isDeployed={deployStatus === 'success' || !!deployUrl}
+            isPublished={!!publishUrl}
             isDark={isDark}
           />
         </div>

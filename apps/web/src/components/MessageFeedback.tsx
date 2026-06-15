@@ -62,7 +62,7 @@ export function MessageFeedback({
             onKeyDown={(e) => { if (e.key === 'Enter') submitComment() }}
             placeholder="What went wrong? (optional — helps me improve)"
             autoFocus
-            className={`w-64 rounded-lg px-2.5 py-1 text-[12px] outline-none ring-1 ${isDark ? 'bg-white/[0.03] ring-white/10 text-white placeholder-zinc-600' : 'bg-slate-50 ring-slate-200 text-slate-900 placeholder-slate-400'}`}
+            className={`w-64 rounded-lg px-2.5 py-1 text-[12px] outline-none ring-1 focus:ring-2 focus:ring-violet-500 ${isDark ? 'bg-white/[0.03] ring-white/10 text-white placeholder-zinc-600' : 'bg-slate-50 ring-slate-200 text-slate-900 placeholder-slate-400'}`}
           />
           <button onClick={submitComment} className="rounded-lg bg-violet-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-violet-500">Send</button>
         </div>

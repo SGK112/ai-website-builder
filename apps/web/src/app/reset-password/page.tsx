@@ -7,7 +7,7 @@
 import { Suspense, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Loader2, ArrowLeft, Check } from 'lucide-react'
+import { Loader2, ArrowLeft, Check, Eye, EyeOff } from 'lucide-react'
 
 function ResetForm() {
   const router = useRouter()
@@ -24,6 +24,8 @@ function ResetForm() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -77,26 +79,48 @@ function ResetForm() {
     <form onSubmit={submit} className="space-y-4">
       <label className="block">
         <span className="text-xs font-medium text-zinc-400 mb-1.5 block">New password</span>
-        <input
-          type="password"
-          required
-          autoFocus
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="At least 8 characters"
-          className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500"
-        />
+        <div className="relative">
+          <input
+            type={showPassword ? 'text' : 'password'}
+            autoComplete="new-password"
+            required
+            autoFocus
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="At least 8 characters"
+            className="w-full px-3 py-2 pr-10 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((s) => !s)}
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+          >
+            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
       </label>
       <label className="block">
         <span className="text-xs font-medium text-zinc-400 mb-1.5 block">Confirm password</span>
-        <input
-          type="password"
-          required
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-          placeholder="Re-enter the new password"
-          className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500"
-        />
+        <div className="relative">
+          <input
+            type={showConfirm ? 'text' : 'password'}
+            autoComplete="new-password"
+            required
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            placeholder="Re-enter the new password"
+            className="w-full px-3 py-2 pr-10 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500"
+          />
+          <button
+            type="button"
+            onClick={() => setShowConfirm((s) => !s)}
+            aria-label={showConfirm ? 'Hide password' : 'Show password'}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+          >
+            {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
       </label>
 
       {error && (

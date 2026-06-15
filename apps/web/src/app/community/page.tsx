@@ -9,13 +9,11 @@ import {
   Heart,
   Bookmark,
   Search,
-  Filter,
   TrendingUp,
   Clock,
   Star,
   Zap,
   Eye,
-  ExternalLink,
   MessageCircle,
   ChevronRight,
   Sparkles,
@@ -144,18 +142,16 @@ function AuthorAvatar({
   size?: 'sm' | 'md'
 }) {
   const dim = size === 'sm' ? 'w-7 h-7 text-xs' : 'w-8 h-8 text-sm'
-  if (avatarUrl) {
+  // Broken avatar URLs flip to the letter fallback below instead of leaving a
+  // display:none gap where the avatar should be.
+  const [errored, setErrored] = useState(false)
+  if (avatarUrl && !errored) {
     return (
       <img
         src={avatarUrl}
         alt={fallback}
         className={cn(dim, 'rounded-full object-cover')}
-        onError={(e) => {
-          const img = e.currentTarget
-          // Hide broken avatar; container shows the letter fallback via the
-          // next render if we toggle state — for simplicity just hide.
-          img.style.display = 'none'
-        }}
+        onError={() => setErrored(true)}
       />
     )
   }
@@ -455,12 +451,6 @@ export default function CommunityPage() {
                 placeholder="Search projects..."
                 className="flex-1 bg-transparent text-sm focus:outline-none"
               />
-              <button className={cn(
-                'p-2 rounded-lg transition-colors',
-                isDark ? 'hover:bg-white/10' : 'hover:bg-zinc-100'
-              )}>
-                <Filter className="w-4 h-4 text-slate-500 dark:text-zinc-500" />
-              </button>
             </div>
           </motion.div>
 
@@ -758,7 +748,31 @@ export default function CommunityPage() {
               </div>
             )}
 
-            {/* All Projects */}
+            {/* All Projects — empty state when a search/category yields no
+                matches (mirrors the /library empty-state pattern). */}
+            {!loadingProjects && filteredProjects.length === 0 ? (
+              <div className={cn(
+                'rounded-2xl border border-dashed p-10 text-center',
+                isDark ? 'border-white/10' : 'border-zinc-300'
+              )}>
+                <Search className={cn('w-8 h-8 mx-auto mb-3', isDark ? 'text-zinc-600' : 'text-zinc-400')} />
+                <p className={cn('mb-1', isDark ? 'text-zinc-300' : 'text-zinc-700')}>No projects match</p>
+                <p className={cn('text-sm mb-4', isDark ? 'text-zinc-500' : 'text-zinc-500')}>
+                  Try a different search or category.
+                </p>
+                {(searchQuery || activeCategory !== 'all') && (
+                  <button
+                    onClick={() => { setSearchQuery(''); setActiveCategory('all') }}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+                      isDark ? 'bg-violet-600 hover:bg-violet-500 text-white' : 'bg-orange-500 hover:bg-orange-400 text-white'
+                    )}
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {visibleProjects.map((project, index) => (
                 <motion.div
@@ -790,9 +804,6 @@ export default function CommunityPage() {
                         )}
                       >
                         <Bookmark className="w-4 h-4" />
-                      </button>
-                      <button className="p-2 rounded-lg bg-black/30 text-white hover:bg-black/50 backdrop-blur-sm transition-colors">
-                        <ExternalLink className="w-4 h-4" />
                       </button>
                     </div>
 
@@ -887,7 +898,7 @@ export default function CommunityPage() {
                           )}
                         >
                           <Heart className={cn('w-4 h-4', likedProjects.includes(project.id) && 'fill-current')} />
-                          {project.likes + (likedProjects.includes(project.id) ? 1 : 0)}
+                          {project.likes}
                         </button>
                         <span className={cn(
                           'flex items-center gap-1 text-sm',
@@ -902,6 +913,7 @@ export default function CommunityPage() {
                 </motion.div>
               ))}
             </div>
+            )}
 
             {/* Load More — only renders when there's actually more to show.
                 Previously was a button with no onClick. */}

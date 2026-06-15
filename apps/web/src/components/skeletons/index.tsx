@@ -110,7 +110,7 @@ export function FileTreeSkeleton() {
       {Array.from({ length: 8 }).map((_, i) => (
         <div key={i} className="flex items-center gap-2" style={{ paddingLeft: `${(i % 3) * 12}px` }}>
           <Skeleton className="h-4 w-4" />
-          <Skeleton className="h-4" style={{ width: `${60 + Math.random() * 40}%` }} />
+          <Skeleton className="h-4" style={{ width: `${60 + ((i * 7) % 35)}%` }} />
         </div>
       ))}
     </div>
@@ -131,7 +131,7 @@ export function EditorSkeleton() {
             <Skeleton className="h-4 w-8 bg-slate-700" />
             <Skeleton
               className="h-4 bg-slate-700"
-              style={{ width: `${20 + Math.random() * 60}%` }}
+              style={{ width: `${20 + ((i * 7) % 60)}%` }}
             />
           </div>
         ))}
@@ -173,7 +173,7 @@ export function ChatSkeleton() {
           <div key={i} className={cn('flex', i % 2 === 0 ? 'justify-end' : 'justify-start')}>
             <Skeleton
               className="h-16 rounded-lg"
-              style={{ width: `${50 + Math.random() * 30}%` }}
+              style={{ width: `${50 + ((i * 7) % 30)}%` }}
             />
           </div>
         ))}
