@@ -15,6 +15,7 @@ import {
   Plug,
   Bug,
   BarChart3,
+  Globe,
   ArrowLeft,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -24,6 +25,7 @@ const ITEMS = [
   { href: '/admin/users',       label: 'Users',         icon: Users },
   { href: '/admin/listings',    label: 'Listings',      icon: PackageCheck },
   { href: '/admin/marketplace', label: 'Marketplace',   icon: DollarSign },
+  { href: '/admin/domains',     label: 'Domains',       icon: Globe },
   { href: '/admin/sessions',    label: 'Sessions',      icon: Activity },
   { href: '/admin/integrations',label: 'Integrations',  icon: Plug },
   { href: '/admin/system',      label: 'System',        icon: ServerCog },
