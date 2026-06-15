@@ -4508,6 +4508,34 @@ ${body}
       addConsoleLog('success', `Live at: ${data.url}`)
       setDeployUrl(data.url)
       setDeployStatus('success')
+
+      // Render reports success at service-CREATION; the build runs after. Poll
+      // the real deploy status so a failed build surfaces instead of a "live"
+      // URL that 404s. Best-effort, fire-and-forget — never blocks the user.
+      if (data.serviceId) {
+        ;(async () => {
+          for (let i = 0; i < 30; i++) { // ~5 min @ 10s
+            await new Promise(r => setTimeout(r, 10_000))
+            let s: any
+            try {
+              const r = await fetch(`/api/deploy/status?serviceId=${encodeURIComponent(data.serviceId)}`)
+              s = await r.json().catch(() => ({}))
+            } catch { continue }
+            if (s?.status === 'live') {
+              addToast('success', 'Your site is live. 🎉')
+              addTerminalLine('success', `✅ Build live: ${data.url}`)
+              return
+            }
+            if (s?.status === 'failed' || s?.status === 'canceled') {
+              setDeployError('Render build failed — check the build logs in your Render dashboard.')
+              setDeployStatus('error')
+              addToast('error', 'Render build failed — check your Render logs.')
+              addTerminalLine('error', '❌ Render build failed — see the Render dashboard for logs.')
+              return
+            }
+          }
+        })()
+      }
     } catch (error: any) {
       const message = error.message || 'Deployment failed'
       addTerminalLine('error', `❌ ${message}`)
