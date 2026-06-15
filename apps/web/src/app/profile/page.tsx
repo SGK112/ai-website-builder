@@ -24,8 +24,6 @@ import {
   Sparkles,
   TrendingUp,
   BarChart3,
-  FileCode,
-  Download,
   ExternalLink,
   Share2,
   Copy,
@@ -47,15 +45,6 @@ import { StarryNight, SunriseBackground } from '@/components/landing/BackgroundE
 import { PayoutsCard } from '@/components/profile/PayoutsCard'
 import { SUBSCRIPTION_PLANS } from '@/lib/stripe-plans'
 import { DeployCredentialsCard } from '@/components/profile/DeployCredentialsCard'
-
-interface UsageStats {
-  buildsUsed: number
-  buildsLimit: number
-  storageUsed: number
-  storageLimit: number
-  apiCalls: number
-  apiLimit: number
-}
 
 interface BillingHistory {
   id: string
@@ -193,7 +182,7 @@ export default function ProfilePage() {
   const { theme } = useTheme()
   const isDark = theme === 'dark'
   const router = useRouter()
-  const { data: session, status } = useSession()
+  const { data: session, status, update: updateSession } = useSession()
   // Active section is driven by the URL hash (#billing, #settings, …) so the
   // avatar-menu links work — including same-page clicks, which fire
   // 'hashchange'. Read the hash on mount, then listen for changes. (Avoids
@@ -236,6 +225,8 @@ export default function ProfilePage() {
   // Public profile (bio + tagline) — surfaces on /u/<username> and the
   // community author cards. Username is derived from email and shown
   // read-only for now.
+  const [name, setName] = useState('')
+  const [memberSince, setMemberSince] = useState<string | null>(null)
   const [bio, setBio] = useState('')
   const [tagline, setTagline] = useState('')
   const [publicUsername, setPublicUsername] = useState('')
@@ -338,24 +329,31 @@ export default function ProfilePage() {
       .then((data) => {
         if (!alive) return
         const p = data?.profile || {}
+        setName(p.name || '')
         setBio(p.bio || '')
         setTagline(p.tagline || '')
         setPublicUsername(p.username || '')
+        setMemberSince(p.createdAt || null)
       })
       .catch(() => { /* leave fields empty on failure */ })
     return () => { alive = false }
   }, [status])
 
   const saveProfile = async () => {
+    if (!name.trim()) { setProfileSaveMsg('Name cannot be empty'); return }
     setSavingProfile(true)
     setProfileSaveMsg(null)
     try {
       const res = await fetch('/api/user/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bio: bio.slice(0, 600), tagline: tagline.slice(0, 80) }),
+        // Persist EVERY edited field shown on this form (name was previously
+        // omitted, so the input looked editable but "Save" silently dropped it).
+        body: JSON.stringify({ name: name.slice(0, 80), bio: bio.slice(0, 600), tagline: tagline.slice(0, 80) }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      // Reflect the new name in the session so the header/avatar update without a reload.
+      try { await updateSession?.({ name: name.trim() }) } catch { /* non-fatal */ }
       setProfileSaveMsg('Saved')
       setTimeout(() => setProfileSaveMsg(null), 2200)
     } catch (e: any) {
@@ -388,19 +386,6 @@ export default function ProfilePage() {
     ? 'Free forever'
     : `$${(currentPlanMeta.monthlyPrice / 100).toFixed(0)}/month`
 
-  // Usage stats from credits. Plain consts — NOT useState — because they're
-  // never mutated, and crucially because they sit AFTER the `status ===
-  // 'loading'` early return above; a hook here runs on some renders but not
-  // others, which trips "Rendered more hooks than during the previous render"
-  // (React #310) the moment the session resolves loading→authenticated.
-  const usage: UsageStats = {
-    buildsUsed: credits !== null ? Math.max(0, 100 - credits) / 10 : 0,
-    buildsLimit: 10,
-    storageUsed: 0.2,
-    storageLimit: 1,
-    apiCalls: 150,
-    apiLimit: 500,
-  }
   const billingHistory: BillingHistory[] = []
 
   const tabs = [
@@ -530,12 +515,16 @@ export default function ProfilePage() {
                     <h3 className="text-lg font-semibold mb-6">Personal Information</h3>
                     <div className="grid gap-4">
                       <div>
-                        <label className={cn('text-sm font-medium mb-2 block', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+                        <label htmlFor="profile-name" className={cn('text-sm font-medium mb-2 block', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
                           Full Name
                         </label>
                         <input
+                          id="profile-name"
                           type="text"
-                          defaultValue={user.name}
+                          value={name}
+                          onChange={(e) => setName(e.target.value.slice(0, 80))}
+                          maxLength={80}
+                          autoComplete="name"
                           className={cn(
                             'w-full px-4 py-3 rounded-xl border text-sm transition-all',
                             isDark
@@ -545,17 +534,20 @@ export default function ProfilePage() {
                         />
                       </div>
                       <div>
-                        <label className={cn('text-sm font-medium mb-2 block', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
-                          Email Address
+                        <label htmlFor="profile-email" className={cn('text-sm font-medium mb-2 block', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+                          Email Address <span className="opacity-50 font-normal">(managed by your login)</span>
                         </label>
                         <input
+                          id="profile-email"
                           type="email"
-                          defaultValue={user.email}
+                          value={user.email}
+                          readOnly
+                          disabled
                           className={cn(
-                            'w-full px-4 py-3 rounded-xl border text-sm transition-all',
+                            'w-full px-4 py-3 rounded-xl border text-sm transition-all cursor-not-allowed opacity-70',
                             isDark
-                              ? 'bg-white/5 border-white/10 focus:border-violet-500/50'
-                              : 'bg-zinc-50 border-zinc-200 focus:border-orange-500/50'
+                              ? 'bg-white/5 border-white/10'
+                              : 'bg-zinc-100 border-zinc-200'
                           )}
                         />
                       </div>
@@ -652,13 +644,13 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  {/* Quick Stats */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {/* Quick Stats — only real, account-backed values (the old
+                      Websites Built / Exports / Streak numbers were hardcoded fakes). */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {[
-                      { label: 'Websites Built', value: '12', icon: FileCode },
-                      { label: 'Total Exports', value: '8', icon: Download },
-                      { label: 'Member Since', value: 'Jan 2024', icon: Calendar },
-                      { label: 'Current Streak', value: '5 days', icon: TrendingUp },
+                      { label: 'Current Plan', value: currentPlanMeta?.name || (actualPlan === 'free' ? 'Free' : actualPlan), icon: CreditCard },
+                      { label: 'Credits Left', value: credits !== null ? String(credits) : '—', icon: TrendingUp },
+                      { label: 'Member Since', value: memberSince ? new Date(memberSince).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—', icon: Calendar },
                     ].map(stat => (
                       <div
                         key={stat.label}
@@ -824,69 +816,25 @@ export default function ProfilePage() {
                     'p-6 rounded-2xl border',
                     isDark ? 'bg-white/5 border-white/10' : 'bg-white border-zinc-200 shadow-sm'
                   )}>
-                    <h3 className="text-lg font-semibold mb-6">Usage This Month</h3>
-                    <div className="space-y-6">
-                      {/* Builds */}
+                    <h3 className="text-lg font-semibold mb-6">Credits</h3>
+                    {/* Only credits are actually tracked per-account. The old
+                        Builds/Storage/API-Calls bars were fabricated numbers. */}
+                    <div className="flex items-end justify-between gap-4 flex-wrap">
                       <div>
-                        <div className="flex justify-between mb-2">
-                          <span className={cn('text-sm', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
-                            Website Builds
-                          </span>
-                          <span className="text-sm font-medium">
-                            {usage.buildsUsed} / {usage.buildsLimit}
-                          </span>
-                        </div>
-                        <div className={cn('h-2 rounded-full overflow-hidden', isDark ? 'bg-white/10' : 'bg-zinc-200')}>
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${(usage.buildsUsed / usage.buildsLimit) * 100}%` }}
-                            className={cn(
-                              'h-full rounded-full',
-                              isDark
-                                ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500'
-                                : 'bg-gradient-to-r from-orange-400 to-pink-500'
-                            )}
-                          />
-                        </div>
+                        <p className="text-4xl font-bold">{credits !== null ? credits : '—'}</p>
+                        <p className={cn('text-sm mt-1', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+                          credits remaining on the {currentPlanMeta?.name || actualPlan} plan
+                        </p>
                       </div>
-
-                      {/* Storage */}
-                      <div>
-                        <div className="flex justify-between mb-2">
-                          <span className={cn('text-sm', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
-                            Storage Used
-                          </span>
-                          <span className="text-sm font-medium">
-                            {usage.storageUsed}GB / {usage.storageLimit}GB
-                          </span>
-                        </div>
-                        <div className={cn('h-2 rounded-full overflow-hidden', isDark ? 'bg-white/10' : 'bg-zinc-200')}>
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${(usage.storageUsed / usage.storageLimit) * 100}%` }}
-                            className="h-full rounded-full bg-emerald-500"
-                          />
-                        </div>
-                      </div>
-
-                      {/* API Calls */}
-                      <div>
-                        <div className="flex justify-between mb-2">
-                          <span className={cn('text-sm', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
-                            API Calls
-                          </span>
-                          <span className="text-sm font-medium">
-                            {usage.apiCalls} / {usage.apiLimit}
-                          </span>
-                        </div>
-                        <div className={cn('h-2 rounded-full overflow-hidden', isDark ? 'bg-white/10' : 'bg-zinc-200')}>
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${(usage.apiCalls / usage.apiLimit) * 100}%` }}
-                            className="h-full rounded-full bg-blue-500"
-                          />
-                        </div>
-                      </div>
+                      <a
+                        href="/upgrade"
+                        className={cn(
+                          'px-4 py-2 rounded-xl text-sm font-medium transition-all',
+                          isDark ? 'bg-violet-500 text-white hover:bg-violet-600' : 'bg-orange-500 text-white hover:bg-orange-600'
+                        )}
+                      >
+                        Get more credits
+                      </a>
                     </div>
                   </div>
 
@@ -1054,6 +1002,7 @@ export default function ProfilePage() {
                     <div className="flex items-center gap-3 mb-6">
                       <Bell className={isDark ? 'w-5 h-5 text-violet-400' : 'w-5 h-5 text-orange-500'} />
                       <h3 className="text-lg font-semibold">Notifications</h3>
+                      <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full', isDark ? 'bg-white/10 text-zinc-400' : 'bg-zinc-100 text-zinc-500')}>Coming soon</span>
                     </div>
                     <div className="space-y-4">
                       {[
@@ -1061,19 +1010,22 @@ export default function ProfilePage() {
                         { label: 'Marketing emails', desc: 'News, tips, and special offers' },
                         { label: 'Build alerts', desc: 'Get notified when builds complete' },
                       ].map(item => (
-                        <div key={item.label} className="flex items-center justify-between">
+                        <div key={item.label} className="flex items-center justify-between opacity-60">
                           <div>
                             <p className="font-medium">{item.label}</p>
                             <p className={cn('text-sm', isDark ? 'text-zinc-500' : 'text-zinc-600')}>
                               {item.desc}
                             </p>
                           </div>
-                          <button className={cn(
-                            'w-12 h-6 rounded-full transition-colors',
-                            isDark ? 'bg-violet-500' : 'bg-orange-500'
-                          )}>
-                            <div className="w-5 h-5 bg-white rounded-full ml-auto mr-0.5 shadow-sm" />
-                          </button>
+                          {/* Preference storage isn't built yet — render an honest
+                              disabled OFF switch instead of a fake always-on toggle. */}
+                          <div
+                            aria-disabled="true"
+                            title="Notification preferences are coming soon"
+                            className={cn('w-12 h-6 rounded-full flex items-center cursor-not-allowed', isDark ? 'bg-white/10' : 'bg-zinc-200')}
+                          >
+                            <div className="w-5 h-5 bg-white rounded-full ml-0.5 shadow-sm" />
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1089,36 +1041,45 @@ export default function ProfilePage() {
                       <h3 className="text-lg font-semibold">Security</h3>
                     </div>
                     <div className="space-y-4">
-                      <button className={cn(
-                        'w-full flex items-center justify-between p-4 rounded-xl transition-all',
-                        isDark ? 'bg-white/5 hover:bg-white/10' : 'bg-zinc-50 hover:bg-zinc-100'
-                      )}>
+                      <a
+                        href="/forgot-password"
+                        className={cn(
+                          'w-full flex items-center justify-between p-4 rounded-xl transition-all',
+                          isDark ? 'bg-white/5 hover:bg-white/10' : 'bg-zinc-50 hover:bg-zinc-100'
+                        )}
+                      >
                         <div className="flex items-center gap-3">
                           <Key className="w-5 h-5 text-slate-500 dark:text-zinc-500" />
                           <div className="text-left">
                             <p className="font-medium">Change Password</p>
                             <p className={cn('text-sm', isDark ? 'text-zinc-500' : 'text-zinc-600')}>
-                              Update your password
+                              We'll email you a secure reset link
                             </p>
                           </div>
                         </div>
                         <ChevronRight className="w-5 h-5 text-slate-500 dark:text-zinc-500" />
-                      </button>
-                      <button className={cn(
-                        'w-full flex items-center justify-between p-4 rounded-xl transition-all',
-                        isDark ? 'bg-white/5 hover:bg-white/10' : 'bg-zinc-50 hover:bg-zinc-100'
-                      )}>
+                      </a>
+                      <div
+                        aria-disabled="true"
+                        title="Two-factor authentication is coming soon"
+                        className={cn(
+                          'w-full flex items-center justify-between p-4 rounded-xl opacity-60 cursor-not-allowed',
+                          isDark ? 'bg-white/5' : 'bg-zinc-50'
+                        )}
+                      >
                         <div className="flex items-center gap-3">
                           <Shield className="w-5 h-5 text-slate-500 dark:text-zinc-500" />
                           <div className="text-left">
-                            <p className="font-medium">Two-Factor Authentication</p>
+                            <p className="font-medium flex items-center gap-2">
+                              Two-Factor Authentication
+                              <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full', isDark ? 'bg-white/10 text-zinc-400' : 'bg-zinc-100 text-zinc-500')}>Coming soon</span>
+                            </p>
                             <p className={cn('text-sm', isDark ? 'text-zinc-500' : 'text-zinc-600')}>
                               Add an extra layer of security
                             </p>
                           </div>
                         </div>
-                        <ChevronRight className="w-5 h-5 text-slate-500 dark:text-zinc-500" />
-                      </button>
+                      </div>
                     </div>
                   </div>
 
@@ -1128,16 +1089,21 @@ export default function ProfilePage() {
                     'bg-red-500/5 border-red-500/20'
                   )}>
                     <h3 className="text-lg font-semibold text-red-500 mb-4">Danger Zone</h3>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
                       <div>
                         <p className="font-medium">Delete Account</p>
                         <p className={cn('text-sm', isDark ? 'text-zinc-500' : 'text-zinc-600')}>
-                          Permanently delete your account and all data
+                          Permanently delete your account and all data. We'll confirm by email.
                         </p>
                       </div>
-                      <button className="px-4 py-2 rounded-lg bg-red-500/10 text-red-500 text-sm font-medium hover:bg-red-500/20 transition-all">
-                        Delete
-                      </button>
+                      {/* No self-serve delete endpoint yet — route to support so
+                          the button does something real instead of nothing. */}
+                      <a
+                        href="mailto:support@webstew.net?subject=Delete%20my%20account&body=Please%20permanently%20delete%20my%20Webstew%20account%20and%20all%20associated%20data."
+                        className="px-4 py-2 rounded-lg bg-red-500/10 text-red-500 text-sm font-medium hover:bg-red-500/20 transition-all"
+                      >
+                        Request deletion
+                      </a>
                     </div>
                   </div>
                 </motion.div>
