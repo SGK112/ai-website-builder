@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
+
+// Caps on user-supplied text/array inputs forwarded to PAID APIs — keeps a
+// malicious client from inflating token/transfer cost or smuggling huge payloads.
+const MAX_PROMPT = 2000
+const MAX_STYLE = 200
+const MAX_NEGATIVE = 500
+const MAX_IMAGES = 5
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -128,6 +136,23 @@ export async function POST(request: NextRequest) {
       return await pollOnce(body.predictionId)
     }
 
+    // Rate-limit only the actual GENERATION starts (each spends real money) —
+    // NOT the status polls above, which fire every few seconds. aiGeneration is
+    // 20/min/user: generous enough for a multi-clip storyboard, tight enough to
+    // stop a script from draining the budget.
+    try {
+      checkApiRateLimit(request, 'aiGeneration')
+    } catch (error) {
+      const limited = handleRateLimitError(error)
+      if (limited) return limited
+      throw error
+    }
+
+    // Reject oversized text before it reaches a paid API.
+    if ((body.prompt || '').length > MAX_PROMPT) return NextResponse.json({ error: `Prompt too long (max ${MAX_PROMPT} chars).` }, { status: 400 })
+    if ((body.style || '').length > MAX_STYLE) return NextResponse.json({ error: 'Style value too long.' }, { status: 400 })
+    if ((body.negativePrompt || '').length > MAX_NEGATIVE) return NextResponse.json({ error: 'Negative prompt too long.' }, { status: 400 })
+
     const modelKey = (body.model as ModelKey) || 'seedance'
     const model = MODELS[modelKey] ?? MODELS.seedance
 
@@ -149,10 +174,15 @@ export async function POST(request: NextRequest) {
     if (action === 'image-to-video') {
       // Grok accepts several images; Replicate models take one. Normalize both
       // the legacy single `imageUrl` and the new `imageUrls[]` into one list.
-      const images = (body.imageUrls && body.imageUrls.length)
-        ? body.imageUrls.filter(Boolean)
+      const rawImages = (body.imageUrls && body.imageUrls.length)
+        ? body.imageUrls
         : (body.imageUrl ? [body.imageUrl] : [])
-      if (!images.length) return NextResponse.json({ error: 'imageUrl required' }, { status: 400 })
+      // Only forward http(s) URLs, and cap the count — both the paid API payload
+      // size and the third-party-SSRF surface (the model fetches these URLs).
+      const images = rawImages
+        .filter((u): u is string => typeof u === 'string' && /^https?:\/\//i.test(u))
+        .slice(0, MAX_IMAGES)
+      if (!images.length) return NextResponse.json({ error: 'A valid image URL is required.' }, { status: 400 })
       if (model.provider === 'xai') return await startXaiVideo(body, model, images)
       return await startPrediction(buildImageToVideoInput({ ...body, imageUrl: images[0] }, model, modelKey), model)
     }
@@ -169,6 +199,12 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  // Defense-in-depth (middleware also gates /api/ai/video): don't leak the
+  // model list / credential-configured flags or job status to anonymous callers.
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
   const id = new URL(request.url).searchParams.get('id')
   if (!id) {
     // Model list — only surface models whose provider is actually configured,

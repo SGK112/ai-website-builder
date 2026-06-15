@@ -31,7 +31,14 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData()
     const file = formData.get('file') as File | null
-    const projectId = formData.get('projectId') as string | null
+    const projectIdRaw = formData.get('projectId') as string | null
+    // projectId is interpolated into the Cloudinary signature string + folder
+    // path. Reject anything but a safe id so it can't smuggle extra signed
+    // params (folder=...&timestamp=0&...) or escape the folder.
+    if (projectIdRaw && !/^[a-zA-Z0-9_-]{1,64}$/.test(projectIdRaw)) {
+      return NextResponse.json({ error: 'Invalid projectId.' }, { status: 400 })
+    }
+    const projectId = projectIdRaw
 
     if (!file) {
       return NextResponse.json(

@@ -20,6 +20,16 @@ const CORE_BASE = 'https://unpkg.com/@ffmpeg/core-st@0.12.6/dist/umd'
 
 let _ffmpeg: FFmpeg | null = null
 let _loading: Promise<FFmpeg> | null = null
+// The ffmpeg instance is a reused singleton, so progress listeners would pile
+// up across stitches. Track the active one and detach it before re-binding.
+let _progressHandler: ((e: { progress: number }) => void) | null = null
+
+// Generated clips live on cross-origin hosts (xAI vidgen, Replicate) that don't
+// send CORS headers, so a direct browser fetch fails. Route http(s) URLs through
+// our same-origin proxy; leave blob:/data: (e.g. narration) untouched.
+function deliverable(url: string): string {
+  return /^https?:\/\//i.test(url) ? `/api/ai/video/clip-proxy?url=${encodeURIComponent(url)}` : url
+}
 
 async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> {
   if (_ffmpeg) return _ffmpeg
@@ -63,14 +73,19 @@ export async function stitchClips(clipUrls: string[], opts: StitchOptions = {}):
 
   opts.onStage?.('Loading video engine…')
   const ff = await getFFmpeg()
-  if (opts.onProgress) ff.on('progress', ({ progress }) => opts.onProgress!(Math.min(1, Math.max(0, progress))))
+  // Detach any listener from a previous stitch before attaching this one.
+  if (_progressHandler) ff.off('progress', _progressHandler)
+  if (opts.onProgress) {
+    _progressHandler = ({ progress }) => opts.onProgress!(Math.min(1, Math.max(0, progress)))
+    ff.on('progress', _progressHandler)
+  }
 
-  // 1. Write each clip into the in-memory FS.
+  // 1. Write each clip into the in-memory FS (via same-origin proxy → no CORS).
   const names: string[] = []
   for (let i = 0; i < clipUrls.length; i++) {
     opts.onStage?.(`Downloading clip ${i + 1} of ${clipUrls.length}…`)
     const name = `c${i}.mp4`
-    await ff.writeFile(name, await fetchFile(clipUrls[i]))
+    await ff.writeFile(name, await fetchFile(deliverable(clipUrls[i])))
     names.push(name)
   }
 

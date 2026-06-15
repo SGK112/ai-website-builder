@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   Clapperboard, Sparkles, Loader2, Plus, X, ArrowUp, ArrowDown,
   Film, Download, Link2, Wand2, ImageIcon, AlertCircle, Check,
@@ -47,6 +47,16 @@ export default function Storyboard() {
   const [voice, setVoice] = useState('onyx')
   const [writingScript, setWritingScript] = useState(false)
 
+  // Stitched videos are blob URLs holding the whole MP4 in memory. Revoke the
+  // previous one whenever we replace/clear it, or re-stitching leaks 50–200 MB
+  // per run.
+  const stitchedRef = useRef<string | null>(null)
+  const setStitched = (url: string | null) => {
+    if (stitchedRef.current && stitchedRef.current !== url) URL.revokeObjectURL(stitchedRef.current)
+    stitchedRef.current = url
+    setStitchedUrl(url)
+  }
+
   const newId = () => `s_${shots.length}_${topic.length}_${Math.floor(performance.now())}`
   const doneClips = shots.filter(s => s.status === 'done' && s.clipUrl)
   const allDone = shots.length > 0 && shots.every(s => s.status === 'done')
@@ -68,7 +78,7 @@ export default function Storyboard() {
       if (!res.ok) throw new Error(data.error || `Couldn't draft a storyboard (HTTP ${res.status}).`)
       setTheme(data.theme || '')
       setShots((data.shots as string[]).map((p, i) => ({ id: `draft_${i}_${Math.floor(performance.now())}`, prompt: p, status: 'idle' })))
-      setStitchedUrl(null); setShareUrl(null)
+      setStitched(null); setShareUrl(null)
     } catch (e: any) {
       setError(e?.message || 'Drafting failed')
     } finally {
@@ -128,7 +138,7 @@ export default function Storyboard() {
   }
 
   async function generateAll() {
-    setGeneratingAll(true); setError(null); setStitchedUrl(null); setShareUrl(null)
+    setGeneratingAll(true); setError(null); setStitched(null); setShareUrl(null)
     // Sequential — keeps the order clear and avoids hammering the API/rate limits.
     for (const shot of shots) {
       if (shot.status === 'done') continue
@@ -164,7 +174,7 @@ export default function Storyboard() {
   async function stitch() {
     if (doneClips.length < 2) { setError('Generate at least two clips before stitching.'); return }
     setStitching(true); setError(null); setStitchProgress(0); setStitchStage('Starting…')
-    setStitchedUrl(null); setShareUrl(null)
+    setStitched(null); setShareUrl(null)
     let audioUrl: string | null = null
     try {
       // Generate narration audio first (if a script is set), then mux it in.
@@ -185,7 +195,7 @@ export default function Storyboard() {
         onStage: setStitchStage,
         onProgress: (r) => setStitchProgress(Math.round(r * 100)),
       })
-      setStitchedUrl(url)
+      setStitched(url)
       setStitchStage('Done')
     } catch (e: any) {
       setError(e?.message || 'Stitching failed — you can still download each clip below.')

@@ -89,6 +89,9 @@ export async function POST(request: NextRequest) {
 
     // ── Scriptwriter ──
     if (body.mode !== 'speak') {
+      // Cap inputs forwarded to the LLM (write mode has no script cap otherwise).
+      if ((body.topic || '').length > 500) return NextResponse.json({ error: 'Topic too long (max 500 chars).' }, { status: 400 })
+      if ((body.text || '').length > 4000) return NextResponse.json({ error: 'Notes too long (max 4000 chars).' }, { status: 400 })
       const secs = Math.max(3, Math.min(60, Math.floor(body.totalSeconds || 15)))
       const words = Math.round(secs * WORDS_PER_SEC)
       const user = [

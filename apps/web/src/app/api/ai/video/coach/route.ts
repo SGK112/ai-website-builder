@@ -45,8 +45,10 @@ interface CoachResponse {
 }
 
 function buildSystemPrompt(ctx: CoachRequest): string {
+  // Clamp interpolated fields — they're user-controlled and go into the prompt.
+  const clamp = (v: string | undefined, n: number) => String(v || '').slice(0, n)
   const mode = ctx.mode === 'image' ? 'image-to-video' : 'text-to-video'
-  const model = ctx.modelLabel || ctx.model || 'the selected model'
+  const model = clamp(ctx.modelLabel || ctx.model, 80) || 'the selected model'
   const isGrok = (ctx.model || '').toLowerCase().includes('grok')
   const imgLine = ctx.mode === 'image'
     ? `The user has attached ${ctx.imageCount || 1} source image(s); the video must ANIMATE those image(s), not invent a new scene. Direct the camera move and the motion WITHIN the existing image (e.g. "slow push-in, hair drifting, steam rising"), and keep subjects/products consistent with what's already there.`
@@ -57,7 +59,7 @@ function buildSystemPrompt(ctx: CoachRequest): string {
 CONTEXT
 - Generation mode: ${mode}.
 - Target model: ${model}.${isGrok ? ' (Grok Imagine — strong with people, hands and on-screen text, and accepts multiple reference images.)' : ' (a fast diffusion video model — keep subjects simple; it struggles with complex hands, crowds and readable text.)'}
-- Aspect ratio: ${ctx.aspectRatio || '16:9'}; duration: ${ctx.duration || 5}s; style: ${ctx.style || 'none specified'}.
+- Aspect ratio: ${clamp(ctx.aspectRatio, 20) || '16:9'}; duration: ${ctx.duration || 5}s; style: ${clamp(ctx.style, 80) || 'none specified'}.
 - ${imgLine}
 
 YOUR JOB
@@ -139,16 +141,23 @@ export async function POST(request: NextRequest) {
     if (!message?.trim()) {
       return NextResponse.json({ error: 'message required' }, { status: 400 })
     }
+    if (message.length > 2000) {
+      return NextResponse.json({ error: 'Message too long (max 2000 chars).' }, { status: 400 })
+    }
 
     const turnCount = history.filter(t => t.role === 'user').length + 1
+    // Cap each prior turn's content (uncapped history × 8 turns could be MBs of
+    // tokens to the LLM). The finalize nudge is APPENDED to the user message —
+    // pushing a second consecutive role:'user' turn violates Anthropic's strict
+    // role alternation and 400s the whole call.
+    const safeHistory = history.slice(-8).map(t => ({ role: t.role, content: String(t.content || '').slice(0, 4000) }))
+    const finalize = turnCount >= MAX_TURNS
+      ? '\n\n(Please finalize now — write the strongest craftedPrompt you can from what we have and set ready:true.)'
+      : ''
     const messages: CoachTurn[] = [
-      ...history.slice(-8),
-      { role: 'user', content: message },
+      ...safeHistory,
+      { role: 'user', content: message.slice(0, 2000) + finalize },
     ]
-    // Nudge it to wrap up once the conversation has run a few turns.
-    if (turnCount >= MAX_TURNS) {
-      messages.push({ role: 'user', content: '(Please finalize now — write the strongest craftedPrompt you can from what we have and set ready:true.)' })
-    }
 
     let parsed: Partial<CoachResponse> | null = null
     try {

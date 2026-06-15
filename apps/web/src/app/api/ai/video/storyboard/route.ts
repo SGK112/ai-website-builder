@@ -82,6 +82,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid or empty request body.' }, { status: 400 })
     }
     if (!body.topic?.trim()) return NextResponse.json({ error: 'topic required' }, { status: 400 })
+    if (body.topic.length > 1000) return NextResponse.json({ error: 'Topic too long (max 1000 chars).' }, { status: 400 })
 
     const shots = Math.max(2, Math.min(6, Math.floor(body.shots || 3)))
     const dur = Math.max(3, Math.min(8, Math.floor(body.durationPerShot || 5)))
