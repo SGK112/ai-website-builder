@@ -13,6 +13,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { Globe, Rocket, Layers, Atom, Smartphone, X, ArrowRight } from 'lucide-react'
+import { useModalA11y } from '@/hooks/useModalA11y'
 
 export type BuildTargetId = 'website' | 'astro' | 'nextjs' | 'react' | 'expo'
 
@@ -40,6 +41,7 @@ interface BuildTargetModalProps {
 }
 
 export function BuildTargetModal({ open, isDark, onClose, onPick }: BuildTargetModalProps) {
+  const panelRef = useModalA11y<HTMLDivElement>(open, onClose)
   return (
     <AnimatePresence>
       {open && (
@@ -51,6 +53,10 @@ export function BuildTargetModal({ open, isDark, onClose, onPick }: BuildTargetM
           onClick={onClose}
         >
           <motion.div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="build-target-title"
             initial={{ opacity: 0, scale: 0.96, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 12 }}
@@ -67,7 +73,7 @@ export function BuildTargetModal({ open, isDark, onClose, onPick }: BuildTargetM
                 <Rocket className="w-5 h-5 text-violet-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className={isDark ? 'text-sm font-semibold text-white' : 'text-sm font-semibold text-slate-900'}>
+                <div id="build-target-title" className={isDark ? 'text-sm font-semibold text-white' : 'text-sm font-semibold text-slate-900'}>
                   What are we building?
                 </div>
                 <div className={isDark ? 'text-[11px] text-zinc-500' : 'text-[11px] text-slate-500'}>

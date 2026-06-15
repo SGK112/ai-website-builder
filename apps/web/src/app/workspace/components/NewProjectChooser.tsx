@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, FilePlus2, Upload, Loader2, Github } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { parseProjectZip, type ImportedProject } from '@/lib/import-project'
+import { useModalA11y } from '@/hooks/useModalA11y'
 
 interface Props {
   isDark: boolean
@@ -19,6 +20,7 @@ interface Props {
 // import logic (unzip + map) in lib/import-project so this stays presentational.
 export function NewProjectChooser({ isDark, open, onClose, onStartNew, onImported }: Props) {
   const zipInputRef = useRef<HTMLInputElement>(null)
+  const panelRef = useModalA11y<HTMLDivElement>(open, () => { if (!busy) onClose() })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ghMode, setGhMode] = useState(false)
@@ -82,6 +84,10 @@ export function NewProjectChooser({ isDark, open, onClose, onStartNew, onImporte
           onClick={() => !busy && onClose()}
         >
           <motion.div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="new-project-title"
             className={cn(
               'w-full max-w-md rounded-2xl border shadow-2xl p-5',
               isDark ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-slate-200 text-slate-900',
@@ -92,8 +98,8 @@ export function NewProjectChooser({ isDark, open, onClose, onStartNew, onImporte
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold">New project</h2>
-              <button onClick={() => !busy && onClose()} className={cn('p-1 rounded-lg', isDark ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-slate-100 text-slate-500')}>
+              <h2 id="new-project-title" className="text-base font-semibold">New project</h2>
+              <button aria-label="Close" onClick={() => !busy && onClose()} className={cn('p-1 rounded-lg', isDark ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-slate-100 text-slate-500')}>
                 <X className="w-4 h-4" />
               </button>
             </div>

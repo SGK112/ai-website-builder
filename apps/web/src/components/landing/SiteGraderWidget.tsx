@@ -79,7 +79,7 @@ export function SiteGraderWidget({ isDark }: Props) {
       // 402 = anon cookie cap exhausted. 401/403 = bot/abuse guard blocked.
       if (res.status === 402) {
         const data = await res.json().catch(() => ({}))
-        setError(data?.error || "You've used your 3 free grades. Sign up free for 25/day.")
+        setError(data?.error || "You've used your 3 free grades. Sign up free for 3 a day.")
         return
       }
       if (res.status === 401 || res.status === 403) {
