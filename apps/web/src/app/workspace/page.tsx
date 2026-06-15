@@ -10399,6 +10399,10 @@ npx eas build --platform all
                     Style
                   </button>
 
+                  {/* Move up/down only work on section-level tags — hide them
+                      for other elements instead of showing dead buttons that
+                      always say "not a section". */}
+                  {['SECTION','NAV','HEADER','FOOTER','MAIN','ASIDE','ARTICLE'].includes((selectedElement.tagName || '').toUpperCase()) && (<>
                   {/* MOVE UP — swaps with previous sibling at the section level */}
                   <button
                     onClick={() => {
@@ -10423,6 +10427,7 @@ npx eas build --platform all
                       setSelectedElement(null)
                     }}
                     title="Move section up"
+                    aria-label="Move section up"
                     className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white transition-colors"
                   >
                     <ChevronUp className="w-3.5 h-3.5" />
@@ -10451,10 +10456,12 @@ npx eas build --platform all
                       setSelectedElement(null)
                     }}
                     title="Move section down"
+                    aria-label="Move section down"
                     className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white transition-colors"
                   >
                     <ChevronDown className="w-3.5 h-3.5" />
                   </button>
+                  </>)}
 
                   {/* DELETE */}
                   <button
