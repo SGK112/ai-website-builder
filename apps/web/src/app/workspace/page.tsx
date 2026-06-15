@@ -3225,16 +3225,18 @@ function WorkspaceContent() {
     // loadedFromUrlRef means a prompt was injected from the landing page — generation
     // will fire immediately, so skip the idle-timer path. The post-generation code
     // in handleGenerate shows the tour after the first build completes instead.
-    // Mobile: skip the skill-picker + 7-step tour entirely. On a phone these
-    // modals cover the whole screen and read as "broken/confusing" before the
-    // user has done anything. Mobile gets the clean picker → tap → build path.
-    if (!hasSeenOnboarding && hasInitialized && !loadedFromUrlRef.current && !isMidGeneration && !isMobile) {
+    // The skill assessment is a lightweight 2-tap flow that works great on a
+    // phone, so it runs for EVERYONE (mobile users are most of our beginners and
+    // they were getting no onboarding at all). Only the heavy 7-step desktop
+    // tour stays desktop-only — on a phone it covers the screen and reads as
+    // "broken"; mobile is guided by the step bar + empty-state hero instead.
+    if (!hasSeenOnboarding && hasInitialized && !loadedFromUrlRef.current && !isMidGeneration) {
       const timer = setTimeout(() => {
         if (!isGenerating && html.length === 0) {
-          // Show skill picker first if they haven't chosen a level yet
+          // Show the skill assessment first if they haven't chosen a level yet.
           if (!hasPickedSkill) {
             setShowSkillPicker(true)
-          } else {
+          } else if (!isMobile) {
             setShowOnboarding(true)
           }
         }
@@ -12903,8 +12905,10 @@ npx eas build --platform all
         onComplete={(level) => {
           persistSkillLevel(level)
           setShowSkillPicker(false)
-          // Show industry wizard to generate first prompt, then tour
-          setShowIndustryWizard(true)
+          // Desktop: industry wizard → first build → guided tour. Mobile: hand
+          // off to the empty-state hero ("What do you want to build?") so we
+          // don't stack full-screen modals on a phone.
+          if (!isMobile) setShowIndustryWizard(true)
         }}
       />
 
