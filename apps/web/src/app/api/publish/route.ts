@@ -40,14 +40,23 @@ export async function POST(req: NextRequest) {
   let body: any
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
 
-  const result = await publishSite({
-    userId: session.user.id,
-    name: String(body?.name || 'site'),
-    files: Array.isArray(body?.files) ? body.files : [],
-    requestedSlug: String(body?.slug || ''),
-    projectId: body?.projectId ? String(body.projectId) : null,
-    proto: req.headers.get('x-forwarded-proto') || 'https',
-  })
+  // publishSite can throw on DB connectivity (getDb / Mongo). Without this
+  // catch the route returns Next's default HTML 500, and the client's
+  // res.json() then throws → a confusing generic failure. Return JSON instead.
+  let result
+  try {
+    result = await publishSite({
+      userId: session.user.id,
+      name: String(body?.name || 'site'),
+      files: Array.isArray(body?.files) ? body.files : [],
+      requestedSlug: String(body?.slug || ''),
+      projectId: body?.projectId ? String(body.projectId) : null,
+      proto: req.headers.get('x-forwarded-proto') || 'https',
+    })
+  } catch (e: any) {
+    console.error('[publish] failed:', e?.message || e)
+    return NextResponse.json({ error: 'Publish failed — please try again in a moment.' }, { status: 500 })
+  }
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status })
@@ -55,7 +64,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     slug: result.slug,
-    url: result.url,     // production subdomain URL (needs wildcard DNS live)
+    url: result.url,     // canonical published URL (www.webstew.net/s/<slug>)
     path: result.path,   // always works, incl. local dev
     pages: result.pages,
   })

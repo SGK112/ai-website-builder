@@ -65,6 +65,26 @@ function rebaseHtml(html: string, basePath: string): string {
     /(?<![.\w-])(data-href|href|src|action)\s*=\s*(["'])\/(?!\/)([^"']*)\2/gi,
     (m, attr, q, rest) => (isPlatform(rest) ? m : `${attr}=${q}${pfx}/${rest}${q}`),
   )
+  // srcset is a comma-separated list of "<url> <descriptor>" — the attr regex
+  // above only catches a single src, so responsive images (<img srcset>,
+  // <source srcset>) would 404 under /s/<slug>. Rebase each root-relative URL.
+  html = html.replace(
+    /(\bsrcset\s*=\s*)(["'])([^"']*)\2/gi,
+    (m: string, attr: string, q: string, list: string) => {
+      const rebased = list.split(',').map((part) => {
+        const seg = part.trim()
+        const sp = seg.match(/^\/(?!\/)([^\s]*)(\s+.+)?$/) // root-relative URL + optional descriptor
+        if (!sp) return seg
+        return isPlatform(sp[1]) ? seg : `${pfx}/${sp[1]}${sp[2] || ''}`
+      }).join(', ')
+      return `${attr}${q}${rebased}${q}`
+    },
+  )
+  // CSS url(/asset) — background images in <style> blocks or inline style="".
+  html = html.replace(
+    /url\(\s*(['"]?)\/(?!\/)([^'")]+)\1\s*\)/gi,
+    (m: string, q: string, rest: string) => (isPlatform(rest) ? m : `url(${q}${pfx}/${rest}${q})`),
+  )
   // Programmatic navigation in inline scripts: location.href = '/x',
   // window.location = '/x'. Comparisons (===) and dynamic values are untouched
   // because the value must be a root-relative string literal.

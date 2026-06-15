@@ -120,9 +120,10 @@ export async function publishSite(input: PublishInput): Promise<PublishResult> {
   // Re-publish of the same project keeps its existing slug (so the live URL is
   // stable across edits). Otherwise mint a fresh, globally-unique slug.
   let slug: string | null = null
+  let previousSlug: string | null = null
   if (projectId) {
     const existing = await col.findOne({ userId: input.userId, projectId })
-    if (existing?.slug) slug = existing.slug as string
+    if (existing?.slug) { slug = existing.slug as string; previousSlug = slug }
   }
 
   if (!slug) {
@@ -159,6 +160,13 @@ export async function publishSite(input: PublishInput): Promise<PublishResult> {
     },
     { upsert: true }
   )
+
+  // If the project's slug was renamed, remove the old-slug doc so it stops
+  // serving stale content and a later re-publish can't nondeterministically
+  // match the orphan. Scoped to this user + project for safety.
+  if (previousSlug && previousSlug !== slug) {
+    await col.deleteOne({ slug: previousSlug, userId: input.userId, projectId: projectId || null })
+  }
 
   const proto = input.proto || 'https'
   // The pretty {slug}.webstew.app subdomain needs DNS that isn't configured yet
