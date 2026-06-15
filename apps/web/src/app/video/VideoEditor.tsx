@@ -10,6 +10,7 @@ import {
   ArrowRight, Instagram, Youtube, MonitorPlay,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import VideoDirectorChat from './VideoDirectorChat'
 
 type Tab = 'create' | 'edit' | 'library'
 type AspectRatio = '16:9' | '9:16' | '1:1' | '4:5'
@@ -90,11 +91,29 @@ export default function VideoEditor() {
 
   const isDark = true // video editor is always dark
   // Only Grok accepts more than one source image; everything else is single-image.
-  const isMultiImage = !!VIDEO_MODELS.find(m => m.id === model)?.multi
+  const selectedModel = VIDEO_MODELS.find(m => m.id === model)
+  const isMultiImage = !!selectedModel?.multi
+
+  // AI Director (prompt-crafting layer in front of the generator).
+  const [directorOpen, setDirectorOpen] = useState(false)
+  // Auto-offer the director once for a vague prompt; after that, never hijack
+  // Generate again (the explicit button stays available) so the user is never trapped.
+  const autoOfferedRef = useRef(false)
+  // A prompt is "vague" if it's empty or just a few words — that's when the
+  // raw model improvises (extra hands, garbled signs). Trigger the director.
+  const isVaguePrompt = (p: string) => p.trim().split(/\s+/).filter(Boolean).length < 5
 
   const generate = async () => {
     if (generateMode === 'text' && !prompt.trim()) return
     if (generateMode === 'image' && uploadedImages.length === 0) return
+
+    // Vague text prompts produce the worst artifacts — offer the AI Director
+    // once before generating so the user gets a directed, model-tuned prompt.
+    if (generateMode === 'text' && isVaguePrompt(prompt) && !autoOfferedRef.current) {
+      autoOfferedRef.current = true
+      setDirectorOpen(true)
+      return
+    }
     setGenerating(true)
     setProgress(5)
     setProgressLabel('Sending to Seedance…')
@@ -439,6 +458,13 @@ export default function VideoEditor() {
                   rows={4}
                   className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50 resize-none"
                 />
+                <button
+                  onClick={() => setDirectorOpen(true)}
+                  className="mt-2 w-full flex items-center justify-center gap-1.5 rounded-xl border border-violet-500/40 bg-gradient-to-r from-violet-600/15 to-fuchsia-600/15 hover:from-violet-600/25 hover:to-fuchsia-600/25 text-violet-200 text-xs font-medium py-2 transition-colors"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  AI Director — help me craft this prompt
+                </button>
               </div>
 
               {/* Style presets */}
@@ -944,6 +970,22 @@ export default function VideoEditor() {
           </div>
         )}
       </div>
+
+      <VideoDirectorChat
+        open={directorOpen}
+        initialPrompt={prompt}
+        context={{
+          mode: generateMode,
+          model,
+          modelLabel: selectedModel?.label,
+          imageCount: uploadedImages.length,
+          style,
+          aspectRatio,
+          duration,
+        }}
+        onApply={(p) => setPrompt(p)}
+        onClose={() => setDirectorOpen(false)}
+      />
     </div>
   )
 }
