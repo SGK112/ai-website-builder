@@ -11,6 +11,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getStripe } from '@/lib/stripe'
 import { searchDomains, REGISTRAR_LIVE } from '@/lib/domains'
+import { RENDER_DOMAINS_LIVE } from '@/lib/render-domains'
 import clientPromise from '@/lib/mongodb'
 
 export const dynamic = 'force-dynamic'
@@ -29,10 +30,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Enter a valid domain, e.g. mycafe.com' }, { status: 400 })
   }
 
-  // NEVER take money when we can't actually register the domain. Without a live
-  // registrar (Cloudflare keys), availability is mocked and registration is a
-  // no-op — so a purchase would charge a real card for nothing. Hard-block it.
-  if (!REGISTRAR_LIVE) {
+  // NEVER take money when we can't actually deliver a WORKING domain. Two
+  // independent capabilities are required and they're configured separately:
+  //   - REGISTRAR_LIVE (Cloudflare): can register the domain + set DNS.
+  //   - RENDER_DOMAINS_LIVE (Render): can attach the domain to the serving
+  //     service so Render routes the Host to us and issues TLS.
+  // With the registrar alone we'd register + point DNS but the site would never
+  // serve (Render never forwards the Host) — i.e. charge for a dead domain.
+  // Require BOTH before selling.
+  if (!REGISTRAR_LIVE || !RENDER_DOMAINS_LIVE) {
     return NextResponse.json({
       error: "Buying domains isn't enabled yet. You can still connect a domain you already own.",
       code: 'registrar_unavailable',

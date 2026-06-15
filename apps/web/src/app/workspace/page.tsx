@@ -4386,9 +4386,10 @@ ${body}
       setSignupNudge({ show: true, reason: 'deploy-render' })
       return
     }
-    if (!html.trim()) {
+    const isAppBuild = buildTarget !== 'website' && Object.keys(vfsFiles).length > 0
+    if (!html.trim() && !isAppBuild) {
       addTerminalLine('error', 'Nothing to deploy yet — build a site first.')
-      addConsoleLog('error', 'Deploy failed: No HTML content')
+      addConsoleLog('error', 'Deploy failed: No content')
       return
     }
 
@@ -4426,13 +4427,19 @@ ${body}
 </html>`
       }
 
-      const files = pagesSnapshot.length > 0
-        ? pagesSnapshot.map(p => ({
-            path: p.isHome ? 'index.html' : `${p.slug}.html`,
-            content: wrapPage(p.html, p.isHome ? projectName : `${p.name} — ${projectName}`),
-          }))
-        : [{ path: 'index.html', content: wrapPage(html, projectName) }]
-      addTerminalLine('info', `📄 Deploying ${files.length} page${files.length === 1 ? '' : 's'}: ${files.map(f => f.path).join(', ')}`)
+      // App builds (Next/Expo/Vite/Astro) deploy their real VFS files verbatim
+      // — /api/deploy detects the framework and builds it. Static-website
+      // builds turn each non-empty page into its own .html file. Without the
+      // app branch, an app project sent only HTML pages → nothing buildable.
+      const files = isAppBuild
+        ? Object.entries(vfsFiles).map(([path, content]) => ({ path: path.replace(/^\/+/, ''), content }))
+        : pagesSnapshot.length > 0
+          ? pagesSnapshot.map(p => ({
+              path: p.isHome ? 'index.html' : `${p.slug}.html`,
+              content: wrapPage(p.html, p.isHome ? projectName : `${p.name} — ${projectName}`),
+            }))
+          : [{ path: 'index.html', content: wrapPage(html, projectName) }]
+      addTerminalLine('info', `📄 Deploying ${files.length} file${files.length === 1 ? '' : 's'}${isAppBuild ? ` (${buildTarget} app)` : ''}: ${files.slice(0, 8).map(f => f.path).join(', ')}${files.length > 8 ? '…' : ''}`)
 
       // Auto-inject analytics on deploy if the user filled in either env var.
       // Reading from the same envVars state the Integrations panel writes to —
@@ -11064,7 +11071,9 @@ npx eas build --platform all
             >
               <ExportPanel
                 projectName={currentProject?.name || 'Webstew Project'}
-                files={[]}
+                files={buildTarget !== 'website'
+                  ? Object.entries(vfsFiles).map(([path, content]) => ({ path: path.replace(/^\/+/, ''), content }))
+                  : []}
                 html={html}
                 onClose={() => setShowExportPanel(false)}
                 className="h-full"

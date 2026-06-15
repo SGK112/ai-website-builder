@@ -14,7 +14,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { connectDB } from '@/lib/db'
-import { attachDomainToSharedService, RENDER_APP_HOST } from '@/lib/render-domains'
+import { attachDomainToSharedService, RENDER_APP_HOST, RENDER_DOMAINS_LIVE } from '@/lib/render-domains'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,6 +52,17 @@ export async function POST(req: NextRequest) {
     }, { status: 400 })
   }
 
+  // Custom domains only actually serve once the domain is attached to the
+  // Render service (so Render routes the Host to us + issues TLS). Without
+  // Render creds the attach is a no-op, so a domain "connected" here would set
+  // DNS and never load. Don't promise what we can't deliver — fail honestly.
+  if (!RENDER_DOMAINS_LIVE) {
+    return NextResponse.json({
+      error: "Connecting custom domains isn't enabled on this deployment yet (serving infra not configured). Your site is live at its webstew.net address in the meantime.",
+      code: 'custom_domains_unavailable',
+    }, { status: 503 })
+  }
+
   // Ensure the domain isn't already mapped to someone else's site.
   const taken = await db.collection('published_sites').findOne({
     customDomain: { $in: [domain, `www.${domain}`] },
@@ -61,28 +72,38 @@ export async function POST(req: NextRequest) {
 
   const attach = await attachDomainToSharedService(domain)
 
+  // Only stamp the mapping (and report success) if the domain was actually
+  // attached. A failed attach previously still returned 200 + stamped the
+  // site, so the UI showed "Connected" for a domain that could never serve.
+  if (!attach.ok) {
+    return NextResponse.json({
+      error: `Couldn't attach ${domain} to the serving service${attach.message ? ` (${attach.message})` : ''}. Nothing was changed — try again, or contact support if it persists.`,
+      code: 'attach_failed',
+    }, { status: 502 })
+  }
+
   await db.collection('published_sites').updateOne(
     { _id: site._id },
     { $set: { customDomain: domain, customDomainTarget: attach.target, customDomainAttachedAt: new Date(), updatedAt: new Date() } },
   )
 
-  // DNS the user must set at their registrar (apex via CNAME-flattening/ALIAS,
-  // plus www). Render verifies + issues the cert once these resolve.
+  // DNS the user must set at their registrar. Apex: prefer an A record to
+  // Render's anycast IP (works on every registrar); CNAME @ only works where
+  // the registrar supports CNAME-flattening/ALIAS/ANAME. www is a plain CNAME.
   const dnsRecords = [
-    { type: 'CNAME', name: '@', value: RENDER_APP_HOST, note: 'or ALIAS/ANAME if your registrar lacks apex CNAME' },
+    { type: 'A', name: '@', value: '216.24.57.1', note: "Render's apex IP — use this on registrars without ALIAS/ANAME (GoDaddy, Namecheap, etc.)" },
+    { type: 'CNAME', name: '@', value: RENDER_APP_HOST, note: 'alternative to the A record IF your registrar supports apex CNAME/ALIAS/ANAME' },
     { type: 'CNAME', name: 'www', value: RENDER_APP_HOST },
   ]
 
   return NextResponse.json({
-    ok: attach.ok,
+    ok: true,
     domain,
     target: attach.target,
-    mock: attach.mock,
+    mock: false,
     attached: attach.attached,
     dnsRecords,
-    message: attach.mock
-      ? 'Domain mapped. (Render attach is in mock mode until RENDER_SERVICE_ID is set.) Add the DNS records, then it goes live once they resolve.'
-      : 'Domain attached. Add the DNS records below at your registrar — your site goes live (with HTTPS) once they resolve, usually within minutes.',
+    message: 'Domain attached. Add the DNS records below at your registrar — your site goes live (with HTTPS) once they resolve, usually within minutes.',
   })
 }
 

@@ -587,10 +587,10 @@ export function ShipPanel(props: ShipPanelProps) {
         </button>
         <button
           onClick={onOpenExport}
-          disabled={!html.trim()}
+          disabled={!html.trim() && !hasVfsFiles}
           className={cn(
             "w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left group",
-            !html.trim()
+            (!html.trim() && !hasVfsFiles)
               ? isDark ? "bg-white/[0.02] border-white/[0.05] opacity-50 cursor-not-allowed" : "bg-slate-100 border-slate-200 opacity-50 cursor-not-allowed"
               : isDark ? "bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.05]" : "bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300"
           )}
@@ -598,7 +598,7 @@ export function ShipPanel(props: ShipPanelProps) {
           <Download className={cn("w-5 h-5", isDark ? "text-zinc-400 group-hover:text-white" : "text-slate-500 group-hover:text-slate-900")} />
           <div className="flex-1">
             <div className={cn("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>Export Project</div>
-            <div className={cn("text-[10px]", isDark ? "text-zinc-600" : "text-slate-500")}>HTML, ZIP, Next.js, or Static</div>
+            <div className={cn("text-[10px]", isDark ? "text-zinc-600" : "text-slate-500")}>{hasVfsFiles && buildTarget !== 'website' ? 'Download your app source (ZIP)' : 'HTML, ZIP, Next.js, or Static'}</div>
           </div>
         </button>
         {/* Dev console — full-stack devs jump to live logs/errors */}

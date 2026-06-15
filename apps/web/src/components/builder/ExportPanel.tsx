@@ -314,8 +314,11 @@ export function ExportPanel({
           let exportFiles: Record<string, string>
 
           if (selectedFormat === 'zip') {
+            // App projects (no HTML, real source files) export their files
+            // verbatim — a runnable source tree. Only synthesize an index.html
+            // for static-HTML projects that actually have HTML.
             exportFiles = {
-              'index.html': generateHTML(),
+              ...(html.trim() ? { 'index.html': generateHTML() } : {}),
               ...Object.fromEntries(files.map(f => [f.path, f.content])),
             }
           } else if (selectedFormat === 'static') {

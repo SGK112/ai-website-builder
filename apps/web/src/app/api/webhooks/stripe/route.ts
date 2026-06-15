@@ -140,10 +140,21 @@ export async function POST(req: NextRequest) {
                 const reg = await registerDomain(domain)
                 const attach = await attachDomainToSharedService(domain)
                 const dns = await autoConfigureDns(domain, attach.target)
+                // Status reflects FULL fulfillment, not just registration: a
+                // registered domain whose Render attach/DNS didn't complete
+                // isn't actually serving yet → 'needs_attention' so it's not
+                // reported as done (and a human/retry can finish the attach).
+                const orderStatus = !reg.ok
+                  ? 'register_failed'
+                  : reg.mock
+                    ? 'registered_mock'
+                    : (attach.ok && dns.ok)
+                      ? 'registered'
+                      : 'needs_attention'
                 await db.collection('domain_orders').updateOne(
                   { stripeSessionId: sess.id },
                   { $set: {
-                      status: reg.ok ? (reg.mock ? 'registered_mock' : 'registered') : 'register_failed',
+                      status: orderStatus,
                       registrar: reg,
                       render: attach,
                       dns,
@@ -152,6 +163,34 @@ export async function POST(req: NextRequest) {
                       updatedAt: new Date(),
                   } },
                 )
+                // We charged the customer but couldn't actually register the
+                // domain → refund. Never keep money for a domain we didn't
+                // deliver. (mock mode never charges a real registrar, and
+                // checkout already hard-blocks purchases when registrar is off,
+                // so only a real-mode registration failure reaches here.)
+                if (!reg.ok && !reg.mock) {
+                  try {
+                    const stripe = await getStripe()
+                    const piId = typeof sess.payment_intent === 'string'
+                      ? sess.payment_intent
+                      : (sess.payment_intent as any)?.id
+                    if (stripe && piId) {
+                      await stripe.refunds.create({ payment_intent: piId, reason: 'requested_by_customer' })
+                      await db.collection('domain_orders').updateOne(
+                        { stripeSessionId: sess.id },
+                        { $set: { status: 'refunded', refundedAt: new Date(), refundReason: reg.message || 'registration failed', updatedAt: new Date() } },
+                      )
+                      console.log(`[domains] registration failed for ${domain} — auto-refunded the customer (${reg.message || 'no message'})`)
+                    } else {
+                      console.error(`[domains] registration failed for ${domain} but could NOT auto-refund (stripe=${!!stripe} pi=${!!piId}) — needs manual refund`)
+                    }
+                  } catch (refundErr: any) {
+                    console.error(`[domains] auto-refund failed for ${domain} — needs manual refund:`, refundErr?.message || refundErr)
+                  }
+                  // Don't attach a domain the customer no longer paid for.
+                  break
+                }
+
                 // Map the domain → the user's published site so the by-host
                 // route serves it. Prefer the project's published site; else the
                 // user's most recent one.
