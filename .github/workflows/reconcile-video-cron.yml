@@ -1,6 +1,6 @@
 name: Reconcile Video Credits
   on:
-    schedule: 
+    schedule:
       - cron: '*/15 * * * *'
     workflow_dispatch:
   jobs:
