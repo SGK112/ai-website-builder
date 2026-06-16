@@ -44,13 +44,20 @@ export async function POST(req: NextRequest) {
 
     await connectDB()
 
-    // Check if user already exists
+    // Anti-enumeration: if the email is already registered, DON'T reveal that.
+    // Email the address a login nudge (so a real owner gets help) and return the
+    // exact same generic response as a brand-new signup, so a prober can't tell
+    // registered emails from new ones.
     const existingUser = await User.findOne({ email: normalizedEmail })
     if (existingUser) {
-      return NextResponse.json(
-        { error: 'An account with this email already exists' },
-        { status: 400 }
-      )
+      const origin = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'https://www.webstew.net'
+      void sendMail({
+        to: normalizedEmail,
+        subject: 'You already have a Webstew account',
+        text: `Someone just tried to sign up for Webstew with this email, but you already have an account.\n\nLog in here: ${origin}/login\nForgot your password? Use "Forgot password" on the login page.\n\nIf this wasn't you, you can safely ignore this email.`,
+        html: `<p>Someone just tried to sign up for Webstew with this email, but you already have an account.</p><p><a href="${origin}/login">Log in</a> — or use <strong>Forgot password</strong> on the login page if you need to reset it.</p><p style="color:#888">If this wasn't you, you can safely ignore this email.</p>`,
+      }).catch((e) => console.warn('[signup] account-exists email failed:', e?.message || e))
+      return NextResponse.json({ success: true })
     }
 
     // Create new user. app:'webstew' tags this as a Webstew-side signup
@@ -93,14 +100,10 @@ export async function POST(req: NextRequest) {
       console.warn('[signup] verification setup failed (non-fatal):', e?.message || e)
     }
 
-    return NextResponse.json({
-      success: true,
-      user: {
-        id: user._id.toString(),
-        name: user.name,
-        email: user.email,
-      },
-    })
+    // Identical shape to the already-exists branch above — the client only
+    // reads res.ok (then shows "check your email"), so leaking nothing here
+    // keeps new vs existing indistinguishable.
+    return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Signup error:', error)
     return NextResponse.json(
