@@ -17,6 +17,7 @@ export interface SpendResult {
   error?: string
   charged: number          // credits actually deducted (0 if unmetered)
   remaining?: number
+  userId?: string          // resolved User._id (present when charged > 0)
   refund: () => Promise<void>
 }
 
@@ -79,9 +80,55 @@ export async function spendCredits(session: SessionLike | null, operation: Opera
     ok: true,
     charged: cost,
     remaining: (updated as any).credits,
+    userId: String(userId),
     refund: async () => {
       try { await User.findByIdAndUpdate(userId, { $inc: { credits: cost } }) }
       catch (e) { console.error('[credits] refund failed for', String(userId), e) }
     },
+  }
+}
+
+// ── Async-job credit ledger ──────────────────────────────────────────────────
+// Video generation charges on START, but the job runs async on Replicate/xAI.
+// Record the charge against the job id so that if a later status poll sees the
+// job FAILED, we can refund — exactly once, no matter how many times it's polled.
+
+export async function recordVideoCharge(jobId: string, userId: string, charged: number): Promise<void> {
+  if (!jobId || !userId || charged <= 0) return
+  try {
+    const conn = await connectDB()
+    const db = conn.connection.db
+    if (!db) return
+    // $setOnInsert so a re-record (shouldn't happen) can't reset `refunded`.
+    await db.collection('video_jobs').updateOne(
+      { _id: jobId as any },
+      { $setOnInsert: { userId, charged, refunded: false, createdAt: new Date() } },
+      { upsert: true },
+    )
+  } catch (e) {
+    console.error('[credits] recordVideoCharge failed for', jobId, e)
+  }
+}
+
+// Refund a failed job's credits, atomically claiming the refund so repeated
+// failed-polls (the client polls every few seconds) refund only once. Returns
+// true if THIS call performed the refund.
+export async function refundVideoJob(jobId: string): Promise<boolean> {
+  if (!jobId) return false
+  try {
+    const conn = await connectDB()
+    const db = conn.connection.db
+    if (!db) return false
+    const job = await db.collection('video_jobs').findOneAndUpdate(
+      { _id: jobId as any, refunded: false, charged: { $gt: 0 } },
+      { $set: { refunded: true, refundedAt: new Date() } },
+      { returnDocument: 'after' },
+    )
+    if (!job) return false // already refunded, or unknown/unmetered job
+    await User.findByIdAndUpdate(job.userId, { $inc: { credits: job.charged } })
+    return true
+  } catch (e) {
+    console.error('[credits] refundVideoJob failed for', jobId, e)
+    return false
   }
 }

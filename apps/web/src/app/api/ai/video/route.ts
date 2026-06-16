@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
-import { spendCredits } from '@/lib/credits'
+import { spendCredits, recordVideoCharge, refundVideoJob } from '@/lib/credits'
 
 // Caps on user-supplied text/array inputs forwarded to PAID APIs — keeps a
 // malicious client from inflating token/transfer cost or smuggling huge payloads.
@@ -208,8 +208,18 @@ export async function POST(request: NextRequest) {
       )
     }
     try {
-      return await start()
+      const res = await start()
+      // Record the charge against the returned job id so a later FAILED poll
+      // can refund it (the job runs async; success/failure isn't known yet).
+      if (spend.charged > 0 && spend.userId && res.status >= 200 && res.status < 300) {
+        try {
+          const data = await res.clone().json()
+          if (data?.id) await recordVideoCharge(String(data.id), spend.userId, spend.charged)
+        } catch { /* non-fatal: worst case the failed-job refund just won't fire */ }
+      }
+      return res
     } catch (e) {
+      // Failed to even start → refund immediately (no async job to track).
       await spend.refund()
       throw e
     }
@@ -374,6 +384,9 @@ async function pollOnce(predictionId: string) {
   })
   if (!res.ok) throw new Error('Failed to check prediction status')
   const p = await res.json()
+  // The job failed → refund the credits charged at start (idempotent; await so
+  // the refund commits before this serverless invocation returns).
+  if (p.status === 'failed' || p.status === 'canceled') await refundVideoJob(predictionId)
   // Normalize output — Replicate returns an array for most video models
   const output = Array.isArray(p.output) ? p.output[0] : p.output
   return NextResponse.json({
@@ -434,6 +447,8 @@ async function pollXai(prefixedId: string) {
   const status = raw === 'done' ? 'succeeded'
     : (raw === 'failed' || raw === 'error') ? 'failed'
     : 'processing'   // pending / processing / unknown → keep polling
+  // Failed → refund the credits charged at start (idempotent).
+  if (status === 'failed') await refundVideoJob(prefixedId)
   return NextResponse.json({
     id: prefixedId,                              // keep prefix → next poll still hits xAI
     status,
