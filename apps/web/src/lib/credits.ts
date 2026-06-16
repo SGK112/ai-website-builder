@@ -110,6 +110,23 @@ export async function recordVideoCharge(jobId: string, userId: string, charged: 
   }
 }
 
+// Mark a job terminal-but-not-refunded (i.e. it succeeded) so the reconciliation
+// cron stops re-checking it. Refunded jobs are already excluded via `refunded`.
+export async function markVideoJobResolved(jobId: string): Promise<void> {
+  if (!jobId) return
+  try {
+    const conn = await connectDB()
+    const db = conn.connection.db
+    if (!db) return
+    await db.collection('video_jobs').updateOne(
+      { _id: jobId as any },
+      { $set: { resolved: true, resolvedAt: new Date() } },
+    )
+  } catch (e) {
+    console.error('[credits] markVideoJobResolved failed for', jobId, e)
+  }
+}
+
 // Refund a failed job's credits, atomically claiming the refund so repeated
 // failed-polls (the client polls every few seconds) refund only once. Returns
 // true if THIS call performed the refund.
