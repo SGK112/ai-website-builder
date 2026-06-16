@@ -349,6 +349,12 @@ function buildImageToVideoInput(body: VideoRequest, model: typeof MODELS[ModelKe
 
 // ── Replicate helpers ────────────────────────────────────────────────────────
 
+// Public base for the failure webhook. Replicate requires a reachable https URL
+// (localhost won't be called back — dev just relies on client polling).
+function publicBase(): string {
+  return (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'https://www.webstew.net').replace(/\/$/, '')
+}
+
 async function startPrediction(input: Record<string, unknown>, model: typeof MODELS[ModelKey]) {
   const isOfficial = model.isOfficial
   const modelId = model.id
@@ -357,9 +363,18 @@ async function startPrediction(input: Record<string, unknown>, model: typeof MOD
     ? `https://api.replicate.com/v1/models/${modelId}/predictions`
     : 'https://api.replicate.com/v1/predictions'
 
+  // Ask Replicate to call us on terminal states so a job that FAILS while the
+  // user isn't polling (closed tab) still gets its credits refunded. The handler
+  // verifies the signature and is idempotent with the poll-based refund.
+  const base = publicBase()
+  const webhook = base.startsWith('https://') ? {
+    webhook: `${base}/api/webhooks/replicate`,
+    webhook_events_filter: ['completed'],
+  } : {}
+
   const body = isOfficial
-    ? { input }
-    : { version: modelId.split(':')[1], input }
+    ? { input, ...webhook }
+    : { version: modelId.split(':')[1], input, ...webhook }
 
   const res = await fetch(url, {
     method: 'POST',
