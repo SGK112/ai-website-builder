@@ -25,6 +25,20 @@ import { connectDB } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
+// Ensure the (buyerId, listingId) uniqueness guard once per process. If legacy
+// duplicate rows exist from before this guard, createIndex will fail — logged,
+// not fatal (the compensating refund below still protects the buyer).
+let purchaseIndexEnsured = false
+async function ensurePurchaseIndex(db: any) {
+  if (purchaseIndexEnsured) return
+  purchaseIndexEnsured = true
+  try {
+    await db.collection('marketplace_purchases').createIndex({ buyerId: 1, listingId: 1 }, { unique: true })
+  } catch (e: any) {
+    console.error('[buy] could not create unique purchase index (dedupe legacy rows?):', e?.message || e)
+  }
+}
+
 export async function POST(req: NextRequest, { params }: { params: { postId: string } }) {
   const blocked = await guardAnonAbuse(req, { rateLimit: 'marketplaceBuy' })
   if (blocked) return blocked
@@ -119,34 +133,70 @@ export async function POST(req: NextRequest, { params }: { params: { postId: str
     )
   }
 
-  // Credit seller's earnings tally. Same userDb — sellers are users too.
-  if (listing.author?.id && ObjectId.isValid(listing.author.id)) {
-    await userDb.collection('users').updateOne(
-      { _id: new ObjectId(listing.author.id) },
-      {
-        $inc: { marketplace_earnings_credits: price },
-        $set: { updatedAt: new Date() },
-      }
-    )
+  // The buyer is now debited. The seller-credit and entitlement writes that
+  // follow are NOT in the same atomic unit (they span two clients/DBs), so any
+  // failure here must COMPENSATE — re-credit the buyer (and reverse the seller
+  // credit if it landed) — otherwise the buyer pays for nothing.
+  const sellerValid = listing.author?.id && ObjectId.isValid(listing.author.id)
+  const sellerObjId = sellerValid ? new ObjectId(listing.author.id) : null
+  const refundBuyer = async () => {
+    try { await userDb.collection('users').updateOne({ _id: buyerId }, { $inc: { credits: price }, $set: { updatedAt: new Date() } }) }
+    catch (e) { console.error('[buy] CRITICAL: buyer refund failed for', String(buyerId), e) }
+  }
+  const reverseSeller = async () => {
+    if (!sellerObjId) return
+    try {
+      await userDb.collection('users').updateOne(
+        { _id: sellerObjId },
+        [{ $set: { marketplace_earnings_credits: { $max: [{ $subtract: [{ $ifNull: ['$marketplace_earnings_credits', 0] }, price] }, 0] } } }],
+      )
+    } catch (e) { console.error('[buy] seller-credit reversal failed for', String(sellerObjId), e) }
   }
 
-  // Record the purchase row (used for "Library" / "Owned listings" and as
-  // the entitlement check for future re-downloads).
-  await db.collection('marketplace_purchases').insertOne({
-    buyerId: String(buyerId),
-    sellerId: String(listing.author?.id || ''),
-    listingId: String(postId),
-    listingTitle: listing.title,
-    listingType: listing.type,
-    priceCredits: price,
-    purchasedAt: new Date(),
-  })
+  await ensurePurchaseIndex(db)
 
-  // Bump listing downloads counter for the seller's analytics later.
-  await db.collection('community_posts').updateOne(
-    { _id: postId },
-    { $inc: { downloads: 1 }, $set: { updatedAt: new Date() } }
-  )
+  let sellerCredited = false
+  try {
+    if (sellerObjId) {
+      await userDb.collection('users').updateOne(
+        { _id: sellerObjId },
+        { $inc: { marketplace_earnings_credits: price }, $set: { updatedAt: new Date() } },
+      )
+      sellerCredited = true
+    }
+    // Entitlement row. Unique index makes a concurrent double-buy throw E11000
+    // here instead of double-charging — we refund this request's debit.
+    await db.collection('marketplace_purchases').insertOne({
+      buyerId: String(buyerId),
+      sellerId: String(listing.author?.id || ''),
+      listingId: String(postId),
+      listingTitle: listing.title,
+      listingType: listing.type,
+      priceCredits: price,
+      purchasedAt: new Date(),
+    })
+  } catch (e: any) {
+    await refundBuyer()
+    if (sellerCredited) await reverseSeller()
+    if (e?.code === 11000) {
+      // Another concurrent request already recorded this purchase — the buyer
+      // wasn't meant to pay twice, so the refund above makes them whole.
+      return NextResponse.json({ ok: true, alreadyOwned: true, html: listing.html || '', message: 'You already own this listing.' })
+    }
+    console.error('[buy] post-debit write failed — refunded buyer:', e?.message || e)
+    return NextResponse.json({ error: 'Purchase could not be completed. Your credits were not charged.' }, { status: 500 })
+  }
+
+  // Purchase is committed. Downloads bump is cosmetic — best-effort only, never
+  // worth refunding a completed purchase over.
+  try {
+    await db.collection('community_posts').updateOne(
+      { _id: postId },
+      { $inc: { downloads: 1 }, $set: { updatedAt: new Date() } },
+    )
+  } catch (e: any) {
+    console.warn('[buy] downloads bump failed (non-fatal):', e?.message || e)
+  }
 
   return NextResponse.json({
     ok: true,

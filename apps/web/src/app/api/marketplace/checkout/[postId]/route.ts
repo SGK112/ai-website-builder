@@ -95,6 +95,19 @@ export async function POST(req: NextRequest, { params }: { params: { postId: str
   const applicationFeeCents = Math.floor((amountCents * PLATFORM_FEE_BPS) / 10000)
 
   try {
+    // Single-payable-session guard: a double-submit (double-click, back+resubmit)
+    // could otherwise create two open Checkout Sessions and the buyer could
+    // complete BOTH — charged twice, only one entitlement, no auto-refund. Expire
+    // any prior open session for this (buyer, listing) so only the newest is
+    // payable. (Residual: an exact-concurrent race can still create two; the
+    // `owned` check + webhook idempotency cover the rest.)
+    const prev = await db
+      .collection('marketplace_checkout_sessions')
+      .findOne({ buyerId: String(buyerId), listingId: String(postId) })
+    if (prev?.sessionId) {
+      await stripe.checkout.sessions.expire(prev.sessionId).catch(() => {})
+    }
+
     const checkout = await stripe.checkout.sessions.create({
       mode: 'payment',
       line_items: [
@@ -137,6 +150,13 @@ export async function POST(req: NextRequest, { params }: { params: { postId: str
       success_url: `${SITE_URL}/library?purchase=success&listingId=${postId}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url:  `${SITE_URL}/listings/${postId}?canceled=1`,
     })
+
+    // Remember the open session so the next attempt can expire it.
+    await db.collection('marketplace_checkout_sessions').updateOne(
+      { buyerId: String(buyerId), listingId: String(postId) },
+      { $set: { sessionId: checkout.id, createdAt: new Date() } },
+      { upsert: true },
+    )
 
     return NextResponse.json({ url: checkout.url, sessionId: checkout.id })
   } catch (e: any) {
