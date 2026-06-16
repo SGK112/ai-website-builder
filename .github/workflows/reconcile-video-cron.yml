@@ -1,0 +1,17 @@
+name: Reconcile Video Credits
+  on:
+    schedule: 
+      - cron: '*/15 * * * *'
+    workflow_dispatch:
+  jobs:
+    reconcile:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Call reconcile endpoint
+          env:
+            CRON_SECRET: ${{ secrets.CRON_SECRET }}
+            APP_URL: ${{ secrets.APP_URL || 'https://www.webstew.net' }}
+          run: |
+            RESPONSE=$(curl -s -w "\n%{http_code}" -X GET "$APP_URL/api/cron/reconcile-video" -H "Authorization: Bearer $CRON_SECRET")
+            CODE=$(echo "$RESPONSE" | tail -n1); echo "$RESPONSE"
+            [ "$CODE" -eq 200 ] || { echo "failed: $CODE"; exit 1; }
