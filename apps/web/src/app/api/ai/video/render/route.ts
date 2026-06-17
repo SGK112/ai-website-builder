@@ -17,9 +17,11 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 import { connectDB } from '@/lib/db'
+import { trackById, MUSIC_PUBLIC_SUBDIR } from '@/lib/studio-music'
 import ffmpegPath from 'ffmpeg-static'
 import { spawn } from 'node:child_process'
 import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import crypto from 'node:crypto'
@@ -49,6 +51,7 @@ interface RenderRequest {
   script?: string
   voice?: string
   musicUrl?: string | null
+  musicTrackId?: string | null
   musicVolume?: number
   aspectRatio?: string
   title?: string
@@ -146,7 +149,17 @@ async function stitch(body: RenderRequest, clipUrls: string[], W: number, H: num
     let voicePath = ''
     if (body.script?.trim()) { voicePath = join(dir, 'voice.mp3'); await makeVoice(body.script.trim(), body.voice || 'onyx', voicePath) }
     let musicPath = ''
-    if (body.musicUrl) { musicPath = join(dir, 'music.mp3'); await downloadTo(body.musicUrl, musicPath) }
+    if (body.musicTrackId) {
+      // Bundled library track — read straight from /public/music on disk. No
+      // download, no SSRF surface.
+      const track = trackById(body.musicTrackId)
+      if (!track) throw new Error(`Unknown music track: ${body.musicTrackId}`)
+      const onDisk = join(process.cwd(), 'public', MUSIC_PUBLIC_SUBDIR, track.file)
+      if (!existsSync(onDisk)) throw new Error(`Music track "${track.title}" isn't installed on the server yet.`)
+      musicPath = onDisk
+    } else if (body.musicUrl) {
+      musicPath = join(dir, 'music.mp3'); await downloadTo(body.musicUrl, musicPath)
+    }
 
     // 3. Build ffmpeg args (validated recipe)
     const args: string[] = []

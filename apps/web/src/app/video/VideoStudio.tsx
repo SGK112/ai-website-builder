@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Clapperboard, Sparkles, Loader2, X, ArrowLeft, ArrowRight, Plus,
   Film, Download, Link2, Wand2, ImageIcon, AlertCircle, Volume2, PenLine, Play, Music,
-  Bookmark, BookmarkCheck, Trash2,
+  Bookmark, BookmarkCheck, Trash2, Pause,
 } from 'lucide-react'
 import VideoDirectorChat from './VideoDirectorChat'
+import { STUDIO_MUSIC, trackById, trackPublicUrl } from '@/lib/studio-music'
 
 // One unified workspace (YouTube-Studio style): generate clips on the left, see
 // them in the preview, line them up on the timeline at the bottom, add a
@@ -64,6 +65,13 @@ export default function VideoStudio() {
   const [musicUrl, setMusicUrl] = useState<string | null>(null)
   const [musicName, setMusicName] = useState<string>('')
   const [musicVolume, setMusicVolume] = useState(0.3)
+  const [musicTrackId, setMusicTrackId] = useState<string | null>(null) // bundled library track
+  const [showMusicPicker, setShowMusicPicker] = useState(false)
+  const [previewingTrack, setPreviewingTrack] = useState<string | null>(null)
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null)
+  const hasMusic = !!(musicUrl || musicTrackId)
+  // Stop any music preview if the studio unmounts.
+  useEffect(() => () => { previewAudioRef.current?.pause(); previewAudioRef.current = null }, [])
   const [uploadingMusic, setUploadingMusic] = useState(false)
   const musicInputRef = useRef<HTMLInputElement>(null)
 
@@ -197,11 +205,41 @@ export default function VideoStudio() {
       const res = await fetch('/api/upload', { method: 'POST', body: fd })
       const json = await res.json().catch(() => ({} as any))
       if (!res.ok || !json.url) throw new Error(json.error || `Music upload failed (${res.status})`)
-      setMusicUrl(json.url); setMusicName(file.name)
+      setMusicUrl(json.url); setMusicName(file.name); setMusicTrackId(null)
     } catch (e: any) { setError(e?.message || 'Music upload failed') } finally {
       setUploadingMusic(false)
       if (musicInputRef.current) musicInputRef.current.value = ''
     }
+  }
+
+  function stopPreview() {
+    previewAudioRef.current?.pause()
+    previewAudioRef.current = null
+    setPreviewingTrack(null)
+  }
+  // Play a 1-track preview from the bundled library (toggles off if same track).
+  function togglePreview(trackId: string) {
+    if (previewingTrack === trackId) { stopPreview(); return }
+    stopPreview()
+    const t = trackById(trackId)
+    if (!t) return
+    const a = new Audio(trackPublicUrl(t))
+    a.volume = 0.7
+    a.onended = () => setPreviewingTrack(null)
+    a.onerror = () => { setPreviewingTrack(null); setError(`Preview unavailable for "${t.title}" — the track file isn't installed yet.`) }
+    a.play().catch(() => {})
+    previewAudioRef.current = a
+    setPreviewingTrack(trackId)
+  }
+  function selectTrack(trackId: string) {
+    const t = trackById(trackId)
+    if (!t) return
+    stopPreview()
+    setMusicTrackId(t.id); setMusicName(t.title); setMusicUrl(null); setShowMusicPicker(false)
+  }
+  function clearMusic() {
+    stopPreview()
+    setMusicUrl(null); setMusicTrackId(null); setMusicName('')
   }
 
   async function writeScript() {
@@ -234,6 +272,7 @@ export default function VideoStudio() {
           script: script.trim() || undefined,
           voice,
           musicUrl: musicUrl || undefined,
+          musicTrackId: musicTrackId || undefined,
           musicVolume,
           aspectRatio,
           title: prompt.trim() || script.trim().slice(0, 80) || 'Untitled film',
@@ -541,18 +580,23 @@ export default function VideoStudio() {
         {/* MUSIC track */}
         <div className="flex items-center gap-3">
           <span className="w-16 shrink-0 text-[11px] font-semibold text-fuchsia-300 flex items-center gap-1"><Music className="w-3.5 h-3.5" /> Music</span>
-          {musicUrl ? (
+          {hasMusic ? (
             <>
-              <span className="text-xs text-zinc-300 truncate max-w-[200px]">{musicName || 'music track'}</span>
-              <button onClick={() => { setMusicUrl(null); setMusicName('') }} className="text-zinc-500 hover:text-red-300"><X className="w-3.5 h-3.5" /></button>
+              <span className="text-xs text-zinc-300 truncate max-w-[200px] flex items-center gap-1">{musicTrackId && <Music className="w-3 h-3 text-fuchsia-300/70" />}{musicName || 'music track'}</span>
+              <button onClick={clearMusic} title="Remove music" className="text-zinc-500 hover:text-red-300"><X className="w-3.5 h-3.5" /></button>
               <span className="text-[10px] text-zinc-500 ml-2">Volume</span>
               <input type="range" min={0} max={1} step={0.05} value={musicVolume} onChange={e => setMusicVolume(Number(e.target.value))} className="w-28 accent-fuchsia-500" />
               <span className="text-[10px] text-zinc-500 w-8">{Math.round(musicVolume * 100)}%</span>
             </>
           ) : (
-            <button onClick={() => musicInputRef.current?.click()} disabled={uploadingMusic} className="flex items-center gap-1 rounded-lg border border-white/10 hover:border-fuchsia-500/50 text-zinc-300 text-xs px-2.5 py-1.5 disabled:opacity-40">
-              {uploadingMusic ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />} Add a soundtrack
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setShowMusicPicker(true)} className="flex items-center gap-1 rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 text-fuchsia-200 text-xs px-2.5 py-1.5">
+                <Music className="w-3.5 h-3.5" /> Browse music
+              </button>
+              <button onClick={() => musicInputRef.current?.click()} disabled={uploadingMusic} className="flex items-center gap-1 rounded-lg border border-white/10 hover:border-fuchsia-500/50 text-zinc-300 text-xs px-2.5 py-1.5 disabled:opacity-40">
+                {uploadingMusic ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />} Upload
+              </button>
+            </div>
           )}
           <input ref={musicInputRef} type="file" accept="audio/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadMusic(f) }} />
           <button onClick={stitchAndExport} disabled={busy || doneClips.length < 1}
@@ -598,6 +642,41 @@ export default function VideoStudio() {
               ))}
             </div>
             <div className="px-4 py-2.5 border-t border-white/10 text-[10px] text-zinc-600">Saved creations are private to your account.</div>
+          </div>
+        </div>
+      )}
+
+      {/* Music picker — built-in royalty-free library, grouped by mood. */}
+      {showMusicPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Choose music">
+          <div className="absolute inset-0 bg-black/60" onClick={() => { stopPreview(); setShowMusicPicker(false) }} />
+          <div className="relative w-full max-w-lg max-h-[80vh] flex flex-col rounded-2xl bg-zinc-950 border border-white/10 shadow-2xl">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+              <div className="flex items-center gap-2 text-sm font-semibold text-white"><Music className="w-4 h-4 text-fuchsia-300" /> Choose a soundtrack</div>
+              <button onClick={() => { stopPreview(); setShowMusicPicker(false) }} className="p-1 text-zinc-500 hover:text-white"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="overflow-y-auto p-3 space-y-4">
+              {Array.from(new Set(STUDIO_MUSIC.map(t => t.mood))).map(mood => (
+                <div key={mood}>
+                  <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1.5 px-1">{mood}</div>
+                  <div className="space-y-1">
+                    {STUDIO_MUSIC.filter(t => t.mood === mood).map(t => (
+                      <div key={t.id} className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] px-2.5 py-2">
+                        <button onClick={() => togglePreview(t.id)} title={previewingTrack === t.id ? 'Stop preview' : 'Preview'} className="w-7 h-7 shrink-0 rounded-full bg-fuchsia-500/15 hover:bg-fuchsia-500/30 text-fuchsia-200 flex items-center justify-center">
+                          {previewingTrack === t.id ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
+                        </button>
+                        <span className="flex-1 text-sm text-zinc-200 truncate">{t.title}</span>
+                        <button onClick={() => selectTrack(t.id)} className="shrink-0 rounded-lg bg-white/5 hover:bg-fuchsia-500/20 text-zinc-200 text-xs px-2.5 py-1.5">Use</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="px-4 py-2.5 border-t border-white/10 flex items-center justify-between gap-2">
+              <span className="text-[10px] text-zinc-600">Royalty-free · clear for commercial use</span>
+              <button onClick={() => { stopPreview(); setShowMusicPicker(false); musicInputRef.current?.click() }} className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-1"><Plus className="w-3 h-3" /> Upload your own</button>
+            </div>
           </div>
         </div>
       )}
