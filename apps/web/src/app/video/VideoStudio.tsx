@@ -15,7 +15,7 @@ import VideoDirectorChat from './VideoDirectorChat'
 
 type Mode = 'text' | 'image'
 type ClipStatus = 'generating' | 'done' | 'error'
-interface Clip { id: string; prompt: string; status: ClipStatus; url?: string; error?: string }
+interface Clip { id: string; prompt: string; status: ClipStatus; url?: string; error?: string; note?: string }
 
 const VIDEO_MODELS = [
   { id: 'seedance', label: 'Seedance', hint: 'Fast · Best', multi: false, maxImages: 1 },
@@ -123,14 +123,24 @@ export default function VideoStudio() {
       const data = await res.json().catch(() => ({} as any))
       if (!res.ok || !data.id) throw new Error(data.error || `Couldn't start generation (HTTP ${res.status}).`)
       setGenLabel('Rendering your clip…')
+      const startedAt = Date.now()
       for (let i = 0; i < 80; i++) {
         await new Promise(r => setTimeout(r, 3000))
-        const poll = await fetch(`/api/ai/video?id=${data.id}`)
+        const poll = await fetch(`/api/ai/video?id=${encodeURIComponent(data.id)}`)
         const pd = await poll.json().catch(() => ({} as any))
-        if (pd.status === 'succeeded' && pd.videoUrl) { patch(id, { status: 'done', url: pd.videoUrl }); setGenerating(false); return }
+        if (pd.status === 'succeeded' && pd.videoUrl) { patch(id, { status: 'done', url: pd.videoUrl, note: undefined }); setGenerating(false); return }
         if (pd.status === 'failed') throw new Error(pd.error || 'Generation failed')
+        // Surface live progress + a nudge if it's dragging (so a slow provider
+        // isn't a mystery spinner).
+        const elapsed = Math.round((Date.now() - startedAt) / 1000)
+        const pct = typeof pd.logs === 'string' && pd.logs.includes('%') ? pd.logs : ''
+        const slow = elapsed > 45 ? (model === 'grok' ? ' · Grok/xAI is slow right now — Seedance is faster' : ' · taking longer than usual') : ''
+        patch(id, { note: `${pct || 'rendering'} · ${elapsed}s${slow}` })
+        setGenLabel(`Rendering… ${pct || elapsed + 's'}`)
       }
-      throw new Error('Timed out waiting for the clip')
+      throw new Error(model === 'grok'
+        ? 'Grok/xAI didn\'t finish in 4 min — their video service is likely busy. Try Seedance (fast & reliable).'
+        : 'Timed out after 4 min waiting for the clip. Try again or a different model.')
     } catch (e: any) {
       patch(id, { status: 'error', error: e?.message || 'Generation failed' })
       setError(e?.message || 'Generation failed')
@@ -310,8 +320,10 @@ export default function VideoStudio() {
                 {c.status === 'done' && c.url ? (
                   <video src={c.url} muted className="w-full h-16 object-cover bg-black" />
                 ) : (
-                  <div className="w-full h-16 flex items-center justify-center bg-zinc-900 text-[10px] text-zinc-500">
-                    {c.status === 'generating' ? <Loader2 className="w-4 h-4 animate-spin text-violet-400" /> : <span className="text-red-400 px-1 text-center">failed</span>}
+                  <div className="w-full h-16 flex flex-col items-center justify-center gap-1 bg-zinc-900 text-[9px] text-zinc-400 px-1 text-center">
+                    {c.status === 'generating'
+                      ? <><Loader2 className="w-3.5 h-3.5 animate-spin text-violet-400" /><span className="leading-tight">{c.note || 'starting…'}</span></>
+                      : <span className="text-red-400 leading-tight" title={c.error}>{c.error?.slice(0, 60) || 'failed'}</span>}
                   </div>
                 )}
                 <div className="flex items-center justify-between px-1 py-0.5 bg-black/50">
