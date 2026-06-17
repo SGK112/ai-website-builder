@@ -13,7 +13,7 @@
 //   scale→pad→setsar→fps per input, then concat=n:v=1:a=0.
 
 import { FFmpeg } from '@ffmpeg/ffmpeg'
-import { fetchFile, toBlobURL } from '@ffmpeg/util'
+import { fetchFile } from '@ffmpeg/util'
 
 // Self-hosted single-threaded @ffmpeg/core@0.12.10 (js + wasm) under /public.
 // Same-origin → no CORS (the old unpkg @ffmpeg/core-st@0.12.6 URL 404'd, which
@@ -42,15 +42,19 @@ async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> {
     if (onLog) ff.on('log', ({ message }) => onLog(message))
     // toBlobURL turns the cross-origin core into same-origin blobs so the
     // browser will run it; st-core has no worker file.
-    // classWorkerURL is REQUIRED under Next.js: the FFmpeg class otherwise does
-    // `new Worker(new URL('./worker.js', import.meta.url), {type:'module'})`,
-    // which Next's bundler doesn't resolve — so load() hangs forever with no
-    // error. Point it at the self-hosted, self-contained UMD worker. All three
-    // files are same-origin (/public/ffmpeg) → no CORS.
+    // Load all three from same-origin PATHS, NOT blob: URLs. Two reasons:
+    //  1. classWorkerURL is required under Next.js — otherwise the class does
+    //     `new Worker(new URL('./worker.js', import.meta.url), {type:'module'})`
+    //     which the bundler can't resolve, and load() hangs with no error.
+    //  2. The class worker is a MODULE worker that loads the core via
+    //     `await import(coreURL)`. If the worker itself was loaded from a blob:
+    //     URL, importing ANOTHER blob: URL fails with "Cannot find module
+    //     blob:…". Plain same-origin paths resolve cleanly against the worker's
+    //     origin and have no CORS issue (the files live in /public/ffmpeg).
     await ff.load({
-      classWorkerURL: await toBlobURL(`${CORE_BASE}/ffmpeg-class-worker.js`, 'text/javascript'),
-      coreURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.wasm`, 'application/wasm'),
+      classWorkerURL: `${CORE_BASE}/ffmpeg-class-worker.js`,
+      coreURL: `${CORE_BASE}/ffmpeg-core.js`,
+      wasmURL: `${CORE_BASE}/ffmpeg-core.wasm`,
     })
     _ffmpeg = ff
     return ff
