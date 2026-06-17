@@ -123,9 +123,10 @@ export async function POST(request: NextRequest) {
     }
     // Total video length = the hard cap for the output (-t). This anchors the
     // render to the VIDEO so looped music / padded voice can't run away.
-    let total = 0
-    for (const p of clipPaths) total += await probeDuration(p)
-    if (!(total > 0)) total = clipPaths.length * 8 // fallback if probe failed
+    const durs: number[] = []
+    for (const p of clipPaths) durs.push(await probeDuration(p))
+    // Fall back to a nominal length for any clip we couldn't probe.
+    for (let i = 0; i < durs.length; i++) if (!(durs[i] > 0)) durs[i] = 8
     // 2. Optional voice + music
     let voicePath = ''
     if (body.script?.trim()) { voicePath = join(dir, 'voice.mp3'); await makeVoice(body.script.trim(), body.voice || 'onyx', voicePath) }
@@ -139,14 +140,43 @@ export async function POST(request: NextRequest) {
     if (voicePath) { args.push('-i', voicePath); voiceIdx = clipPaths.length }
     if (musicPath) { args.push('-i', musicPath); musicIdx = clipPaths.length + (voiceIdx >= 0 ? 1 : 0) }
 
+    const n = clipPaths.length
+    const XFADE = 0.4 // crossfade duration between clips (seconds)
+    // Crossfade only when there are ≥2 clips and each is comfortably longer than
+    // the fade (otherwise xfade offsets go negative). Else a plain hard-cut concat.
+    const canXfade = n >= 2 && durs.every(d => d > XFADE + 0.2)
     const norm = `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=24`
-    const parts = [
-      `${clipPaths.map((_, i) => `[${i}:v]${norm}[v${i}]`).join(';')};${clipPaths.map((_, i) => `[v${i}]`).join('')}concat=n=${clipPaths.length}:v=1:a=0[outv]`,
-    ]
+
+    const parts: string[] = [clipPaths.map((_, i) => `[${i}:v]${norm}[v${i}]`).join(';')]
     const aLabels: string[] = []
-    if (body.clipsHaveAudio) {
-      parts.push(`${clipPaths.map((_, i) => `[${i}:a]`).join('')}concat=n=${clipPaths.length}:v=0:a=1[sa]`)
-      aLabels.push('[sa]')
+    let outDur = durs.reduce((a, b) => a + b, 0)
+
+    if (canXfade) {
+      // VIDEO: chain xfade across clips. offset = running output length − fade.
+      let prevV = '[v0]', acc = durs[0]
+      for (let i = 1; i < n; i++) {
+        const label = i === n - 1 ? '[outv]' : `[vx${i}]`
+        parts.push(`${prevV}[v${i}]xfade=transition=fade:duration=${XFADE}:offset=${(acc - XFADE).toFixed(3)}${label}`)
+        prevV = label
+        acc = acc + durs[i] - XFADE
+      }
+      outDur = acc // each crossfade overlaps clips by XFADE, shrinking total
+      // SCENE AUDIO: matching acrossfade chain so it stays aligned with the video.
+      if (body.clipsHaveAudio) {
+        let prevA = '[0:a]'
+        for (let i = 1; i < n; i++) {
+          const label = i === n - 1 ? '[sa]' : `[ax${i}]`
+          parts.push(`${prevA}[${i}:a]acrossfade=d=${XFADE}${label}`)
+          prevA = label
+        }
+        aLabels.push('[sa]')
+      }
+    } else {
+      parts.push(`${clipPaths.map((_, i) => `[v${i}]`).join('')}concat=n=${n}:v=1:a=0[outv]`)
+      if (body.clipsHaveAudio) {
+        parts.push(`${clipPaths.map((_, i) => `[${i}:a]`).join('')}concat=n=${n}:v=0:a=1[sa]`)
+        aLabels.push('[sa]')
+      }
     }
     if (musicIdx >= 0) {
       const vol = Math.max(0, Math.min(1, body.musicVolume ?? 0.3))
@@ -165,9 +195,9 @@ export async function POST(request: NextRequest) {
     const out = join(dir, 'out.mp4')
     args.push('-filter_complex', parts.join(';'), ...mapArgs)
     if (aLabels.length) args.push('-c:a', 'aac')
-    // Hard duration cap = the video length. This is what keeps looped music /
-    // padded voice from encoding forever (the -shortest approach ran away).
-    args.push('-t', total.toFixed(3))
+    // Hard duration cap = the (crossfade-adjusted) video length. Keeps looped
+    // music / padded voice from encoding forever (the -shortest approach ran away).
+    args.push('-t', outDur.toFixed(3))
     args.push('-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-y', out)
 
     // 4. Render + upload
