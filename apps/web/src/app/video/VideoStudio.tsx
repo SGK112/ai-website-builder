@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Clapperboard, Sparkles, Loader2, X, ArrowLeft, ArrowRight, Plus,
   Film, Download, Link2, Wand2, ImageIcon, AlertCircle, Volume2, PenLine, Play, Music,
+  Bookmark, BookmarkCheck, Trash2,
 } from 'lucide-react'
 import VideoDirectorChat from './VideoDirectorChat'
 
@@ -25,6 +26,14 @@ const VIDEO_MODELS = [
 const ASPECTS = ['16:9', '9:16', '1:1', '4:5']
 const STYLES = ['Cinematic', 'Realistic', 'Anime', '3D Render', 'Documentary', 'Slow Motion']
 const TTS_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
+
+// Cross-origin Cloudinary URLs ignore the <a download> attribute (they just
+// open). fl_attachment forces a real download via Content-Disposition.
+function toDownloadUrl(url: string): string {
+  return url.includes('/video/upload/') ? url.replace('/video/upload/', '/video/upload/fl_attachment/') : url
+}
+
+interface Creation { id: string; kind: 'clip' | 'video'; url: string; title: string }
 
 export default function VideoStudio() {
   // Create controls
@@ -57,6 +66,11 @@ export default function VideoStudio() {
   const [musicVolume, setMusicVolume] = useState(0.3)
   const [uploadingMusic, setUploadingMusic] = useState(false)
   const musicInputRef = useRef<HTMLInputElement>(null)
+
+  // Saved Creations (per-user library of clips + finished videos)
+  const [creations, setCreations] = useState<Creation[]>([])
+  const [showSaved, setShowSaved] = useState(false)
+  const [savingIds, setSavingIds] = useState<Record<string, boolean>>({})
 
   // Stitch / export
   const [stitching, setStitching] = useState(false)
@@ -254,6 +268,77 @@ export default function VideoStudio() {
     ;[next[i], next[j]] = [next[j], next[i]]; return next
   })
 
+  // ── Saved Creations ──────────────────────────────────────────────────────
+  // Load the user's saved library on mount. 401 (signed out) is silent.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/ai/video/creations')
+        if (!res.ok) return
+        const data = await res.json().catch(() => ({} as any))
+        if (!cancelled && Array.isArray(data.creations)) setCreations(data.creations)
+      } catch { /* offline / not signed in — non-fatal */ }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  const isSaved = (url: string) => creations.some(c => c.url === url)
+
+  async function saveCreation(kind: 'clip' | 'video', url: string, title: string) {
+    if (!url || isSaved(url)) return
+    setSavingIds(prev => ({ ...prev, [url]: true }))
+    try {
+      const res = await fetch('/api/ai/video/creations', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind, url, title }),
+      })
+      const data = await res.json().catch(() => ({} as any))
+      if (!res.ok) throw new Error(data.error || 'Could not save.')
+      // Server returns the saved row (or {already:true} on dedupe). Either way,
+      // reflect it in the library if it isn't already there.
+      if (data.id && !isSaved(url)) {
+        setCreations(prev => [{ id: String(data.id), kind, url, title }, ...prev])
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Could not save to your creations.')
+    } finally {
+      setSavingIds(prev => { const n = { ...prev }; delete n[url]; return n })
+    }
+  }
+
+  async function deleteCreation(id: string) {
+    const prev = creations
+    setCreations(cur => cur.filter(c => c.id !== id)) // optimistic
+    try {
+      const res = await fetch(`/api/ai/video/creations?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('delete failed')
+    } catch {
+      setCreations(prev) // roll back on failure
+      setError('Could not remove that creation. Try again.')
+    }
+  }
+
+  // Pull a saved creation back onto the timeline as a ready clip. A saved
+  // "video" is a finished cut, but on the timeline it's just another source
+  // clip you can stitch with others. Grok clips carried audio; we don't know
+  // the source model here, so assume silent (safe — concat a=1 only fires when
+  // EVERY clip has audio).
+  function addCreationToTimeline(cr: Creation) {
+    const id = `clip_${clips.length}_${Math.floor(performance.now())}`
+    setClips(prev => [...prev, { id, prompt: cr.title || 'Saved creation', status: 'done', url: cr.url, audio: false }])
+    setStitched(null); setSelectedId(id); setShowSaved(false)
+  }
+
+  // "Save & start new": stash the finished cut to the library (if any), then
+  // clear the timeline for a fresh project. Clips already live in localStorage.
+  async function startNew() {
+    if (stitchedUrl) await saveCreation('video', stitchedUrl, prompt.trim() || 'Untitled video')
+    if (busy && !confirm('A job is still running. Start a new project anyway?')) return
+    setClips([]); setSelectedId(null); setStitched(null); setShareUrl(null)
+    setPrompt(''); setScript(''); setError(null)
+  }
+
   return (
     <div className="h-screen flex flex-col bg-zinc-950 text-zinc-200 overflow-hidden">
       {/* Header */}
@@ -265,7 +350,11 @@ export default function VideoStudio() {
             <div className="text-[10px] text-zinc-500">Generate clips → arrange on the timeline → stitch & export</div>
           </div>
         </div>
-        <a href="/workspace" className="flex items-center gap-1 text-xs text-zinc-400 hover:text-white"><ArrowLeft className="w-3.5 h-3.5" /> Workspace</a>
+        <div className="flex items-center gap-2">
+          <button onClick={startNew} disabled={busy} className="flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-zinc-300 hover:text-white hover:border-white/25 disabled:opacity-40"><Plus className="w-3.5 h-3.5" /> New</button>
+          <button onClick={() => setShowSaved(s => !s)} className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs ${showSaved ? 'border-violet-500 text-violet-200 bg-violet-500/10' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/25'}`}><Bookmark className="w-3.5 h-3.5" /> Saved{creations.length ? ` (${creations.length})` : ''}</button>
+          <a href="/workspace" className="flex items-center gap-1 text-xs text-zinc-400 hover:text-white"><ArrowLeft className="w-3.5 h-3.5" /> Workspace</a>
+        </div>
       </div>
 
       {/* Top: tools + preview */}
@@ -343,9 +432,14 @@ export default function VideoStudio() {
               <video key={previewUrl} src={previewUrl} controls autoPlay loop className="w-full rounded-xl bg-black" />
               {stitchedUrl && (
                 <div className="flex gap-2 mt-2">
-                  <a href={stitchedUrl} download="webstew-video.mp4" className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium py-2"><Download className="w-3.5 h-3.5" /> Download</a>
-                  <button onClick={saveShareLink} disabled={saving} className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-200 text-xs font-medium py-2 disabled:opacity-50">{saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />} {shareUrl ? 'Saved ✓' : 'Save & get link'}</button>
+                  {/* fl_attachment forces a real download — a bare cross-origin
+                      Cloudinary URL ignores the `download` attr and just opens. */}
+                  <a href={toDownloadUrl(stitchedUrl)} download="webstew-video.mp4" className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium py-2"><Download className="w-3.5 h-3.5" /> Download</a>
+                  <button onClick={() => saveCreation('video', stitchedUrl, prompt.trim() || 'Untitled video')} disabled={!!savingIds[stitchedUrl] || isSaved(stitchedUrl)} className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-200 text-xs font-medium py-2 disabled:opacity-50">{savingIds[stitchedUrl] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isSaved(stitchedUrl) ? <BookmarkCheck className="w-3.5 h-3.5 text-violet-300" /> : <Bookmark className="w-3.5 h-3.5" />} {isSaved(stitchedUrl) ? 'In your creations' : 'Save to creations'}</button>
                 </div>
+              )}
+              {stitchedUrl && (
+                <button onClick={saveShareLink} disabled={saving} className="w-full mt-2 flex items-center justify-center gap-1.5 rounded-lg bg-white/[0.03] hover:bg-white/10 text-zinc-300 text-[11px] font-medium py-1.5 disabled:opacity-50">{saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link2 className="w-3 h-3" />} {shareUrl ? 'Shareable link ready ✓' : 'Get a shareable link'}</button>
               )}
               {shareUrl && <input readOnly value={shareUrl} onFocus={e => e.currentTarget.select()} className="w-full mt-2 bg-black/30 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-zinc-300" />}
             </div>
@@ -381,6 +475,9 @@ export default function VideoStudio() {
                 <div className="flex items-center justify-between px-1 py-0.5 bg-black/50">
                   <span className="text-[9px] text-zinc-400">Clip {i + 1}</span>
                   <div className="flex items-center gap-0.5">
+                    {c.status === 'done' && c.url && (
+                      <button onClick={e => { e.stopPropagation(); saveCreation('clip', c.url!, c.prompt.slice(0, 80)) }} disabled={!!savingIds[c.url] || isSaved(c.url)} title={isSaved(c.url) ? 'Saved to your creations' : 'Save clip to your creations'} className="p-0.5 text-zinc-500 hover:text-violet-300 disabled:opacity-60">{savingIds[c.url] ? <Loader2 className="w-3 h-3 animate-spin" /> : isSaved(c.url) ? <BookmarkCheck className="w-3 h-3 text-violet-300" /> : <Bookmark className="w-3 h-3" />}</button>
+                    )}
                     <button onClick={e => { e.stopPropagation(); move(i, -1) }} disabled={i === 0 || busy} className="p-0.5 text-zinc-500 hover:text-white disabled:opacity-30"><ArrowLeft className="w-3 h-3" /></button>
                     <button onClick={e => { e.stopPropagation(); move(i, 1) }} disabled={i === clips.length - 1 || busy} className="p-0.5 text-zinc-500 hover:text-white disabled:opacity-30"><ArrowRight className="w-3 h-3" /></button>
                     <button onClick={e => { e.stopPropagation(); setClips(prev => prev.filter(x => x.id !== c.id)) }} disabled={busy} className="p-0.5 text-zinc-500 hover:text-red-400 disabled:opacity-30"><X className="w-3 h-3" /></button>
@@ -426,6 +523,45 @@ export default function VideoStudio() {
         </div>
         {stitching && <p className="text-[10px] text-zinc-500">Rendering on our server — downloading clips, mixing audio, and uploading. Usually under a minute.</p>}
       </div>
+
+      {/* Saved Creations drawer — your library of clips + finished videos.
+          Reuse them on the timeline, download, or remove. */}
+      {showSaved && (
+        <div className="fixed inset-0 z-40 flex justify-end" role="dialog" aria-modal="true" aria-label="Saved creations">
+          <div className="flex-1 bg-black/50" onClick={() => setShowSaved(false)} />
+          <div className="w-full max-w-sm h-full bg-zinc-950 border-l border-white/10 flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+              <div className="flex items-center gap-2 text-sm font-semibold text-white"><Bookmark className="w-4 h-4 text-violet-300" /> Your creations{creations.length ? ` (${creations.length})` : ''}</div>
+              <button onClick={() => setShowSaved(false)} className="p-1 text-zinc-500 hover:text-white"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              {creations.length === 0 ? (
+                <div className="text-center text-zinc-600 pt-16 px-4">
+                  <Bookmark className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                  <div className="text-sm text-zinc-400">No saved creations yet</div>
+                  <div className="text-xs mt-1">Save a clip or a finished video and it lands here — ready to reuse, download, or sell in the community.</div>
+                </div>
+              ) : creations.map(cr => (
+                <div key={cr.id} className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">
+                  <video src={cr.url} muted className="w-full h-32 object-cover bg-black" onClick={e => { (e.currentTarget.paused ? e.currentTarget.play() : e.currentTarget.pause()) }} />
+                  <div className="p-2.5">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <span className={`text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded ${cr.kind === 'video' ? 'bg-violet-500/20 text-violet-300' : 'bg-fuchsia-500/20 text-fuchsia-300'}`}>{cr.kind}</span>
+                      <span className="text-xs text-zinc-300 truncate flex-1">{cr.title || 'Untitled'}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => addCreationToTimeline(cr)} className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-200 text-[11px] py-1.5"><Plus className="w-3 h-3" /> Add to timeline</button>
+                      <a href={toDownloadUrl(cr.url)} download={`${(cr.title || 'creation').replace(/[^a-z0-9]+/gi, '-').slice(0, 40)}.mp4`} className="flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-zinc-200 px-2 py-1.5" title="Download"><Download className="w-3.5 h-3.5" /></a>
+                      <button onClick={() => deleteCreation(cr.id)} className="flex items-center justify-center rounded-lg bg-white/5 hover:bg-red-500/20 text-zinc-400 hover:text-red-300 px-2 py-1.5" title="Remove"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="px-4 py-2.5 border-t border-white/10 text-[10px] text-zinc-600">Saved creations are private to your account.</div>
+          </div>
+        </div>
+      )}
 
       <VideoDirectorChat
         open={directorOpen}

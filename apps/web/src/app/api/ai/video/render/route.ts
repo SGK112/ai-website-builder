@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   try {
-    checkApiRateLimit(request, 'aiGeneration')
+    await checkApiRateLimit(request, 'aiGeneration')
   } catch (e) { const lim = handleRateLimitError(e); if (lim) return lim; throw e }
 
   let body: RenderRequest
@@ -208,6 +208,8 @@ export async function POST(request: NextRequest) {
     console.error('[video render] error:', e?.message || e)
     return NextResponse.json({ error: e?.message || 'Render failed' }, { status: 500 })
   } finally {
-    await rm(dir, { recursive: true, force: true }).catch(() => {})
+    // Temp dir is in /tmp (freed on restart) so a failure is non-fatal — but log
+    // it rather than swallow, so a leak is visible.
+    await rm(dir, { recursive: true, force: true }).catch(e => console.warn('[video render] temp cleanup failed:', e?.message || e))
   }
 }
