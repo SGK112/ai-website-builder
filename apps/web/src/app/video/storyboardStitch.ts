@@ -62,7 +62,10 @@ export interface StitchOptions {
   width?: number
   height?: number
   fps?: number
-  audioUrl?: string | null          // optional narration track
+  audioUrl?: string | null          // optional VOICE track (narration TTS)
+  musicUrl?: string | null          // optional MUSIC track (continuous, looped under)
+  musicVolume?: number              // 0..1, default 0.3
+  clipsHaveAudio?: boolean          // true only if EVERY clip has an audio stream
   onStage?: (stage: string) => void // human-readable progress
   onProgress?: (ratio: number) => void // 0..1 from ffmpeg
 }
@@ -92,43 +95,75 @@ export async function stitchClips(clipUrls: string[], opts: StitchOptions = {}):
     names.push(name)
   }
 
-  // 2. Inputs: clips first, then (optionally) the narration track last.
+  // 2. Inputs: clips first, then optional VOICE and MUSIC tracks.
   const args: string[] = []
   names.forEach((n) => args.push('-i', n))
+  const written = [...names]
 
-  let hasAudio = false
+  let voiceIdx = -1
   if (opts.audioUrl) {
-    opts.onStage?.('Downloading narration…')
-    await ff.writeFile('narration.mp3', await fetchFile(opts.audioUrl))
-    args.push('-i', 'narration.mp3')
-    hasAudio = true
+    opts.onStage?.('Adding voiceover…')
+    await ff.writeFile('voice.mp3', await fetchFile(opts.audioUrl))
+    args.push('-i', 'voice.mp3'); written.push('voice.mp3'); voiceIdx = names.length
+  }
+  let musicIdx = -1
+  if (opts.musicUrl) {
+    opts.onStage?.('Adding music…')
+    await ff.writeFile('music.mp3', await fetchFile(deliverable(opts.musicUrl)))
+    args.push('-i', 'music.mp3'); written.push('music.mp3'); musicIdx = names.length + (voiceIdx >= 0 ? 1 : 0)
   }
 
-  // 3. Verified filter graph: normalize each clip to WxH@FPS, concat (video only).
-  // When narration is present, apad pads it with silence so that combined with
-  // -shortest the OUTPUT length always equals the VIDEO length — short narration
-  // gets trailing silence, long narration is trimmed; the video is never cut.
+  // 3a. VIDEO track: normalize each clip to WxH@FPS, concat.
   const chains = names.map((_, i) =>
     `[${i}:v]scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${FPS}[v${i}]`,
   )
-  const labels = names.map((_, i) => `[v${i}]`).join('')
-  let filter = `${chains.join(';')};${labels}concat=n=${names.length}:v=1:a=0[outv]`
-  if (hasAudio) filter += `;[${names.length}:a]apad[aout]`
+  const vLabels = names.map((_, i) => `[v${i}]`).join('')
+  const parts = [`${chains.join(';')};${vLabels}concat=n=${names.length}:v=1:a=0[outv]`]
 
-  args.push('-filter_complex', filter, '-map', '[outv]')
-  if (hasAudio) args.push('-map', '[aout]', '-c:a', 'aac', '-shortest')
+  // 3b. AUDIO tracks, mixed (validated natively):
+  //   - SCENE audio = concat of clip audios — ONLY when every clip has audio
+  //     (concat a=1 errors on a missing stream); it's finite = video length.
+  //   - MUSIC = looped + lowered, runs continuously under everything.
+  //   - VOICE = padded with silence.
+  //   amix(longest) of these is "infinite" when music/voice are present, so
+  //   -shortest clamps the output to the (finite) VIDEO length.
+  const aLabels: string[] = []
+  if (opts.clipsHaveAudio && names.length > 0) {
+    parts.push(`${names.map((_, i) => `[${i}:a]`).join('')}concat=n=${names.length}:v=0:a=1[sa]`)
+    aLabels.push('[sa]')
+  }
+  if (musicIdx >= 0) {
+    const vol = Math.max(0, Math.min(1, opts.musicVolume ?? 0.3))
+    parts.push(`[${musicIdx}:a]aloop=loop=-1:size=2147483647,volume=${vol}[mus]`)
+    aLabels.push('[mus]')
+  }
+  if (voiceIdx >= 0) { parts.push(`[${voiceIdx}:a]apad[vo]`); aLabels.push('[vo]') }
+
+  const mapArgs = ['-map', '[outv]']
+  let needShortest = false
+  if (aLabels.length === 1) {
+    mapArgs.push('-map', aLabels[0])
+    needShortest = aLabels[0] !== '[sa]' // music/voice are infinite → clamp to video
+  } else if (aLabels.length > 1) {
+    parts.push(`${aLabels.join('')}amix=inputs=${aLabels.length}:duration=longest:dropout_transition=0:normalize=0[outa]`)
+    mapArgs.push('-map', '[outa]')
+    needShortest = true
+  }
+
+  args.push('-filter_complex', parts.join(';'), ...mapArgs)
+  if (aLabels.length) args.push('-c:a', 'aac')
+  if (needShortest) args.push('-shortest')
   // ultrafast keeps the single-threaded encode tolerable; yuv420p for web playback.
   args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', 'out.mp4')
 
-  opts.onStage?.('Stitching clips together…')
+  opts.onStage?.('Mixing & rendering…')
   await ff.exec(args)
 
   const data = await ff.readFile('out.mp4')
-  // Best-effort FS cleanup so repeat runs don't accumulate. A failure here is
-  // genuinely harmless (in-memory FS, freed on reload) — but don't swallow it
-  // silently: log so a leak is at least visible in the console.
+  // Best-effort FS cleanup so repeat runs don't accumulate. Harmless if it fails
+  // (in-memory FS) but log rather than swallow.
   await Promise.all(
-    [...names, 'out.mp4', ...(hasAudio ? ['narration.mp3'] : [])].map(n =>
+    [...written, 'out.mp4'].map(n =>
       ff.deleteFile(n).catch(e => console.warn(`[stitch] could not delete ${n} from ffmpeg FS:`, e?.message || e)),
     ),
   )

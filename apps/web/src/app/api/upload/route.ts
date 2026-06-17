@@ -53,10 +53,10 @@ export async function POST(request: NextRequest) {
     // PDFs. The narrow exact allow-list used to 400 every iPhone photo/video.
     // Empty type (some browsers omit it) passes through to storage to sniff.
     const type = (file.type || '').toLowerCase()
-    const isAllowed = type === '' || type.startsWith('image/') || type.startsWith('video/') || type === 'application/pdf'
+    const isAllowed = type === '' || type.startsWith('image/') || type.startsWith('video/') || type.startsWith('audio/') || type === 'application/pdf'
     if (!isAllowed) {
       return NextResponse.json(
-        { error: 'That file type isn’t supported. Upload an image, a video, or a PDF.' },
+        { error: 'That file type isn’t supported. Upload an image, a video, audio, or a PDF.' },
         { status: 400 }
       )
     }

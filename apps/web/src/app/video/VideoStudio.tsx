@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Clapperboard, Sparkles, Loader2, X, ArrowLeft, ArrowRight, Plus,
-  Film, Download, Link2, Wand2, ImageIcon, AlertCircle, Volume2, PenLine, Play,
+  Film, Download, Link2, Wand2, ImageIcon, AlertCircle, Volume2, PenLine, Play, Music,
 } from 'lucide-react'
 import { stitchClips } from './storyboardStitch'
 import VideoDirectorChat from './VideoDirectorChat'
@@ -15,7 +15,7 @@ import VideoDirectorChat from './VideoDirectorChat'
 
 type Mode = 'text' | 'image'
 type ClipStatus = 'generating' | 'done' | 'error'
-interface Clip { id: string; prompt: string; status: ClipStatus; url?: string; error?: string; note?: string }
+interface Clip { id: string; prompt: string; status: ClipStatus; url?: string; error?: string; note?: string; audio?: boolean }
 
 const VIDEO_MODELS = [
   { id: 'seedance', label: 'Seedance', hint: 'Fast · Best', multi: false, maxImages: 1 },
@@ -46,11 +46,18 @@ export default function VideoStudio() {
   const [genLabel, setGenLabel] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  // Narration
+  // Voice track (narration)
   const [narrationText, setNarrationText] = useState('')
   const [script, setScript] = useState('')
   const [voice, setVoice] = useState('onyx')
   const [writingScript, setWritingScript] = useState(false)
+
+  // Music track (continuous soundtrack under everything)
+  const [musicUrl, setMusicUrl] = useState<string | null>(null)
+  const [musicName, setMusicName] = useState<string>('')
+  const [musicVolume, setMusicVolume] = useState(0.3)
+  const [uploadingMusic, setUploadingMusic] = useState(false)
+  const musicInputRef = useRef<HTMLInputElement>(null)
 
   // Stitch / export
   const [stitching, setStitching] = useState(false)
@@ -84,7 +91,7 @@ export default function VideoStudio() {
   }, [])
   useEffect(() => {
     try {
-      const done = clips.filter(c => c.status === 'done' && c.url).map(c => ({ id: c.id, prompt: c.prompt, status: c.status, url: c.url }))
+      const done = clips.filter(c => c.status === 'done' && c.url).map(c => ({ id: c.id, prompt: c.prompt, status: c.status, url: c.url, audio: c.audio }))
       localStorage.setItem('webstew_video_clips', JSON.stringify(done))
     } catch { /* storage full/blocked — non-fatal */ }
   }, [clips])
@@ -147,7 +154,8 @@ export default function VideoStudio() {
         await new Promise(r => setTimeout(r, 3000))
         const poll = await fetch(`/api/ai/video?id=${encodeURIComponent(data.id)}`)
         const pd = await poll.json().catch(() => ({} as any))
-        if (pd.status === 'succeeded' && pd.videoUrl) { patch(id, { status: 'done', url: pd.videoUrl, note: undefined }); setGenerating(false); return }
+        // Grok Imagine clips carry their own audio (music/ambient); the others are silent.
+        if (pd.status === 'succeeded' && pd.videoUrl) { patch(id, { status: 'done', url: pd.videoUrl, note: undefined, audio: model === 'grok' }); setGenerating(false); return }
         if (pd.status === 'failed') throw new Error(pd.error || 'Generation failed')
         // Surface live progress + a nudge if it's dragging (so a slow provider
         // isn't a mystery spinner).
@@ -165,6 +173,20 @@ export default function VideoStudio() {
       setError(e?.message || 'Generation failed')
     } finally {
       setGenerating(false); setGenLabel('')
+    }
+  }
+
+  async function uploadMusic(file: File) {
+    setUploadingMusic(true); setError(null)
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      const json = await res.json().catch(() => ({} as any))
+      if (!res.ok || !json.url) throw new Error(json.error || `Music upload failed (${res.status})`)
+      setMusicUrl(json.url); setMusicName(file.name)
+    } catch (e: any) { setError(e?.message || 'Music upload failed') } finally {
+      setUploadingMusic(false)
+      if (musicInputRef.current) musicInputRef.current.value = ''
     }
   }
 
@@ -193,7 +215,14 @@ export default function VideoStudio() {
         if (!res.ok) { const e = await res.json().catch(() => ({} as any)); throw new Error(e.error || `Narration failed (HTTP ${res.status}).`) }
         audioUrl = URL.createObjectURL(await res.blob())
       }
-      const url = await stitchClips(doneClips.map(c => c.url!), { audioUrl, onStage: setStitchStage, onProgress: (r) => setStitchProgress(Math.round(r * 100)) })
+      const url = await stitchClips(doneClips.map(c => c.url!), {
+        audioUrl,
+        musicUrl,
+        musicVolume,
+        clipsHaveAudio: doneClips.length > 0 && doneClips.every(c => c.audio === true),
+        onStage: setStitchStage,
+        onProgress: (r) => setStitchProgress(Math.round(r * 100)),
+      })
       setStitched(url); setSelectedId(null); setStitchStage('Done')
     } catch (e: any) {
       setError(e?.message || 'Stitching failed — you can still download each clip from the timeline.')
@@ -330,7 +359,7 @@ export default function VideoStudio() {
       {/* TIMELINE */}
       <div className="shrink-0 border-t border-white/10 bg-black/30 p-3 space-y-2">
         <div className="flex items-center gap-3">
-          <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide">Timeline</span>
+          <span className="w-16 shrink-0 text-[11px] font-semibold text-violet-300 flex items-center gap-1"><Film className="w-3.5 h-3.5" /> Video</span>
           {clips.length > 0 && <button onClick={() => { if (confirm('Clear all clips from the timeline?')) { setClips([]); setSelectedId(null); setStitched(null) } }} disabled={busy} className="text-[10px] text-zinc-500 hover:text-red-300 disabled:opacity-30">Clear</button>}
           <div className="flex-1 flex gap-2 overflow-x-auto pb-1">
             {clips.length === 0 && <span className="text-xs text-zinc-600 py-4">No clips yet — generate one on the left.</span>}
@@ -360,24 +389,39 @@ export default function VideoStudio() {
           </div>
         </div>
 
-        {/* Narration + export row */}
-        <div className="flex items-end gap-3 flex-wrap">
-          <div className="flex-1 min-w-[260px]">
-            <div className="flex items-center gap-1.5 mb-1"><Volume2 className="w-3.5 h-3.5 text-violet-400" /><span className="text-[11px] text-zinc-400">Voiceover (optional)</span></div>
-            <div className="flex gap-2">
-              <input value={script || narrationText} onChange={e => (script ? setScript(e.target.value) : setNarrationText(e.target.value))}
-                placeholder="What should the voice say? (rough notes are fine)"
-                className="flex-1 bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50" />
-              <button onClick={writeScript} disabled={busy} className="flex items-center gap-1 rounded-lg border border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/20 text-violet-200 text-xs px-2.5 py-1.5 disabled:opacity-40">{writingScript ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PenLine className="w-3.5 h-3.5" />} Write</button>
-              <select value={voice} onChange={e => setVoice(e.target.value)} className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white capitalize">{TTS_VOICES.map(v => <option key={v} value={v}>{v}</option>)}</select>
-            </div>
-          </div>
+        {/* VOICE track */}
+        <div className="flex items-center gap-3">
+          <span className="w-16 shrink-0 text-[11px] font-semibold text-violet-300 flex items-center gap-1"><Volume2 className="w-3.5 h-3.5" /> Voice</span>
+          <input value={script || narrationText} onChange={e => (script ? setScript(e.target.value) : setNarrationText(e.target.value))}
+            placeholder="Voiceover line / notes (optional)"
+            className="flex-1 bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50" />
+          <button onClick={writeScript} disabled={busy} className="flex items-center gap-1 rounded-lg border border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/20 text-violet-200 text-xs px-2.5 py-1.5 disabled:opacity-40">{writingScript ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PenLine className="w-3.5 h-3.5" />} Write</button>
+          <select value={voice} onChange={e => setVoice(e.target.value)} className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white capitalize">{TTS_VOICES.map(v => <option key={v} value={v}>{v}</option>)}</select>
+        </div>
+
+        {/* MUSIC track */}
+        <div className="flex items-center gap-3">
+          <span className="w-16 shrink-0 text-[11px] font-semibold text-fuchsia-300 flex items-center gap-1"><Music className="w-3.5 h-3.5" /> Music</span>
+          {musicUrl ? (
+            <>
+              <span className="text-xs text-zinc-300 truncate max-w-[200px]">{musicName || 'music track'}</span>
+              <button onClick={() => { setMusicUrl(null); setMusicName('') }} className="text-zinc-500 hover:text-red-300"><X className="w-3.5 h-3.5" /></button>
+              <span className="text-[10px] text-zinc-500 ml-2">Volume</span>
+              <input type="range" min={0} max={1} step={0.05} value={musicVolume} onChange={e => setMusicVolume(Number(e.target.value))} className="w-28 accent-fuchsia-500" />
+              <span className="text-[10px] text-zinc-500 w-8">{Math.round(musicVolume * 100)}%</span>
+            </>
+          ) : (
+            <button onClick={() => musicInputRef.current?.click()} disabled={uploadingMusic} className="flex items-center gap-1 rounded-lg border border-white/10 hover:border-fuchsia-500/50 text-zinc-300 text-xs px-2.5 py-1.5 disabled:opacity-40">
+              {uploadingMusic ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />} Add a soundtrack
+            </button>
+          )}
+          <input ref={musicInputRef} type="file" accept="audio/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadMusic(f) }} />
           <button onClick={stitchAndExport} disabled={busy || doneClips.length < 1}
-            className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-violet-600 hover:from-fuchsia-500 disabled:opacity-40 text-white text-sm font-semibold px-4 py-2.5">
-            {stitching ? <><Loader2 className="w-4 h-4 animate-spin" /> {stitchStage}{stitchProgress > 0 ? ` ${stitchProgress}%` : ''}</> : <><Wand2 className="w-4 h-4" /> Stitch & Export {doneClips.length > 1 ? `(${doneClips.length} clips)` : ''}</>}
+            className="ml-auto flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-violet-600 hover:from-fuchsia-500 disabled:opacity-40 text-white text-sm font-semibold px-4 py-2.5">
+            {stitching ? <><Loader2 className="w-4 h-4 animate-spin" /> {stitchStage}{stitchProgress > 0 ? ` ${stitchProgress}%` : ''}</> : <><Wand2 className="w-4 h-4" /> Render film {doneClips.length > 1 ? `(${doneClips.length} clips)` : ''}</>}
           </button>
         </div>
-        {stitching && <p className="text-[10px] text-zinc-500">Stitching runs in your browser — first run loads the engine (~a few MB), can take a minute.</p>}
+        {stitching && <p className="text-[10px] text-zinc-500">Rendering runs in your browser — first run loads the engine (~30MB), can take a minute.</p>}
       </div>
 
       <VideoDirectorChat
