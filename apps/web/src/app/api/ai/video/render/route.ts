@@ -1,9 +1,13 @@
-// POST /api/ai/video/render — server-side video stitch + audio mix.
+// /api/ai/video/render — ASYNC server-side video stitch + audio mix.
 //
-// Replaces the fragile in-browser ffmpeg.wasm path. Downloads the timeline clips
-// (server-side, no CORS), optionally generates a voiceover (OpenAI TTS) and pulls
-// a music track, mixes them with a bundled static ffmpeg binary, uploads the
-// finished MP4 to Cloudinary, and returns its URL. Nothing loads in the browser.
+// POST starts a render JOB and returns { jobId } immediately; the heavy ffmpeg
+// work runs in the background; GET ?id= polls for the result. This is required:
+// a 10-clip short film takes well over the ~100s proxy (Cloudflare) limit, so a
+// synchronous render dies with HTTP 524. Mirrors how clip generation already polls.
+//
+// The render downloads the timeline clips (server-side, no CORS), optionally
+// generates a voiceover (OpenAI TTS) and pulls a music track, mixes them with a
+// bundled static ffmpeg binary, and uploads the finished MP4 to Cloudinary.
 //
 // Audio model (validated): keep each clip's SCENE audio (only when every clip
 // has one), lay a continuous MUSIC bed under it, and the VOICE over it.
@@ -12,6 +16,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
+import { connectDB } from '@/lib/db'
 import ffmpegPath from 'ffmpeg-static'
 import { spawn } from 'node:child_process'
 import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises'
@@ -21,6 +26,13 @@ import crypto from 'node:crypto'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
+
+async function jobsCol() {
+  const conn = await connectDB()
+  const db = conn.connection.db
+  if (!db) throw new Error('DB unavailable')
+  return db.collection('video_render_jobs')
+}
 
 const MAX_CLIPS = 12
 // SSRF guard: only fetch clip/music URLs from hosts our own pipeline produces.
@@ -39,6 +51,19 @@ interface RenderRequest {
   musicUrl?: string | null
   musicVolume?: number
   aspectRatio?: string
+  title?: string
+}
+
+// Persist a finished render to the user's Saved Creations so it survives even
+// if the browser gave up polling. De-duped by URL; mirrors the creations route.
+async function saveToCreations(userId: string, url: string, title: string) {
+  const conn = await connectDB()
+  const db = conn.connection.db
+  if (!db) return
+  const c = db.collection('video_creations')
+  if (await c.findOne({ userId, url })) return
+  if (await c.countDocuments({ userId }) >= 200) return
+  await c.insertOne({ userId, kind: 'video', url, title: (title || 'Rendered film').slice(0, 120), createdAt: new Date() })
 }
 
 async function downloadTo(url: string, path: string) {
@@ -98,20 +123,10 @@ async function makeVoice(script: string, voice: string, path: string) {
   await writeFile(path, Buffer.from(await speech.arrayBuffer()))
 }
 
-export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-  try {
-    await checkApiRateLimit(request, 'aiGeneration')
-  } catch (e) { const lim = handleRateLimitError(e); if (lim) return lim; throw e }
-
-  let body: RenderRequest
-  try { body = await request.json() as RenderRequest } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }
-
-  const clipUrls = (body.clipUrls || []).filter(u => typeof u === 'string' && /^https?:\/\//i.test(u)).slice(0, MAX_CLIPS)
-  if (clipUrls.length < 1) return NextResponse.json({ error: 'At least one clip is required.' }, { status: 400 })
-  const [W, H] = DIMS[body.aspectRatio || '16:9'] || DIMS['16:9']
-
+// The heavy lifting: download → probe → (voice/music) → ffmpeg → Cloudinary.
+// Returns the finished video URL. Runs in the BACKGROUND (see runJob), so it is
+// free to take minutes — no request is waiting on it.
+async function stitch(body: RenderRequest, clipUrls: string[], W: number, H: number): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'render-'))
   try {
     // 1. Download clips
@@ -202,14 +217,67 @@ export async function POST(request: NextRequest) {
 
     // 4. Render + upload
     await runFfmpeg(args)
-    const url = await uploadToCloudinary(out)
-    return NextResponse.json({ url })
-  } catch (e: any) {
-    console.error('[video render] error:', e?.message || e)
-    return NextResponse.json({ error: e?.message || 'Render failed' }, { status: 500 })
+    return await uploadToCloudinary(out)
   } finally {
     // Temp dir is in /tmp (freed on restart) so a failure is non-fatal — but log
     // it rather than swallow, so a leak is visible.
     await rm(dir, { recursive: true, force: true }).catch(e => console.warn('[video render] temp cleanup failed:', e?.message || e))
   }
+}
+
+// Background worker: run the stitch, then record the outcome on the job doc.
+// NOT awaited by the request — it outlives the HTTP response (Render runs a
+// persistent Node process, so the promise keeps executing). Must never throw.
+async function runJob(jobId: string, userId: string, body: RenderRequest, clipUrls: string[], W: number, H: number) {
+  try {
+    const url = await stitch(body, clipUrls, W, H)
+    const col = await jobsCol()
+    await col.updateOne({ jobId, userId }, { $set: { status: 'done', url, updatedAt: new Date() } })
+    // Save to the library here too — guarantees the film is kept even if the
+    // browser closed before polling finished.
+    await saveToCreations(userId, url, body.title || '').catch(e => console.warn('[video render] auto-save failed:', e?.message || e))
+  } catch (e: any) {
+    console.error('[video render] job failed:', e?.message || e)
+    try {
+      const col = await jobsCol()
+      await col.updateOne({ jobId, userId }, { $set: { status: 'failed', error: e?.message || 'Render failed', updatedAt: new Date() } })
+    } catch (e2: any) {
+      console.error('[video render] could not record job failure:', e2?.message || e2)
+    }
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  try {
+    await checkApiRateLimit(request, 'aiGeneration')
+  } catch (e) { const lim = handleRateLimitError(e); if (lim) return lim; throw e }
+
+  let body: RenderRequest
+  try { body = await request.json() as RenderRequest } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }
+
+  const clipUrls = (body.clipUrls || []).filter(u => typeof u === 'string' && /^https?:\/\//i.test(u)).slice(0, MAX_CLIPS)
+  if (clipUrls.length < 1) return NextResponse.json({ error: 'At least one clip is required.' }, { status: 400 })
+  const [W, H] = DIMS[body.aspectRatio || '16:9'] || DIMS['16:9']
+
+  // Create the job, kick off the render in the background, return immediately.
+  const jobId = crypto.randomUUID()
+  const userId = String(session.user.id)
+  const col = await jobsCol()
+  await col.insertOne({ jobId, userId, status: 'processing', clips: clipUrls.length, createdAt: new Date(), updatedAt: new Date() })
+  void runJob(jobId, userId, body, clipUrls, W, H)
+  return NextResponse.json({ jobId, status: 'processing' }, { status: 202 })
+}
+
+// Poll a render job. Ownership-scoped — you only see your own jobs.
+export async function GET(request: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  const id = new URL(request.url).searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'A job id is required.' }, { status: 400 })
+  const col = await jobsCol()
+  const job = await col.findOne({ jobId: id, userId: String(session.user.id) })
+  if (!job) return NextResponse.json({ error: 'Render job not found.' }, { status: 404 })
+  return NextResponse.json({ status: job.status, url: job.url || null, error: job.error || null })
 }

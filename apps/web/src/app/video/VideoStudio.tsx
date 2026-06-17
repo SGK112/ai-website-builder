@@ -220,11 +220,12 @@ export default function VideoStudio() {
 
   async function stitchAndExport() {
     if (doneClips.length < 1) { setError('Generate at least one clip first.'); return }
-    setStitching(true); setError(null); setStitchProgress(0); setStitchStage('Rendering on the server…'); setStitched(null); setShareUrl(null)
+    setStitching(true); setError(null); setStitchProgress(0); setStitchStage('Starting render…'); setStitched(null); setShareUrl(null)
     try {
-      // Server-side render: no in-browser engine. The server downloads the clips,
-      // generates the voiceover, mixes music + voice + scene audio, and returns
-      // a Cloudinary URL.
+      // ASYNC server render: POST kicks off a background job and returns a jobId
+      // right away (a 10-clip film takes minutes — far past the proxy's ~100s
+      // limit, so a synchronous wait died with HTTP 524). Then we poll for the
+      // finished Cloudinary URL, the same pattern clip generation uses.
       const res = await fetch('/api/ai/video/render', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -235,13 +236,32 @@ export default function VideoStudio() {
           musicUrl: musicUrl || undefined,
           musicVolume,
           aspectRatio,
+          title: prompt.trim() || script.trim().slice(0, 80) || 'Untitled film',
         }),
       })
       const data = await res.json().catch(() => ({} as any))
-      if (!res.ok || !data.url) throw new Error(data.error || `Render failed (HTTP ${res.status}).`)
-      setStitched(data.url)       // remote Cloudinary URL — already shareable
-      setShareUrl(data.url)
-      setSelectedId(null); setStitchStage('Done')
+      if (!res.ok || !data.jobId) throw new Error(data.error || `Couldn't start the render (HTTP ${res.status}).`)
+
+      const startedAt = Date.now()
+      setStitchStage('Rendering on the server…')
+      // Poll up to ~5 min (100 × 3s). Downloads + ffmpeg + upload for a full film.
+      for (let i = 0; i < 100; i++) {
+        await new Promise(r => setTimeout(r, 3000))
+        const poll = await fetch(`/api/ai/video/render?id=${encodeURIComponent(data.jobId)}`)
+        const pd = await poll.json().catch(() => ({} as any))
+        if (pd.status === 'done' && pd.url) {
+          setStitched(pd.url); setShareUrl(pd.url); setSelectedId(null); setStitchStage('Done')
+          // The server already saved this to the library — refetch so the
+          // Saved drawer reflects it without a duplicate POST.
+          fetch('/api/ai/video/creations').then(r => r.ok ? r.json() : null)
+            .then(d => { if (d && Array.isArray(d.creations)) setCreations(d.creations) }).catch(() => {})
+          return
+        }
+        if (pd.status === 'failed') throw new Error(pd.error || 'Render failed.')
+        const elapsed = Math.round((Date.now() - startedAt) / 1000)
+        setStitchStage(`Rendering on the server… ${elapsed}s`)
+      }
+      throw new Error('Render is taking longer than expected. It may still finish — check your Saved creations in a minute.')
     } catch (e: any) {
       setError(e?.message || 'Render failed — you can still download each clip from the timeline.')
     } finally {
