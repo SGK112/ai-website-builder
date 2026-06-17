@@ -1,13 +1,18 @@
 # Studio music library
 
-These are the built-in royalty-free soundtracks the Video Studio offers in its
-music picker. The picker and the render pipeline read the manifest in
-`apps/web/src/lib/studio-music.ts`; this folder must contain a matching `.mp3`
-for each entry.
+The Video Studio's music picker reads the manifest in
+`apps/web/src/lib/studio-music.ts`.
 
-## Add the tracks (one-time)
+**It already works** — the manifest currently points each track at a remote
+hotlink-friendly free source (SoundHelix), so the picker previews and renders
+with zero files here. This folder is for the OPTIONAL upgrade: replacing those
+starter tracks with curated, on-brand, guaranteed-CC0 MP3s you own.
 
-Drop MP3s here with these EXACT filenames:
+## Upgrade to bundled tracks (optional)
+
+Drop an MP3 here and add a `file:` to that track's entry in `studio-music.ts`
+(a bundled `file` overrides the remote `url` with no other change). Suggested
+filenames if you want to mirror the current set:
 
 | File                   | Mood      | Suggested vibe                         |
 |------------------------|-----------|----------------------------------------|

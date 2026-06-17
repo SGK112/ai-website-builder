@@ -38,7 +38,7 @@ async function jobsCol() {
 
 const MAX_CLIPS = 12
 // SSRF guard: only fetch clip/music URLs from hosts our own pipeline produces.
-const ALLOWED_HOSTS = ['x.ai', 'replicate.delivery', 'replicate.com', 'res.cloudinary.com', 'cloudinary.com']
+const ALLOWED_HOSTS = ['x.ai', 'replicate.delivery', 'replicate.com', 'res.cloudinary.com', 'cloudinary.com', 'soundhelix.com', 'cdn.pixabay.com']
 const hostOk = (u: URL) => u.protocol === 'https:' && ALLOWED_HOSTS.some(h => u.hostname === h || u.hostname.endsWith(`.${h}`))
 
 const DIMS: Record<string, [number, number]> = {
@@ -150,13 +150,17 @@ async function stitch(body: RenderRequest, clipUrls: string[], W: number, H: num
     if (body.script?.trim()) { voicePath = join(dir, 'voice.mp3'); await makeVoice(body.script.trim(), body.voice || 'onyx', voicePath) }
     let musicPath = ''
     if (body.musicTrackId) {
-      // Bundled library track — read straight from /public/music on disk. No
-      // download, no SSRF surface.
+      // Library track — resolved from OUR manifest (server-authoritative, not
+      // the client's URL). A bundled file under /public/music wins; otherwise
+      // we fetch the manifest's remote URL through the host allowlist.
       const track = trackById(body.musicTrackId)
       if (!track) throw new Error(`Unknown music track: ${body.musicTrackId}`)
-      const onDisk = join(process.cwd(), 'public', MUSIC_PUBLIC_SUBDIR, track.file)
-      if (!existsSync(onDisk)) throw new Error(`Music track "${track.title}" isn't installed on the server yet.`)
-      musicPath = onDisk
+      const onDisk = track.file ? join(process.cwd(), 'public', MUSIC_PUBLIC_SUBDIR, track.file) : ''
+      if (onDisk && existsSync(onDisk)) {
+        musicPath = onDisk
+      } else {
+        musicPath = join(dir, 'music.mp3'); await downloadTo(track.url, musicPath)
+      }
     } else if (body.musicUrl) {
       musicPath = join(dir, 'music.mp3'); await downloadTo(body.musicUrl, musicPath)
     }

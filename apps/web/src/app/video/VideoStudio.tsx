@@ -7,7 +7,7 @@ import {
   Bookmark, BookmarkCheck, Trash2, Pause,
 } from 'lucide-react'
 import VideoDirectorChat from './VideoDirectorChat'
-import { STUDIO_MUSIC, trackById, trackPublicUrl } from '@/lib/studio-music'
+import { STUDIO_MUSIC, trackById, trackSrc } from '@/lib/studio-music'
 
 // One unified workspace (YouTube-Studio style): generate clips on the left, see
 // them in the preview, line them up on the timeline at the bottom, add a
@@ -223,7 +223,7 @@ export default function VideoStudio() {
     stopPreview()
     const t = trackById(trackId)
     if (!t) return
-    const a = new Audio(trackPublicUrl(t))
+    const a = new Audio(trackSrc(t))
     a.volume = 0.7
     a.onended = () => setPreviewingTrack(null)
     a.onerror = () => { setPreviewingTrack(null); setError(`Preview unavailable for "${t.title}" — the track file isn't installed yet.`) }
@@ -235,7 +235,9 @@ export default function VideoStudio() {
     const t = trackById(trackId)
     if (!t) return
     stopPreview()
-    setMusicTrackId(t.id); setMusicName(t.title); setMusicUrl(null); setShowMusicPicker(false)
+    // musicTrackId is the server-authoritative reference (the renderer resolves
+    // the real source from the manifest); musicUrl mirrors it for completeness.
+    setMusicTrackId(t.id); setMusicUrl(trackSrc(t)); setMusicName(t.title); setShowMusicPicker(false)
   }
   function clearMusic() {
     stopPreview()

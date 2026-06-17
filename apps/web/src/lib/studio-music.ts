@@ -1,14 +1,20 @@
 // Built-in royalty-free music library for the Video Studio.
 //
-// Each track is an MP3 bundled under apps/web/public/music/. The picker (client)
-// lists them by mood and previews them at /music/<file>; the render route
-// (server) resolves the same entry to a path on disk and feeds it to ffmpeg —
-// so bundled music never goes through the SSRF/URL-allowlist path.
+// Two ways a track can be sourced:
+//   - `file`: an MP3 bundled under apps/web/public/music/ (the long-term,
+//     fully-owned path — see public/music/README.md). Takes precedence.
+//   - `url`:  a remote, hotlink-friendly free track (the works-right-now path).
 //
-// LICENSING: only add CC0 / royalty-free, no-attribution, commercial-use tracks
-// here (Pixabay Music, Mixkit, Uppbeat). Users may sell their creations in the
-// community, so every track must be clear for commercial reuse. See
-// public/music/README.md for where to source files + exact filenames.
+// RIGHT NOW these point at SoundHelix (https://www.soundhelix.com) — full-length
+// instrumental tracks the author makes freely available, verified hotlinkable
+// and CORS-free for both browser preview and server-side render fetch. They are
+// a STARTER set: the mood labels/names are approximate vibe hints. To ship a
+// curated, on-brand, guaranteed-CC0 library, drop MP3s into public/music/ with
+// the filenames in that README and add a `file:` to each entry — it overrides
+// the URL with zero other changes.
+//
+// LICENSING: anything added here must be clear for COMMERCIAL reuse (users may
+// sell their creations). Curated CC0 sources: Pixabay Music, Mixkit, Uppbeat.
 
 export type MusicMood = 'Cinematic' | 'Ambient' | 'Upbeat' | 'Dramatic' | 'Corporate' | 'Lo-fi'
 
@@ -16,21 +22,24 @@ export interface StudioTrack {
   id: string
   title: string
   mood: MusicMood
-  file: string // filename under /public/music
+  url: string    // remote source (used when no bundled file is present)
+  file?: string  // optional bundled file under /public/music (overrides url)
 }
 
+const SH = (n: number) => `https://www.soundhelix.com/examples/mp3/SoundHelix-Song-${n}.mp3`
+
 export const STUDIO_MUSIC: StudioTrack[] = [
-  { id: 'cinematic-rise',  title: 'Cinematic Rise',  mood: 'Cinematic', file: 'cinematic-rise.mp3' },
-  { id: 'epic-horizon',    title: 'Epic Horizon',    mood: 'Cinematic', file: 'epic-horizon.mp3' },
-  { id: 'calm-waters',     title: 'Calm Waters',     mood: 'Ambient',   file: 'calm-waters.mp3' },
-  { id: 'soft-light',      title: 'Soft Light',      mood: 'Ambient',   file: 'soft-light.mp3' },
-  { id: 'bright-future',   title: 'Bright Future',   mood: 'Upbeat',    file: 'bright-future.mp3' },
-  { id: 'good-vibes',      title: 'Good Vibes',      mood: 'Upbeat',    file: 'good-vibes.mp3' },
-  { id: 'tension-builds',  title: 'Tension Builds',  mood: 'Dramatic',  file: 'tension-builds.mp3' },
-  { id: 'corporate-clean', title: 'Corporate Clean', mood: 'Corporate', file: 'corporate-clean.mp3' },
-  { id: 'lofi-study',      title: 'Lo-fi Study',     mood: 'Lo-fi',     file: 'lofi-study.mp3' },
+  { id: 'electric-sunrise', title: 'Electric Sunrise', mood: 'Upbeat',    url: SH(1) },
+  { id: 'momentum',         title: 'Momentum',         mood: 'Upbeat',    url: SH(4) },
+  { id: 'wide-horizon',     title: 'Wide Horizon',     mood: 'Cinematic', url: SH(5) },
+  { id: 'rising-action',    title: 'Rising Action',    mood: 'Cinematic', url: SH(7) },
+  { id: 'undercurrent',     title: 'Undercurrent',     mood: 'Dramatic',  url: SH(2) },
+  { id: 'still-air',        title: 'Still Air',        mood: 'Ambient',   url: SH(3) },
+  { id: 'clean-lines',      title: 'Clean Lines',      mood: 'Corporate', url: SH(6) },
+  { id: 'late-night',       title: 'Late Night',       mood: 'Lo-fi',     url: SH(8) },
 ]
 
 export const MUSIC_PUBLIC_SUBDIR = 'music'
 export const trackById = (id: string): StudioTrack | null => STUDIO_MUSIC.find(t => t.id === id) || null
-export const trackPublicUrl = (t: StudioTrack): string => `/${MUSIC_PUBLIC_SUBDIR}/${t.file}`
+// What the browser/render should load for a track: a bundled file wins; else the remote URL.
+export const trackSrc = (t: StudioTrack): string => (t.file ? `/${MUSIC_PUBLIC_SUBDIR}/${t.file}` : t.url)
