@@ -15,8 +15,11 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile, toBlobURL } from '@ffmpeg/util'
 
-// Pinned single-thread core compatible with @ffmpeg/ffmpeg 0.12.x.
-const CORE_BASE = 'https://unpkg.com/@ffmpeg/core-st@0.12.6/dist/umd'
+// Self-hosted single-threaded @ffmpeg/core@0.12.10 (js + wasm) under /public.
+// Same-origin → no CORS (the old unpkg @ffmpeg/core-st@0.12.6 URL 404'd, which
+// the browser reported as a CORS error). Single-threaded → no SharedArrayBuffer
+// → no COOP/COEP headers needed.
+const CORE_BASE = '/ffmpeg'
 
 let _ffmpeg: FFmpeg | null = null
 let _loading: Promise<FFmpeg> | null = null
