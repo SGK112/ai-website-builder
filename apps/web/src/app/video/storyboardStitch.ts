@@ -42,7 +42,13 @@ async function getFFmpeg(onLog?: (msg: string) => void): Promise<FFmpeg> {
     if (onLog) ff.on('log', ({ message }) => onLog(message))
     // toBlobURL turns the cross-origin core into same-origin blobs so the
     // browser will run it; st-core has no worker file.
+    // classWorkerURL is REQUIRED under Next.js: the FFmpeg class otherwise does
+    // `new Worker(new URL('./worker.js', import.meta.url), {type:'module'})`,
+    // which Next's bundler doesn't resolve — so load() hangs forever with no
+    // error. Point it at the self-hosted, self-contained UMD worker. All three
+    // files are same-origin (/public/ffmpeg) → no CORS.
     await ff.load({
+      classWorkerURL: await toBlobURL(`${CORE_BASE}/ffmpeg-class-worker.js`, 'text/javascript'),
       coreURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.js`, 'text/javascript'),
       wasmURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.wasm`, 'application/wasm'),
     })
@@ -77,7 +83,7 @@ export async function stitchClips(clipUrls: string[], opts: StitchOptions = {}):
   const H = opts.height ?? 720
   const FPS = opts.fps ?? 24
 
-  opts.onStage?.('Loading video engine…')
+  opts.onStage?.('Loading video engine (~30MB, first time)…')
   const ff = await getFFmpeg()
   // Detach any listener from a previous stitch before attaching this one.
   if (_progressHandler) ff.off('progress', _progressHandler)
