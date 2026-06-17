@@ -144,10 +144,18 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { type, title, description, html, thumbnail, tags, category, isPublic = true, priceCredits } = body
+    const { type, title, description, html, thumbnail, tags, category, isPublic = true, priceCredits, videoUrl } = body
 
     if (!type || !title) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+    // Video listings (sold from the Video Studio library) carry a media URL
+    // instead of HTML. Only accept it from our own CDN / providers.
+    let safeVideoUrl: string | undefined
+    if (type === 'video') {
+      const ok = typeof videoUrl === 'string' && /^https:\/\/([a-z0-9-]+\.)*(cloudinary\.com|replicate\.(com|delivery)|x\.ai)\//i.test(videoUrl)
+      if (!ok) return NextResponse.json({ error: 'A valid video URL is required to list a video.' }, { status: 400 })
+      safeVideoUrl = videoUrl
     }
 
     // Optional paid listing — clamp to int, cap at $500 (50000 credits) so a
@@ -172,6 +180,7 @@ export async function POST(request: NextRequest) {
       title,
       description: description || '',
       html,
+      videoUrl: safeVideoUrl,
       thumbnail,
       author: {
         id: session.user.id,

@@ -36,6 +36,8 @@ interface CoachRequest {
   style?: string
   aspectRatio?: string
   duration?: number
+  theme?: string                 // the film's established look (continuity anchor)
+  seriesPrompts?: string[]       // prompts of clips already on the timeline
 }
 interface CoachResponse {
   reply: string
@@ -54,13 +56,28 @@ function buildSystemPrompt(ctx: CoachRequest): string {
     ? `The user has attached ${ctx.imageCount || 1} source image(s); the video must ANIMATE those image(s), not invent a new scene. Direct the camera move and the motion WITHIN the existing image (e.g. "slow push-in, hair drifting, steam rising"), and keep subjects/products consistent with what's already there.`
     : `This is text-to-video — you are describing a brand-new shot from scratch.`
 
+  // Series continuity: when clips already exist, the new shot must live in the
+  // SAME film — same world, subject, palette, lighting and film look — not a
+  // disconnected scene. This is what keeps a multi-clip story coherent.
+  const seriesShots = (ctx.seriesPrompts || []).filter(Boolean).slice(0, 8)
+  const continuity = (ctx.theme || seriesShots.length)
+    ? `
+
+SERIES CONTINUITY — IMPORTANT
+This shot is part of an existing film, not a standalone clip.${ctx.theme ? `
+- Established theme / look to MATCH: "${clamp(ctx.theme, 400)}".` : ''}${seriesShots.length ? `
+- Shots already in the film:
+${seriesShots.map((p, i) => `   ${i + 1}. ${clamp(p, 160)}`).join('\n')}` : ''}
+The new shot MUST stay in this same world: same recurring subject(s)/character(s) and their appearance, same setting/era, same color palette, same lighting and film look, same overall mood. Carry the look forward — do NOT invent an unrelated scene, restyle the world, or swap the subject. If the user's idea seems off-theme, gently steer it back so the cut stays coherent. Bake the shared look into craftedPrompt explicitly (palette, lighting, film grain, lens, etc.).`
+    : ''
+
   return `You are the AI Director — a seasoned film director, cinematographer and video producer helping a non-expert get a great result from an AI video model. You are warm, fast and decisive, like a producer on set.
 
 CONTEXT
 - Generation mode: ${mode}.
 - Target model: ${model}.${isGrok ? ' (Grok Imagine — strong with people, hands and on-screen text, and accepts multiple reference images.)' : ' (a fast diffusion video model — keep subjects simple; it struggles with complex hands, crowds and readable text.)'}
 - Aspect ratio: ${clamp(ctx.aspectRatio, 20) || '16:9'}; duration: ${ctx.duration || 5}s; style: ${clamp(ctx.style, 80) || 'none specified'}.
-- ${imgLine}
+- ${imgLine}${continuity}
 
 YOUR JOB
 Turn the user's rough idea into the STRONGEST possible video prompt using the FEWEST questions (ideally one, sometimes zero). Over-asking is failure — they want results, not a form.

@@ -96,5 +96,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     isOwner,
   }
   if (owned && listing.html) safe.html = listing.html
+  // Video listings deliver a media URL instead of html — same access gate.
+  if (owned && listing.videoUrl) safe.videoUrl = listing.videoUrl
   return NextResponse.json({ listing: safe })
 }

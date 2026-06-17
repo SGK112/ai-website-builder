@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Clapperboard, Sparkles, Loader2, X, ArrowLeft, ArrowRight, Plus,
   Film, Download, Link2, Wand2, ImageIcon, AlertCircle, Volume2, PenLine, Play, Music,
-  Bookmark, BookmarkCheck, Trash2, Pause,
+  Bookmark, BookmarkCheck, Trash2, Pause, Share2, Tag,
 } from 'lucide-react'
 import VideoDirectorChat from './VideoDirectorChat'
+import SellCreationModal from './SellCreationModal'
 import { STUDIO_MUSIC, trackById, trackSrc } from '@/lib/studio-music'
 
 // One unified workspace (YouTube-Studio style): generate clips on the left, see
@@ -65,6 +66,7 @@ export default function VideoStudio() {
   const [musicUrl, setMusicUrl] = useState<string | null>(null)
   const [musicName, setMusicName] = useState<string>('')
   const [musicVolume, setMusicVolume] = useState(0.3)
+  const [theme, setTheme] = useState('') // established film look — keeps new clips consistent
   const [musicTrackId, setMusicTrackId] = useState<string | null>(null) // bundled library track
   const [showMusicPicker, setShowMusicPicker] = useState(false)
   const [previewingTrack, setPreviewingTrack] = useState<string | null>(null)
@@ -79,6 +81,9 @@ export default function VideoStudio() {
   const [creations, setCreations] = useState<Creation[]>([])
   const [showSaved, setShowSaved] = useState(false)
   const [savingIds, setSavingIds] = useState<Record<string, boolean>>({})
+  const [sharedLinks, setSharedLinks] = useState<Record<string, string>>({}) // creationId → /v/ link
+  const [sharingId, setSharingId] = useState<string | null>(null)
+  const [sellTarget, setSellTarget] = useState<Creation | null>(null) // creation being listed for sale
 
   // Stitch / export
   const [stitching, setStitching] = useState(false)
@@ -108,6 +113,8 @@ export default function VideoStudio() {
         const saved = JSON.parse(raw)
         if (Array.isArray(saved) && saved.length) setClips(saved)
       }
+      const t = localStorage.getItem('webstew_video_theme')
+      if (t) setTheme(t)
     } catch { /* ignore corrupt/blocked storage */ }
   }, [])
   useEffect(() => {
@@ -116,6 +123,20 @@ export default function VideoStudio() {
       localStorage.setItem('webstew_video_clips', JSON.stringify(done))
     } catch { /* storage full/blocked — non-fatal */ }
   }, [clips])
+  useEffect(() => {
+    try { localStorage.setItem('webstew_video_theme', theme) } catch { /* non-fatal */ }
+  }, [theme])
+
+  // The clip prompts already on the timeline — the "series" the Director keeps
+  // new shots consistent with.
+  const seriesPrompts = clips.filter(c => c.status === 'done').map(c => c.prompt).filter(Boolean)
+  // Seed the theme from the first shot's prompt when it's still blank, so a
+  // multi-clip film stays coherent even if the user never sets a theme by hand.
+  function seedTheme(fromPrompt: string) {
+    if (theme.trim() || !fromPrompt.trim()) return
+    const base = fromPrompt.trim().slice(0, 200)
+    setTheme(style ? `${base} · ${style} look` : base)
+  }
 
   const setStitched = (url: string | null) => {
     // Only blob URLs need revoking; the render now returns a remote Cloudinary URL.
@@ -155,13 +176,18 @@ export default function VideoStudio() {
     if (mode === 'image' && uploadedImages.length === 0) { setError('Add a source image, or switch to Text.'); return }
     const id = `clip_${clips.length}_${Math.floor(performance.now())}`
     const clipPrompt = prompt.trim() || 'Animate this image with smooth, natural motion'
+    // First shot seeds the film's theme; later shots inherit it for continuity.
+    seedTheme(clipPrompt)
+    // Append the established look so a direct (no-Director) generation still
+    // matches the rest of the film. The first clip has no theme yet → no suffix.
+    const genPrompt = theme.trim() ? `${clipPrompt}. Visual continuity with the rest of the film: ${theme.trim()}.` : clipPrompt
     setClips(prev => [...prev, { id, prompt: clipPrompt, status: 'generating' }])
     setSelectedId(id); setStitched(null); setShareUrl(null)
     setGenerating(true); setError(null); setGenLabel('Sending to ' + (selectedModel?.label || 'model') + '…')
     try {
       const body: Record<string, unknown> = {
         action: mode === 'text' ? 'text-to-video' : 'image-to-video',
-        prompt: clipPrompt, model, aspectRatio, duration, style: style || undefined,
+        prompt: genPrompt, model, aspectRatio, duration, style: style || undefined,
       }
       if (mode === 'image' && uploadedImages.length) {
         if (isMultiImage && uploadedImages.length > 1) body.imageUrls = uploadedImages
@@ -372,6 +398,22 @@ export default function VideoStudio() {
     }
   }
 
+  // Mint (or reuse) a public /v/ watch link for a library item and copy it.
+  async function shareCreation(cr: Creation) {
+    if (sharedLinks[cr.id]) { navigator.clipboard?.writeText(sharedLinks[cr.id]).catch(() => {}); return }
+    setSharingId(cr.id)
+    try {
+      const res = await fetch('/api/ai/video/share', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: cr.url, title: cr.title || 'A Webstew video' }),
+      })
+      const j = await res.json().catch(() => ({} as any))
+      if (!res.ok || !j.shareUrl) throw new Error(j.error || 'Could not create a share link.')
+      setSharedLinks(prev => ({ ...prev, [cr.id]: j.shareUrl }))
+      navigator.clipboard?.writeText(j.shareUrl).catch(() => {})
+    } catch (e: any) { setError(e?.message || 'Could not create a share link.') } finally { setSharingId(null) }
+  }
+
   async function deleteCreation(id: string) {
     const prev = creations
     setCreations(cur => cur.filter(c => c.id !== id)) // optimistic
@@ -392,6 +434,9 @@ export default function VideoStudio() {
   function addCreationToTimeline(cr: Creation) {
     const id = `clip_${clips.length}_${Math.floor(performance.now())}`
     setClips(prev => [...prev, { id, prompt: cr.title || 'Saved creation', status: 'done', url: cr.url, audio: false }])
+    // Adding a saved piece anchors the theme so the Director keeps the rest of
+    // the film consistent with it.
+    seedTheme(cr.title || '')
     setStitched(null); setSelectedId(id); setShowSaved(false)
   }
 
@@ -401,7 +446,7 @@ export default function VideoStudio() {
     if (stitchedUrl) await saveCreation('video', stitchedUrl, prompt.trim() || 'Untitled video')
     if (busy && !confirm('A job is still running. Start a new project anyway?')) return
     setClips([]); setSelectedId(null); setStitched(null); setShareUrl(null)
-    setPrompt(''); setScript(''); setError(null)
+    setPrompt(''); setScript(''); setError(null); setTheme('')
   }
 
   // Root is sized to the area BELOW the global WorkspaceNav (fixed h-16 + the
@@ -457,6 +502,19 @@ export default function VideoStudio() {
           <button onClick={() => setDirectorOpen(true)} className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-violet-500/40 bg-gradient-to-r from-violet-600/15 to-fuchsia-600/15 hover:from-violet-600/25 text-violet-200 text-xs font-medium py-2">
             <Sparkles className="w-3.5 h-3.5" /> AI Director — craft this prompt
           </button>
+
+          {/* Theme — the film's look. New clips (and the Director) stay
+              consistent with it, so a multi-clip story holds together. */}
+          <div>
+            <label className="flex items-center justify-between text-[11px] text-zinc-500 mb-1">
+              <span className="flex items-center gap-1"><Film className="w-3 h-3 text-fuchsia-300/70" /> Theme {seriesPrompts.length > 1 && <span className="text-fuchsia-300/70">· keeps {seriesPrompts.length} clips consistent</span>}</span>
+              {theme && <button onClick={() => setTheme('')} className="text-zinc-600 hover:text-red-300">clear</button>}
+            </label>
+            <textarea value={theme} onChange={e => setTheme(e.target.value)} rows={2}
+              placeholder="e.g. moody cinematic lighthouse, cold blue + amber, film grain, anamorphic"
+              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-fuchsia-500/40 resize-none" />
+            <p className="text-[10px] text-zinc-600 mt-0.5">New clips follow this look so they fit the rest of the film. Auto-set from your first shot — edit anytime.</p>
+          </div>
 
           <div>
             <label className="block text-[11px] text-zinc-500 mb-1">Style</label>
@@ -639,6 +697,11 @@ export default function VideoStudio() {
                       <a href={toDownloadUrl(cr.url)} download={`${(cr.title || 'creation').replace(/[^a-z0-9]+/gi, '-').slice(0, 40)}.mp4`} className="flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-zinc-200 px-2 py-1.5" title="Download"><Download className="w-3.5 h-3.5" /></a>
                       <button onClick={() => deleteCreation(cr.id)} className="flex items-center justify-center rounded-lg bg-white/5 hover:bg-red-500/20 text-zinc-400 hover:text-red-300 px-2 py-1.5" title="Remove"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <button onClick={() => shareCreation(cr)} disabled={sharingId === cr.id} className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-200 text-[11px] py-1.5 disabled:opacity-50">{sharingId === cr.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Share2 className="w-3 h-3" />} {sharedLinks[cr.id] ? 'Copied link ✓' : 'Share'}</button>
+                      <button onClick={() => setSellTarget(cr)} className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-white/5 hover:bg-emerald-500/15 text-zinc-200 hover:text-emerald-300 text-[11px] py-1.5"><Tag className="w-3 h-3" /> Sell</button>
+                    </div>
+                    {sharedLinks[cr.id] && <input readOnly value={sharedLinks[cr.id]} onFocus={e => e.currentTarget.select()} className="w-full mt-1.5 bg-black/30 border border-white/10 rounded px-2 py-1 text-[10px] text-zinc-400" />}
                   </div>
                 </div>
               ))}
@@ -683,10 +746,12 @@ export default function VideoStudio() {
         </div>
       )}
 
+      {sellTarget && <SellCreationModal target={sellTarget} onClose={() => setSellTarget(null)} />}
+
       <VideoDirectorChat
         open={directorOpen}
         initialPrompt={prompt}
-        context={{ mode, model, modelLabel: selectedModel?.label, imageCount: uploadedImages.length, style, aspectRatio, duration }}
+        context={{ mode, model, modelLabel: selectedModel?.label, imageCount: uploadedImages.length, style, aspectRatio, duration, theme: theme.trim() || undefined, seriesPrompts }}
         onApply={(p) => setPrompt(p)}
         onClose={() => setDirectorOpen(false)}
       />

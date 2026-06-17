@@ -33,6 +33,7 @@ interface ListingSummary {
   priceCredits?: number
   createdAt?: string
   html?: string
+  videoUrl?: string
 }
 
 async function loadListing(id: string): Promise<ListingSummary | null> {
@@ -62,6 +63,9 @@ async function loadListing(id: string): Promise<ListingSummary | null> {
     priceCredits: Number(doc.price_credits) || 0,
     createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : String(doc.createdAt || ''),
     html: !isPremium ? doc.html : undefined,
+    // Gate the playable file like html: free → playable; premium → poster +
+    // buy overlay only (don't hand out a paid video before purchase).
+    videoUrl: !isPremium ? doc.videoUrl : undefined,
   }
 }
 
@@ -138,7 +142,11 @@ export default async function ListingPage({ params }: PageProps) {
         {/* Thumbnail / preview area. Free listings get an interactive iframe.
             Premium listings get the thumbnail with a buy overlay. */}
         <section className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden mb-6">
-          {l.html ? (
+          {l.type === 'video' && l.videoUrl ? (
+            // Free video listing — playable. (Premium video has no videoUrl
+            // here, so it falls through to the locked poster below.)
+            <video src={l.videoUrl} poster={l.thumbnail} controls playsInline className="w-full max-h-[600px] bg-black" />
+          ) : l.html ? (
             <iframe
               srcDoc={l.html}
               className="w-full h-[600px] border-0 bg-white"
@@ -157,7 +165,7 @@ export default async function ListingPage({ params }: PageProps) {
                   <div className="text-center px-6">
                     <Crown className="w-8 h-8 text-amber-300 mx-auto mb-3" />
                     <p className="text-lg font-semibold mb-1">Preview locked</p>
-                    <p className="text-sm text-zinc-400 mb-4">Buy this listing to view the full site + get the source.</p>
+                    <p className="text-sm text-zinc-400 mb-4">{l.type === 'video' ? 'Buy this listing to get the full video.' : 'Buy this listing to view the full site + get the source.'}</p>
                   </div>
                 </div>
               )}

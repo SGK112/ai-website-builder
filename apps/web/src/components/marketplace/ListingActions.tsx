@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Heart, Bookmark, ShoppingBag, Loader2, AlertCircle, Check, Wand2 } from 'lucide-react'
+import { Heart, Bookmark, ShoppingBag, Loader2, AlertCircle, Check, Wand2, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -23,6 +23,8 @@ interface Entitlement {
   viewerLiked: boolean
   viewerSaved: boolean
   likes: number
+  type?: string
+  videoUrl?: string | null
 }
 
 export function ListingActions({ listingId, title, isPremium, priceCredits }: Props) {
@@ -46,6 +48,8 @@ export function ListingActions({ listingId, title, isPremium, priceCredits }: Pr
         viewerLiked: !!l.viewerLiked,
         viewerSaved: !!l.viewerSaved,
         likes: l.likes || 0,
+        type: l.type,
+        videoUrl: l.videoUrl || null,
       })
     } catch (e: any) {
       setError(e?.message || 'Failed to load')
@@ -187,7 +191,17 @@ export function ListingActions({ listingId, title, isPremium, priceCredits }: Pr
         </button>
       )}
 
-      {state.owned && (
+      {state.owned && state.type === 'video' && state.videoUrl ? (
+        // Video listing — owners download the file (fl_attachment forces a real
+        // download from the cross-origin Cloudinary URL).
+        <a
+          href={state.videoUrl.replace('/video/upload/', '/video/upload/fl_attachment/')}
+          download
+          className="ml-auto inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:shadow-lg hover:shadow-violet-500/25 text-white font-semibold text-sm"
+        >
+          <Download className="w-4 h-4" /> Download video
+        </a>
+      ) : state.owned && (
         <Link
           href={`/workspace?from=listing&listingId=${listingId}`}
           className="ml-auto inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:shadow-lg hover:shadow-violet-500/25 text-white font-semibold text-sm"

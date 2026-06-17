@@ -11,6 +11,8 @@ interface DirectorContext {
   style?: string
   aspectRatio?: string
   duration?: number
+  theme?: string           // established film look to keep new shots consistent
+  seriesPrompts?: string[] // prompts of clips already on the timeline
 }
 
 interface Msg { role: 'user' | 'assistant'; content: string }
@@ -75,6 +77,8 @@ export default function VideoDirectorChat({ open, initialPrompt, context, onAppl
           style: context.style,
           aspectRatio: context.aspectRatio,
           duration: context.duration,
+          theme: context.theme,
+          seriesPrompts: context.seriesPrompts,
         }),
       })
       const data = await res.json().catch(() => ({} as any))
