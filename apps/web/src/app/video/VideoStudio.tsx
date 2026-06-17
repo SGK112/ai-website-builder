@@ -339,8 +339,11 @@ export default function VideoStudio() {
     setPrompt(''); setScript(''); setError(null)
   }
 
+  // Root is sized to the area BELOW the global WorkspaceNav (fixed h-16 + the
+  // layout's pt-16). h-screen here overflowed by 64px and pushed the timeline +
+  // voice tracks off the bottom of the viewport.
   return (
-    <div className="h-screen flex flex-col bg-zinc-950 text-zinc-200 overflow-hidden">
+    <div className="h-[calc(100vh-4rem)] flex flex-col bg-zinc-950 text-zinc-200 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10 shrink-0">
         <div className="flex items-center gap-2">

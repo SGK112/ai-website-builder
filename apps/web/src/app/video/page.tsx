@@ -8,7 +8,7 @@ import { Loader2 } from 'lucide-react'
 const VideoStudio = dynamic(() => import('./VideoStudio'), {
   ssr: false,
   loading: () => (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+    <div className="min-h-[calc(100vh-4rem)] bg-zinc-950 flex items-center justify-center">
       <div className="flex flex-col items-center gap-3 text-zinc-500">
         <Loader2 className="w-6 h-6 animate-spin text-violet-400" />
         <span className="text-sm">Loading video studio…</span>
