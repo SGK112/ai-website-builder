@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Clapperboard, Sparkles, Loader2, X, ArrowLeft, ArrowRight, Plus,
   Film, Download, Link2, Wand2, ImageIcon, AlertCircle, Volume2, PenLine, Play,
@@ -69,6 +69,25 @@ export default function VideoStudio() {
   const selectedClip = clips.find(c => c.id === selectedId) || null
   const previewUrl = stitchedUrl || selectedClip?.url || null
   const busy = generating || stitching || writingScript
+
+  // Persist finished clips so a refresh doesn't wipe your work (generating a
+  // clip costs credits + time). We store only DONE clips; their URLs are remote
+  // (Cloudinary/provider), so they survive a reload.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('webstew_video_clips')
+      if (raw) {
+        const saved = JSON.parse(raw)
+        if (Array.isArray(saved) && saved.length) setClips(saved)
+      }
+    } catch { /* ignore corrupt/blocked storage */ }
+  }, [])
+  useEffect(() => {
+    try {
+      const done = clips.filter(c => c.status === 'done' && c.url).map(c => ({ id: c.id, prompt: c.prompt, status: c.status, url: c.url }))
+      localStorage.setItem('webstew_video_clips', JSON.stringify(done))
+    } catch { /* storage full/blocked — non-fatal */ }
+  }, [clips])
 
   const setStitched = (url: string | null) => {
     if (stitchedRef.current && stitchedRef.current !== url) URL.revokeObjectURL(stitchedRef.current)
@@ -312,6 +331,7 @@ export default function VideoStudio() {
       <div className="shrink-0 border-t border-white/10 bg-black/30 p-3 space-y-2">
         <div className="flex items-center gap-3">
           <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide">Timeline</span>
+          {clips.length > 0 && <button onClick={() => { if (confirm('Clear all clips from the timeline?')) { setClips([]); setSelectedId(null); setStitched(null) } }} disabled={busy} className="text-[10px] text-zinc-500 hover:text-red-300 disabled:opacity-30">Clear</button>}
           <div className="flex-1 flex gap-2 overflow-x-auto pb-1">
             {clips.length === 0 && <span className="text-xs text-zinc-600 py-4">No clips yet — generate one on the left.</span>}
             {clips.map((c, i) => (
