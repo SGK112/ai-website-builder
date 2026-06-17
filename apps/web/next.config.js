@@ -45,8 +45,11 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '2mb',
     },
-    // Externalize pino and related packages to prevent worker thread issues
-    serverComponentsExternalPackages: ['pino', 'pino-pretty', 'thread-stream'],
+    // Externalize pino + ffmpeg-static. ffmpeg-static MUST be external — if Next
+    // bundles it, its binary-path computation points into .next/server/... where
+    // the binary doesn't exist (spawn ENOENT). External → require() resolves the
+    // real binary in node_modules at runtime.
+    serverComponentsExternalPackages: ['pino', 'pino-pretty', 'thread-stream', 'ffmpeg-static'],
   },
   webpack: (config) => {
     config.resolve.alias['@'] = path.resolve(__dirname, 'src')
@@ -95,21 +98,9 @@ const nextConfig = {
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
         ],
       },
-      {
-        // /video uses FFmpeg.wasm which requires SharedArrayBuffer → COOP/COEP
-        source: '/video',
-        headers: [
-          { key: 'Cross-Origin-Embedder-Policy', value: 'credentialless' },
-          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
-        ],
-      },
-      {
-        source: '/video/:path*',
-        headers: [
-          { key: 'Cross-Origin-Embedder-Policy', value: 'credentialless' },
-          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
-        ],
-      },
+      // (/video no longer sets COOP/COEP — rendering moved server-side, so it
+      //  doesn't need SharedArrayBuffer, and the headers could complicate the
+      //  cross-origin clip previews.)
     ]
   },
   // Powered by header disabled for security
