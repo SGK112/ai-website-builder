@@ -16,10 +16,13 @@ import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile } from '@ffmpeg/util'
 
 // Self-hosted single-threaded @ffmpeg/core@0.12.10 (js + wasm) under /public.
-// Same-origin → no CORS (the old unpkg @ffmpeg/core-st@0.12.6 URL 404'd, which
-// the browser reported as a CORS error). Single-threaded → no SharedArrayBuffer
-// → no COOP/COEP headers needed.
-const CORE_BASE = '/ffmpeg'
+// MUST be a FULLY-ABSOLUTE https URL: the FFmpeg class resolves these via
+// `new URL(x, import.meta.url)`, and Next mangles import.meta.url to a file://
+// base in the bundled worker — so a root-relative '/ffmpeg/…' became
+// 'file:///ffmpeg/…' and the browser refused the worker. An absolute origin
+// URL ignores the broken base. (Same-origin → no CORS, single-threaded → no
+// COOP/COEP.)
+const CORE_BASE = (typeof window !== 'undefined' ? window.location.origin : '') + '/ffmpeg'
 
 let _ffmpeg: FFmpeg | null = null
 let _loading: Promise<FFmpeg> | null = null
