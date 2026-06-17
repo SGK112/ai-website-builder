@@ -266,7 +266,10 @@ export async function POST(request: NextRequest) {
   const userId = String(session.user.id)
   const col = await jobsCol()
   await col.insertOne({ jobId, userId, status: 'processing', clips: clipUrls.length, createdAt: new Date(), updatedAt: new Date() })
-  void runJob(jobId, userId, body, clipUrls, W, H)
+  // Fire-and-forget background render (NOT awaited — outlives the response).
+  // runJob is self-contained try/catch, but guard the call too so a rejection
+  // can never surface as an unhandled promise rejection.
+  runJob(jobId, userId, body, clipUrls, W, H).catch(err => console.error('[video render] unhandled job error:', err?.message || err))
   return NextResponse.json({ jobId, status: 'processing' }, { status: 202 })
 }
 

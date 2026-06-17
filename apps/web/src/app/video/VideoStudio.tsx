@@ -269,17 +269,21 @@ export default function VideoStudio() {
     }
   }
 
+  // Mint a public watch link on webstew (/v/<id>) for the finished video. The
+  // file is already hosted on our CDN; this just creates the shareable page
+  // anyone — including signed-out guests — can open, with a CTA back here.
   async function saveShareLink() {
     if (!stitchedUrl) return
     setSaving(true); setError(null)
     try {
-      const blob = await (await fetch(stitchedUrl)).blob()
-      const fd = new FormData(); fd.append('file', new File([blob], 'video.mp4', { type: 'video/mp4' }))
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      const res = await fetch('/api/ai/video/share', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: stitchedUrl, title: prompt.trim() || script.trim().slice(0, 80) || 'A Webstew video' }),
+      })
       const json = await res.json().catch(() => ({} as any))
-      if (!res.ok || !json.url) throw new Error(json.error || 'Could not save the video.')
-      setShareUrl(json.url)
-    } catch (e: any) { setError(e?.message || 'Saving failed') } finally { setSaving(false) }
+      if (!res.ok || !json.shareUrl) throw new Error(json.error || 'Could not create a share link.')
+      setShareUrl(json.shareUrl)
+    } catch (e: any) { setError(e?.message || 'Could not create a share link.') } finally { setSaving(false) }
   }
 
   const move = (i: number, dir: -1 | 1) => setClips(prev => {
@@ -471,7 +475,12 @@ export default function VideoStudio() {
               {stitchedUrl && (
                 <button onClick={saveShareLink} disabled={saving} className="w-full mt-2 flex items-center justify-center gap-1.5 rounded-lg bg-white/[0.03] hover:bg-white/10 text-zinc-300 text-[11px] font-medium py-1.5 disabled:opacity-50">{saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link2 className="w-3 h-3" />} {shareUrl ? 'Shareable link ready ✓' : 'Get a shareable link'}</button>
               )}
-              {shareUrl && <input readOnly value={shareUrl} onFocus={e => e.currentTarget.select()} className="w-full mt-2 bg-black/30 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-zinc-300" />}
+              {shareUrl && (
+                <div className="flex gap-1.5 mt-2">
+                  <input readOnly value={shareUrl} onFocus={e => e.currentTarget.select()} className="flex-1 bg-black/30 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-zinc-300" />
+                  <a href={shareUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-200 text-[11px] px-2.5 py-1.5">Open <ArrowRight className="w-3 h-3 -rotate-45" /></a>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center text-zinc-600">
