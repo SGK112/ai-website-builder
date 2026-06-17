@@ -5,7 +5,6 @@ import {
   Clapperboard, Sparkles, Loader2, X, ArrowLeft, ArrowRight, Plus,
   Film, Download, Link2, Wand2, ImageIcon, AlertCircle, Volume2, PenLine, Play, Music,
 } from 'lucide-react'
-import { stitchClips } from './storyboardStitch'
 import VideoDirectorChat from './VideoDirectorChat'
 
 // One unified workspace (YouTube-Studio style): generate clips on the left, see
@@ -97,7 +96,8 @@ export default function VideoStudio() {
   }, [clips])
 
   const setStitched = (url: string | null) => {
-    if (stitchedRef.current && stitchedRef.current !== url) URL.revokeObjectURL(stitchedRef.current)
+    // Only blob URLs need revoking; the render now returns a remote Cloudinary URL.
+    if (stitchedRef.current && stitchedRef.current !== url && stitchedRef.current.startsWith('blob:')) URL.revokeObjectURL(stitchedRef.current)
     stitchedRef.current = url
     setStitchedUrl(url)
   }
@@ -206,28 +206,31 @@ export default function VideoStudio() {
 
   async function stitchAndExport() {
     if (doneClips.length < 1) { setError('Generate at least one clip first.'); return }
-    setStitching(true); setError(null); setStitchProgress(0); setStitchStage('Starting…'); setStitched(null); setShareUrl(null)
-    let audioUrl: string | null = null
+    setStitching(true); setError(null); setStitchProgress(0); setStitchStage('Rendering on the server…'); setStitched(null); setShareUrl(null)
     try {
-      if (script.trim()) {
-        setStitchStage('Generating narration…')
-        const res = await fetch('/api/ai/video/narration', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'speak', script: script.trim(), voice }) })
-        if (!res.ok) { const e = await res.json().catch(() => ({} as any)); throw new Error(e.error || `Narration failed (HTTP ${res.status}).`) }
-        audioUrl = URL.createObjectURL(await res.blob())
-      }
-      const url = await stitchClips(doneClips.map(c => c.url!), {
-        audioUrl,
-        musicUrl,
-        musicVolume,
-        clipsHaveAudio: doneClips.length > 0 && doneClips.every(c => c.audio === true),
-        onStage: setStitchStage,
-        onProgress: (r) => setStitchProgress(Math.round(r * 100)),
+      // Server-side render: no in-browser engine. The server downloads the clips,
+      // generates the voiceover, mixes music + voice + scene audio, and returns
+      // a Cloudinary URL.
+      const res = await fetch('/api/ai/video/render', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clipUrls: doneClips.map(c => c.url),
+          clipsHaveAudio: doneClips.length > 0 && doneClips.every(c => c.audio === true),
+          script: script.trim() || undefined,
+          voice,
+          musicUrl: musicUrl || undefined,
+          musicVolume,
+          aspectRatio,
+        }),
       })
-      setStitched(url); setSelectedId(null); setStitchStage('Done')
+      const data = await res.json().catch(() => ({} as any))
+      if (!res.ok || !data.url) throw new Error(data.error || `Render failed (HTTP ${res.status}).`)
+      setStitched(data.url)       // remote Cloudinary URL — already shareable
+      setShareUrl(data.url)
+      setSelectedId(null); setStitchStage('Done')
     } catch (e: any) {
-      setError(e?.message || 'Stitching failed — you can still download each clip from the timeline.')
+      setError(e?.message || 'Render failed — you can still download each clip from the timeline.')
     } finally {
-      if (audioUrl) URL.revokeObjectURL(audioUrl)
       setStitching(false)
     }
   }
@@ -421,7 +424,7 @@ export default function VideoStudio() {
             {stitching ? <><Loader2 className="w-4 h-4 animate-spin" /> {stitchStage}{stitchProgress > 0 ? ` ${stitchProgress}%` : ''}</> : <><Wand2 className="w-4 h-4" /> Render film {doneClips.length > 1 ? `(${doneClips.length} clips)` : ''}</>}
           </button>
         </div>
-        {stitching && <p className="text-[10px] text-zinc-500">Rendering runs in your browser — first run loads the engine (~30MB), can take a minute.</p>}
+        {stitching && <p className="text-[10px] text-zinc-500">Rendering on our server — downloading clips, mixing audio, and uploading. Usually under a minute.</p>}
       </div>
 
       <VideoDirectorChat
