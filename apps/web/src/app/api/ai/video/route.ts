@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 import { spendCredits, recordVideoCharge, refundVideoJob } from '@/lib/credits'
+import crypto from 'node:crypto'
 
 // Caps on user-supplied text/array inputs forwarded to PAID APIs — keeps a
 // malicious client from inflating token/transfer cost or smuggling huge payloads.
@@ -389,6 +390,36 @@ async function startPrediction(input: Record<string, unknown>, model: typeof MOD
   return NextResponse.json({ id: prediction.id, status: prediction.status })
 }
 
+// Provider clip URLs (Replicate `replicate.delivery`, xAI) are EPHEMERAL — they
+// expire after a short TTL. We persist clips to the timeline + Saved Creations,
+// so a raw provider URL means blank thumbnails / dead clips on reload. The
+// moment a clip succeeds, copy it onto our own Cloudinary CDN and hand back the
+// durable URL instead. Best-effort: if Cloudinary isn't configured or the copy
+// fails, fall back to the provider URL (no worse than before).
+async function rehostToCloudinary(srcUrl: string): Promise<string> {
+  const CN = process.env.CLOUDINARY_CLOUD_NAME, CK = process.env.CLOUDINARY_API_KEY, CS = process.env.CLOUDINARY_API_SECRET
+  if (!CN || !CK || !CS) return srcUrl
+  // Already on our CDN — nothing to do.
+  if (/res\.cloudinary\.com|cloudinary\.com/.test(srcUrl)) return srcUrl
+  try {
+    const r = await fetch(srcUrl)
+    if (!r.ok) return srcUrl
+    const buf = Buffer.from(await r.arrayBuffer())
+    const ts = Math.round(Date.now() / 1000)
+    const folder = 'ai-website-builder/clips'
+    const sig = crypto.createHash('sha1').update(`folder=${folder}&timestamp=${ts}${CS}`).digest('hex')
+    const fd = new FormData()
+    fd.append('file', new Blob([new Uint8Array(buf)], { type: 'video/mp4' }), 'clip.mp4')
+    fd.append('folder', folder); fd.append('timestamp', String(ts)); fd.append('api_key', CK); fd.append('signature', sig)
+    const up = await fetch(`https://api.cloudinary.com/v1_1/${CN}/video/upload`, { method: 'POST', body: fd })
+    const j = await up.json().catch(() => ({} as any))
+    return j.secure_url || srcUrl
+  } catch (e: any) {
+    console.warn('[video] clip rehost failed, using provider URL:', e?.message || e)
+    return srcUrl
+  }
+}
+
 async function pollOnce(predictionId: string) {
   // Grok jobs are tagged with an "xai:" prefix at creation so status checks
   // route to xAI instead of Replicate (the client re-sends whatever id we gave).
@@ -404,10 +435,12 @@ async function pollOnce(predictionId: string) {
   if (p.status === 'failed' || p.status === 'canceled') await refundVideoJob(predictionId)
   // Normalize output — Replicate returns an array for most video models
   const output = Array.isArray(p.output) ? p.output[0] : p.output
+  // On success, copy the clip to our CDN so the stored URL doesn't expire.
+  const videoUrl = (p.status === 'succeeded' && output) ? await rehostToCloudinary(output) : (output || null)
   return NextResponse.json({
     id: p.id,
     status: p.status,          // starting | processing | succeeded | failed
-    videoUrl: output || null,
+    videoUrl,
     error: p.error || null,
     logs: p.logs || null,
   })
@@ -464,10 +497,13 @@ async function pollXai(prefixedId: string) {
     : 'processing'   // pending / processing / unknown → keep polling
   // Failed → refund the credits charged at start (idempotent).
   if (status === 'failed') await refundVideoJob(prefixedId)
+  const xaiUrl = p.video?.url || null
+  // On success, copy the clip to our CDN so the stored URL doesn't expire.
+  const videoUrl = (status === 'succeeded' && xaiUrl) ? await rehostToCloudinary(xaiUrl) : xaiUrl
   return NextResponse.json({
     id: prefixedId,                              // keep prefix → next poll still hits xAI
     status,
-    videoUrl: p.video?.url || null,
+    videoUrl,
     error: p.error || null,
     logs: p.progress != null ? `${p.progress}%` : null,
   })
