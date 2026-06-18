@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { ArrowLeft, Loader2, AlertCircle, Crown, Bookmark, Package, ShoppingBag, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { DEMO_SITES } from '@/lib/demo-sites'
 
 interface Listing {
   _id: string
@@ -41,12 +42,45 @@ interface LibraryData {
 
 type Tab = 'purchased' | 'authored' | 'saved'
 
+// Real listings carry a 24-hex Mongo ObjectId; demo/showcase cards use a slug.
+// Saving a demo card is a LOCAL bookmark (localStorage, written by /community)
+// since there's no DB row — so the library reads those here too, otherwise
+// saved demo items would silently never appear. Key/shape mirror /community.
+const isRealId = (id: string) => /^[a-f0-9]{24}$/i.test(id)
+const LS_SAVED = 'webstew_community_saved_local'
+function loadLocalSavedDemos(): Listing[] {
+  let ids: string[] = []
+  try { const v = JSON.parse(localStorage.getItem(LS_SAVED) || '[]'); if (Array.isArray(v)) ids = v } catch { /* storage blocked — non-fatal */ }
+  return ids
+    .filter((id) => typeof id === 'string' && !isRealId(id))
+    .map((slug): Listing | null => {
+      const d = DEMO_SITES.find((s) => s.id === slug)
+      if (!d) return null
+      return {
+        _id: slug,
+        type: 'template',
+        title: d.label,
+        description: d.prompt,
+        thumbnail: `https://picsum.photos/seed/${encodeURIComponent(slug)}/800/500`,
+        author: { name: 'Webstew Team', username: 'webstew' },
+        isPremium: false,
+        priceCredits: 0,
+      }
+    })
+    .filter((x): x is Listing => x !== null)
+}
+
 export default function LibraryPage() {
   const { data: session, status } = useSession()
   const [data, setData] = useState<LibraryData | null>(null)
+  const [localSaved, setLocalSaved] = useState<Listing[]>([])
   const [tab, setTab] = useState<Tab>('purchased')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Local (demo) bookmarks live in localStorage — read them on mount so the
+  // Saved tab shows everything the user saved, not just DB-backed listings.
+  useEffect(() => { setLocalSaved(loadLocalSavedDemos()) }, [])
 
   useEffect(() => {
     if (status !== 'authenticated') return
@@ -74,10 +108,18 @@ export default function LibraryPage() {
     )
   }
 
+  // Saved = DB-backed saves + local demo bookmarks, de-duped by id (a real
+  // listing the user also bookmarked locally shouldn't appear twice).
+  const savedMerged: Listing[] = (() => {
+    const db = data?.saved || []
+    const seen = new Set(db.map((l) => l._id))
+    return [...db, ...localSaved.filter((l) => !seen.has(l._id))]
+  })()
+
   const tabs: Array<{ key: Tab; label: string; icon: any; count: number }> = [
     { key: 'purchased', label: 'Purchased',  icon: ShoppingBag, count: data?.purchased.length ?? 0 },
     { key: 'authored',  label: 'My listings', icon: Package,     count: data?.authored.length ?? 0 },
-    { key: 'saved',     label: 'Saved',       icon: Bookmark,    count: data?.saved.length ?? 0 },
+    { key: 'saved',     label: 'Saved',       icon: Bookmark,    count: savedMerged.length },
   ]
 
   const items: Listing[] =
@@ -91,7 +133,7 @@ export default function LibraryPage() {
         } as Listing)
       : tab === 'authored'
         ? data?.authored || []
-        : data?.saved || []
+        : savedMerged
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-zinc-950 to-zinc-900 text-white">
@@ -142,7 +184,13 @@ export default function LibraryPage() {
             {items.map((l) => (
               <Link
                 key={l._id}
-                href={tab === 'purchased' ? `/workspace?from=library&listingId=${l._id}` : `/listings/${l._id}`}
+                href={
+                  tab === 'purchased'
+                    ? `/workspace?from=library&listingId=${l._id}`
+                    : isRealId(l._id)
+                      ? `/listings/${l._id}`
+                      : `/showcase/${l._id}` // demo bookmark → its showcase page
+                }
                 className="group rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden hover:border-violet-500/40 transition"
               >
                 <div className="aspect-[16/10] bg-gradient-to-br from-slate-800 to-slate-900 overflow-hidden relative">
