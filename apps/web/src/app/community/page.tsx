@@ -54,6 +54,11 @@ interface Project {
   comments: number
   createdAt: string
   featured?: boolean
+  // Marketplace fields — carried from the API so the GRID card can show a
+  // price / "for sale" badge instead of hiding it until the detail page.
+  priceCredits?: number   // 1 credit = 1¢; 0 / undefined = free
+  isPremium?: boolean
+  type?: string
 }
 
 interface Category {
@@ -246,6 +251,9 @@ export default function CommunityPage() {
         ? new Date(post.createdAt).toLocaleDateString()
         : '',
       featured: false,
+      priceCredits: Number(post.price_credits) || 0,
+      isPremium: !!post.isPremium || (Number(post.price_credits) || 0) > 0,
+      type: post.type,
     }
   }
 
@@ -859,6 +867,20 @@ export default function CommunityPage() {
                       )}>
                         {categories.find(c => c.id === project.category)?.name}
                       </span>
+                    </div>
+
+                    {/* For-sale / price badge — makes the marketplace obvious
+                        right in the grid (premium → price, otherwise "Free"). */}
+                    <div className="absolute top-3 left-3">
+                      {project.isPremium && project.priceCredits ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold backdrop-blur-sm bg-amber-500/90 text-white shadow-sm">
+                          <ShoppingBag className="w-3 h-3" /> ${(project.priceCredits / 100).toFixed(2)}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 rounded-full text-[11px] font-medium backdrop-blur-sm bg-emerald-500/80 text-white">
+                          Free
+                        </span>
+                      )}
                     </div>
                   </div>
 
