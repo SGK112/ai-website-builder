@@ -86,6 +86,19 @@ function formatStat(n: number): string {
   return String(n)
 }
 
+// Real listings carry a Mongo ObjectId (24 hex). Demo/showcase cards use a slug
+// id (e.g. "saas") — POSTing those to the like/save API 400s. So we route demo
+// interactions to a LOCAL bookmark (localStorage) instead of silently failing.
+const isRealId = (id: string) => /^[a-f0-9]{24}$/i.test(id)
+const LS_SAVED = 'webstew_community_saved_local'
+const LS_LIKED = 'webstew_community_liked_local'
+function readLocalSet(key: string): string[] {
+  try { const v = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(v) ? v : [] } catch { return [] }
+}
+function writeLocalSet(key: string, ids: string[]) {
+  try { localStorage.setItem(key, JSON.stringify(ids.filter(id => !isRealId(id)))) } catch { /* storage blocked — non-fatal */ }
+}
+
 const DEMO_THUMBS: Record<string, string> = {
   saas: '/api/media?q=analytics%20dashboard%20saas&w=600&h=400',
   portfolio: '/api/media?q=creative%20portfolio%20designer&w=600&h=400',
@@ -189,6 +202,9 @@ export default function CommunityPage() {
   const [sortBy, setSortBy] = useState<'trending' | 'recent' | 'popular'>('trending')
   const [likedProjects, setLikedProjects] = useState<string[]>([])
   const [savedProjects, setSavedProjects] = useState<string[]>([])
+  // Brief, honest feedback for like/save (replaces the old SILENT rollback that
+  // made the buttons feel broken). Shows e.g. "Saved" / "Couldn't save — retry".
+  const [actionMsg, setActionMsg] = useState<string | null>(null)
   // Real listings from /api/community/posts (replaces the legacy mockProjects
   // demo data that used to live here as a placeholder). Mock list is kept as
   // a tail fallback only so the page doesn't go empty during the first hours
@@ -232,6 +248,14 @@ export default function CommunityPage() {
       featured: false,
     }
   }
+
+  // Hydrate local (demo) likes/saves once on mount so the bookmark + heart
+  // render filled for items the user marked while signed-out or on demo cards.
+  useEffect(() => {
+    const s = readLocalSet(LS_SAVED), l = readLocalSet(LS_LIKED)
+    if (s.length) setSavedProjects(prev => Array.from(new Set([...prev, ...s])))
+    if (l.length) setLikedProjects(prev => Array.from(new Set([...prev, ...l])))
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -294,27 +318,37 @@ export default function CommunityPage() {
   // server. If the server rejects (e.g. anon, 401), we route the user to
   // signup and roll back the local state. Likes & saves are one-per-user
   // server-side (set semantics) so spam clicks can't inflate counts.
+  // Flash a short status line, auto-clearing. Gives the buttons honest feedback
+  // (the old code rolled back silently on any failure, which read as "broken").
+  const flash = (msg: string) => { setActionMsg(msg); window.setTimeout(() => setActionMsg(m => (m === msg ? null : m)), 1800) }
+
   const toggleLike = async (id: string) => {
     const willLike = !likedProjects.includes(id)
-    setLikedProjects(prev => willLike ? [...prev, id] : prev.filter(p => p !== id))
+    const next = willLike ? [...likedProjects, id] : likedProjects.filter(p => p !== id)
+    setLikedProjects(next)
+    // Demo/showcase card → local-only like (persists across reloads).
+    if (!isRealId(id)) { writeLocalSet(LS_LIKED, next); return }
     try {
       const res = await fetch(`/api/community/posts/${id}/like`, { method: 'POST' })
       if (res.status === 401) {
-        // Roll back + walk anon to signup
         setLikedProjects(prev => willLike ? prev.filter(p => p !== id) : [...prev, id])
         window.location.href = `/signup?next=${encodeURIComponent('/community')}`
         return
       }
       if (!res.ok) throw new Error(String(res.status))
     } catch {
-      // Network error — roll back to keep state honest
       setLikedProjects(prev => willLike ? prev.filter(p => p !== id) : [...prev, id])
+      flash('Couldn’t update like — try again')
     }
   }
 
   const toggleSave = async (id: string) => {
     const willSave = !savedProjects.includes(id)
-    setSavedProjects(prev => willSave ? [...prev, id] : prev.filter(p => p !== id))
+    const next = willSave ? [...savedProjects, id] : savedProjects.filter(p => p !== id)
+    setSavedProjects(next)
+    // Demo/showcase card → local-only bookmark (persists across reloads) so the
+    // button actually works instead of 400-ing on a non-ObjectId id.
+    if (!isRealId(id)) { writeLocalSet(LS_SAVED, next); flash(willSave ? 'Saved' : 'Removed'); return }
     try {
       const res = await fetch(`/api/community/posts/${id}/save`, { method: 'POST' })
       if (res.status === 401) {
@@ -323,8 +357,10 @@ export default function CommunityPage() {
         return
       }
       if (!res.ok) throw new Error(String(res.status))
+      flash(willSave ? 'Saved to your library' : 'Removed')
     } catch {
       setSavedProjects(prev => willSave ? prev.filter(p => p !== id) : [...prev, id])
+      flash('Couldn’t save — try again')
     }
   }
 
@@ -337,6 +373,14 @@ export default function CommunityPage() {
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         {isDark ? <StarryNight /> : <SunriseBackground />}
       </div>
+
+      {/* Like/save feedback — honest, transient confirmation so the buttons
+          never feel dead (replaces the old silent rollback). */}
+      {actionMsg && (
+        <div role="status" aria-live="polite" className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-zinc-900/95 border border-white/15 text-white text-sm shadow-xl flex items-center gap-2">
+          <Bookmark className="w-3.5 h-3.5 text-violet-300" /> {actionMsg}
+        </div>
+      )}
 
       {/* No local header — the global WorkspaceNav (from ClientLayout) already
           provides nav + Create. The hero below labels the page, so a second
