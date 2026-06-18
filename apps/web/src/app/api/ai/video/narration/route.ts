@@ -89,14 +89,18 @@ export async function POST(request: NextRequest) {
 
     // ── Scriptwriter ──
     if (body.mode !== 'speak') {
-      // Cap inputs forwarded to the LLM (write mode has no script cap otherwise).
-      if ((body.topic || '').length > 500) return NextResponse.json({ error: 'Topic too long (max 500 chars).' }, { status: 400 })
-      if ((body.text || '').length > 4000) return NextResponse.json({ error: 'Notes too long (max 4000 chars).' }, { status: 400 })
+      // Truncate the context forwarded to the LLM rather than 400 on it. A
+      // Director-crafted clip prompt (sent as `topic`) routinely runs past
+      // 500 chars — the old hard cap rejected every one of them, which was the
+      // source of the narration 400s. Topic/notes are only context here, so
+      // clipping them is harmless and the script still gets written.
       const secs = Math.max(3, Math.min(60, Math.floor(body.totalSeconds || 15)))
       const words = Math.round(secs * WORDS_PER_SEC)
+      const topic = (body.topic || '').slice(0, 1000).trim()
+      const notes = (body.text || '').slice(0, 4000).trim()
       const user = [
-        body.topic ? `Video topic: ${body.topic}` : '',
-        body.text?.trim() ? `The user's rough notes / what they want said:\n${body.text.trim()}` : 'The user gave no notes — write a strong script from the topic alone.',
+        topic ? `Video topic: ${topic}` : '',
+        notes ? `The user's rough notes / what they want said:\n${notes}` : 'The user gave no notes — write a strong script from the topic alone.',
       ].filter(Boolean).join('\n\n')
       let parsed: { script?: string } | null = null
       try {

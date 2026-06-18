@@ -29,6 +29,16 @@ const ASPECTS = ['16:9', '9:16', '1:1', '4:5']
 const STYLES = ['Cinematic', 'Realistic', 'Anime', '3D Render', 'Documentary', 'Slow Motion']
 const TTS_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
 
+// How many source images you can stage at once (each becomes its own clip in
+// "Make ad" mode). Independent of a model's per-clip reference-image cap.
+const MAX_SOURCE_IMAGES = 6
+// Models that accept an image as input. A non-image model selected in image
+// mode falls back to Seedance so a stray choice (e.g. Wan) can't waste a job.
+const IMAGE_CAPABLE = new Set(['seedance', 'grok', 'svd'])
+// Unique clip id — performance.now()+random avoids collisions when a batch
+// appends several clips within the same millisecond.
+const newClipId = () => `clip_${Math.floor(performance.now())}_${Math.floor(Math.random() * 1e6)}`
+
 // Cross-origin Cloudinary URLs ignore the <a download> attribute (they just
 // open). fl_attachment forces a real download via Content-Disposition.
 function toDownloadUrl(url: string): string {
@@ -47,6 +57,7 @@ export default function VideoStudio() {
   const [duration, setDuration] = useState(5)
   const [uploadedImages, setUploadedImages] = useState<string[]>([])
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
   const [directorOpen, setDirectorOpen] = useState(false)
 
   // Timeline / clips
@@ -146,82 +157,165 @@ export default function VideoStudio() {
   }
   const patch = (id: string, p: Partial<Clip>) => setClips(prev => prev.map(c => (c.id === id ? { ...c, ...p } : c)))
 
-  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files || [])
-    if (!files.length) return
-    const toUpload = isMultiImage ? files : files.slice(0, 1)
+  // Upload a single file to our CDN and return its remote URL (throws on
+  // failure / unconfigured storage). Shared by image staging + video import.
+  async function uploadOne(file: File): Promise<string> {
+    const fd = new FormData(); fd.append('file', file)
+    const res = await fetch('/api/upload', { method: 'POST', body: fd })
+    const json = await res.json().catch(() => ({} as any))
+    if (!res.ok) throw new Error(json.error || `Upload failed (${res.status})`)
+    if (!json.url || json.url.startsWith('data:')) throw new Error('Media storage isn\'t configured on this server.')
+    return json.url
+  }
+
+  // Take in mixed source media (click-to-pick OR drag-and-drop):
+  //  • IMAGES stage in the tray — "Generate clip" turns the tray into one clip
+  //    (multi-image models use several as refs), "Make ad" makes one per image.
+  //  • VIDEOS drop straight onto the timeline as ready clips, so you can mix
+  //    your own footage with generated clips, then add music + voice and render.
+  async function uploadSourceFiles(files: File[]) {
+    const images = files.filter(f => f.type.startsWith('image/'))
+    const videos = files.filter(f => f.type.startsWith('video/'))
+    if (!images.length && !videos.length) {
+      if (files.length) setError('Add images or a video — other file types aren’t supported here.')
+      return
+    }
     setError(null); setUploadingImage(true)
     try {
-      const urls: string[] = []
-      for (const file of toUpload) {
-        const fd = new FormData(); fd.append('file', file)
-        const res = await fetch('/api/upload', { method: 'POST', body: fd })
-        const json = await res.json().catch(() => ({} as any))
-        if (!res.ok) throw new Error(json.error || `Upload failed (${res.status})`)
-        if (!json.url || json.url.startsWith('data:')) throw new Error('Image storage isn\'t configured on this server.')
-        urls.push(json.url)
+      // Videos → timeline clips (already finished footage; assume they carry audio).
+      for (const file of videos) {
+        const url = await uploadOne(file)
+        const id = newClipId()
+        const name = file.name.replace(/\.[^.]+$/, '').trim() || 'Uploaded clip'
+        setClips(prev => [...prev, { id, prompt: name, status: 'done', url, audio: true }])
+        setSelectedId(id); setStitched(null); setShareUrl(null)
       }
-      setUploadedImages(prev => (isMultiImage ? [...prev, ...urls].slice(0, maxImages) : urls))
+      // Images → staging tray (capped at MAX_SOURCE_IMAGES total).
+      if (images.length) {
+        const room = MAX_SOURCE_IMAGES - uploadedImages.length
+        if (room <= 0) { setError(`You can stage up to ${MAX_SOURCE_IMAGES} images.`); return }
+        const urls: string[] = []
+        for (const file of images.slice(0, room)) urls.push(await uploadOne(file))
+        setUploadedImages(prev => [...prev, ...urls].slice(0, MAX_SOURCE_IMAGES))
+      }
     } catch (e: any) {
-      setError(e?.message || 'Image upload failed')
+      setError(e?.message || 'Upload failed')
     } finally {
       setUploadingImage(false)
-      if (imageInputRef.current) imageInputRef.current.value = ''
     }
   }
 
-  // Generate one clip and append it to the timeline.
-  async function generateClip() {
-    if (mode === 'text' && !prompt.trim()) { setError('Describe your clip first, or use the AI Director.'); return }
-    if (mode === 'image' && uploadedImages.length === 0) { setError('Add a source image, or switch to Text.'); return }
-    const id = `clip_${clips.length}_${Math.floor(performance.now())}`
-    const clipPrompt = prompt.trim() || 'Animate this image with smooth, natural motion'
-    // First shot seeds the film's theme; later shots inherit it for continuity.
-    seedTheme(clipPrompt)
-    // Append the established look so a direct (no-Director) generation still
-    // matches the rest of the film. The first clip has no theme yet → no suffix.
-    const genPrompt = theme.trim() ? `${clipPrompt}. Visual continuity with the rest of the film: ${theme.trim()}.` : clipPrompt
-    setClips(prev => [...prev, { id, prompt: clipPrompt, status: 'generating' }])
-    setSelectedId(id); setStitched(null); setShareUrl(null)
-    setGenerating(true); setError(null); setGenLabel('Sending to ' + (selectedModel?.label || 'model') + '…')
+  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || [])
+    if (imageInputRef.current) imageInputRef.current.value = '' // allow re-picking the same file
+    if (mode !== 'image') setMode('image')
+    void uploadSourceFiles(files)
+  }
+
+  function handleImageDrop(e: React.DragEvent) {
+    e.preventDefault(); setDragOver(false)
+    const files = Array.from(e.dataTransfer.files || [])
+    if (!files.length) return
+    if (mode !== 'image') setMode('image')
+    void uploadSourceFiles(files)
+  }
+
+  // Append the established look so a generation matches the rest of the film.
+  const withTheme = (p: string, t: string) => t ? `${p}. Visual continuity with the rest of the film: ${t}.` : p
+
+  // Run ONE clip's generation to completion: POST → poll → patch the clip row.
+  // `images` empty = text-to-video; otherwise image-to-video (one ref per clip,
+  // or several refs for a multi-image model). Returns an error string on
+  // failure (already recorded on the clip) or null on success. The caller owns
+  // the `generating` flag + selection; `label` lets a batch prefix "Clip 2/5".
+  async function runClipJob(id: string, genPrompt: string, images: string[], label: (s: string) => void = setGenLabel): Promise<string | null> {
+    const useImages = images.length > 0
+    // A non-image model picked in image mode falls back to Seedance.
+    const useModel = useImages && !IMAGE_CAPABLE.has(model) ? 'seedance' : model
+    const modelLabel = VIDEO_MODELS.find(m => m.id === useModel)?.label || 'model'
     try {
       const body: Record<string, unknown> = {
-        action: mode === 'text' ? 'text-to-video' : 'image-to-video',
-        prompt: genPrompt, model, aspectRatio, duration, style: style || undefined,
+        action: useImages ? 'image-to-video' : 'text-to-video',
+        prompt: genPrompt, model: useModel, aspectRatio, duration, style: style || undefined,
       }
-      if (mode === 'image' && uploadedImages.length) {
-        if (isMultiImage && uploadedImages.length > 1) body.imageUrls = uploadedImages
-        else body.imageUrl = uploadedImages[0]
+      if (useImages) {
+        if (isMultiImage && images.length > 1) body.imageUrls = images.slice(0, maxImages)
+        else body.imageUrl = images[0]
       }
+      label('Sending to ' + modelLabel + '…')
       const res = await fetch('/api/ai/video', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const data = await res.json().catch(() => ({} as any))
       if (!res.ok || !data.id) throw new Error(data.error || `Couldn't start generation (HTTP ${res.status}).`)
-      setGenLabel('Rendering your clip…')
+      label('Rendering your clip…')
       const startedAt = Date.now()
       for (let i = 0; i < 80; i++) {
         await new Promise(r => setTimeout(r, 3000))
         const poll = await fetch(`/api/ai/video?id=${encodeURIComponent(data.id)}`)
         const pd = await poll.json().catch(() => ({} as any))
         // Grok Imagine clips carry their own audio (music/ambient); the others are silent.
-        if (pd.status === 'succeeded' && pd.videoUrl) { patch(id, { status: 'done', url: pd.videoUrl, note: undefined, audio: model === 'grok' }); setGenerating(false); return }
+        if (pd.status === 'succeeded' && pd.videoUrl) { patch(id, { status: 'done', url: pd.videoUrl, note: undefined, audio: useModel === 'grok' }); return null }
         if (pd.status === 'failed') throw new Error(pd.error || 'Generation failed')
         // Surface live progress + a nudge if it's dragging (so a slow provider
         // isn't a mystery spinner).
         const elapsed = Math.round((Date.now() - startedAt) / 1000)
         const pct = typeof pd.logs === 'string' && pd.logs.includes('%') ? pd.logs : ''
-        const slow = elapsed > 45 ? (model === 'grok' ? ' · Grok/xAI is slow right now — Seedance is faster' : ' · taking longer than usual') : ''
+        const slow = elapsed > 45 ? (useModel === 'grok' ? ' · Grok/xAI is slow right now — Seedance is faster' : ' · taking longer than usual') : ''
         patch(id, { note: `${pct || 'rendering'} · ${elapsed}s${slow}` })
-        setGenLabel(`Rendering… ${pct || elapsed + 's'}`)
+        label(`Rendering… ${pct || elapsed + 's'}`)
       }
-      throw new Error(model === 'grok'
+      throw new Error(useModel === 'grok'
         ? 'Grok/xAI didn\'t finish in 4 min — their video service is likely busy. Try Seedance (fast & reliable).'
         : 'Timed out after 4 min waiting for the clip. Try again or a different model.')
     } catch (e: any) {
-      patch(id, { status: 'error', error: e?.message || 'Generation failed' })
-      setError(e?.message || 'Generation failed')
-    } finally {
-      setGenerating(false); setGenLabel('')
+      const msg = e?.message || 'Generation failed'
+      patch(id, { status: 'error', error: msg })
+      return msg
     }
+  }
+
+  // Generate one clip from the current prompt (+ staged images) → timeline.
+  async function generateClip() {
+    if (mode === 'text' && !prompt.trim()) { setError('Describe your clip first, or use the AI Director.'); return }
+    if (mode === 'image' && uploadedImages.length === 0) { setError('Add a source image, or switch to Text.'); return }
+    const id = newClipId()
+    const clipPrompt = prompt.trim() || 'Animate this image with smooth, natural motion'
+    // First shot seeds the film's theme; later shots inherit it for continuity.
+    seedTheme(clipPrompt)
+    // The first clip has no theme yet → no continuity suffix.
+    const genPrompt = withTheme(clipPrompt, theme.trim())
+    setClips(prev => [...prev, { id, prompt: clipPrompt, status: 'generating' }])
+    setSelectedId(id); setStitched(null); setShareUrl(null)
+    setGenerating(true); setError(null)
+    const err = await runClipJob(id, genPrompt, mode === 'image' ? uploadedImages : [])
+    if (err) setError(err)
+    setGenerating(false); setGenLabel('')
+  }
+
+  // Turn EACH staged image into its own clip, all sharing one motion direction
+  // + theme so they cut together as a cohesive ad. Generates sequentially (the
+  // backend meters credits + rate-limits per start), appending as it goes.
+  async function generateAdFromImages() {
+    if (uploadedImages.length === 0) { setError('Add some images first — each becomes a clip.'); return }
+    const imgs = [...uploadedImages]
+    const motion = prompt.trim() || 'Animate this image with smooth, natural cinematic motion'
+    setStitched(null); setShareUrl(null); setSelectedId(null)
+    setGenerating(true); setError(null)
+    // Seed the theme locally — setTheme won't commit between synchronous loop
+    // iterations, so we carry the effective theme in a local var.
+    let effTheme = theme.trim()
+    if (!effTheme) { effTheme = (style ? `${motion.slice(0, 200)} · ${style} look` : motion.slice(0, 200)); setTheme(effTheme) }
+    let failures = 0
+    for (let k = 0; k < imgs.length; k++) {
+      const id = newClipId()
+      // First clip carries no suffix (mirrors single-generate); the rest match it.
+      const genPrompt = k === 0 ? motion : withTheme(motion, effTheme)
+      setClips(prev => [...prev, { id, prompt: motion, status: 'generating' }])
+      setSelectedId(id)
+      const err = await runClipJob(id, genPrompt, [imgs[k]], s => setGenLabel(`Clip ${k + 1}/${imgs.length} · ${s}`))
+      if (err) failures++
+    }
+    setGenerating(false); setGenLabel('')
+    if (failures) setError(`${failures} of ${imgs.length} clips failed — retry those, or render the ones that worked.`)
   }
 
   async function uploadMusic(file: File) {
@@ -297,7 +391,10 @@ export default function VideoStudio() {
         body: JSON.stringify({
           clipUrls: doneClips.map(c => c.url),
           clipsHaveAudio: doneClips.length > 0 && doneClips.every(c => c.audio === true),
-          script: script.trim() || undefined,
+          // Speak whatever's in the Voice box — the polished "Write" output if
+          // there is one, else the user's raw typed line. (Previously a line
+          // typed without clicking Write was silently dropped from the render.)
+          script: (script.trim() || narrationText.trim()) || undefined,
           voice,
           musicUrl: musicUrl || undefined,
           musicTrackId: musicTrackId || undefined,
@@ -476,23 +573,34 @@ export default function VideoStudio() {
         <div className="w-72 shrink-0 border-r border-white/10 overflow-y-auto p-3 space-y-3">
           <div className="flex gap-1.5">
             <button onClick={() => setMode('text')} className={`flex-1 rounded-lg py-1.5 text-xs font-medium ${mode === 'text' ? 'bg-violet-600 text-white' : 'bg-white/5 text-zinc-400'}`}>Text → Video</button>
-            <button onClick={() => setMode('image')} className={`flex-1 rounded-lg py-1.5 text-xs font-medium ${mode === 'image' ? 'bg-violet-600 text-white' : 'bg-white/5 text-zinc-400'}`}>Image → Video</button>
+            <button onClick={() => setMode('image')} className={`flex-1 rounded-lg py-1.5 text-xs font-medium ${mode === 'image' ? 'bg-violet-600 text-white' : 'bg-white/5 text-zinc-400'}`}>Image / Video</button>
           </div>
 
           {mode === 'image' && (
-            <div className="grid grid-cols-3 gap-2">
-              {uploadedImages.map((u, i) => (
-                <div key={u + i} className="relative aspect-square rounded-lg overflow-hidden bg-zinc-900">
-                  <img src={u} alt="" className="w-full h-full object-cover" />
-                  <button onClick={() => setUploadedImages(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-0.5 right-0.5 p-0.5 rounded bg-black/60 text-white"><X className="w-3 h-3" /></button>
-                </div>
-              ))}
-              {uploadedImages.length < maxImages && (
-                <button onClick={() => imageInputRef.current?.click()} className="aspect-square rounded-lg border-2 border-dashed border-white/10 hover:border-fuchsia-500/50 flex items-center justify-center text-zinc-500">
-                  {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                </button>
-              )}
-              <input ref={imageInputRef} type="file" accept="image/*" multiple={isMultiImage} className="hidden" onChange={handleImageUpload} />
+            <div
+              onDragOver={e => { e.preventDefault(); if (!dragOver) setDragOver(true) }}
+              onDragLeave={e => { e.preventDefault(); setDragOver(false) }}
+              onDrop={handleImageDrop}
+              className={`rounded-xl border-2 border-dashed p-2 transition-colors ${dragOver ? 'border-fuchsia-500 bg-fuchsia-500/10' : 'border-white/10'}`}
+            >
+              <div className="grid grid-cols-3 gap-2">
+                {uploadedImages.map((u, i) => (
+                  <div key={u + i} className="relative aspect-square rounded-lg overflow-hidden bg-zinc-900">
+                    <img src={u} alt="" className="w-full h-full object-cover" />
+                    <span className="absolute bottom-0.5 left-0.5 text-[9px] px-1 rounded bg-black/60 text-white">{i + 1}</span>
+                    <button onClick={() => setUploadedImages(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-0.5 right-0.5 p-0.5 rounded bg-black/60 text-white"><X className="w-3 h-3" /></button>
+                  </div>
+                ))}
+                {uploadedImages.length < MAX_SOURCE_IMAGES && (
+                  <button onClick={() => imageInputRef.current?.click()} className="aspect-square rounded-lg border-2 border-dashed border-white/10 hover:border-fuchsia-500/50 flex items-center justify-center text-zinc-500">
+                    {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  </button>
+                )}
+              </div>
+              <p className="text-[10px] text-zinc-600 mt-1.5 px-0.5">
+                Drag &amp; drop or click to add up to {MAX_SOURCE_IMAGES} images, or drop a <span className="text-zinc-400">video</span> to drop it straight onto the timeline. {uploadedImages.length >= 2 ? 'Use “Make ad” to turn each image into its own clip.' : 'Add a few images to build an ad from them.'}
+              </p>
+              <input ref={imageInputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleImageUpload} />
             </div>
           )}
 
@@ -547,6 +655,13 @@ export default function VideoStudio() {
             className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 disabled:opacity-40 text-white text-sm font-semibold py-2.5">
             {generating ? <><Loader2 className="w-4 h-4 animate-spin" /> {genLabel || 'Generating…'}</> : <><Plus className="w-4 h-4" /> Generate clip → timeline</>}
           </button>
+          {/* Batch: one clip per staged image → a multi-shot ad on the timeline. */}
+          {mode === 'image' && uploadedImages.length >= 2 && (
+            <button onClick={generateAdFromImages} disabled={busy || uploadingImage}
+              className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-fuchsia-500/40 bg-gradient-to-r from-fuchsia-600/15 to-violet-600/15 hover:from-fuchsia-600/25 disabled:opacity-40 text-fuchsia-100 text-sm font-semibold py-2.5">
+              <Film className="w-4 h-4" /> Make ad — a clip per image ({uploadedImages.length})
+            </button>
+          )}
           {error && <div className="flex items-start gap-1.5 text-[11px] text-red-300 bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-1.5"><AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" /><span>{error}</span></div>}
         </div>
 

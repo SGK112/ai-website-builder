@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic'
 import { Suspense } from 'react'
 import { Loader2 } from 'lucide-react'
 
-// Load studio client-only — FFmpeg.wasm can't run in SSR
+// Load studio client-only — it reads localStorage/window on mount (SSR-unsafe).
 const VideoStudio = dynamic(() => import('./VideoStudio'), {
   ssr: false,
   loading: () => (
