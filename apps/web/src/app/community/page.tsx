@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import {
@@ -187,20 +186,28 @@ function AuthorAvatar({
 export default function CommunityPage() {
   const { theme } = useTheme()
   const isDark = theme === 'dark'
-  const searchParams = useSearchParams()
-  const router = useRouter()
-  // Top-level community tab — Projects (default) or Feedback. Deep-linkable
-  // via ?tab=feedback so /feedback redirect can land here.
-  const [tab, setTab] = useState<'projects' | 'feedback'>(
-    searchParams.get('tab') === 'feedback' ? 'feedback' : 'projects'
-  )
+  // Top-level community tab — Projects (default) or Feedback. Deep-linkable via
+  // ?tab=feedback. We read the query AFTER mount (window.location) instead of
+  // useSearchParams: the hook forces the WHOLE page to client-render, so the
+  // marketplace grid (and its price/save badges) shipped a blank server shell —
+  // bad for first paint + SEO. Same fix the profile page already uses.
+  const [tab, setTab] = useState<'projects' | 'feedback'>('projects')
+  useEffect(() => {
+    const apply = () => {
+      const t = new URLSearchParams(window.location.search).get('tab')
+      setTab(t === 'feedback' ? 'feedback' : 'projects')
+    }
+    apply()
+    window.addEventListener('popstate', apply)
+    return () => window.removeEventListener('popstate', apply)
+  }, [])
   const switchTab = (next: 'projects' | 'feedback') => {
     setTab(next)
-    const sp = new URLSearchParams(searchParams.toString())
+    const sp = new URLSearchParams(window.location.search)
     if (next === 'feedback') sp.set('tab', 'feedback')
     else sp.delete('tab')
     const q = sp.toString()
-    router.replace(`/community${q ? `?${q}` : ''}`, { scroll: false })
+    window.history.replaceState(null, '', `/community${q ? `?${q}` : ''}`)
   }
   const [activeCategory, setActiveCategory] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
