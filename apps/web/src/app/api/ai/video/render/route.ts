@@ -45,8 +45,18 @@ const DIMS: Record<string, [number, number]> = {
   '16:9': [1280, 720], '9:16': [720, 1280], '1:1': [720, 720], '4:5': [720, 900],
 }
 
+// A timeline entry: a generated/uploaded VIDEO clip, or a still IMAGE that the
+// renderer turns into a held segment (the no-AI slideshow path — real pixels,
+// no model in the loop). `seconds` is how long an image is shown.
+interface RenderSource {
+  url: string
+  kind?: 'image' | 'video'
+  seconds?: number
+}
+
 interface RenderRequest {
-  clipUrls?: string[]
+  sources?: RenderSource[]   // ordered timeline (videos + images); preferred
+  clipUrls?: string[]        // legacy: video-only timeline (still accepted)
   clipsHaveAudio?: boolean
   script?: string
   voice?: string
@@ -129,22 +139,33 @@ async function makeVoice(script: string, voice: string, path: string) {
 // The heavy lifting: download → probe → (voice/music) → ffmpeg → Cloudinary.
 // Returns the finished video URL. Runs in the BACKGROUND (see runJob), so it is
 // free to take minutes — no request is waiting on it.
-async function stitch(body: RenderRequest, clipUrls: string[], W: number, H: number): Promise<string> {
+async function stitch(body: RenderRequest, sources: Required<RenderSource>[], W: number, H: number): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'render-'))
   try {
-    // 1. Download clips
-    const clipPaths: string[] = []
-    for (let i = 0; i < clipUrls.length; i++) {
-      const p = join(dir, `c${i}.mp4`)
-      await downloadTo(clipUrls[i], p)
-      clipPaths.push(p)
-    }
-    // Total video length = the hard cap for the output (-t). This anchors the
-    // render to the VIDEO so looped music / padded voice can't run away.
+    // 1. Download each source. Videos keep their real duration (probed);
+    //    images are held for `seconds` and looped into a still video segment.
+    const clipPaths: { path: string; kind: 'image' | 'video'; secs: number }[] = []
     const durs: number[] = []
-    for (const p of clipPaths) durs.push(await probeDuration(p))
-    // Fall back to a nominal length for any clip we couldn't probe.
-    for (let i = 0; i < durs.length; i++) if (!(durs[i] > 0)) durs[i] = 8
+    for (let i = 0; i < sources.length; i++) {
+      const s = sources[i]
+      if (s.kind === 'image') {
+        const p = join(dir, `s${i}.img`) // ffmpeg sniffs the format from bytes, not the ext
+        await downloadTo(s.url, p)
+        clipPaths.push({ path: p, kind: 'image', secs: s.seconds })
+        durs.push(s.seconds)
+      } else {
+        const p = join(dir, `c${i}.mp4`)
+        await downloadTo(s.url, p)
+        const d = await probeDuration(p)
+        const secs = d > 0 ? d : 8 // fall back to a nominal length if unprobeable
+        clipPaths.push({ path: p, kind: 'video', secs })
+        durs.push(secs)
+      }
+    }
+    // Scene audio only exists when EVERY source is a video clip that carries it —
+    // a still image contributes no audio stream to reference.
+    const allVideo = clipPaths.every(c => c.kind === 'video')
+    const clipsHaveAudio = !!body.clipsHaveAudio && allVideo
     // 2. Optional voice + music
     let voicePath = ''
     if (body.script?.trim()) { voicePath = join(dir, 'voice.mp3'); await makeVoice(body.script.trim(), body.voice || 'onyx', voicePath) }
@@ -167,7 +188,12 @@ async function stitch(body: RenderRequest, clipUrls: string[], W: number, H: num
 
     // 3. Build ffmpeg args (validated recipe)
     const args: string[] = []
-    clipPaths.forEach(p => args.push('-i', p))
+    // Image inputs are looped into a still video bounded to their hold time;
+    // video inputs are taken as-is. norm (below) gives images their 24fps.
+    clipPaths.forEach(p => {
+      if (p.kind === 'image') args.push('-loop', '1', '-t', p.secs.toFixed(3), '-i', p.path)
+      else args.push('-i', p.path)
+    })
     let voiceIdx = -1, musicIdx = -1
     if (voicePath) { args.push('-i', voicePath); voiceIdx = clipPaths.length }
     if (musicPath) { args.push('-i', musicPath); musicIdx = clipPaths.length + (voiceIdx >= 0 ? 1 : 0) }
@@ -194,7 +220,7 @@ async function stitch(body: RenderRequest, clipUrls: string[], W: number, H: num
       }
       outDur = acc // each crossfade overlaps clips by XFADE, shrinking total
       // SCENE AUDIO: matching acrossfade chain so it stays aligned with the video.
-      if (body.clipsHaveAudio) {
+      if (clipsHaveAudio) {
         let prevA = '[0:a]'
         for (let i = 1; i < n; i++) {
           const label = i === n - 1 ? '[sa]' : `[ax${i}]`
@@ -205,7 +231,7 @@ async function stitch(body: RenderRequest, clipUrls: string[], W: number, H: num
       }
     } else {
       parts.push(`${clipPaths.map((_, i) => `[v${i}]`).join('')}concat=n=${n}:v=1:a=0[outv]`)
-      if (body.clipsHaveAudio) {
+      if (clipsHaveAudio) {
         parts.push(`${clipPaths.map((_, i) => `[${i}:a]`).join('')}concat=n=${n}:v=0:a=1[sa]`)
         aLabels.push('[sa]')
       }
@@ -245,9 +271,9 @@ async function stitch(body: RenderRequest, clipUrls: string[], W: number, H: num
 // Background worker: run the stitch, then record the outcome on the job doc.
 // NOT awaited by the request — it outlives the HTTP response (Render runs a
 // persistent Node process, so the promise keeps executing). Must never throw.
-async function runJob(jobId: string, userId: string, body: RenderRequest, clipUrls: string[], W: number, H: number) {
+async function runJob(jobId: string, userId: string, body: RenderRequest, sources: Required<RenderSource>[], W: number, H: number) {
   try {
-    const url = await stitch(body, clipUrls, W, H)
+    const url = await stitch(body, sources, W, H)
     const col = await jobsCol()
     await col.updateOne({ jobId, userId }, { $set: { status: 'done', url, updatedAt: new Date() } })
     // Save to the library here too — guarantees the film is kept even if the
@@ -274,19 +300,32 @@ export async function POST(request: NextRequest) {
   let body: RenderRequest
   try { body = await request.json() as RenderRequest } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }
 
-  const clipUrls = (body.clipUrls || []).filter(u => typeof u === 'string' && /^https?:\/\//i.test(u)).slice(0, MAX_CLIPS)
-  if (clipUrls.length < 1) return NextResponse.json({ error: 'At least one clip is required.' }, { status: 400 })
+  // Normalize the timeline into ordered sources. Prefer `sources` (videos +
+  // images); fall back to the legacy `clipUrls` (all video) for older clients.
+  const raw: RenderSource[] = Array.isArray(body.sources) && body.sources.length
+    ? body.sources
+    : (body.clipUrls || []).map(url => ({ url, kind: 'video' as const }))
+  const sources: Required<RenderSource>[] = raw
+    .filter(s => s && typeof s.url === 'string' && /^https?:\/\//i.test(s.url))
+    .map(s => ({
+      url: s.url,
+      kind: s.kind === 'image' ? 'image' as const : 'video' as const,
+      // Images are held 1–20s (default 4); videos use their own length (0 = probe).
+      seconds: s.kind === 'image' ? Math.max(1, Math.min(20, Number(s.seconds) || 4)) : 0,
+    }))
+    .slice(0, MAX_CLIPS)
+  if (sources.length < 1) return NextResponse.json({ error: 'At least one clip or image is required.' }, { status: 400 })
   const [W, H] = DIMS[body.aspectRatio || '16:9'] || DIMS['16:9']
 
   // Create the job, kick off the render in the background, return immediately.
   const jobId = crypto.randomUUID()
   const userId = String(session.user.id)
   const col = await jobsCol()
-  await col.insertOne({ jobId, userId, status: 'processing', clips: clipUrls.length, createdAt: new Date(), updatedAt: new Date() })
+  await col.insertOne({ jobId, userId, status: 'processing', clips: sources.length, createdAt: new Date(), updatedAt: new Date() })
   // Fire-and-forget background render (NOT awaited — outlives the response).
   // runJob is self-contained try/catch, but guard the call too so a rejection
   // can never surface as an unhandled promise rejection.
-  runJob(jobId, userId, body, clipUrls, W, H).catch(err => console.error('[video render] unhandled job error:', err?.message || err))
+  runJob(jobId, userId, body, sources, W, H).catch(err => console.error('[video render] unhandled job error:', err?.message || err))
   return NextResponse.json({ jobId, status: 'processing' }, { status: 202 })
 }
 

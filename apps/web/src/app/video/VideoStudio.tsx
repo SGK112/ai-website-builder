@@ -17,7 +17,9 @@ import { STUDIO_MUSIC, trackById, trackSrc } from '@/lib/studio-music'
 
 type Mode = 'text' | 'image'
 type ClipStatus = 'generating' | 'done' | 'error'
-interface Clip { id: string; prompt: string; status: ClipStatus; url?: string; error?: string; note?: string; audio?: boolean }
+// kind 'image' = a still shown for `seconds` (the no-AI slideshow path: real
+// pixels, no model). kind 'video' (default) = a generated/uploaded clip.
+interface Clip { id: string; prompt: string; status: ClipStatus; url?: string; error?: string; note?: string; audio?: boolean; kind?: 'image' | 'video'; seconds?: number }
 
 const VIDEO_MODELS = [
   { id: 'seedance', label: 'Seedance', hint: 'Fast · Best', multi: false, maxImages: 1 },
@@ -56,6 +58,7 @@ export default function VideoStudio() {
   const [aspectRatio, setAspectRatio] = useState('16:9')
   const [duration, setDuration] = useState(5)
   const [uploadedImages, setUploadedImages] = useState<string[]>([])
+  const [slideSeconds, setSlideSeconds] = useState(4) // hold time per still in the no-AI slideshow
   const [uploadingImage, setUploadingImage] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [directorOpen, setDirectorOpen] = useState(false)
@@ -130,7 +133,7 @@ export default function VideoStudio() {
   }, [])
   useEffect(() => {
     try {
-      const done = clips.filter(c => c.status === 'done' && c.url).map(c => ({ id: c.id, prompt: c.prompt, status: c.status, url: c.url, audio: c.audio }))
+      const done = clips.filter(c => c.status === 'done' && c.url).map(c => ({ id: c.id, prompt: c.prompt, status: c.status, url: c.url, audio: c.audio, kind: c.kind, seconds: c.seconds }))
       localStorage.setItem('webstew_video_clips', JSON.stringify(done))
     } catch { /* storage full/blocked — non-fatal */ }
   }, [clips])
@@ -318,6 +321,28 @@ export default function VideoStudio() {
     if (failures) setError(`${failures} of ${imgs.length} clips failed — retry those, or render the ones that worked.`)
   }
 
+  // No-AI path: drop the staged images straight onto the timeline as still
+  // "slides" (held `slideSeconds` each). The server renders them with ffmpeg —
+  // real pixels, no model repainting your screenshots/text, no credits. Add
+  // music + a voiceover and hit Render for a clean slideshow.
+  function addImagesAsSlides() {
+    if (uploadedImages.length === 0) { setError('Add some images first — they become slides.'); return }
+    const imgs = [...uploadedImages]
+    setClips(prev => [
+      ...prev,
+      ...imgs.map((url, k) => ({
+        id: newClipId(),
+        prompt: `Slide ${prev.length + k + 1}`,
+        status: 'done' as ClipStatus,
+        url,
+        kind: 'image' as const,
+        seconds: slideSeconds,
+      })),
+    ])
+    setUploadedImages([]) // they're on the timeline now; clear the staging tray
+    setStitched(null); setShareUrl(null); setError(null)
+  }
+
   async function uploadMusic(file: File) {
     setUploadingMusic(true); setError(null)
     try {
@@ -389,8 +414,12 @@ export default function VideoStudio() {
       const res = await fetch('/api/ai/video/render', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          // Ordered timeline: video clips + still "slides" (rendered by ffmpeg,
+          // no AI). Legacy clipUrls kept so an older server still works.
+          sources: doneClips.map(c => ({ url: c.url, kind: c.kind === 'image' ? 'image' : 'video', seconds: c.seconds })),
           clipUrls: doneClips.map(c => c.url),
-          clipsHaveAudio: doneClips.length > 0 && doneClips.every(c => c.audio === true),
+          // Scene audio only when EVERY clip is a video that carries it — slides have none.
+          clipsHaveAudio: doneClips.length > 0 && doneClips.every(c => c.kind !== 'image' && c.audio === true),
           // Speak whatever's in the Voice box — the polished "Write" output if
           // there is one, else the user's raw typed line. (Previously a line
           // typed without clicking Write was silently dropped from the render.)
@@ -659,8 +688,25 @@ export default function VideoStudio() {
           {mode === 'image' && uploadedImages.length >= 2 && (
             <button onClick={generateAdFromImages} disabled={busy || uploadingImage}
               className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-fuchsia-500/40 bg-gradient-to-r from-fuchsia-600/15 to-violet-600/15 hover:from-fuchsia-600/25 disabled:opacity-40 text-fuchsia-100 text-sm font-semibold py-2.5">
-              <Film className="w-4 h-4" /> Make ad — a clip per image ({uploadedImages.length})
+              <Film className="w-4 h-4" /> Make ad — AI clip per image ({uploadedImages.length})
             </button>
+          )}
+
+          {/* No-AI slideshow: stage images → drop them on the timeline as real
+              stills. No model repaints your screenshots/text; no credits. */}
+          {mode === 'image' && uploadedImages.length >= 1 && (
+            <div className="space-y-2 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.06] p-2.5">
+              <div className="flex items-center justify-between text-[11px] text-emerald-200/90">
+                <span className="flex items-center gap-1"><ImageIcon className="w-3.5 h-3.5" /> Real images — no AI</span>
+                <span className="text-emerald-300/70">{slideSeconds}s each</span>
+              </div>
+              <input type="range" min={1} max={12} value={slideSeconds} onChange={e => setSlideSeconds(Number(e.target.value))} className="w-full accent-emerald-500" />
+              <button onClick={addImagesAsSlides} disabled={busy}
+                className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 disabled:opacity-40 text-white text-sm font-semibold py-2">
+                <Film className="w-4 h-4" /> Add {uploadedImages.length} as slide{uploadedImages.length !== 1 ? 's' : ''} → timeline
+              </button>
+              <p className="text-[10px] text-emerald-200/50">Your exact pixels, stitched by us — not AI. Then add music + a voiceover and Render.</p>
+            </div>
           )}
           {error && <div className="flex items-start gap-1.5 text-[11px] text-red-300 bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-1.5"><AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" /><span>{error}</span></div>}
         </div>
@@ -670,7 +716,9 @@ export default function VideoStudio() {
           {previewUrl ? (
             <div className="w-full max-w-2xl">
               {stitchedUrl && <div className="text-[11px] text-green-300 mb-1.5 flex items-center gap-1"><Film className="w-3.5 h-3.5" /> Full cut ({doneClips.length} clip{doneClips.length !== 1 ? 's' : ''}{script.trim() ? ' + voiceover' : ''})</div>}
-              <video key={previewUrl} src={previewUrl} controls autoPlay loop className="w-full rounded-xl bg-black" />
+              {!stitchedUrl && selectedClip?.kind === 'image'
+                ? <img key={previewUrl} src={previewUrl} alt="" className="w-full rounded-xl bg-black object-contain max-h-[60vh]" />
+                : <video key={previewUrl} src={previewUrl} controls autoPlay loop className="w-full rounded-xl bg-black" />}
               {stitchedUrl && (
                 <div className="flex gap-2 mt-2">
                   {/* fl_attachment forces a real download — a bare cross-origin
@@ -679,8 +727,9 @@ export default function VideoStudio() {
                   <button onClick={() => saveCreation('video', stitchedUrl, prompt.trim() || 'Untitled video')} disabled={!!savingIds[stitchedUrl] || isSaved(stitchedUrl)} className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-200 text-xs font-medium py-2 disabled:opacity-50">{savingIds[stitchedUrl] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isSaved(stitchedUrl) ? <BookmarkCheck className="w-3.5 h-3.5 text-violet-300" /> : <Bookmark className="w-3.5 h-3.5" />} {isSaved(stitchedUrl) ? 'In your creations' : 'Save to creations'}</button>
                 </div>
               )}
-              {/* Single selected clip (not the stitched cut): same Save + Download. */}
-              {!stitchedUrl && selectedClip?.url && (
+              {/* Single selected clip (not the stitched cut): same Save + Download.
+                  Hidden for stills — slides live on the timeline, not the library. */}
+              {!stitchedUrl && selectedClip?.url && selectedClip.kind !== 'image' && (
                 <div className="flex gap-2 mt-2">
                   <button onClick={() => saveCreation('clip', selectedClip.url!, selectedClip.prompt.slice(0, 80))} disabled={!!savingIds[selectedClip.url] || isSaved(selectedClip.url)} className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium py-2 disabled:opacity-50">{savingIds[selectedClip.url] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isSaved(selectedClip.url) ? <BookmarkCheck className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />} {isSaved(selectedClip.url) ? 'Saved to creations' : 'Save clip'}</button>
                   <a href={toDownloadUrl(selectedClip.url)} download="webstew-clip.mp4" className="flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-200 text-xs font-medium px-3 py-2"><Download className="w-3.5 h-3.5" /> Download</a>
@@ -717,7 +766,9 @@ export default function VideoStudio() {
               <div key={c.id} onClick={() => { if (c.url) { setStitched(null); setSelectedId(c.id) } }}
                 className={`relative shrink-0 w-32 rounded-lg border overflow-hidden cursor-pointer ${selectedId === c.id && !stitchedUrl ? 'border-violet-500' : 'border-white/10'}`}>
                 {c.status === 'done' && c.url ? (
-                  <video src={c.url} muted className="w-full h-16 object-cover bg-black" />
+                  c.kind === 'image'
+                    ? <div className="relative"><img src={c.url} alt="" className="w-full h-16 object-cover bg-black" /><span className="absolute bottom-0.5 right-0.5 text-[8px] px-1 rounded bg-black/70 text-fuchsia-200">slide {c.seconds || 4}s</span></div>
+                    : <video src={c.url} muted className="w-full h-16 object-cover bg-black" />
                 ) : (
                   <div className="w-full h-16 flex flex-col items-center justify-center gap-1 bg-zinc-900 text-[9px] text-zinc-400 px-1 text-center">
                     {c.status === 'generating'
@@ -728,7 +779,7 @@ export default function VideoStudio() {
                 <div className="flex items-center justify-between px-1 py-0.5 bg-black/50">
                   <span className="text-[9px] text-zinc-400">Clip {i + 1}</span>
                   <div className="flex items-center gap-0.5">
-                    {c.status === 'done' && c.url && (
+                    {c.status === 'done' && c.url && c.kind !== 'image' && (
                       <button onClick={e => { e.stopPropagation(); saveCreation('clip', c.url!, c.prompt.slice(0, 80)) }} disabled={!!savingIds[c.url] || isSaved(c.url)} title={isSaved(c.url) ? 'Saved to your creations' : 'Save clip to your creations'} className="p-0.5 text-zinc-500 hover:text-violet-300 disabled:opacity-60">{savingIds[c.url] ? <Loader2 className="w-3 h-3 animate-spin" /> : isSaved(c.url) ? <BookmarkCheck className="w-3 h-3 text-violet-300" /> : <Bookmark className="w-3 h-3" />}</button>
                     )}
                     <button onClick={e => { e.stopPropagation(); move(i, -1) }} disabled={i === 0 || busy} className="p-0.5 text-zinc-500 hover:text-white disabled:opacity-30"><ArrowLeft className="w-3 h-3" /></button>
