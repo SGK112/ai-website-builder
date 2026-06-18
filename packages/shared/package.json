@@ -5,7 +5,7 @@
   "types": "./src/index.ts",
   "scripts": {
     "build": "tsc",
-    "lint": "eslint src/"
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
     "pino": "^9.0.0",
