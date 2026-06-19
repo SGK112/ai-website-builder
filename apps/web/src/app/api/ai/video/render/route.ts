@@ -21,7 +21,9 @@ import { trackById, MUSIC_PUBLIC_SUBDIR } from '@/lib/studio-music'
 import ffmpegPath from 'ffmpeg-static'
 import { spawn } from 'node:child_process'
 import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
+import { existsSync, createWriteStream } from 'node:fs'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import crypto from 'node:crypto'
@@ -37,6 +39,12 @@ async function jobsCol() {
 }
 
 const MAX_CLIPS = 12
+// Memory guard: every render holds clip bytes + an ffmpeg child process in RAM.
+// On a single 2GB instance, TWO concurrent renders OOM-killed the whole service
+// (confirmed in prod logs — every user's session dropped). Cap in-flight renders
+// so a render can never take down the instance; extra requests get a clear 429.
+const MAX_CONCURRENT_RENDERS = Math.max(1, parseInt(process.env.MAX_CONCURRENT_RENDERS || '1', 10) || 1)
+let activeRenders = 0
 // SSRF guard: only fetch clip/music URLs from hosts our own pipeline produces.
 const ALLOWED_HOSTS = ['x.ai', 'replicate.delivery', 'replicate.com', 'res.cloudinary.com', 'cloudinary.com', 'soundhelix.com', 'cdn.pixabay.com']
 const hostOk = (u: URL) => u.protocol === 'https:' && ALLOWED_HOSTS.some(h => u.hostname === h || u.hostname.endsWith(`.${h}`))
@@ -83,8 +91,11 @@ async function downloadTo(url: string, path: string) {
   const u = new URL(url)
   if (!hostOk(u)) throw new Error(`Disallowed media host: ${u.hostname}`)
   const r = await fetch(url)
-  if (!r.ok) throw new Error(`Download failed (${r.status}) for ${u.hostname}`)
-  await writeFile(path, Buffer.from(await r.arrayBuffer()))
+  if (!r.ok || !r.body) throw new Error(`Download failed (${r.status}) for ${u.hostname}`)
+  // STREAM the response straight to disk. The old Buffer.from(await
+  // arrayBuffer()) held an entire clip (up to ~100MB) in RAM at once — with
+  // several clips + a concurrent render that was enough to OOM the 2GB box.
+  await pipeline(Readable.fromWeb(r.body as any), createWriteStream(path))
 }
 
 // Parse a clip's duration from `ffmpeg -i` stderr (ffmpeg-static has no ffprobe).
@@ -117,7 +128,9 @@ async function uploadToCloudinary(filePath: string): Promise<string> {
   const ts = Math.round(Date.now() / 1000)
   const sig = crypto.createHash('sha1').update(`folder=ai-website-builder/renders&timestamp=${ts}${CS}`).digest('hex')
   const fd = new FormData()
-  fd.append('file', new Blob([new Uint8Array(await readFile(filePath))], { type: 'video/mp4' }), 'render.mp4')
+  // Buffer is already a Uint8Array — feed it straight to Blob (the old
+  // `new Uint8Array(...)` wrapper made a second full-size copy of the output).
+  fd.append('file', new Blob([await readFile(filePath)], { type: 'video/mp4' }), 'render.mp4')
   fd.append('folder', 'ai-website-builder/renders')
   fd.append('timestamp', String(ts)); fd.append('api_key', CK); fd.append('signature', sig)
   const r = await fetch(`https://api.cloudinary.com/v1_1/${CN}/video/upload`, { method: 'POST', body: fd })
@@ -287,6 +300,9 @@ async function runJob(jobId: string, userId: string, body: RenderRequest, source
     } catch (e2: any) {
       console.error('[video render] could not record job failure:', e2?.message || e2)
     }
+  } finally {
+    // Release the concurrency slot no matter how the render ended.
+    activeRenders = Math.max(0, activeRenders - 1)
   }
 }
 
@@ -317,16 +333,35 @@ export async function POST(request: NextRequest) {
   if (sources.length < 1) return NextResponse.json({ error: 'At least one clip or image is required.' }, { status: 400 })
   const [W, H] = DIMS[body.aspectRatio || '16:9'] || DIMS['16:9']
 
-  // Create the job, kick off the render in the background, return immediately.
-  const jobId = crypto.randomUUID()
-  const userId = String(session.user.id)
-  const col = await jobsCol()
-  await col.insertOne({ jobId, userId, status: 'processing', clips: sources.length, createdAt: new Date(), updatedAt: new Date() })
-  // Fire-and-forget background render (NOT awaited — outlives the response).
-  // runJob is self-contained try/catch, but guard the call too so a rejection
-  // can never surface as an unhandled promise rejection.
-  runJob(jobId, userId, body, sources, W, H).catch(err => console.error('[video render] unhandled job error:', err?.message || err))
-  return NextResponse.json({ jobId, status: 'processing' }, { status: 202 })
+  // Concurrency guard — reject (don't queue) when the renderer is saturated, so
+  // a second memory-heavy render can't stack and OOM the whole instance. The
+  // check + reservation are synchronous (no await between) so two requests
+  // can't both pass. runJob's finally releases the slot.
+  if (activeRenders >= MAX_CONCURRENT_RENDERS) {
+    return NextResponse.json(
+      { error: 'The renderer is busy finishing another video — give it a minute and hit Render again.', busy: true },
+      { status: 429 },
+    )
+  }
+  activeRenders++ // reserve the slot before any await
+
+  try {
+    // Create the job, kick off the render in the background, return immediately.
+    const jobId = crypto.randomUUID()
+    const userId = String(session.user.id)
+    const col = await jobsCol()
+    await col.insertOne({ jobId, userId, status: 'processing', clips: sources.length, createdAt: new Date(), updatedAt: new Date() })
+    // Fire-and-forget background render (NOT awaited — outlives the response).
+    // runJob is self-contained try/catch + finally (which frees the slot), but
+    // guard the call too so a rejection can't surface as an unhandled rejection.
+    runJob(jobId, userId, body, sources, W, H).catch(err => console.error('[video render] unhandled job error:', err?.message || err))
+    return NextResponse.json({ jobId, status: 'processing' }, { status: 202 })
+  } catch (e: any) {
+    // Job creation failed before the worker launched — release the slot here
+    // (runJob's finally never runs in this path).
+    activeRenders = Math.max(0, activeRenders - 1)
+    return NextResponse.json({ error: e?.message || 'Could not start the render.' }, { status: 500 })
+  }
 }
 
 // Poll a render job. Ownership-scoped — you only see your own jobs.
