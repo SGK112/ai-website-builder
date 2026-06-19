@@ -45,6 +45,13 @@ const MAX_CLIPS = 12
 // so a render can never take down the instance; extra requests get a clear 429.
 const MAX_CONCURRENT_RENDERS = Math.max(1, parseInt(process.env.MAX_CONCURRENT_RENDERS || '1', 10) || 1)
 let activeRenders = 0
+// Bounded FIFO of waiting renders. Holds only job METADATA (urls + numbers,
+// not file bytes), so it's tiny and memory-safe even when full. Renders run
+// MAX_CONCURRENT_RENDERS at a time; extras WAIT here instead of being rejected.
+// Only a genuinely saturated queue 429s.
+const MAX_RENDER_QUEUE = Math.max(1, parseInt(process.env.MAX_RENDER_QUEUE || '10', 10) || 10)
+interface QueuedRender { jobId: string; userId: string; body: RenderRequest; sources: Required<RenderSource>[]; W: number; H: number }
+const renderQueue: QueuedRender[] = []
 // SSRF guard: only fetch clip/music URLs from hosts our own pipeline produces.
 const ALLOWED_HOSTS = ['x.ai', 'replicate.delivery', 'replicate.com', 'res.cloudinary.com', 'cloudinary.com', 'soundhelix.com', 'cdn.pixabay.com']
 const hostOk = (u: URL) => u.protocol === 'https:' && ALLOWED_HOSTS.some(h => u.hostname === h || u.hostname.endsWith(`.${h}`))
@@ -300,9 +307,23 @@ async function runJob(jobId: string, userId: string, body: RenderRequest, source
     } catch (e2: any) {
       console.error('[video render] could not record job failure:', e2?.message || e2)
     }
-  } finally {
-    // Release the concurrency slot no matter how the render ended.
-    activeRenders = Math.max(0, activeRenders - 1)
+  }
+}
+
+// Drain the queue: start as many waiting renders as the concurrency cap allows,
+// one slot at a time. Each finished render frees its slot and re-pumps, so the
+// queue advances FIFO. activeRenders is owned HERE (not in runJob).
+function pumpRenderQueue() {
+  while (activeRenders < MAX_CONCURRENT_RENDERS && renderQueue.length > 0) {
+    const job = renderQueue.shift()!
+    activeRenders++
+    // Flip the job from 'queued' → 'processing' so polls reflect it started.
+    jobsCol()
+      .then((c) => c.updateOne({ jobId: job.jobId, userId: job.userId }, { $set: { status: 'processing', updatedAt: new Date() } }))
+      .catch(() => { /* best-effort; the render still runs */ })
+    runJob(job.jobId, job.userId, job.body, job.sources, job.W, job.H)
+      .catch((err) => console.error('[video render] unhandled job error:', err?.message || err))
+      .finally(() => { activeRenders = Math.max(0, activeRenders - 1); pumpRenderQueue() })
   }
 }
 
@@ -333,35 +354,35 @@ export async function POST(request: NextRequest) {
   if (sources.length < 1) return NextResponse.json({ error: 'At least one clip or image is required.' }, { status: 400 })
   const [W, H] = DIMS[body.aspectRatio || '16:9'] || DIMS['16:9']
 
-  // Concurrency guard — reject (don't queue) when the renderer is saturated, so
-  // a second memory-heavy render can't stack and OOM the whole instance. The
-  // check + reservation are synchronous (no await between) so two requests
-  // can't both pass. runJob's finally releases the slot.
-  if (activeRenders >= MAX_CONCURRENT_RENDERS) {
+  // Saturation guard — only reject when the WAITING queue is full (renders run
+  // MAX_CONCURRENT_RENDERS at a time so they can't OOM the instance; the rest
+  // wait their turn rather than getting rejected).
+  if (renderQueue.length >= MAX_RENDER_QUEUE) {
     return NextResponse.json(
-      { error: 'The renderer is busy finishing another video — give it a minute and hit Render again.', busy: true },
+      { error: 'A lot of videos are rendering right now — try again in a few minutes.', busy: true },
       { status: 429 },
     )
   }
-  activeRenders++ // reserve the slot before any await
 
+  const jobId = crypto.randomUUID()
+  const userId = String(session.user.id)
   try {
-    // Create the job, kick off the render in the background, return immediately.
-    const jobId = crypto.randomUUID()
-    const userId = String(session.user.id)
     const col = await jobsCol()
-    await col.insertOne({ jobId, userId, status: 'processing', clips: sources.length, createdAt: new Date(), updatedAt: new Date() })
-    // Fire-and-forget background render (NOT awaited — outlives the response).
-    // runJob is self-contained try/catch + finally (which frees the slot), but
-    // guard the call too so a rejection can't surface as an unhandled rejection.
-    runJob(jobId, userId, body, sources, W, H).catch(err => console.error('[video render] unhandled job error:', err?.message || err))
-    return NextResponse.json({ jobId, status: 'processing' }, { status: 202 })
+    await col.insertOne({ jobId, userId, status: 'queued', clips: sources.length, createdAt: new Date(), updatedAt: new Date() })
   } catch (e: any) {
-    // Job creation failed before the worker launched — release the slot here
-    // (runJob's finally never runs in this path).
-    activeRenders = Math.max(0, activeRenders - 1)
     return NextResponse.json({ error: e?.message || 'Could not start the render.' }, { status: 500 })
   }
+
+  // Enqueue, then pump. pump starts it immediately if a slot is free; otherwise
+  // it waits. Report whether it started or where it sits in line.
+  renderQueue.push({ jobId, userId, body, sources, W, H })
+  pumpRenderQueue()
+  const idx = renderQueue.findIndex((j) => j.jobId === jobId)
+  const queued = idx !== -1
+  return NextResponse.json(
+    { jobId, status: queued ? 'queued' : 'processing', queuePosition: queued ? idx + 1 : 0 },
+    { status: 202 },
+  )
 }
 
 // Poll a render job. Ownership-scoped — you only see your own jobs.
@@ -373,5 +394,11 @@ export async function GET(request: NextRequest) {
   const col = await jobsCol()
   const job = await col.findOne({ jobId: id, userId: String(session.user.id) })
   if (!job) return NextResponse.json({ error: 'Render job not found.' }, { status: 404 })
-  return NextResponse.json({ status: job.status, url: job.url || null, error: job.error || null })
+  // For a waiting job, tell the client where it sits in line (1 = next up).
+  let queuePosition = 0
+  if (job.status === 'queued') {
+    const idx = renderQueue.findIndex((j) => j.jobId === id)
+    queuePosition = idx === -1 ? 0 : idx + 1
+  }
+  return NextResponse.json({ status: job.status, url: job.url || null, error: job.error || null, queuePosition })
 }

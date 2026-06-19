@@ -435,23 +435,42 @@ export default function VideoStudio() {
       const data = await res.json().catch(() => ({} as any))
       if (!res.ok || !data.jobId) throw new Error(data.error || `Couldn't start the render (HTTP ${res.status}).`)
 
-      const startedAt = Date.now()
-      setStitchStage('Rendering on the server…')
-      // Poll up to ~5 min (100 × 3s). Downloads + ffmpeg + upload for a full film.
-      for (let i = 0; i < 100; i++) {
+      // Initial state may be 'queued' (another render is running — only 1 runs
+      // at a time so they can't OOM the server) or 'processing'.
+      setStitchStage(data.status === 'queued' && data.queuePosition > 1 ? `Queued — #${data.queuePosition} in line…` : 'Rendering on the server…')
+      // Poll up to ~7 min (140 × 3s) to allow for a short wait in the queue plus
+      // the render itself. If we give up, the server still finishes it and saves
+      // it to your creations.
+      let renderStartedAt = 0
+      for (let i = 0; i < 140; i++) {
         await new Promise(r => setTimeout(r, 3000))
         const poll = await fetch(`/api/ai/video/render?id=${encodeURIComponent(data.jobId)}`)
         const pd = await poll.json().catch(() => ({} as any))
         if (pd.status === 'done' && pd.url) {
           setStitched(pd.url); setShareUrl(pd.url); setSelectedId(null); setStitchStage('Done')
-          // The server already saved this to the library — refetch so the
-          // Saved drawer reflects it without a duplicate POST.
-          fetch('/api/ai/video/creations').then(r => r.ok ? r.json() : null)
-            .then(d => { if (d && Array.isArray(d.creations)) setCreations(d.creations) }).catch(() => {})
+          // The server already saved this to the library — refetch so the Saved
+          // drawer reflects it without a duplicate POST. Awaited (we're about to
+          // return anyway) with the failure logged rather than swallowed.
+          try {
+            const cr = await fetch('/api/ai/video/creations')
+            if (cr.ok) {
+              const d = await cr.json()
+              if (Array.isArray(d?.creations)) setCreations(d.creations)
+            }
+          } catch (e) {
+            console.warn('[studio] saved-library refresh failed (render still succeeded):', e)
+          }
           return
         }
         if (pd.status === 'failed') throw new Error(pd.error || 'Render failed.')
-        const elapsed = Math.round((Date.now() - startedAt) / 1000)
+        if (pd.status === 'queued') {
+          // Still waiting its turn — show the live position, don't show a render timer yet.
+          setStitchStage(pd.queuePosition > 1 ? `Queued — #${pd.queuePosition} in line…` : 'Queued — next up…')
+          continue
+        }
+        // status 'processing' — time the render from when it actually started.
+        if (!renderStartedAt) renderStartedAt = Date.now()
+        const elapsed = Math.round((Date.now() - renderStartedAt) / 1000)
         setStitchStage(`Rendering on the server… ${elapsed}s`)
       }
       throw new Error('Render is taking longer than expected. It may still finish — check your Saved creations in a minute.')
