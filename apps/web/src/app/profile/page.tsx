@@ -54,6 +54,17 @@ interface BillingHistory {
   invoice: string
 }
 
+// Full usage payload from /api/usage. The page used to read only user.credits
+// + user.plan and throw the rest away — today/month/limits/history are real,
+// already-tracked data (builds + agent turns call trackUsage), so we surface
+// them for genuine "where are my credits going" insight.
+interface UsageStats {
+  today: { generations: number; images: number; tokens: number; credits: number }
+  month: { generations: number; images: number; tokens: number; credits: number }
+  limits: { dailyGenerations: number; dailyImages: number; monthlyCredits: number }
+  history: Array<{ type?: string; provider?: string; model?: string; credits?: number; tokens?: number; createdAt?: string }>
+}
+
 // Appearance Settings Component
 function AppearanceSettings() {
   const { theme, setTheme, isTransitioning } = useTheme()
@@ -205,6 +216,7 @@ export default function ProfilePage() {
   }, [])
   const [credits, setCredits] = useState<number | null>(null)
   const [actualPlan, setActualPlan] = useState<string>('free')
+  const [usage, setUsage] = useState<UsageStats | null>(null)
   const [portalLoading, setPortalLoading] = useState(false)
   const [portalError, setPortalError] = useState<string | null>(null)
 
@@ -283,6 +295,9 @@ export default function ProfilePage() {
         .then(data => {
           setCredits(data?.user?.credits ?? 0)
           setActualPlan(data?.user?.plan ?? 'free')
+          if (data?.today && data?.month) {
+            setUsage({ today: data.today, month: data.month, limits: data.limits || {}, history: Array.isArray(data.history) ? data.history : [] })
+          }
         })
         .catch(() => setCredits(0))
     }
@@ -837,6 +852,73 @@ export default function ProfilePage() {
                       </a>
                     </div>
                   </div>
+
+                  {/* Today vs this month — real, already-tracked counts so users
+                      can see what they're actually consuming. */}
+                  {usage && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {([
+                        { label: 'Today', d: usage.today },
+                        { label: 'This month', d: usage.month },
+                      ] as const).map(({ label, d }) => (
+                        <div key={label} className={cn('p-5 rounded-2xl border', isDark ? 'bg-white/5 border-white/10' : 'bg-white border-zinc-200 shadow-sm')}>
+                          <div className="flex items-center gap-2 mb-4">
+                            <BarChart3 className={isDark ? 'w-4 h-4 text-violet-400' : 'w-4 h-4 text-orange-500'} />
+                            <h4 className="text-sm font-semibold">{label}</h4>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 text-center">
+                            {[
+                              { k: 'Builds', v: d.generations, lim: label === 'Today' ? usage.limits.dailyGenerations : undefined },
+                              { k: 'Images', v: d.images, lim: label === 'Today' ? usage.limits.dailyImages : undefined },
+                              { k: 'Credits', v: d.credits, lim: undefined },
+                            ].map(stat => (
+                              <div key={stat.k} className={cn('rounded-xl p-3 border', isDark ? 'bg-white/[0.03] border-white/10' : 'bg-zinc-50 border-zinc-200')}>
+                                <p className="text-xl font-bold">{stat.v ?? 0}{stat.lim !== undefined && stat.lim >= 0 ? <span className="text-xs font-normal text-zinc-500">/{stat.lim}</span> : null}</p>
+                                <p className="text-[11px] text-zinc-500">{stat.k}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Recent activity — the last 20 credit-using actions. Honest
+                      empty state when nothing's been tracked yet. */}
+                  {usage && (
+                    <div className={cn('p-6 rounded-2xl border', isDark ? 'bg-white/5 border-white/10' : 'bg-white border-zinc-200 shadow-sm')}>
+                      <div className="flex items-center gap-2 mb-4">
+                        <Clock className={isDark ? 'w-4 h-4 text-violet-400' : 'w-4 h-4 text-orange-500'} />
+                        <h3 className="text-lg font-semibold">Recent activity</h3>
+                      </div>
+                      {usage.history.length === 0 ? (
+                        <p className={cn('text-sm', isDark ? 'text-zinc-500' : 'text-zinc-600')}>
+                          No activity tracked yet. Generate a site or video and it shows up here.
+                        </p>
+                      ) : (
+                        <ul className="divide-y divide-white/5">
+                          {usage.history.map((h, i) => (
+                            <li key={i} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                              <div className="min-w-0">
+                                <span className="font-medium capitalize">{(h.type || 'usage').replace(/[_-]/g, ' ')}</span>
+                                {(h.model || h.provider) && (
+                                  <span className={cn('ml-2 text-xs', isDark ? 'text-zinc-500' : 'text-zinc-500')}>{h.model || h.provider}</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3 shrink-0">
+                                {typeof h.credits === 'number' && h.credits > 0 && (
+                                  <span className={cn('text-xs font-mono', isDark ? 'text-violet-300' : 'text-violet-600')}>−{h.credits}</span>
+                                )}
+                                <span className={cn('text-xs tabular-nums', isDark ? 'text-zinc-600' : 'text-zinc-400')}>
+                                  {h.createdAt ? new Date(h.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+                                </span>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
 
                   {/* Usage Tips */}
                   <div className={cn(
