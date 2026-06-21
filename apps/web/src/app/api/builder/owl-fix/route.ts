@@ -16,7 +16,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import Anthropic from '@anthropic-ai/sdk'
-import { validateGeneratedHtml, summarizeIssues } from '@/lib/html-validator'
+import { validateGeneratedHtml } from '@/lib/html-validator'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,6 +59,12 @@ export async function POST(req: NextRequest) {
   const { model, maxTokens } = resolveModel(body?.model)
   const anthropic = new Anthropic({ apiKey })
 
+  // Buffers the full repair into one JSON blob, so the client gets no bytes
+  // until the model finishes — and Cloudflare 524s an origin silent for ~100s.
+  // Abort at 85s and fall back to the graceful "couldn't fix" path below.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 85_000)
+
   try {
     const stream = anthropic.messages.stream({
       model,
@@ -68,7 +74,7 @@ export async function POST(req: NextRequest) {
         role: 'user',
         content: `Fix exactly these issues in the HTML below and change nothing else:\n${owl.issues.map(i => `- ${i.message}${i.line ? ` (near line ${i.line})` : ''}`).join('\n')}\n\nHTML:\n${html}`,
       }],
-    })
+    }, { signal: controller.signal })
     const msg = await stream.finalMessage()
     const block = msg.content.find(b => b.type === 'text')
     let repaired = block && block.type === 'text' ? block.text.trim() : ''
@@ -80,13 +86,25 @@ export async function POST(req: NextRequest) {
       const reOwl = validateGeneratedHtml(repaired)
       // Accept only if it strictly reduced the problems.
       if (reOwl.issues.length < owl.issues.length) {
-        console.log(`[owl-fix] ${owl.issues.length} → ${reOwl.issues.length} issue(s): ${summarizeIssues(owl.issues)}`)
         return NextResponse.json({ ok: reOwl.ok, fixed: true, html: repaired, issues: owl.issues, remaining: reOwl.issues })
       }
     }
     // Repair didn't help — return original + the issues so the UI can warn.
     return NextResponse.json({ ok: false, fixed: false, html, issues: owl.issues, remaining: owl.issues })
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Owl repair failed', issues: owl.issues }, { status: 500 })
+    // Timeout (abort) or model error — degrade gracefully to the original HTML +
+    // issues with a 200, so the client renders the unrepaired site instead of
+    // crashing on a Cloudflare 524 / dropped connection.
+    const timedOut = e?.name === 'AbortError' || controller.signal.aborted
+    return NextResponse.json({
+      ok: false,
+      fixed: false,
+      html,
+      issues: owl.issues,
+      remaining: owl.issues,
+      error: timedOut ? 'Repair timed out — returning the original.' : (e?.message || 'Owl repair failed'),
+    })
+  } finally {
+    clearTimeout(timer)
   }
 }

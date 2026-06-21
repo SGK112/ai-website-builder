@@ -102,7 +102,7 @@ export function StewPlannerModal({
             {/* Ingredient summary */}
             <div className="px-5 py-4 flex flex-col gap-3">
               <PlanRow icon={<Layers className="w-3.5 h-3.5" />} label="Pages" isDark={isDark}>
-                {plan.pages?.length ? (
+                {Array.isArray(plan.pages) && plan.pages.length ? (
                   <div className="flex flex-wrap gap-1">
                     {plan.pages.map((p, i) => (
                       <span key={i} className={'px-1.5 py-0.5 rounded text-[10px] border ' + chip}>{p}</span>
@@ -125,7 +125,7 @@ export function StewPlannerModal({
               </PlanRow>
 
               <PlanRow icon={<Plug className="w-3.5 h-3.5" />} label="Integrations" isDark={isDark}>
-                {plan.integrations?.length ? (
+                {Array.isArray(plan.integrations) && plan.integrations.length ? (
                   <div className="flex flex-wrap gap-1">
                     {plan.integrations.map((it, i) => (
                       <span key={i} className={'px-1.5 py-0.5 rounded text-[10px] border ' + chip}>{it}</span>

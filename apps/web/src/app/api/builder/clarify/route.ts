@@ -72,6 +72,17 @@ function parseClarifyJson(raw: string): Partial<ClarifyResponse> | null {
   }
 }
 
+// The planner LLM is told to return pages/sections/integrations as arrays, but
+// it sometimes emits a comma-joined string ("Stripe, Google Calendar") or null.
+// StewPlan types these as string[] and the modal calls .map / .join on them, so
+// an un-coerced string crashes the whole workspace ("integrations.map is not a
+// function"). Force every array slot to a real string[] at the source.
+function toStringArray(v: unknown): string[] {
+  if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
+  if (typeof v === 'string') return v.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean)
+  return []
+}
+
 async function callModel(
   messages: { role: 'user' | 'assistant'; content: string }[],
   model: string,
@@ -219,6 +230,13 @@ export async function POST(request: NextRequest) {
       ...(parsed.updatedPlan || {}),
       turnCount,
     }
+
+    // Guarantee array-typed slots are real arrays before fallbackAssemble (.join)
+    // or the client modal (.map) ever touch them — the LLM occasionally returns
+    // a string or null here.
+    updatedPlan.pages = toStringArray(updatedPlan.pages)
+    updatedPlan.sections = toStringArray(updatedPlan.sections)
+    updatedPlan.integrations = toStringArray(updatedPlan.integrations)
 
     // Force completion at the turn cap even if the model wants to keep going,
     // so a non-converging interview can't trap the user.
