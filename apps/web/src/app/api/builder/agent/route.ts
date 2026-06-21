@@ -39,6 +39,7 @@ import { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { wantsVoiceInBuild, VOICE_CAPABILITY_PROMPT } from '@/lib/voice-build-recipe'
 import { TOOLS, executeTool, inlineScriptSyntaxErrors, type AgentVfs } from '@/lib/agent-tools'
 import { startBuild, completeBuild, failBuild, markBuildCancelled, isCancelled, type BuildFile } from '@/lib/builds-store'
 import { sendMail } from '@/lib/mailer'
@@ -561,7 +562,9 @@ export async function POST(req: NextRequest) {
     (body.target === 'website' ? WEBSITE_MULTIPAGE_GUIDE : '') +
     (Object.keys(vfsFiles).length > 0
       ? `\n\nCURRENT FILE COUNT: ${Object.keys(vfsFiles).length} files. Call list_files() to see them.`
-      : '\n\nNOTE: project has NO files yet. You may need to call write_file to create them from scratch.')
+      : '\n\nNOTE: project has NO files yet. You may need to call write_file to create them from scratch.') +
+    // "Add a voice to my app" → give the agent the Web Speech recipe too.
+    (wantsVoiceInBuild(prompt) ? `\n\n${VOICE_CAPABILITY_PROMPT}` : '')
 
   // ---- Prompt caching (the single biggest cost lever for this loop) ----
   // This loop runs up to `maxIterations` times, and EACH iteration re-sends

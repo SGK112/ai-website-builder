@@ -3,6 +3,7 @@ import OpenAI from 'openai'
 import Anthropic from '@anthropic-ai/sdk'
 import { getApiSession } from '@/lib/api-auth'
 import { connectDB } from '@/lib/db'
+import { wantsVoiceInBuild, VOICE_CAPABILITY_PROMPT } from '@/lib/voice-build-recipe'
 import { generateTextFree, FreeAIProvider } from '@/lib/free-ai-providers'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 import { guardAnonAbuse } from '@/lib/abuse-guard'
@@ -2743,11 +2744,15 @@ Rules:
       const industry = detectIndustry(prompt || fullUserPrompt)
       const isEcommerce = industry === 'ecommerce'
       const industryOverride = INDUSTRY_SECTION_OVERRIDES[industry]
-      const claudeSystemPrompt = isEcommerce
+      const baseSystemPrompt = isEcommerce
         ? ECOMMERCE_SYSTEM_PROMPT
         : industryOverride
           ? `${ENHANCED_SYSTEM_PROMPT}\n\n${industryOverride}`
           : ENHANCED_SYSTEM_PROMPT
+      // Append the voice recipe only when the user asked the build to talk/listen.
+      const claudeSystemPrompt = wantsVoiceInBuild(prompt || fullUserPrompt)
+        ? `${baseSystemPrompt}\n\n${VOICE_CAPABILITY_PROMPT}`
+        : baseSystemPrompt
 
       console.log(`[Generate] Using Claude ${claudeModel} (industry: ${industry})`)
 
