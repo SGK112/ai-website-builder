@@ -42,6 +42,12 @@ const getStripe = async () => {
 
 export { getStripe, stripe }
 
+// Webstew and VoiceNow share ONE Stripe account (Remodely LLC) AND one user DB.
+// Both apps' webhooks receive every event. Stamp this marker on everything we
+// create so each app's webhook can ignore the other's events and never grant
+// the wrong product's credits/plan to a shared user. VoiceNow stamps 'voicenow'.
+export const APP_MARKER = 'webstew'
+
 export async function createCreditsCheckoutSession(
   userId: string,
   packageId: string,
@@ -70,6 +76,7 @@ export async function createCreditsCheckoutSession(
     customer_email: email,
     line_items: [{ price: creditPackage.priceId, quantity: 1 }],
     metadata: {
+      app: APP_MARKER,
       userId,
       packageId,
       credits: creditPackage.credits.toString(),
@@ -113,10 +120,16 @@ export async function createSubscriptionCheckoutSession(
     customer_email: email,
     line_items: [{ price: priceId, quantity: 1 }],
     metadata: {
+      app: APP_MARKER,
       userId,
       planId,
       billingPeriod,
       type: 'subscription',
+    },
+    // Propagate the marker onto the Subscription itself so renewal invoices are
+    // identifiable as ours too (not just this checkout session).
+    subscription_data: {
+      metadata: { app: APP_MARKER, userId, planId },
     },
     success_url: successUrl,
     cancel_url: cancelUrl,

@@ -37,6 +37,42 @@ async function resolveUser(metadataUserId: string | undefined, email: string | u
   return null
 }
 
+// --- Shared-Stripe-account isolation (Remodely LLC) -------------------------
+// Webstew + VoiceNow share one Stripe account and one user DB, and both
+// webhooks receive every event. Without these guards a VoiceNow renewal could
+// make webstew grant credits to the shared user (plan ids collide), or a
+// VoiceNow cancel could flip a webstew user to 'free'. Two signals tell our
+// objects apart: the `app` metadata marker on things we create, and our own
+// set of Stripe price IDs (works for subscriptions that predate the marker).
+const OUR_APP = 'webstew'
+const OUR_PRICE_IDS = new Set(
+  Object.entries(process.env)
+    .filter(([k, v]) => k.startsWith('STRIPE_') && k.endsWith('PRICE_ID') && !!v)
+    .map(([, v]) => v as string)
+)
+// True only if the event clearly belongs to another app. Missing marker +
+// no recognizable price is treated as ours (fail-open) so we never drop a
+// legitimate webstew event — VoiceNow's events are caught by its own marker
+// or by their non-webstew price IDs.
+function isForeignByMarker(meta: Stripe.Metadata | null | undefined): boolean {
+  const app = meta?.app
+  return !!app && app !== OUR_APP
+}
+function subscriptionIsForeign(sub: Stripe.Subscription): boolean {
+  if (isForeignByMarker(sub.metadata)) return true
+  const priceIds = (sub.items?.data || []).map((i) => i.price?.id).filter(Boolean) as string[]
+  // If we can see prices and none are ours, it's another app's subscription.
+  return priceIds.length > 0 && !priceIds.some((p) => OUR_PRICE_IDS.has(p))
+}
+function invoiceIsForeign(inv: Stripe.Invoice): boolean {
+  const priceIds: string[] = []
+  for (const l of (inv.lines?.data || []) as any[]) {
+    const pid = l?.price?.id || l?.pricing?.price_details?.price
+    if (pid) priceIds.push(pid)
+  }
+  return priceIds.length > 0 && !priceIds.some((p) => OUR_PRICE_IDS.has(p))
+}
+
 export async function POST(req: NextRequest) {
   const stripe = await getStripe()
   if (!stripe) {
@@ -326,6 +362,12 @@ export async function POST(req: NextRequest) {
         const session = event.data.object as Stripe.Checkout.Session
         const metadata = session.metadata
 
+        // Ignore another app's checkout on the shared Stripe account.
+        if (isForeignByMarker(metadata)) {
+          console.log(`Skipping non-${OUR_APP} checkout ${session.id} (app=${metadata?.app})`)
+          break
+        }
+
         if (!metadata?.userId) {
           console.error('No userId in session metadata')
           break
@@ -366,6 +408,7 @@ export async function POST(req: NextRequest) {
 
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription
+        if (subscriptionIsForeign(subscription)) break
         const customerId = subscription.customer as string
 
         const user = await User.findOne({ stripeCustomerId: customerId })
@@ -379,6 +422,7 @@ export async function POST(req: NextRequest) {
 
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription
+        if (subscriptionIsForeign(subscription)) break
         const customerId = subscription.customer as string
 
         const user = await User.findOne({ stripeCustomerId: customerId })
@@ -393,6 +437,7 @@ export async function POST(req: NextRequest) {
 
       case 'invoice.payment_succeeded': {
         const invoice = event.data.object as Stripe.Invoice
+        if (invoiceIsForeign(invoice)) break
         const customerId = invoice.customer as string
 
         // Only process for recurring payments (not first payment)
@@ -412,6 +457,7 @@ export async function POST(req: NextRequest) {
 
       case 'invoice.payment_failed': {
         const invoice = event.data.object as Stripe.Invoice
+        if (invoiceIsForeign(invoice)) break
         const customerId = invoice.customer as string
 
         const user = await User.findOne({ stripeCustomerId: customerId })
