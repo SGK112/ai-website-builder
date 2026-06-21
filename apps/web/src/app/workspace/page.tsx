@@ -184,6 +184,8 @@ import { ImagesPanel } from './components/ImagesPanel'
 import { VideoPanel } from './components/VideoPanel'
 import { TemplatesPanel } from './components/TemplatesPanel'
 import { BuildChatPanel } from './components/BuildChatPanel'
+import { VoiceControls } from './components/VoiceControls'
+import { useVoiceChat } from './hooks/useVoiceChat'
 import { levelCopy, defaultBuildTargetForLevel } from './constants'
 import { PublishToCommunityModal } from '@/components/builder/PublishToCommunityModal'
 import { SiteGraderModal } from '@/components/builder/SiteGraderModal'
@@ -7611,6 +7613,35 @@ ${html}
     handleChatMessage(msg)
   }
 
+  // ── Voice for the chef (build assistant) ──────────────────────────────────
+  // Talk to the builder + hear it answer. Logic lives in useVoiceChat; this is
+  // just the glue to the existing chat send + reply stream.
+  const voice = useVoiceChat()
+  const lastSpokenIdxRef = useRef(-1)
+  // Tap mic to talk; tap again to stop → transcribe → send as a chat message.
+  const handleMicToggle = useCallback(async () => {
+    if (isGenerating) return
+    if (voice.isListening) {
+      const transcript = await voice.stopListening()
+      if (transcript) handleChatMessage(transcript)
+    } else {
+      void voice.startListening()
+    }
+    // handleChatMessage is stable for this purpose; voice/isGenerating drive it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voice, isGenerating])
+  // Speak the chef's replies when the toggle is on — only new, settled
+  // assistant turns (not mid-stream), tracked by index so none is re-spoken.
+  useEffect(() => {
+    if (!voice.speakReplies || isThinking || isGenerating) return
+    const idx = chatMessages.length - 1
+    const last = chatMessages[idx]
+    if (idx > lastSpokenIdxRef.current && last?.role === 'assistant' && last.content?.trim()) {
+      lastSpokenIdxRef.current = idx
+      void voice.speak(last.content)
+    }
+  }, [chatMessages, isThinking, isGenerating, voice])
+
   const handleExport = async () => {
     // Multi-target projects: ship a zip of the VFS. The export panel is
     // HTML-specific (preview, single-file download, etc.) and doesn't apply.
@@ -9350,6 +9381,21 @@ npx eas build --platform all
               >
                 <ChefHat className="w-3.5 h-3.5" />
               </button>
+
+              {/* Voice for the chef — talk to the builder, hear it answer, pick a voice */}
+              <VoiceControls
+                isDark={isDark}
+                available={voice.available}
+                voices={voice.voices}
+                voiceId={voice.voiceId}
+                onSelectVoice={voice.selectVoice}
+                speakReplies={voice.speakReplies}
+                onToggleSpeakReplies={voice.toggleSpeakReplies}
+                isListening={voice.isListening}
+                isSpeaking={voice.isSpeaking}
+                busy={isGenerating || currentProject?.role === 'viewer'}
+                onMicToggle={handleMicToggle}
+              />
               <input
                 ref={inputRef}
                 data-tour="chat"
