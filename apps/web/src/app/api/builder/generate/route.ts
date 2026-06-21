@@ -2722,9 +2722,15 @@ Rules:
 
       // Set max tokens based on model capabilities. Higher caps reduce truncation
       // to a single hero section. Continuation logic below handles stop_reason='max_tokens'.
-      const maxTokens = claudeModel.includes('haiku') ? 16384 :
-                        claudeModel.includes('sonnet') ? 16384 :
-                        (claudeModel.includes('opus') || claudeModel.includes('fable')) ? 32000 : 16384
+      // We stream every pass (anthropic.messages.stream), so large caps don't risk
+      // the SDK's non-streaming HTTP timeout. The previous 16K cap was ~¼ of what
+      // Haiku 4.5 / Sonnet 4.6 actually support (64K each; Opus 4.8 / Fable 5 = 128K),
+      // so a full multi-section site overflowed 16K, burned 2 slow continuation passes,
+      // and still shipped truncated ("stuck, then half-cooked"). Cap at the real
+      // ceiling so a full page lands in one pass. (Joshua 2026-06-21.)
+      const maxTokens = claudeModel.includes('haiku') ? 64000 :
+                        claudeModel.includes('sonnet') ? 64000 :
+                        (claudeModel.includes('opus') || claudeModel.includes('fable')) ? 64000 : 32000
 
       // Detect if this is an e-commerce request for better prompting
       const industry = detectIndustry(prompt || fullUserPrompt)
