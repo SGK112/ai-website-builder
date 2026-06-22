@@ -4,6 +4,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { getApiSession } from '@/lib/api-auth'
 import { connectDB } from '@/lib/db'
 import { wantsVoiceInBuild, VOICE_CAPABILITY_PROMPT } from '@/lib/voice-build-recipe'
+import { wantsMobileApp, MOBILE_APP_PROMPT } from '@/lib/mobile-app-recipe'
 import { generateTextFree, FreeAIProvider } from '@/lib/free-ai-providers'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 import { guardAnonAbuse } from '@/lib/abuse-guard'
@@ -2755,10 +2756,13 @@ Rules:
         : industryOverride
           ? `${ENHANCED_SYSTEM_PROMPT}\n\n${industryOverride}`
           : ENHANCED_SYSTEM_PROMPT
-      // Append the voice recipe only when the user asked the build to talk/listen.
-      const claudeSystemPrompt = wantsVoiceInBuild(prompt || fullUserPrompt)
-        ? `${baseSystemPrompt}\n\n${VOICE_CAPABILITY_PROMPT}`
-        : baseSystemPrompt
+      // Append on-demand recipes: PWA app-shell when the user wants a mobile app
+      // (mobile target is now an installable web app, not Expo), and the voice
+      // recipe when they want the build to talk/listen.
+      const promptForIntent = prompt || fullUserPrompt
+      let claudeSystemPrompt = baseSystemPrompt
+      if (wantsMobileApp(promptForIntent)) claudeSystemPrompt += `\n\n${MOBILE_APP_PROMPT}`
+      if (wantsVoiceInBuild(promptForIntent)) claudeSystemPrompt += `\n\n${VOICE_CAPABILITY_PROMPT}`
 
       console.log(`[Generate] Using Claude ${claudeModel} (industry: ${industry})`)
 

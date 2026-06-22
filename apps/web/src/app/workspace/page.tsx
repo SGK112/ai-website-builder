@@ -348,7 +348,7 @@ interface QuickstartIntent {
 }
 const QUICKSTART_INTENTS: QuickstartIntent[] = [
   { id: 'website', icon: '🌐', title: 'Website',     sub: 'Landing, marketing, blog',  target: 'website', seed: 'I want to build a website.' },
-  { id: 'mobile',  icon: '📱', title: 'Mobile app',  sub: 'iOS + Android — Expo',     target: 'expo',    seed: 'I want to build a mobile app for iOS and Android.' },
+  { id: 'mobile',  icon: '📱', title: 'Mobile app',  sub: 'iOS + Android — installable', target: 'website', seed: 'I want to build a mobile app for iOS and Android — an installable mobile web app (PWA).' },
   { id: 'store',   icon: '🛒', title: 'Online store', sub: 'Products, cart, checkout', target: 'website', seed: 'I want to build an online store.' },
   { id: 'app',     icon: '⚡', title: 'Web app',      sub: 'Dashboard, tools, SaaS',    target: 'react',   seed: 'I want to build a web app.' },
 ]
@@ -6823,7 +6823,9 @@ ${html}
     // user's message clearly implies a different runtime, switch the target
     // and scaffold directly without needing the agent's MCP tools.
     const TARGET_INTENTS: Array<{ target: Exclude<BuildTarget, 'website'>; pattern: RegExp }> = [
-      { target: 'expo',   pattern: /mobile\s*app|ios\s*app|android|react\s*native|\bnative\s*app|\bexpo\b|build.*mobile|iphone\s*app|smartphone\s*app/i },
+      // Mobile apps now build as installable PWAs via the website pipeline
+      // (no Expo Go). Only EXPLICIT native intent routes to the Expo runtime.
+      { target: 'expo',   pattern: /react\s*native|\bexpo\b|\bnative\s*(mobile\s*)?app\b/i },
       { target: 'nextjs', pattern: /next\.?js\s*(app|site|project)?|server[\s-]side\s*render|ssr\b|server\s*components|api\s*routes\b/i },
       { target: 'react',  pattern: /\breact\s*(spa|vite|app)\b|vite\s*react|single[\s-]page\s*app\b/i },
       { target: 'astro',  pattern: /\bastro\s*(site|app|project)?|mdx\b|static\s*site\s*gen/i },
