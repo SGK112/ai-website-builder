@@ -7,6 +7,24 @@ import { ProposalClient } from './ProposalClient'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+// The preview iframe is sandboxed WITHOUT allow-same-origin (the content is
+// LLM-authored / user HTML served on webstew.net — same-origin would let it
+// read our cookies/session). But that makes localStorage/sessionStorage THROW,
+// so any generated site that touches them (theme toggles, the auth SDK, etc.)
+// crashes its scripts and the page looks broken — especially "view on your
+// phone". The workspace editor injects this same in-memory shim; the shared
+// preview must too. Runs before any site script.
+const STORAGE_SHIM = `<script>(function(){function mem(){var m={};return{getItem:function(k){return Object.prototype.hasOwnProperty.call(m,k)?m[k]:null},setItem:function(k,v){m[k]=String(v)},removeItem:function(k){delete m[k]},clear:function(){for(var k in m)delete m[k]},key:function(i){return Object.keys(m)[i]||null},get length(){return Object.keys(m).length}}}['localStorage','sessionStorage'].forEach(function(n){var ok=false;try{window[n]&&window[n].getItem('__p__');ok=true}catch(e){}if(!ok){try{Object.defineProperty(window,n,{value:mem(),configurable:true})}catch(e){}}})})();</script>`
+
+function withSandboxShim(html: string): string {
+  const h = html || ''
+  // Inject right after <head> so it runs before any in-page script.
+  const m = h.match(/<head[^>]*>/i)
+  if (m) return h.replace(m[0], m[0] + STORAGE_SHIM)
+  // No <head> — prepend so it still runs first.
+  return STORAGE_SHIM + h
+}
+
 interface PageProps {
   params: { token: string }
 }
@@ -28,7 +46,7 @@ export default async function PreviewPage({ params }: PageProps) {
   return (
     <div className="fixed inset-0 bg-white dark:bg-black">
       <iframe
-        srcDoc={snap.html}
+        srcDoc={withSandboxShim(snap.html)}
         className="w-full h-full border-0"
         sandbox="allow-scripts allow-forms allow-modals allow-popups allow-presentation"
         title={snap.name || 'Webstew preview'}

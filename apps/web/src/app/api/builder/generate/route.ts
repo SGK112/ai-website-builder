@@ -2832,14 +2832,21 @@ Rules:
               { role: 'user', content: fullUserPrompt },
             ])
 
-            // Continue up to 2 more times if Claude hit the token cap mid-generation.
-            // We prefill the assistant turn with what was already produced — Claude
-            // resumes exactly where it left off, no duplication.
+            // Continue up to 2 more times if the page came back incomplete. This
+            // fires on the token cap (stop_reason=max_tokens) AND on a structurally
+            // incomplete doc — a dropped/terminated stream ends with end_turn but
+            // no </body></html> (we saw real builds truncated at ~45KB, far under
+            // the 64K cap). Either way, prefill what we have and resume exactly
+            // where it left off — no duplication.
+            const htmlComplete = () => {
+              const h = fullHtml.toLowerCase()
+              return h.includes('</body>') && h.includes('</html>')
+            }
             const MAX_CONTINUATIONS = 2
             let continuations = 0
-            while (stopReason === 'max_tokens' && continuations < MAX_CONTINUATIONS) {
+            while ((stopReason === 'max_tokens' || !htmlComplete()) && continuations < MAX_CONTINUATIONS) {
               continuations++
-              console.log(`[Generate] stop_reason=max_tokens, continuing (pass ${continuations + 1}/${MAX_CONTINUATIONS + 1})`)
+              console.log(`[Generate] incomplete (stop_reason=${stopReason}, complete=${htmlComplete()}), continuing (pass ${continuations + 1}/${MAX_CONTINUATIONS + 1})`)
               stopReason = await runPass([
                 { role: 'user', content: fullUserPrompt },
                 { role: 'assistant', content: fullHtml },
@@ -2847,7 +2854,7 @@ Rules:
               ])
             }
 
-            const wasTruncated = stopReason === 'max_tokens'
+            const wasTruncated = stopReason === 'max_tokens' || !htmlComplete()
             if (wasTruncated) {
               console.warn('[Generate] Output still truncated after continuations — final HTML may be incomplete')
             }
