@@ -9325,7 +9325,31 @@ npx eas build --platform all
                 </span>
               </div>
             )}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-2">
+              {/* Full-width input on its own row so the controls don't cramp it */}
+              <input
+                ref={inputRef}
+                data-tour="chat"
+                type="text"
+                value={commandInput}
+                onChange={(e) => setCommandInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCommandSubmit()}
+                onPaste={(e) => {
+                  const img = Array.from(e.clipboardData?.items || []).find(it => it.type.startsWith('image/'))
+                  const file = img?.getAsFile()
+                  if (file) { e.preventDefault(); void attachImageToChat(file) }
+                }}
+                placeholder={currentProject?.role === 'viewer' ? 'View only — ask the owner for edit access' : isGenerating ? 'Creating...' : levelCopy[skillLevel].chatPlaceholder}
+                disabled={isGenerating || currentProject?.role === 'viewer'}
+                className={cn(
+                  "w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/50 disabled:opacity-50",
+                  isDark
+                    ? "bg-white/5 border-white/10 text-white placeholder-zinc-500"
+                    : "bg-white border-slate-200 text-slate-900 placeholder-slate-400"
+                )}
+              />
+              {/* Controls row */}
+              <div className="flex items-center gap-2">
               <div className={cn(
                 'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all',
                 isGenerating
@@ -9408,29 +9432,8 @@ npx eas build --platform all
                 busy={isGenerating || currentProject?.role === 'viewer'}
                 onMicToggle={handleMicToggle}
               />
-              <input
-                ref={inputRef}
-                data-tour="chat"
-                type="text"
-                value={commandInput}
-                onChange={(e) => setCommandInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleCommandSubmit()}
-                onPaste={(e) => {
-                  // Paste a screenshot straight into the chat — the core
-                  // "I screenshot it and share with instructions" flow.
-                  const img = Array.from(e.clipboardData?.items || []).find(it => it.type.startsWith('image/'))
-                  const file = img?.getAsFile()
-                  if (file) { e.preventDefault(); void attachImageToChat(file) }
-                }}
-                placeholder={currentProject?.role === 'viewer' ? 'View only — ask the owner for edit access' : isGenerating ? 'Creating...' : levelCopy[skillLevel].chatPlaceholder}
-                disabled={isGenerating || currentProject?.role === 'viewer'}
-                className={cn(
-                  "flex-1 min-w-0 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/50 disabled:opacity-50",
-                  isDark
-                    ? "bg-white/5 border-white/10 text-white placeholder-zinc-500"
-                    : "bg-white border-slate-200 text-slate-900 placeholder-slate-400"
-                )}
-              />
+              {/* spacer pushes send to the right edge of the controls row */}
+              <div className="flex-1" />
               {/* Send / Stop — when a request is in flight (isThinking or
                   isGenerating), this morphs into a Stop button that aborts
                   the fetch. Recovery for stuck "thinking" states. */}
@@ -9458,6 +9461,7 @@ npx eas build --platform all
                   <Send className="w-4 h-4" />
                 </button>
               )}
+              </div>
             </div>
             {/* Model selector */}
             <div className="flex items-center justify-between gap-2 mt-3 relative">
