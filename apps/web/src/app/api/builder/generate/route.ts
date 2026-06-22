@@ -1326,7 +1326,10 @@ async function fetchTopicImages(topic: string): Promise<string[]> {
     const data = await res.json()
     const hits = (data?.hits || []) as Array<{ largeImageURL?: string; webformatURL?: string }>
     return hits
-      .map(h => h.largeImageURL || h.webformatURL || '')
+      // webformatURL FIRST: Pixabay permits hotlinking webformatURL/previewURL,
+      // but largeImageURL is a download URL it 403s on when hotlinked — embedding
+      // it = broken images on every generated/published site.
+      .map(h => h.webformatURL || h.largeImageURL || '')
       .filter(Boolean)
   } catch {
     return []
@@ -1773,7 +1776,9 @@ async function fetchStockImagesForPrompt(
         const data: any = await res.json()
         const hits: any[] = Array.isArray(data?.hits) ? data.hits : []
         photos = hits.slice(0, count).map(h => ({
-          url: h.largeImageURL || h.webformatURL || h.previewURL,
+          // webformatURL FIRST — largeImageURL is a download URL Pixabay 403s on
+          // when hotlinked (= broken images). webformatURL is hotlink-safe.
+          url: h.webformatURL || h.largeImageURL || h.previewURL,
         })).filter(p => p.url)
         provider = 'Pixabay'
         if (photos.length === 0) {
@@ -3124,6 +3129,10 @@ Rules:
         }
 
         try {
+          // Track why the stream ended — 'length' means the model hit the token
+          // cap mid-document (truncated). The Claude branch flags this; this
+          // branch used to ship truncated Grok/OpenAI builds with no warning.
+          let grokFinishReason: string | null = null
           for await (const chunk of stream) {
             const content = chunk.choices[0]?.delta?.content || ''
             if (content) {
@@ -3134,6 +3143,7 @@ Rules:
               // fences + markers are cleaned once in the final pass below.
               safeEnqueue(encoder.encode(`data: ${JSON.stringify({ delta: content, streaming: true })}\n\n`))
             }
+            if (chunk.choices[0]?.finish_reason) grokFinishReason = chunk.choices[0].finish_reason
           }
 
           // Final processing
@@ -3218,9 +3228,12 @@ Rules:
             }
           }
 
+          const grokComplete = finalHtml.toLowerCase().includes('</body>') && finalHtml.toLowerCase().includes('</html>')
+          const grokTruncated = grokFinishReason === 'length' || !grokComplete
           safeEnqueue(encoder.encode(`data: ${JSON.stringify({
             html: finalHtml,
             complete: true,
+            truncated: grokTruncated,
             provider: 'openai',
             model: selectedModel,
             usage: { creditsUsed, tokensUsed },
