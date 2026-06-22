@@ -2324,7 +2324,7 @@ function WorkspaceContent() {
   // The "first-build" flavor is dismissable and remembered in sessionStorage
   // so we don't pop it twice. Action attempts (save/deploy) always nudge —
   // the work itself can't proceed without an account.
-  type NudgeReason = 'first-build' | 'save' | 'deploy-render' | 'deploy-github'
+  type NudgeReason = 'first-build' | 'save' | 'deploy-render' | 'deploy-github' | 'export'
   const [signupNudge, setSignupNudge] = useState<{ show: boolean; reason: NudgeReason | null }>({ show: false, reason: null })
 
   // Conversational chat state
@@ -4550,6 +4550,7 @@ ${body}
   }
 
   const exportHtml = () => {
+    if (!session?.user) { setSignupNudge({ show: true, reason: 'export' }); return }
     if (!html.trim()) {
       addTerminalLine('error', 'Nothing to export yet — build a site first.')
       return
@@ -6076,7 +6077,7 @@ ${html}
 
     // Actions
     { id: 'action-save', label: 'Save Project', category: 'action', icon: Save, shortcut: '⌘S', action: () => saveProject() },
-    { id: 'action-export', label: 'Export Project', category: 'action', icon: FileDown, action: () => setShowExportPanel(true) },
+    { id: 'action-export', label: 'Export Project', category: 'action', icon: FileDown, action: () => openExportPanel() },
     { id: 'action-undo', label: 'Undo', category: 'action', icon: Undo2, shortcut: '⌘Z', action: () => handleUndo() },
     { id: 'action-redo', label: 'Redo', category: 'action', icon: Redo2, shortcut: '⌘Y', action: () => handleRedo() },
     { id: 'action-refresh', label: 'Refresh Preview', category: 'action', icon: RefreshCw, action: () => setPreviewBumpKey(k => k + 1) },
@@ -7642,7 +7643,15 @@ ${html}
     }
   }, [chatMessages, isThinking, isGenerating, voice])
 
+  // Anon can build freely, but exporting the source is "doing something with
+  // it" — gate every export surface behind signup like publish/deploy/save.
+  const openExportPanel = () => {
+    if (!session?.user) { setSignupNudge({ show: true, reason: 'export' }); return }
+    setShowExportPanel(true)
+  }
+
   const handleExport = async () => {
+    if (!session?.user) { setSignupNudge({ show: true, reason: 'export' }); return }
     // Multi-target projects: ship a zip of the VFS. The export panel is
     // HTML-specific (preview, single-file download, etc.) and doesn't apply.
     if (buildTarget !== 'website' && Object.keys(vfsFiles).length > 0) {
@@ -8258,6 +8267,7 @@ npx eas build --platform all
             : r === 'save'                  ? 'Save your work to the cloud'
             : r === 'deploy-render'         ? 'Sign up to deploy live'
             : r === 'deploy-github'         ? 'Sign up to push to GitHub'
+            : r === 'export'                ? 'Sign up to export your code'
             : 'Sign up to keep going'
           const message = r === 'first-build'
             ? `Nice work. Sign up free to keep this build forever, deploy it to a live URL, and claim 100 free credits every month — that's ~10 fresh generations.`
@@ -8267,6 +8277,8 @@ npx eas build --platform all
             ? `Deploying gives your site a live URL anyone can visit. Free signup, no card required — includes 100 credits/month and your first deploy.`
             : r === 'deploy-github'
             ? `Push to GitHub creates a real repo from your project so you can edit code, share it, or fork it. Free signup unlocks it — plus 100 credits/month.`
+            : r === 'export'
+            ? `Download your full source as a zip. Free signup unlocks export (and publish, deploy, and saving to your account) — plus 100 credits/month, no card.`
             : `Sign up free to unlock this. 100 credits/month, no card required.`
           const router_ = router
           const closeAndRoute = (to: string) => {
@@ -9201,7 +9213,7 @@ npx eas build --platform all
                 deployError={deployError}
                 onDeployToGitHub={deployToGitHub}
                 onDeployToRender={deployToRender}
-                onOpenExport={() => setShowExportPanel(true)}
+                onOpenExport={() => openExportPanel()}
                 isProvisioningBackend={isProvisioningBackend}
                 onProvisionBackend={provisionBackend}
                 backendInfo={backendInfo}

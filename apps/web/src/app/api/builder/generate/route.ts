@@ -2382,12 +2382,13 @@ export async function POST(req: NextRequest) {
       apiKeys?.google
     )
 
-    // Anon users get a single free generation (cookie-gated). After that,
-    // they hit the signup wall in the workspace UI. BYOK bypasses the cap
-    // entirely — power users pay their own LLM bill so they can iterate freely.
-    // Logged-in users skip this and are governed by plan limits below.
+    // Anon users can CREATE freely — ~100 credits' worth of building (no signup,
+    // no card) so they get the full "make something" moment. DOING anything with
+    // it (publish, deploy, save, export) is gated behind signup elsewhere; this
+    // cookie just bounds free anonymous use of the platform LLM key against
+    // abuse. BYOK bypasses entirely. Logged-in users follow plan limits below.
     const ANON_COOKIE = 'wsanon'
-    const ANON_LIMIT = 3
+    const ANON_LIMIT = 10 // ≈100 credits at 10 credits / website generation
     let anonGenCount = 0
     let isAnonPass = false
     if (!session?.user?.id && !hasOwnKey) {
@@ -2395,7 +2396,7 @@ export async function POST(req: NextRequest) {
       if (anonGenCount >= ANON_LIMIT) {
         return NextResponse.json(
           {
-            error: `You've used your ${ANON_LIMIT} free generations on this browser. Sign up free to keep building (100 credits/month, no card) — or paste your own API key for unlimited.`,
+            error: `You've used your free credits on this browser. Sign up free to keep building — 100 credits every month, no card — and to publish, deploy, save, or export what you've made.`,
             limit: ANON_LIMIT,
             used: anonGenCount,
             signupWall: true,
