@@ -185,6 +185,7 @@ import { VideoPanel } from './components/VideoPanel'
 import { TemplatesPanel } from './components/TemplatesPanel'
 import { BuildChatPanel } from './components/BuildChatPanel'
 import { VoiceControls } from './components/VoiceControls'
+import { PhonePreview } from './components/PhonePreview'
 import { useVoiceChat } from './hooks/useVoiceChat'
 import { levelCopy, defaultBuildTargetForLevel } from './constants'
 import { PublishToCommunityModal } from '@/components/builder/PublishToCommunityModal'
@@ -9841,6 +9842,17 @@ npx eas build --platform all
                 </button>
               ))}
             </div>
+
+            {/* Try it on your phone — fresh QR of the current build (website →
+                camera-scan link, app → Expo Go). */}
+            <PhonePreview
+              isDark={isDark}
+              buildTarget={buildTarget}
+              projectName={projectName}
+              getHtml={() => html}
+              vfsFiles={vfsFiles}
+              isLoggedIn={!!session?.user}
+            />
 
             {/* Select element — point-and-edit. Toggles the in-preview element
                 picker; click any node in the preview, then tell the AI how to
