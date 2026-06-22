@@ -9326,30 +9326,58 @@ npx eas build --platform all
               </div>
             )}
             <div className="flex flex-col gap-2">
-              {/* Full-width input on its own row so the controls don't cramp it */}
-              <input
-                ref={inputRef}
-                data-tour="chat"
-                type="text"
-                value={commandInput}
-                onChange={(e) => setCommandInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleCommandSubmit()}
-                onPaste={(e) => {
-                  const img = Array.from(e.clipboardData?.items || []).find(it => it.type.startsWith('image/'))
-                  const file = img?.getAsFile()
-                  if (file) { e.preventDefault(); void attachImageToChat(file) }
-                }}
-                placeholder={currentProject?.role === 'viewer' ? 'View only — ask the owner for edit access' : isGenerating ? 'Creating...' : levelCopy[skillLevel].chatPlaceholder}
-                disabled={isGenerating || currentProject?.role === 'viewer'}
-                className={cn(
-                  "w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/50 disabled:opacity-50",
-                  isDark
-                    ? "bg-white/5 border-white/10 text-white placeholder-zinc-500"
-                    : "bg-white border-slate-200 text-slate-900 placeholder-slate-400"
-                )}
-              />
-              {/* Controls row */}
+              {/* Row 1 — input with the send button inline */}
               <div className="flex items-center gap-2">
+                <input
+                  ref={inputRef}
+                  data-tour="chat"
+                  type="text"
+                  value={commandInput}
+                  onChange={(e) => setCommandInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleCommandSubmit()}
+                  onPaste={(e) => {
+                    const img = Array.from(e.clipboardData?.items || []).find(it => it.type.startsWith('image/'))
+                    const file = img?.getAsFile()
+                    if (file) { e.preventDefault(); void attachImageToChat(file) }
+                  }}
+                  placeholder={currentProject?.role === 'viewer' ? 'View only — ask the owner for edit access' : isGenerating ? 'Creating...' : levelCopy[skillLevel].chatPlaceholder}
+                  disabled={isGenerating || currentProject?.role === 'viewer'}
+                  className={cn(
+                    "flex-1 min-w-0 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/50 disabled:opacity-50",
+                    isDark
+                      ? "bg-white/5 border-white/10 text-white placeholder-zinc-500"
+                      : "bg-white border-slate-200 text-slate-900 placeholder-slate-400"
+                  )}
+                />
+                {/* Send / Stop — inline with the input. Morphs to Stop while a
+                    request is in flight (recovery for stuck "thinking" states). */}
+                {isThinking || isGenerating ? (
+                  <button
+                    onClick={stopAgent}
+                    className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-500 transition-all"
+                    title="Stop"
+                    aria-label="Stop generating"
+                  >
+                    <Square className="w-4 h-4 fill-current" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleCommandSubmit}
+                    disabled={!commandInput.trim() && pendingChatImages.length === 0}
+                    aria-label="Send message"
+                    className={cn(
+                      'w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-all',
+                      (commandInput.trim() || pendingChatImages.length > 0)
+                        ? 'bg-violet-500 hover:bg-violet-400 text-white'
+                        : isDark ? 'bg-white/5 text-zinc-500' : 'bg-slate-200 text-slate-400'
+                    )}
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              {/* Row 2 — controls in a centered grid */}
+              <div className="grid grid-flow-col auto-cols-max gap-2 justify-center items-center">
               <div className={cn(
                 'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all',
                 isGenerating
@@ -9432,35 +9460,6 @@ npx eas build --platform all
                 busy={isGenerating || currentProject?.role === 'viewer'}
                 onMicToggle={handleMicToggle}
               />
-              {/* spacer pushes send to the right edge of the controls row */}
-              <div className="flex-1" />
-              {/* Send / Stop — when a request is in flight (isThinking or
-                  isGenerating), this morphs into a Stop button that aborts
-                  the fetch. Recovery for stuck "thinking" states. */}
-              {isThinking || isGenerating ? (
-                <button
-                  onClick={stopAgent}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-500 transition-all"
-                  title="Stop"
-                  aria-label="Stop generating"
-                >
-                  <Square className="w-3.5 h-3.5 fill-current" />
-                </button>
-              ) : (
-                <button
-                  onClick={handleCommandSubmit}
-                  disabled={!commandInput.trim() && pendingChatImages.length === 0}
-                  aria-label="Send message"
-                  className={cn(
-                    'w-8 h-8 rounded-lg flex items-center justify-center transition-all',
-                    (commandInput.trim() || pendingChatImages.length > 0)
-                      ? 'bg-violet-500 hover:bg-violet-400 text-white'
-                      : isDark ? 'bg-white/5 text-zinc-500' : 'bg-slate-200 text-slate-400'
-                  )}
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              )}
               </div>
             </div>
             {/* Model selector */}
