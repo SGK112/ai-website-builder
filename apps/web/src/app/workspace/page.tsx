@@ -9425,7 +9425,7 @@ npx eas build --platform all
                 placeholder={currentProject?.role === 'viewer' ? 'View only — ask the owner for edit access' : isGenerating ? 'Creating...' : levelCopy[skillLevel].chatPlaceholder}
                 disabled={isGenerating || currentProject?.role === 'viewer'}
                 className={cn(
-                  "flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/50 disabled:opacity-50",
+                  "flex-1 min-w-0 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/50 disabled:opacity-50",
                   isDark
                     ? "bg-white/5 border-white/10 text-white placeholder-zinc-500"
                     : "bg-white border-slate-200 text-slate-900 placeholder-slate-400"

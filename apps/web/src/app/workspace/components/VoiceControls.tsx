@@ -79,19 +79,22 @@ export function VoiceControls({
         {isSpeaking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : speakReplies ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
       </button>
 
-      {/* Voice picker */}
+      {/* Voice picker — icon-only to keep the input roomy; current voice shows
+          in the tooltip + highlighted in the menu. */}
       <div className="relative">
         <button
           type="button"
           onClick={() => setPickerOpen((v) => !v)}
-          title="Choose the chef's voice"
+          title={currentVoice ? `Chef voice: ${currentVoice.label}` : "Choose the chef's voice"}
+          aria-label="Choose the chef's voice"
           className={cn(
-            'flex items-center gap-1 px-1.5 h-7 rounded-md text-[10px] font-medium transition-all max-w-[120px]',
-            isDark ? 'bg-white/5 hover:bg-white/10 text-zinc-400' : 'bg-slate-200 hover:bg-slate-300 text-slate-600',
+            'w-7 h-7 rounded-md flex items-center justify-center shrink-0 transition-all',
+            pickerOpen
+              ? isDark ? 'bg-white/10 text-violet-300' : 'bg-slate-300 text-violet-700'
+              : isDark ? 'text-zinc-500 hover:text-violet-300 hover:bg-white/5' : 'text-slate-400 hover:text-violet-600 hover:bg-slate-200',
           )}
         >
-          <span className="truncate">{currentVoice ? currentVoice.label.split(' — ')[0] : 'Voice'}</span>
-          <ChevronDown className="w-3 h-3 shrink-0" />
+          <ChevronDown className="w-3.5 h-3.5" />
         </button>
         {pickerOpen && (
           <>
@@ -102,6 +105,7 @@ export function VoiceControls({
                 isDark ? 'bg-zinc-900 border-white/10' : 'bg-white border-slate-200',
               )}
             >
+              <div className={cn('px-3 py-1 text-[10px] font-semibold uppercase tracking-wide', isDark ? 'text-zinc-500' : 'text-slate-400')}>Chef voice</div>
               {voices.map((v) => (
                 <button
                   key={v.id}
