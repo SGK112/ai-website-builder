@@ -163,15 +163,16 @@ export async function POST(request: NextRequest) {
     const priceNum = Math.max(0, Math.min(50000, Math.floor(Number(priceCredits) || 0)))
     const isPremium = priceNum > 0
 
-    // A site/template/app listing delivers its HTML to buyers, so refuse to
-    // publish one with no real content — otherwise buyers (especially of a PAID
-    // listing) get a blank site. video/image listings carry a media URL instead,
-    // so they're exempt. Enforced server-side, not just in the publish modal.
-    if (type !== 'video' && type !== 'image') {
+    // A PAID site/template/app listing delivers its HTML to buyers, so refuse to
+    // sell one with no real content — otherwise buyers get a blank site. Only
+    // gate premium listings: free community posts can be text-only (a tip, a
+    // showcase note). video/image listings carry a media URL instead. The buy
+    // route also guards delivery, so this is the front-line check, not the only one.
+    if (isPremium && type !== 'video' && type !== 'image') {
       const htmlStr = typeof html === 'string' ? html.trim() : ''
       if (htmlStr.length < 200) {
         return NextResponse.json(
-          { error: 'This project has no content to list. Build the site first, then publish it.' },
+          { error: 'This project has no content to list for sale. Build the site first, then publish it.' },
           { status: 400 }
         )
       }
