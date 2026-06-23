@@ -2,17 +2,23 @@
 // Anyone with the link can view; nothing here requires auth.
 // Renders a stripped, marketing-friendly version with a CTA to grade
 // your own site at the bottom.
+//
+// Catch-all ([...token]) on purpose: share targets (SMS, X, native share
+// sheets) often append the marketing text — which contains "98/100" — onto the
+// URL, turning the path into multiple segments. A single [token] segment would
+// 404 on those. We take the FIRST segment and strip anything after the first
+// non-token character, so a garbled link still resolves to the real report.
 
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
-import { ArrowLeft, AlertCircle, CheckCircle2, Sparkles, Eye } from 'lucide-react'
+import { ArrowLeft, AlertCircle, Sparkles, Eye } from 'lucide-react'
 import type { Metadata } from 'next'
+import { NotAvailable } from '@/components/NotAvailable'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 interface PageProps {
-  params: { token: string }
+  params: { token: string[] }
 }
 
 interface SavedReport {
@@ -36,9 +42,17 @@ interface SavedReport {
   views: number
 }
 
+// First path segment, trimmed to the valid token charset — survives share
+// targets that glue the share text onto the URL.
+function cleanToken(seg: string[] | string | undefined): string {
+  const first = Array.isArray(seg) ? (seg[0] || '') : (seg || '')
+  return decodeURIComponent(first).split(/[^A-Za-z0-9_-]/)[0] || ''
+}
+
 async function getReport(token: string, origin: string): Promise<SavedReport | null> {
+  if (!token) return null
   try {
-    const res = await fetch(`${origin}/api/grader/share/${token}`, { cache: 'no-store' })
+    const res = await fetch(`${origin}/api/grader/share/${encodeURIComponent(token)}`, { cache: 'no-store' })
     if (!res.ok) return null
     return (await res.json()) as SavedReport
   } catch {
@@ -47,10 +61,8 @@ async function getReport(token: string, origin: string): Promise<SavedReport | n
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  // Best-effort fetch for OG tags. Falls back to generic copy if the
-  // request fails (e.g., during build).
   const origin = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.webstew.net'
-  const report = await getReport(params.token, origin)
+  const report = await getReport(cleanToken(params.token), origin)
   if (!report) {
     return { title: 'Site grade · Webstew' }
   }
@@ -80,8 +92,20 @@ function gradeColor(grade?: string): string {
 
 export default async function GraderSharePage({ params }: PageProps) {
   const origin = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.webstew.net'
-  const report = await getReport(params.token, origin)
-  if (!report) notFound()
+  const report = await getReport(cleanToken(params.token), origin)
+  if (!report) {
+    // No hard 404 — this is a link someone clicked. Offer a way forward.
+    return (
+      <NotAvailable
+        title="This grader report isn’t available"
+        message="The report may have expired or been removed — or the share link got garbled. Run a fresh grade in seconds."
+        primaryHref="/grader"
+        primaryLabel="Grade your site free"
+        secondaryHref="/"
+        secondaryLabel="Go to Webstew"
+      />
+    )
+  }
 
   const { result } = report
   const issues = Array.isArray(result?.issues) ? result.issues : []

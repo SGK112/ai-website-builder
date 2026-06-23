@@ -1,5 +1,5 @@
-import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { NotAvailable } from '@/components/NotAvailable'
 import { getSnapshotByToken } from '@/lib/preview-store'
 import type { Metadata } from 'next'
 import { ProposalClient } from './ProposalClient'
@@ -41,7 +41,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function PreviewPage({ params }: PageProps) {
   const snap = await getSnapshotByToken(params.token).catch(() => null)
-  if (!snap) notFound()
+  if (!snap) return (
+    <NotAvailable
+      title="This preview has expired"
+      message="Preview links are temporary. Build or open your project to get a fresh one."
+      primaryHref="/workspace"
+      primaryLabel="Open the builder"
+    />
+  )
 
   return (
     <div className="fixed inset-0 bg-white dark:bg-black">

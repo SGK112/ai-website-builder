@@ -2,7 +2,7 @@
 // the live HTML iframe; premium listings show metadata + buy CTA.
 
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { NotAvailable } from '@/components/NotAvailable'
 import { ArrowLeft, Eye, Heart, Sparkles, BadgeCheck, ShoppingBag, Crown, ExternalLink, Tag } from 'lucide-react'
 import type { Metadata } from 'next'
 import clientPromise from '@/lib/mongodb'
@@ -89,7 +89,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function ListingPage({ params }: PageProps) {
   const l = await loadListing(params.id)
-  if (!l) notFound()
+  if (!l) return (
+    <NotAvailable
+      title="This listing isn’t available"
+      message="It may have been unpublished or removed. There's plenty more in the marketplace."
+      primaryHref="/community"
+      primaryLabel="Browse the marketplace"
+    />
+  )
 
   const author = l.author || {}
   const authorHref = author.username ? `/u/${author.username}` : undefined

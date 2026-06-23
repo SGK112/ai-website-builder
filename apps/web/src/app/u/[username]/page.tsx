@@ -9,7 +9,7 @@
 // someone shares the URL.
 
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { NotAvailable } from '@/components/NotAvailable'
 import { ArrowLeft, Sparkles, BadgeCheck, ExternalLink, Calendar, Eye, Heart } from 'lucide-react'
 import type { Metadata } from 'next'
 import clientPromise from '@/lib/mongodb'
@@ -240,7 +240,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function PublicProfilePage({ params }: PageProps) {
   const data = await loadProfile(params.username)
-  if (!data) notFound()
+  if (!data) return (
+    <NotAvailable
+      title="This creator profile isn’t available"
+      message="The account may have been removed or the link is mistyped. Explore what others have built."
+      primaryHref="/community"
+      primaryLabel="Explore the community"
+    />
+  )
 
   const isSeller = data.listings.length > 0
   const initials = data.author.name

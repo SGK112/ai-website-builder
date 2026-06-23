@@ -7,7 +7,7 @@
 // link unfurls with an inline video preview when pasted into chats/social.
 
 import { cache } from 'react'
-import { notFound } from 'next/navigation'
+import { NotAvailable } from '@/components/NotAvailable'
 import type { Metadata } from 'next'
 import { connectDB } from '@/lib/db'
 
@@ -65,7 +65,14 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
 
 export default async function WatchPage({ params }: { params: { id: string } }) {
   const shared = await getShared(params.id)
-  if (!shared) notFound()
+  if (!shared) return (
+    <NotAvailable
+      title="This video isn’t available"
+      message="It may have been removed or the link expired. Make your own in the Video Studio."
+      primaryHref="/video"
+      primaryLabel="Open Video Studio"
+    />
+  )
   const poster = posterUrl(shared.url) || undefined
 
   return (
