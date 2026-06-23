@@ -164,11 +164,21 @@ async function runModel(model: string, input: Record<string, any>) {
   while (prediction.status !== 'succeeded' && prediction.status !== 'failed' && attempts < maxAttempts) {
     await new Promise(resolve => setTimeout(resolve, 1000))
 
-    const pollResponse = await fetch(prediction.urls.get, {
+    // Guard the response shape — dereferencing prediction.urls.get blindly turns
+    // a provider hiccup into a cryptic "cannot read 'get' of undefined" 500.
+    const pollUrl = prediction?.urls?.get
+    if (!pollUrl) {
+      throw new Error('Image provider returned an unexpected response (no poll URL).')
+    }
+    const pollResponse = await fetch(pollUrl, {
       headers: {
         'Authorization': `Token ${REPLICATE_API_TOKEN}`,
       },
     })
+    if (!pollResponse.ok) {
+      // Don't JSON.parse an error/HTML body — surface a clear status instead.
+      throw new Error(`Image provider error while polling (${pollResponse.status}).`)
+    }
 
     prediction = await pollResponse.json()
     attempts++
@@ -180,6 +190,13 @@ async function runModel(model: string, input: Record<string, any>) {
 
   if (prediction.status !== 'succeeded') {
     throw new Error('AI processing timed out')
+  }
+
+  // 'succeeded' with no output is a failure dressed as success — don't hand the
+  // caller an empty image and call it done.
+  const succeededOutput = Array.isArray(prediction.output) ? prediction.output[0] : prediction.output
+  if (!succeededOutput) {
+    throw new Error('The image provider reported success but returned no image — please try again.')
   }
 
   return {

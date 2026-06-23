@@ -133,6 +133,18 @@ export async function POST(req: NextRequest) {
       case 'checkout.session.completed': {
         const sess: any = event.data.object
 
+        // ISOLATION: this Stripe account is shared with VoiceNow. The type/source
+        // handlers below (app_order, domain_purchase, webstew-template,
+        // webstew-marketplace) used to run BEFORE the app-marker check further
+        // down, so an event from the other app could be processed here. Reject
+        // anything affirmatively marked as a different app up front. This is
+        // fail-open (unmarked events still pass), so it can't drop a legitimate
+        // webstew event — webstew checkouts are also now stamped with the marker.
+        if (isForeignByMarker(sess?.metadata)) {
+          console.log(`Skipping non-${OUR_APP} checkout ${sess?.id} (app=${sess?.metadata?.app})`)
+          break
+        }
+
         // Generated-app store order (WebstewDB.checkout). The order row lives in
         // app_data (Mongoose-default DB) keyed by stripeSessionId; flip pending
         // → paid so the app owner sees fulfilled orders in Data Studio. Trusting
@@ -376,30 +388,53 @@ export async function POST(req: NextRequest) {
         const email = session.customer_details?.email || session.customer_email || undefined
         const user = await resolveUser(metadata.userId, email)
         if (!user) {
+          // Payment ALREADY succeeded. Returning 200 (break) tells Stripe not to
+          // retry, so a silent drop = customer paid and got nothing. Persist to a
+          // dead-letter collection so the grant can be reconciled instead of lost.
           console.error('User not found for session', session.id, 'metadata.userId=', metadata.userId, 'email=', email)
+          try {
+            await mongoose.connection.db?.collection('stripe_unresolved_events').updateOne(
+              { sessionId: session.id },
+              { $set: {
+                  sessionId: session.id, eventId: event.id, metadata,
+                  email: email || null, amountTotal: session.amount_total ?? null,
+                  resolved: false, createdAt: new Date(),
+                } },
+              { upsert: true },
+            )
+          } catch (e: any) {
+            console.error('[stripe] failed to dead-letter unresolved session', session.id, e?.message)
+          }
           break
         }
 
-        // Handle credit purchase
+        // Handle credit purchase. Atomic $inc — a read-modify-save double-counts
+        // if Stripe delivers the same event on two concurrent invocations (the
+        // event-id idempotency guard doesn't cover two in-flight handlers).
         if (metadata.type === 'credits' && metadata.credits) {
           const creditsToAdd = parseInt(metadata.credits, 10)
-          user.credits = (user.credits || 0) + creditsToAdd
-          await user.save()
+          await User.updateOne(
+            { _id: user._id },
+            { $inc: { credits: creditsToAdd }, $set: { updatedAt: new Date() } },
+          )
           console.log(`Added ${creditsToAdd} credits to user ${user._id}`)
         }
 
-        // Handle subscription
+        // Handle subscription — atomic for the same reason.
         if (metadata.type === 'subscription' && metadata.planId) {
-          user.plan = metadata.planId as PlanId
-          user.stripeCustomerId = session.customer as string
-          user.subscriptionStatus = 'active'
-
           const grant = getPlanCredits(metadata.planId)
-          if (grant > 0) {
-            user.credits = (user.credits || 0) + grant
-          }
-
-          await user.save()
+          await User.updateOne(
+            { _id: user._id },
+            {
+              $set: {
+                plan: metadata.planId as PlanId,
+                stripeCustomerId: session.customer as string,
+                subscriptionStatus: 'active',
+                updatedAt: new Date(),
+              },
+              ...(grant > 0 ? { $inc: { credits: grant } } : {}),
+            },
+          )
           console.log(`Updated user ${user._id} to ${metadata.planId} plan (+${grant} credits)`)
         }
 

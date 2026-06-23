@@ -130,6 +130,7 @@ export async function POST(req: NextRequest, { params }: { params: { postId: str
           destination: seller.stripe_account_id,
         },
         metadata: {
+          app: 'webstew', // isolates from VoiceNow on the shared Stripe account
           listing_id: String(postId),
           buyer_user_id: String(buyerId),
           seller_user_id: String(sellerId),
@@ -140,6 +141,7 @@ export async function POST(req: NextRequest, { params }: { params: { postId: str
       // Surface the same metadata on the session so the webhook handler
       // can read it without descending into payment_intent.
       metadata: {
+        app: 'webstew', // isolates from VoiceNow on the shared Stripe account
         listing_id: String(postId),
         buyer_user_id: String(buyerId),
         seller_user_id: String(sellerId),

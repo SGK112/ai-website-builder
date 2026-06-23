@@ -353,11 +353,12 @@ export function WebContainerPreview({
     // boot WC at all (cross-origin isolation gaps). For Expo on touch
     // devices we skip the boot entirely and let the publish flow (the QR
     // / "Open on this phone" path) be the canonical preview.
-    const isPhone =
-      typeof window !== 'undefined' &&
-      window.matchMedia?.('(max-width: 767px)').matches &&
-      ('ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0)
-    if (isPhone && isExpoWeb) {
+    // Expo / React-Native apps run on a device, not in a browser — Metro does
+    // NOT run inside WebContainer (on ANY device). Attempting `expo start --web`
+    // here just hangs on a blank "starting…" screen forever. So for every Expo
+    // build we skip the WC boot entirely and route to the phone/QR preview
+    // (publish → scan → open on phone), which IS the canonical Expo preview.
+    if (isExpoWeb) {
       setPhase('error')
       setError('PHONE_SKIP_WC')
       return
@@ -376,6 +377,8 @@ export function WebContainerPreview({
     let cancelled = false
     let installProc: any = null
     let devProc: any = null
+    let devReadyTimer: any = null
+    let serverReadyFired = false
 
     const append = (s: string) => {
       if (cancelled) return
@@ -402,6 +405,8 @@ export function WebContainerPreview({
         // `running` as soon as we have a URL.
         const handleServerReady = (_port: number, url: string) => {
           if (cancelled) return
+          serverReadyFired = true
+          if (devReadyTimer) { clearTimeout(devReadyTimer); devReadyTimer = null }
           setServerUrl(url)
           setPhase('running')
         }
@@ -445,6 +450,33 @@ export function WebContainerPreview({
         // `server-ready` will flip phase to 'running' when the dev server
         // emits its first listen event. We don't await `devProc.exit` here —
         // dev servers run forever.
+        //
+        // Silent-blank guards. Without these the preview sits on "starting…"
+        // (a blank iframe with a green "Live" dot) indefinitely whenever the
+        // dev server crashes on boot or never binds a port. Surface a real,
+        // actionable error instead:
+        //  1) the process exits before serving, or
+        //  2) no `server-ready` within the window.
+        devProc.exit
+          .then((code: number) => {
+            if (cancelled || serverReadyFired) return
+            setLogsOpen(true)
+            setError(
+              `The dev server exited before it could serve a preview (exit ${code}). ` +
+                `The generated project likely has a build or runtime error — see the logs above.`
+            )
+            setPhase('error')
+          })
+          .catch(() => {})
+        devReadyTimer = setTimeout(() => {
+          if (cancelled || serverReadyFired) return
+          setLogsOpen(true)
+          setError(
+            `The preview didn't come online within 90 seconds. The generated project may have a ` +
+              `build error, or its dev server never bound a port — check the logs above and try again.`
+          )
+          setPhase('error')
+        }, 90_000)
       } catch (e: any) {
         if (cancelled) return
         setError(e?.message || String(e))
@@ -456,6 +488,7 @@ export function WebContainerPreview({
 
     return () => {
       cancelled = true
+      if (devReadyTimer) { clearTimeout(devReadyTimer); devReadyTimer = null }
       try { installProc?.kill?.() } catch {}
       try { devProc?.kill?.() } catch {}
     }
@@ -625,16 +658,22 @@ export function WebContainerPreview({
         {phase === 'error' && error === 'PHONE_SKIP_WC' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 gap-3">
             <Smartphone className="w-10 h-10 text-violet-400" />
-            <div className="text-white font-semibold">Your phone IS the preview</div>
-            <div className="text-xs text-zinc-400 max-w-xs leading-relaxed">
-              Tap below to publish this build and open it in Webstew Preview right here on your phone.
+            <div className="text-white font-semibold">Mobile apps preview on a phone</div>
+            <div className="text-xs text-zinc-400 max-w-sm leading-relaxed">
+              React Native / Expo apps run on a device, not in a browser, so there's
+              no in-browser preview. Publish this build and scan the QR with your phone
+              to open it live.
+              <span className="block mt-2 text-zinc-500">
+                Want a preview right here? Build it as a <span className="text-violet-300">Web</span> app
+                instead — it runs as an installable mobile web app (PWA) in the browser.
+              </span>
             </div>
             <button
               onClick={() => setShowQr(true)}
               className="mt-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl flex items-center gap-2 transition shadow-lg shadow-violet-900/50"
             >
               <QrCode className="w-4 h-4" />
-              Open on this phone
+              Show QR code
             </button>
           </div>
         )}

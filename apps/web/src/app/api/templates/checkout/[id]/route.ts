@@ -104,6 +104,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }],
       // Webhook ID's the session via these so it can grant entitlement.
       metadata: {
+        app: 'webstew', // isolates from VoiceNow on the shared Stripe account
         source: 'webstew-template',
         template_id: templateId,
         buyer_user_id: session.user.id,

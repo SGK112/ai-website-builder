@@ -435,6 +435,20 @@ async function pollOnce(predictionId: string) {
   if (p.status === 'failed' || p.status === 'canceled') await refundVideoJob(predictionId)
   // Normalize output — Replicate returns an array for most video models
   const output = Array.isArray(p.output) ? p.output[0] : p.output
+  // 'succeeded' with no output is a provider failure dressed as success.
+  // Returning {succeeded, videoUrl:null} makes the client poll until its ~4-min
+  // timeout, then show a misleading "service busy" error. Convert it to a real
+  // failure (and refund) so the user gets an immediate, accurate result.
+  if (p.status === 'succeeded' && !output) {
+    await refundVideoJob(predictionId)
+    return NextResponse.json({
+      id: p.id,
+      status: 'failed',
+      videoUrl: null,
+      error: 'The video provider reported success but returned no video. Your credits were refunded — please try again.',
+      logs: p.logs || null,
+    })
+  }
   // On success, copy the clip to our CDN so the stored URL doesn't expire.
   const videoUrl = (p.status === 'succeeded' && output) ? await rehostToCloudinary(output) : (output || null)
   return NextResponse.json({
@@ -498,6 +512,18 @@ async function pollXai(prefixedId: string) {
   // Failed → refund the credits charged at start (idempotent).
   if (status === 'failed') await refundVideoJob(prefixedId)
   const xaiUrl = p.video?.url || null
+  // 'done' with no video URL is a failure dressed as success — same misleading
+  // 4-min client timeout as the Replicate path. Convert to a real failure + refund.
+  if (status === 'succeeded' && !xaiUrl) {
+    await refundVideoJob(prefixedId)
+    return NextResponse.json({
+      id: prefixedId,
+      status: 'failed',
+      videoUrl: null,
+      error: 'The video provider reported success but returned no video. Your credits were refunded — please try again.',
+      logs: p.progress != null ? `${p.progress}%` : null,
+    })
+  }
   // On success, copy the clip to our CDN so the stored URL doesn't expire.
   const videoUrl = (status === 'succeeded' && xaiUrl) ? await rehostToCloudinary(xaiUrl) : xaiUrl
   return NextResponse.json({

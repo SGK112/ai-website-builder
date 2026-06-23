@@ -183,14 +183,12 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as ClarifyRequest
     const { userMessage, history = [], plan = {}, model = 'auto', apiKey } = body
 
-    // Auth is enforced by middleware for browser requests; defensive check
-    // here for direct API hits — accept a session OR a BYOK key.
-    if (!session?.user?.id && !apiKey) {
-      return NextResponse.json(
-        { error: 'Authentication required', requireAuth: true },
-        { status: 401 },
-      )
-    }
+    // Anon-accessible: the clarifier is part of the free first-build funnel, so
+    // a not-signed-in visitor can use it just like /api/builder/generate. Cost
+    // is bounded by the per-IP aiGeneration rate limit above (anon has no BYOK
+    // key and no credits to deduct — none are charged here). Signed-in users
+    // and BYOK callers flow through unchanged.
+    void session // session is read for context but not required for clarify
     if (!userMessage?.trim()) {
       return NextResponse.json({ error: 'userMessage required' }, { status: 400 })
     }

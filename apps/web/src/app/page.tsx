@@ -522,7 +522,7 @@ export default function HomePage() {
                   <button onClick={() => setShowTargetModal(true)} className={cn("hidden md:block transition-colors", isDark ? "text-slate-300 hover:text-white" : "text-slate-500 hover:text-slate-900")}>App Builder</button>
                   <a href="/login" className={cn("hidden sm:block transition-colors", isDark ? "text-slate-300 hover:text-white" : "text-slate-500 hover:text-slate-900")}>Sign in</a>
                   <a
-                    href={sessionStatus === 'authenticated' ? '/workspace' : '/signup?next=%2Fworkspace'}
+                    href="/workspace"
                     className={cn("font-semibold transition-colors whitespace-nowrap", isDark ? "text-white hover:text-violet-200" : "text-slate-900 hover:text-violet-700")}
                   >
                     {sessionStatus === 'authenticated' ? 'Open Workspace →' : 'Start Cooking →'}

@@ -163,6 +163,20 @@ export async function POST(request: NextRequest) {
     const priceNum = Math.max(0, Math.min(50000, Math.floor(Number(priceCredits) || 0)))
     const isPremium = priceNum > 0
 
+    // A site/template/app listing delivers its HTML to buyers, so refuse to
+    // publish one with no real content — otherwise buyers (especially of a PAID
+    // listing) get a blank site. video/image listings carry a media URL instead,
+    // so they're exempt. Enforced server-side, not just in the publish modal.
+    if (type !== 'video' && type !== 'image') {
+      const htmlStr = typeof html === 'string' ? html.trim() : ''
+      if (htmlStr.length < 200) {
+        return NextResponse.json(
+          { error: 'This project has no content to list. Build the site first, then publish it.' },
+          { status: 400 }
+        )
+      }
+    }
+
     const client = await clientPromise
     const db = client.db('ai-website-builder')
     const collection = db.collection('community_posts')

@@ -2,11 +2,13 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
 // Routes that require an authenticated session. /workspace and the website
-// generate API are anon-accessible (with a 1-gen cookie cap enforced inside
-// the route). Multi-target generate routes stay gated — that's the
-// power-user surface, and signup makes sense there.
-// Save/Deploy/CMS/profile/dashboard/admin all remain gated.
-const GATED_PAGE_PREFIXES = ['/dashboard', '/profile', '/admin', '/integrations', '/workspace', '/library']
+// generate API are anon-accessible (with a 10-generation cookie cap enforced
+// inside /api/builder/generate) so a visitor can try a build before signing
+// up. Multi-target generate routes stay gated — that's the power-user surface,
+// and signup makes sense there. Save/Deploy/CMS/profile/dashboard/admin all
+// remain gated at the route handler — anon can build, but not keep, publish,
+// or export until they sign up.
+const GATED_PAGE_PREFIXES = ['/dashboard', '/profile', '/admin', '/integrations', '/library']
 const GATED_API_PREFIXES = [
   '/api/builder/converse',
   '/api/builder/chat',

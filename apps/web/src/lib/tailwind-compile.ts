@@ -66,9 +66,13 @@ export async function inlineTailwind(html: string): Promise<string> {
     const style = `<style id="webstew-tw">\n${css}\n</style>`
     let out = html.replace(CDN_SCRIPT_RE, '')
     if (hasConfig) out = out.replace(CONFIG_SCRIPT_RE, '')
-    return /<\/head>/i.test(out)
-      ? out.replace(/<\/head>/i, `${style}\n</head>`)
-      : out.replace(/<body[^>]*>/i, (m) => `${m}\n${style}`)
+    // We've already stripped the Tailwind CDN script above, so we MUST re-inject
+    // the compiled <style> or the published page renders completely unstyled.
+    // Inject at </head>, else after <body>, else (malformed HTML with neither)
+    // prepend — never fall through returning CDN-stripped-but-styleless HTML.
+    if (/<\/head>/i.test(out)) return out.replace(/<\/head>/i, `${style}\n</head>`)
+    if (/<body[^>]*>/i.test(out)) return out.replace(/<body[^>]*>/i, (m) => `${m}\n${style}`)
+    return `${style}\n${out}`
   } catch {
     return html
   }

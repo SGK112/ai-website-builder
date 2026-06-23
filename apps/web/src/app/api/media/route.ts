@@ -18,11 +18,19 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 // Fallback used when Pexels is unavailable (no API key, network error, rate
-// limited, no results). Returns a data-URI SVG placeholder — always loads,
-// never rate-limits, shows the query keyword so it's clear what the image is for.
+// limited, no results). Returns a data-URI SVG — always loads, never rate-limits.
+// A flat grey box with the keyword reads as a BROKEN site; instead we render a
+// deterministic on-brand gradient (seeded by the query) so a missing-key build
+// still looks intentionally designed rather than unfinished. Real photos require
+// PEXELS_API_KEY (or PIXABAY_API_KEY) to be set in the environment.
 const picsumFallback = (q: string, w: number, h: number) => {
-  const label = encodeURIComponent(q.slice(0, 40))
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" fill="#e2e8f0"/><text x="50%" y="50%" font-family="system-ui,sans-serif" font-size="${Math.max(12, Math.min(24, Math.floor(w / 15)))}" fill="#94a3b8" text-anchor="middle" dominant-baseline="middle">${decodeURIComponent(label)}</text></svg>`
+  const seed = Array.from(q).reduce((a, c) => a + c.charCodeAt(0), 0)
+  const palettes = [
+    ['#7c3aed', '#db2777'], ['#0ea5e9', '#6366f1'], ['#10b981', '#06b6d4'],
+    ['#f59e0b', '#ef4444'], ['#e11d48', '#db2777'], ['#14b8a6', '#10b981'],
+  ]
+  const [a, b] = palettes[seed % palettes.length]
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="${w}" height="${h}" fill="url(#g)"/></svg>`
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`
 }
 

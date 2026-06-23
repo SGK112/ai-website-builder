@@ -1427,6 +1427,14 @@ function ensureCompleteHtml(html: string): string {
   result = result.replace(/\n?```\s*$/, '')
   result = result.trim()
 
+  // Continuation passes (when the model truncates at max_tokens and resumes)
+  // can re-wrap their output in a ```html … ``` fence, leaving stray fence
+  // lines in the MIDDLE of the document — the edge-strip above only catches
+  // the very start/end. A line that is ONLY a code-fence marker is never valid
+  // HTML, so drop those; inline backticks inside real content are left intact.
+  result = result.replace(/^[ \t]*```[a-zA-Z0-9]*[ \t]*$/gm, '')
+  result = result.trim()
+
   // Also handle case where AI starts with "Here's your website:" etc.
   const doctypeIndex = result.toLowerCase().indexOf('<!doctype')
   if (doctypeIndex > 0 && doctypeIndex < 200) {

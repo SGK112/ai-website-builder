@@ -126,7 +126,9 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     }, { status: 422 }))
   }
   const feeCents = Math.floor((total * STORE_PLATFORM_FEE_BPS) / 10000)
-  const orderMeta = { type: 'app_order', appId, orderId: docId }
+  // `app: 'webstew'` marker isolates this from VoiceNow on the shared Stripe
+  // account — the webhook skips checkout events whose marker isn't 'webstew'.
+  const orderMeta = { app: 'webstew', type: 'app_order', appId, orderId: docId }
 
   let session
   try {

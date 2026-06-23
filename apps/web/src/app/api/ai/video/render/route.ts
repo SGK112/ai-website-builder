@@ -188,7 +188,18 @@ async function stitch(body: RenderRequest, sources: Required<RenderSource>[], W:
     const clipsHaveAudio = !!body.clipsHaveAudio && allVideo
     // 2. Optional voice + music
     let voicePath = ''
-    if (body.script?.trim()) { voicePath = join(dir, 'voice.mp3'); await makeVoice(body.script.trim(), body.voice || 'onyx', voicePath) }
+    if (body.script?.trim()) {
+      // Voiceover is best-effort: if TTS is unavailable (no OPENAI_API_KEY) or
+      // fails, render WITHOUT narration rather than failing the whole paid job.
+      // Losing the voiceover beats losing the video AND the credits.
+      try {
+        voicePath = join(dir, 'voice.mp3')
+        await makeVoice(body.script.trim(), body.voice || 'onyx', voicePath)
+      } catch (e: any) {
+        console.warn('[render] voiceover skipped:', e?.message || e)
+        voicePath = ''
+      }
+    }
     let musicPath = ''
     if (body.musicTrackId) {
       // Library track — resolved from OUR manifest (server-authoritative, not

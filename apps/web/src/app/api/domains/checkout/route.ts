@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
     success_url: `${SITE_URL}/workspace?domain_purchased=${encodeURIComponent(domain)}`,
     cancel_url: `${SITE_URL}/workspace?domain_cancelled=1`,
     metadata: {
+      app: 'webstew', // isolates from VoiceNow on the shared Stripe account
       type: 'domain_purchase',
       domain,
       projectId: projectId || '',

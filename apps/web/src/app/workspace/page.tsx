@@ -2134,6 +2134,10 @@ function WorkspaceContent() {
   // silent surprise either way.
   const [bridgeConnected, setBridgeConnected] = useState(false)
   useEffect(() => {
+    // The bridge is per-user (each user's own Claude Code terminal), so an
+    // anon visitor has nothing to poll — /api/bridge/status 401s for them.
+    // Skip entirely until signed in: no noisy console 401s, no Mongo hits.
+    if (!session?.user?.id) { setBridgeConnected(false); return }
     let alive = true
     let id: ReturnType<typeof setInterval> | null = null
 
@@ -2174,7 +2178,7 @@ function WorkspaceContent() {
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onFocus)
     }
-  }, [])
+  }, [session?.user?.id])
   // Per-session toggle: when ON + bridge connected, requests route through the
   // user's local Claude CLI instead of Webstew credits. Now defaults OFF
   // (opt-in): a connected-but-not-actually-processing bridge was timing out and
@@ -2325,7 +2329,7 @@ function WorkspaceContent() {
   // The "first-build" flavor is dismissable and remembered in sessionStorage
   // so we don't pop it twice. Action attempts (save/deploy) always nudge —
   // the work itself can't proceed without an account.
-  type NudgeReason = 'first-build' | 'save' | 'deploy-render' | 'deploy-github' | 'export'
+  type NudgeReason = 'first-build' | 'save' | 'deploy-render' | 'deploy-github' | 'export' | 'refine'
   const [signupNudge, setSignupNudge] = useState<{ show: boolean; reason: NudgeReason | null }>({ show: false, reason: null })
 
   // Conversational chat state
@@ -2662,10 +2666,22 @@ function WorkspaceContent() {
     const current = session?.user?.id || 'anon'
     const prev = localStorage.getItem('webstew-cache-owner')
     if (prev !== null && prev !== current) {
-      for (const k of ['webstew-autosave', 'vibe-projects', 'webstew-last-generation', 'ai-builder-api-keys']) {
+      // anon → signed-in is a CONVERSION HANDOFF, not an account switch: the
+      // just-signed-up user is the same person claiming the work they built as
+      // anon. Preserve their draft + local projects — that's the entire point
+      // of the "try it, sign up to keep it" funnel; wiping here silently
+      // destroys the build at the moment of conversion. We still scrub BYOK API
+      // keys even on handoff (sensitive, never carry across an identity change).
+      // EVERY other identity change (signed-in → different user, or → anon)
+      // wipes the per-session cache so accounts can't bleed into each other.
+      const isAnonHandoff = prev === 'anon' && current !== 'anon'
+      const keysToWipe = isAnonHandoff
+        ? ['ai-builder-api-keys']
+        : ['webstew-autosave', 'vibe-projects', 'webstew-last-generation', 'ai-builder-api-keys']
+      for (const k of keysToWipe) {
         try { localStorage.removeItem(k) } catch {}
       }
-      setProjects([])
+      if (!isAnonHandoff) setProjects([])
     }
     try { localStorage.setItem('webstew-cache-owner', current) } catch {}
   }, [sessionStatus, session?.user?.id])
@@ -2838,7 +2854,14 @@ function WorkspaceContent() {
   // a stale cached result for a matching prompt previously surfaced old HTML
   // instead of a fresh build (see commit 026728a).
   useEffect(() => {
-    if (hasInitialized) return
+    // `hasInitialized` is React state, so it does NOT guard against React
+    // StrictMode's synchronous mount→cleanup→mount double-invoke in dev: both
+    // runs see the pre-commit value and both fire the URL prompt, producing a
+    // duplicate user bubble AND a racing second /api/builder/generate call.
+    // loadedFromUrlRef is a ref (synchronous, survives the remount) and is set
+    // in every URL-load branch below, so checking it here makes this effect
+    // idempotent — one build per landing, in dev and prod alike.
+    if (hasInitialized || loadedFromUrlRef.current) return
 
     const promptFromUrl = searchParams.get('prompt')
     const projectId = searchParams.get('project')
@@ -3747,6 +3770,16 @@ function WorkspaceContent() {
 
   // Project management
   const saveProject = async () => {
+    // Nothing built yet → don't persist an empty project. These created the
+    // `index.html: 0 bytes` ghost rows seen in the DB (and, if listed, blank
+    // marketplace deliveries). A real build sets `html` (websites) or vfsFiles
+    // (apps) — require at least one before saving anywhere.
+    const hasContent =
+      (typeof html === 'string' && html.trim().length > 0) || Object.keys(vfsFiles).length > 0
+    if (!hasContent) {
+      addToast('info', 'Nothing to save yet — build something first.')
+      return
+    }
     // Anon users: still do the local backup (no work lost on refresh), but
     // pop the signup nudge so they know cloud-save needs an account.
     if (!session?.user) {
@@ -4506,18 +4539,19 @@ ${body}
       // Wait a moment for Render to process
       await new Promise(r => setTimeout(r, 2000))
 
-      addTerminalLine('success', `✅ Site deployed: ${data.url}`)
-      addTerminalLine('info', '⏳ Render is building your site — it will be live in ~2-3 minutes.')
-      addConsoleLog('success', `Live at: ${data.url}`)
+      // Render reports OK at service CREATION — the build runs AFTER and can
+      // still fail. Claiming "deployed/live" here is the false-success that
+      // ships 404 URLs to customers. Stay in the building state; only the poll
+      // below promotes to 'success' once Render confirms the build is live.
       setDeployUrl(data.url)
-      setDeployStatus('success')
+      setDeployStatus('render')
+      addTerminalLine('info', `⏳ Render is building your site — I'll confirm once it's actually live (~2-3 min). URL: ${data.url}`)
+      addConsoleLog('info', `Building: ${data.url}`)
 
-      // Render reports success at service-CREATION; the build runs after. Poll
-      // the real deploy status so a failed build surfaces instead of a "live"
-      // URL that 404s. Best-effort, fire-and-forget — never blocks the user.
       if (data.serviceId) {
         ;(async () => {
-          for (let i = 0; i < 30; i++) { // ~5 min @ 10s
+          let settled = false
+          for (let i = 0; i < 60; i++) { // ~10 min @ 10s — first builds are slow
             await new Promise(r => setTimeout(r, 10_000))
             let s: any
             try {
@@ -4525,11 +4559,15 @@ ${body}
               s = await r.json().catch(() => ({}))
             } catch { continue }
             if (s?.status === 'live') {
+              settled = true
+              setDeployStatus('success')
               addToast('success', 'Your site is live. 🎉')
               addTerminalLine('success', `✅ Build live: ${data.url}`)
+              addConsoleLog('success', `Live at: ${data.url}`)
               return
             }
             if (s?.status === 'failed' || s?.status === 'canceled') {
+              settled = true
               setDeployError('Render build failed — check the build logs in your Render dashboard.')
               setDeployStatus('error')
               addToast('error', 'Render build failed — check your Render logs.')
@@ -4537,7 +4575,16 @@ ${body}
               return
             }
           }
+          if (!settled) {
+            // Don't claim success we can't confirm — tell the truth.
+            addToast('info', 'Still building — Render is taking longer than usual. Check your Render dashboard if it stalls.')
+            addTerminalLine('info', '⏳ Still building after 10 min — verify in the Render dashboard.')
+          }
         })()
+      } else {
+        // No serviceId to poll — we genuinely can't confirm it went live.
+        addToast('info', 'Deploy started — I can’t confirm when it goes live. Check the URL in a few minutes.')
+        addTerminalLine('info', '⏳ Deploy started — confirm the URL in a few minutes.')
       }
     } catch (error: any) {
       const message = error.message || 'Deployment failed'
@@ -5524,11 +5571,20 @@ ${html}
       }
       setVfsFiles(data.files)
       setVfsProjectMeta({ name: data.name || `${target} project`, slug: data.slug || target })
-      addTerminalLine('success', `✓ Generated ${Object.keys(data.files).length} files`)
-      addConsoleLog('success', `${target} project ready — preview booting`)
+      const fileCount = Object.keys(data.files).length
+      addTerminalLine('success', `✓ Generated ${fileCount} files`)
+      addConsoleLog('success', `${target} project ready`)
+      // Be honest about the preview path per target. Expo/React-Native apps
+      // CANNOT render in the browser (Metro doesn't run in WebContainer), so
+      // promising "booting in WebContainer" is a lie that ends in a blank
+      // screen — point them at the phone/QR preview, or to building a Web app
+      // (PWA) if they want an in-browser preview.
+      const previewLine = target === 'expo'
+        ? `Mobile (React Native / Expo) apps preview on a phone, not in the browser — scan the QR in the preview pane to open it on your device. Want an in-browser preview? Build it as a **Web** app and it runs as an installable mobile web app (PWA).`
+        : `Preview is booting in WebContainer — ask me to refine and I'll edit the files directly.`
       setChatMessages(prev => [...prev, {
         role: 'assistant',
-        content: `Generated **${data.name || target}** (${Object.keys(data.files).length} files). Preview is booting in WebContainer — ask me to refine and I'll edit the files directly.`,
+        content: `Generated **${data.name || target}** (${fileCount} files). ${previewLine}`,
       }])
 
       // Browser notification + cross-tab broadcast — see lib/notifications.ts.
@@ -5872,10 +5928,13 @@ ${html}
       } catch { /* notifications unsupported / blocked — silent */ }
 
       // First-time users: show the workspace tour after their first site builds.
-      // This fires even for users who came in from the landing page with a URL
-      // prompt, so they still get oriented after seeing their first result.
+      // Desktop + account-holders only. The mount-effect tour already enforces
+      // !isMobile because the heavy 7-step overlay covers a narrow viewport and
+      // reads as "blank workspace running a tutorial" — this post-build path
+      // must match, or it reintroduces exactly that bug. Anon users get the
+      // signup nudge below instead, so we never stack a tour on top of it.
       try {
-        if (!localStorage.getItem('webstew-onboarding-complete')) {
+        if (!isMobile && sessionStatus !== 'unauthenticated' && !localStorage.getItem('webstew-onboarding-complete')) {
           setTimeout(() => setShowOnboarding(true), 1800)
         }
       } catch { /* localStorage unavailable in some private browsing modes */ }
@@ -7303,6 +7362,11 @@ ${html}
         return 'ok'
       }
 
+      // Anon hit the iterate/refine path. The agentic editor is session-bound
+      // (per-user Mongo workspace, usage metering, bridge dispatch), so editing
+      // requires an account. The first build was free; show the signup wall
+      // here instead of letting the agent route 401 into a dead "stream failed".
+      if (!session?.user) { setSignupNudge({ show: true, reason: 'refine' }); return }
       let outcome = await streamAgentTurn(bridgeReady())
       if (outcome === 'bridge-failed') {
         addToast('warning', BRIDGE_FAILOVER_NOTICE, 12000); markBridgeFailed()
@@ -8271,6 +8335,7 @@ npx eas build --platform all
             : r === 'deploy-render'         ? 'Sign up to deploy live'
             : r === 'deploy-github'         ? 'Sign up to push to GitHub'
             : r === 'export'                ? 'Sign up to export your code'
+            : r === 'refine'                ? 'Sign up to keep editing'
             : 'Sign up to keep going'
           const message = r === 'first-build'
             ? `Nice work. Sign up free to keep this build forever, deploy it to a live URL, and claim 100 free credits every month — that's ~10 fresh generations.`
@@ -8282,6 +8347,8 @@ npx eas build --platform all
             ? `Push to GitHub creates a real repo from your project so you can edit code, share it, or fork it. Free signup unlocks it — plus 100 credits/month.`
             : r === 'export'
             ? `Download your full source as a zip. Free signup unlocks export (and publish, deploy, and saving to your account) — plus 100 credits/month, no card.`
+            : r === 'refine'
+            ? `You built your first site free — nice. To keep editing and refining it with AI, sign up free: 100 credits/month (~10 generations), no card. Your current build comes with you.`
             : `Sign up free to unlock this. 100 credits/month, no card required.`
           const router_ = router
           const closeAndRoute = (to: string) => {
@@ -9612,9 +9679,14 @@ npx eas build --platform all
                     <span>{bridgePathEnabled ? 'Your chef' : 'House kitchen'}</span>
                   </button>
                 )}
-                {session?.user && userCredits !== null && (
+                {userCredits !== null && (
                   <button
-                    onClick={() => !bridgeActive && setUpgradeModal({ open: true, trigger: userCredits < 20 ? 'low_credits' : 'manual' })}
+                    onClick={() => {
+                      // Anon sees demo credits — clicking routes to signup to
+                      // claim a real monthly allowance, not the top-up modal.
+                      if (!session?.user) { setSignupNudge({ show: true, reason: 'save' }); return }
+                      if (!bridgeActive) setUpgradeModal({ open: true, trigger: userCredits < 20 ? 'low_credits' : 'manual' })
+                    }}
                     className={cn(
                       'flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all whitespace-nowrap shrink-0',
                       bridgeActive ? 'bg-white/[0.03] text-zinc-500 opacity-60 cursor-default' :
@@ -9622,7 +9694,7 @@ npx eas build --platform all
                       userCredits < 50 ? 'bg-amber-500/15 text-amber-800 dark:bg-amber-500/10 dark:text-amber-400 hover:bg-amber-500/25 dark:hover:bg-amber-500/20' :
                       'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20'
                     )}
-                    title={bridgeActive ? 'Bridge active — credits paused' : `${userCredits} credits · click to top up`}
+                    title={!session?.user ? `${userCredits} free demo credits — sign up to claim 100/month` : bridgeActive ? 'Bridge active — credits paused' : `${userCredits} credits · click to top up`}
                   >
                     <Coins className="w-3 h-3" />
                     <span>{userCredits.toLocaleString()}</span>

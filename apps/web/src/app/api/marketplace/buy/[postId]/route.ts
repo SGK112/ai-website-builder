@@ -74,6 +74,22 @@ export async function POST(req: NextRequest, { params }: { params: { postId: str
     return NextResponse.json({ error: 'This listing is unavailable' }, { status: 410 })
   }
 
+  // A listing with no deliverable content must NEVER be sold or handed back —
+  // the buyer would pay and receive a blank site. (Empty `index.html: 0` saves
+  // produced exactly such rows.) This guard runs before every path below —
+  // free, owner, already-owned, and paid — so no path can deliver/charge empty.
+  const listingHtml = typeof listing.html === 'string' ? listing.html.trim() : ''
+  const hasDeliverable =
+    listingHtml.length >= 50 ||
+    (Array.isArray(listing.files) &&
+      listing.files.some((f: any) => typeof f?.content === 'string' && f.content.trim().length > 0))
+  if (!hasDeliverable) {
+    return NextResponse.json(
+      { error: 'This listing has no content to deliver, so it can’t be purchased.' },
+      { status: 409 }
+    )
+  }
+
   const price: number = Number(listing.price_credits) || 0
   if (!listing.isPremium || price <= 0) {
     return NextResponse.json({
