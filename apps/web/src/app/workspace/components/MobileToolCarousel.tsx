@@ -37,18 +37,20 @@ export function MobileToolCarousel({
     >
       <div
         className={cn(
-          'flex items-stretch gap-2 rounded-2xl border px-2 py-2 shadow-2xl backdrop-blur-xl',
+          'flex items-stretch justify-center gap-2 rounded-2xl border px-2 py-2 shadow-2xl backdrop-blur-xl',
           isDark ? 'bg-zinc-900/90 border-white/10 shadow-black/50' : 'bg-white/90 border-slate-200 shadow-slate-400/30'
         )}
       >
-        {/* Primary: Talk — the highlighted, can't-miss action */}
+        {/* Primary: Talk — same chip size as the others so it sits in
+            proportion, but keeps the violet gradient so it stays the obvious
+            highlighted action. */}
         <button
           onClick={onVoice}
           aria-label="Talk to build"
-          className="flex-1 flex items-center justify-center gap-2 rounded-xl h-[60px] bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white font-semibold shadow-lg shadow-violet-500/30 active:scale-[0.98] transition"
+          className="shrink-0 flex flex-col items-center justify-center gap-1 rounded-xl w-[72px] h-[60px] bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-lg shadow-violet-500/30 active:scale-[0.98] transition"
         >
           <Mic className="w-6 h-6" />
-          <span className="text-[14px]">Talk</span>
+          <span className="text-[11px] font-medium leading-none">Talk</span>
         </button>
 
         {/* Secondary essentials */}
