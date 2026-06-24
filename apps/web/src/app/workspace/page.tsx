@@ -172,7 +172,7 @@ import { ShipPanel } from './components/ShipPanel'
 import { ProjectList } from './components/ProjectList'
 import { NewProjectChooser } from './components/NewProjectChooser'
 import { useElementActions } from './hooks/useElementActions'
-import { MobileStepBar, type WorkspaceStep } from './components/MobileStepBar'
+import { MobileWorkspaceBar } from './components/MobileWorkspaceBar'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import type { ImportedProject } from '@/lib/import-project'
 import { buildProjectFiles, chatSidecarFile, parseStoredProjectFiles } from '@/lib/project-sidecars'
@@ -9320,12 +9320,11 @@ npx eas build --platform all
               isDark ? "border-white/[0.08] bg-zinc-900/50" : "border-slate-200 bg-slate-50"
             )}
             // Reserve the iPhone home-indicator's safe area on PWAs so the
-            // send button isn't sitting under the home bar. The constant
-            // 14px pad-bottom is preserved as the floor — env() resolves
-            // to 0 on browsers without notches.
-            // Reserve the iPhone home-indicator's safe area + the mobile
-            // bottom-nav height (56px) on phones so the send button isn't
-            // hidden behind the tab bar.
+            // send button isn't under the home bar (14px floor; env() → 0 on
+            // browsers without notches). --bottom-nav-h is 0 on /workspace now
+            // (the global tab nav no longer renders here — the builder uses its
+            // own floating MobileWorkspaceBar), but we keep the term so the
+            // input stays clear if a bottom nav is ever reintroduced.
             style={{ paddingBottom: 'calc(14px + env(safe-area-inset-bottom, 0px) + var(--bottom-nav-h, 0px))' }}
           >
             {/* Selected-element anchor — when the user has picked an element in
@@ -9833,28 +9832,21 @@ npx eas build --platform all
           </header>
         )}
 
-        {/* Mobile step-by-step build flow. Surfaces the 4 core stages as an
-            always-visible, accessible stepper (the full 11-panel set stays
-            behind the hamburger for power users). Sits on the top plane so it
-            never collides with the global bottom tab nav. */}
-        {isMobile && (
-          <MobileStepBar
+        {/* Mobile: ONE floating toolbar (replaces the old top step bar + the
+            global bottom tab nav inside the workspace). Shown only over the
+            full-screen preview — opening a panel swaps to the drawer, which
+            carries its own controls. App-like: condensed, thumb-reachable,
+            floating above the home indicator. */}
+        {isMobile && sidebarCollapsed && !focusMode && !selectedElement && (
+          <MobileWorkspaceBar
             isDark={isDark}
+            hasContent={!!html.trim() || Object.keys(vfsFiles).length > 0}
             canShip={!!html.trim() || Object.keys(vfsFiles).length > 0}
-            current={
-              !sidebarCollapsed
-                ? (activePanel === 'build' ? 'describe' : activePanel === 'deploy' ? 'ship' : 'customize')
-                : 'preview'
-            }
-            onStep={(step: WorkspaceStep) => {
-              if (step === 'preview') {
-                setSidebarCollapsed(true)
-              } else {
-                setActivePanel(step === 'describe' ? 'build' : step === 'ship' ? 'deploy' : 'templates')
-                setSidebarCollapsed(false)
-                if (step === 'describe') setTimeout(() => inputRef.current?.focus(), 80)
-              }
-            }}
+            editMode={editMode}
+            onChat={() => { setActivePanel('build'); setSidebarCollapsed(false); setTimeout(() => inputRef.current?.focus(), 80) }}
+            onToggleEdit={() => setEditMode(v => !v)}
+            onTools={() => { setActivePanel('templates'); setSidebarCollapsed(false) }}
+            onShip={() => { setActivePanel('deploy'); setSidebarCollapsed(false) }}
           />
         )}
 
@@ -10847,7 +10839,10 @@ npx eas build --platform all
           {/* Preview */}
           {(viewMode === 'preview' || viewMode === 'split') && (
             <div className={cn(
-              'relative flex items-center justify-center p-4',
+              'relative flex items-center justify-center',
+              // Mobile: edge-to-edge full-screen preview (app-like). Desktop:
+              // padded canvas so the device-size frame floats in the workspace.
+              isMobile ? 'p-0' : 'p-4',
                 isDark ? 'bg-zinc-950/50' : 'bg-slate-100/50',
               viewMode === 'split' ? 'w-1/2' : 'w-full'
             )}>
@@ -10906,10 +10901,14 @@ npx eas build --platform all
                   // mode switch). transition-all was animating EVERY computed
                   // style on every streaming setHtml, which the user saw as a
                   // "thin then expand" pinch as content arrived.
-                  "bg-white rounded-lg overflow-hidden shadow-2xl shadow-black/50 h-full transition-[width,box-shadow] duration-300 relative",
+                  // Mobile: edge-to-edge, no rounded/shadow box — fills the
+                  // viewport like a native app. Desktop: floating device card.
+                  isMobile
+                    ? "bg-white overflow-hidden h-full w-full relative"
+                    : "bg-white rounded-lg overflow-hidden shadow-2xl shadow-black/50 h-full transition-[width,box-shadow] duration-300 relative",
                   isDraggingImage && "ring-4 ring-violet-500/50 ring-offset-2 ring-offset-black"
                 )}
-                style={{ width: getDeviceWidth(), maxWidth: '100%' }}
+                style={{ width: isMobile ? '100%' : getDeviceWidth(), maxWidth: '100%' }}
                 onDragOver={(e) => {
                   if (isDraggingImage) {
                     e.preventDefault()
@@ -13778,6 +13777,10 @@ npx eas build --platform all
           }}
           ariaStatus={null}
           hideFabOnDesktop
+          // Mobile: the floating MobileWorkspaceBar owns the bottom; suppress
+          // SectionChat's FAB so there aren't two floating controls. The
+          // element-tap sheet still opens for section-aware edits.
+          hideFab={isMobile}
           selectMode={selectMode}
           onToggleSelectMode={(next) => setSelectMode(next)}
         />

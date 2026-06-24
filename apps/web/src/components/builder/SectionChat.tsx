@@ -44,6 +44,10 @@ interface Props {
   // Hide the FAB when the host already shows a chat panel (desktop default).
   // Mobile keeps it visible regardless because side panels eat too much space.
   hideFabOnDesktop?: boolean
+  // Hide the FAB entirely (both platforms). Used on mobile where the floating
+  // MobileWorkspaceBar's "Build" is the chat entry point — two floating bottom
+  // controls is the clutter we're removing. The element-tap sheet still opens.
+  hideFab?: boolean
   // Lets the user enable canvas-pick mode from inside the sheet. Without
   // this, mobile users had to find a toolbar button hidden behind a menu.
   selectMode?: boolean
@@ -88,6 +92,7 @@ export function SectionChat({
   onSubmit,
   ariaStatus = null,
   hideFabOnDesktop = false,
+  hideFab = false,
   selectMode = false,
   onToggleSelectMode,
   anchor = null,
@@ -172,7 +177,7 @@ export function SectionChat({
           CSS var) + iPhone home-indicator safe area. Without this the
           FAB was hidden behind the tab bar. */}
       <AnimatePresence>
-        {!open && (
+        {!open && !hideFab && (
           <motion.button
             initial={{ scale: 0.6, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}

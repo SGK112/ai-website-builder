@@ -35,7 +35,9 @@ const TABS: Tab[] = [
 // app surface we add it here intentionally, instead of a marketing
 // page accidentally inheriting app chrome.
 const SHOW_ON: RegExp[] = [
-  /^\/workspace($|\/)/,
+  // NOTE: /workspace intentionally NOT here — the builder has its own app-style
+  // floating toolbar (MobileWorkspaceBar). Stacking the global tab nav on top
+  // of it was part of the "too cramped on mobile" overkill.
   /^\/templates($|\/)/,
   /^\/community($|\/)/,
   /^\/library($|\/)/,
