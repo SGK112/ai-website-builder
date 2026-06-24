@@ -146,7 +146,7 @@ import {
   Paperclip,
   Bell,
   Mic,
-  Keyboard,
+  LayoutTemplate,
   UserCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -9814,7 +9814,7 @@ npx eas build --platform all
             full-screen preview — opening a panel swaps to the drawer, which
             carries its own controls. App-like: condensed, thumb-reachable,
             floating above the home indicator. */}
-        {isMobile && sidebarCollapsed && !focusMode && !selectedElement && (
+        {isMobile && sidebarCollapsed && !focusMode && !selectedElement && (!!html.trim() || Object.keys(vfsFiles).length > 0) && (
           <MobileToolCarousel
             isDark={isDark}
             hasContent={!!html.trim() || Object.keys(vfsFiles).length > 0}
@@ -11056,68 +11056,62 @@ npx eas build --platform all
                     </div>
                   </div>
                 ) : isMobile ? (
-                  // Voice-first mobile hero. On a phone the whole experience is
-                  // "full-screen preview + talk to build", so the empty state
-                  // leads with one big, highlighted "Talk and I'll build it"
-                  // CTA (opens the realtime voice overlay). Typing and templates
-                  // are quieter fallbacks underneath — no card grid clutter.
-                  <div className={cn(
-                    'w-full h-full flex flex-col items-center justify-center px-6 pb-28 text-center',
-                    isDark ? 'bg-zinc-950' : 'bg-slate-50'
-                  )}>
-                    <div className="w-full max-w-sm flex flex-col items-center">
-                      <h2 className={cn(
-                        'text-[26px] font-bold leading-tight tracking-tight',
-                        isDark ? 'text-white' : 'text-slate-900'
-                      )}>
-                        What do you want to build?
-                      </h2>
-                      <p className={cn(
-                        'text-[15px] mt-2 mb-8',
-                        isDark ? 'text-zinc-400' : 'text-slate-500'
-                      )}>
-                        Just talk — describe it out loud and I’ll build it live.
-                      </p>
-
-                      {/* Primary: voice. The highlighted, unmistakable way in. */}
-                      <button
-                        onClick={openVoice}
-                        aria-label="Talk and I'll build it"
-                        className="w-full flex flex-col items-center gap-3 rounded-3xl px-6 py-7 bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-2xl shadow-violet-500/30 active:scale-[0.98] transition"
-                      >
-                        <span className="relative flex items-center justify-center">
-                          <span className="absolute w-16 h-16 rounded-full bg-white/20 animate-ping" />
-                          <span className="relative w-16 h-16 rounded-full bg-white/15 flex items-center justify-center">
-                            <Mic className="w-8 h-8" />
-                          </span>
-                        </span>
-                        <span className="text-[17px] font-bold">Talk and I’ll build it</span>
-                        <span className="text-[13px] text-white/80">Tap, then say what you want</span>
-                      </button>
-
-                      {/* Secondary: type instead */}
-                      <button
-                        onClick={() => { setSidebarCollapsed(false); setTimeout(() => inputRef.current?.focus(), 200) }}
+                  // Calm, Vibecode-style composer — the screen IS the prompt
+                  // box. No hero, no card grid. Type or tap the mic; one quiet
+                  // Templates pill. The floating tool bar only appears once a
+                  // build exists, so the blank state stays blank.
+                  <div className={cn('w-full h-full flex flex-col p-4', isDark ? 'bg-zinc-950' : 'bg-slate-50')}>
+                    <div className={cn(
+                      'relative flex-1 flex flex-col rounded-3xl border overflow-hidden',
+                      isDark ? 'bg-zinc-900/60 border-white/10' : 'bg-white border-slate-200 shadow-sm'
+                    )}>
+                      <textarea
+                        value={commandInput}
+                        onChange={(e) => setCommandInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleCommandSubmit() }
+                        }}
+                        placeholder="Describe your website or app…"
+                        disabled={isGenerating}
                         className={cn(
-                          'mt-3 w-full flex items-center justify-center gap-2 rounded-2xl px-6 py-4 border font-semibold text-[15px] transition active:scale-[0.98]',
-                          isDark
-                            ? 'bg-white/[0.04] border-white/10 text-zinc-200 active:bg-white/10'
-                            : 'bg-white border-slate-200 text-slate-700 active:bg-slate-50 shadow-sm'
+                          'flex-1 w-full resize-none bg-transparent px-5 pt-5 text-[17px] leading-relaxed outline-none',
+                          isDark ? 'text-white placeholder-zinc-500' : 'text-slate-900 placeholder-slate-400'
                         )}
-                      >
-                        <Keyboard className="w-[18px] h-[18px]" /> Type it instead
-                      </button>
-
-                      {/* Tertiary: templates */}
-                      <button
-                        onClick={() => { setActivePanel('templates'); setSidebarCollapsed(false) }}
-                        className={cn(
-                          'mt-5 text-[13px] font-medium transition',
-                          isDark ? 'text-zinc-500 active:text-zinc-300' : 'text-slate-400 active:text-slate-600'
+                      />
+                      {/* Bottom controls — one quiet Templates pill + a circular
+                          mic (talk) that morphs to send once there's text. */}
+                      <div className="flex items-center justify-between gap-2 px-3 pb-3 pt-1">
+                        <button
+                          onClick={() => { setActivePanel('templates'); setSidebarCollapsed(false) }}
+                          className={cn(
+                            'flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium transition',
+                            isDark ? 'bg-white/[0.06] text-zinc-300 active:bg-white/10' : 'bg-slate-100 text-slate-600 active:bg-slate-200'
+                          )}
+                        >
+                          <LayoutTemplate className="w-4 h-4" /> Templates
+                        </button>
+                        {commandInput.trim() ? (
+                          <button
+                            onClick={handleCommandSubmit}
+                            disabled={isGenerating}
+                            aria-label="Send"
+                            className="w-11 h-11 rounded-full flex items-center justify-center bg-violet-600 text-white shadow-lg shadow-violet-600/30 active:scale-95 transition"
+                          >
+                            <Send className="w-5 h-5" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={openVoice}
+                            aria-label="Talk to build"
+                            className={cn(
+                              'w-11 h-11 rounded-full flex items-center justify-center transition active:scale-95',
+                              isDark ? 'bg-white/[0.08] text-zinc-200 active:bg-white/15' : 'bg-slate-200 text-slate-600 active:bg-slate-300'
+                            )}
+                          >
+                            <Mic className="w-5 h-5" />
+                          </button>
                         )}
-                      >
-                        Or start from a template →
-                      </button>
+                      </div>
                     </div>
                   </div>
                 ) : (
