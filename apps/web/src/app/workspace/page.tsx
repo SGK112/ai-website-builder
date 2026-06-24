@@ -11106,7 +11106,12 @@ npx eas build --platform all
                         Pick a starting point — you can change it later.
                       </p>
                     </div>
-                    <div className="px-3 pb-6 grid gap-2">
+                    <div className={cn(
+                      'px-3 grid gap-2',
+                      // Clear the floating tool carousel (~100px) on mobile so
+                      // "Or just describe it" isn't hidden behind it.
+                      isMobile ? 'pb-32' : 'pb-6'
+                    )}>
                       {/* Fastest path — start from a ready-made template and
                           customize it in chat. No waiting on a from-scratch
                           build. This is the recommended way in. */}
