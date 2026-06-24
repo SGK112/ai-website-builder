@@ -6,7 +6,7 @@
 // the page so a tool call routes into the normal build).
 
 import { cn } from '@/lib/utils'
-import { Mic, X, Loader2, AudioLines, AlertCircle } from 'lucide-react'
+import { Mic, X, Loader2, AudioLines, AlertCircle, ChevronDown } from 'lucide-react'
 import type { RealtimeStatus } from '../hooks/useRealtimeVoice'
 
 interface Props {
@@ -17,9 +17,10 @@ interface Props {
   assistantText: string
   onClose: () => void
   onRetry: () => void
+  onMinimize: () => void
 }
 
-export function VoiceBuildOverlay({ isDark, status, error, userText, assistantText, onClose, onRetry }: Props) {
+export function VoiceBuildOverlay({ isDark, status, error, userText, assistantText, onClose, onRetry, onMinimize }: Props) {
   const label =
     status === 'connecting' ? 'Connecting…'
       : status === 'listening' ? 'Listening — just describe what you want'
@@ -30,8 +31,12 @@ export function VoiceBuildOverlay({ isDark, status, error, userText, assistantTe
   return (
     <div className="fixed inset-0 z-[200] flex flex-col items-center justify-between bg-gradient-to-b from-zinc-950 via-zinc-950 to-black text-white"
          style={{ paddingTop: 'env(safe-area-inset-top,0px)', paddingBottom: 'calc(24px + env(safe-area-inset-bottom,0px))' }}>
-      {/* Top bar */}
-      <div className="w-full flex justify-end p-4">
+      {/* Top bar — minimize keeps the session live and drops to the floating
+          bubble so the workspace (the site cooking) is visible; close ends it. */}
+      <div className="w-full flex justify-between p-4">
+        <button onClick={onMinimize} aria-label="Minimize voice" className="w-11 h-11 rounded-full flex items-center justify-center bg-white/5 active:bg-white/10">
+          <ChevronDown className="w-5 h-5" />
+        </button>
         <button onClick={onClose} aria-label="Close voice" className="w-11 h-11 rounded-full flex items-center justify-center bg-white/5 active:bg-white/10">
           <X className="w-5 h-5" />
         </button>

@@ -35,25 +35,23 @@ export function MobileToolCarousel({
       className="md:hidden fixed inset-x-0 z-[55] px-3"
       style={{ bottom: 'calc(10px + env(safe-area-inset-bottom, 0px))' }}
     >
-      <div
-        className={cn(
-          'flex items-stretch justify-center gap-2 rounded-2xl border px-2 py-2 shadow-2xl backdrop-blur-xl',
-          isDark ? 'bg-zinc-900/90 border-white/10 shadow-black/50' : 'bg-white/90 border-slate-200 shadow-slate-400/30'
-        )}
-      >
+      {/* Transparent bar — no enclosing panel, so the chips appear to float
+          over the preview. Each chip carries its own translucent blurred
+          backdrop + shadow to stay legible against any content underneath. */}
+      <div className="flex items-stretch justify-center gap-2">
         {/* Primary: Talk — same chip size as the others so it sits in
             proportion, but keeps the violet gradient so it stays the obvious
             highlighted action. */}
         <button
           onClick={onVoice}
           aria-label="Talk to build"
-          className="shrink-0 flex flex-col items-center justify-center gap-1 rounded-xl w-[72px] h-[60px] bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-lg shadow-violet-500/30 active:scale-[0.98] transition"
+          className="shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl w-[72px] h-[60px] bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-xl shadow-violet-600/40 active:scale-[0.98] transition"
         >
           <Mic className="w-6 h-6" />
           <span className="text-[11px] font-medium leading-none">Talk</span>
         </button>
 
-        {/* Secondary essentials */}
+        {/* Secondary essentials — each a floating blurred pill */}
         {secondary.map(({ key, label, Icon, onClick, disabled, active }) => (
           <button
             key={key}
@@ -62,13 +60,13 @@ export function MobileToolCarousel({
             aria-label={label}
             aria-pressed={active}
             className={cn(
-              'shrink-0 flex flex-col items-center justify-center gap-1 rounded-xl w-[68px] h-[60px] transition-colors',
+              'shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl w-[68px] h-[60px] backdrop-blur-md border transition-colors',
               disabled && 'opacity-35',
               active
-                ? 'bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-lg shadow-violet-500/30'
+                ? 'bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white border-transparent shadow-xl shadow-violet-600/40'
                 : isDark
-                  ? 'bg-white/[0.04] text-zinc-200 active:bg-white/10'
-                  : 'bg-slate-100 text-slate-700 active:bg-slate-200'
+                  ? 'bg-zinc-900/70 border-white/10 text-zinc-200 shadow-lg shadow-black/40 active:bg-zinc-800/80'
+                  : 'bg-white/70 border-slate-200/80 text-slate-700 shadow-lg shadow-slate-400/30 active:bg-white/90'
             )}
           >
             <Icon className="w-6 h-6" />

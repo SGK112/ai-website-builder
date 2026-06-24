@@ -176,6 +176,7 @@ import { NewProjectChooser } from './components/NewProjectChooser'
 import { useElementActions } from './hooks/useElementActions'
 import { MobileToolCarousel } from './components/MobileToolCarousel'
 import { VoiceBuildOverlay } from './components/VoiceBuildOverlay'
+import { VoiceBubble } from './components/VoiceBubble'
 import { useRealtimeVoice } from './hooks/useRealtimeVoice'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import type { ImportedProject } from '@/lib/import-project'
@@ -7697,11 +7698,36 @@ ${html}
   // over WebRTC; see useRealtimeVoice). When the model calls the build_site
   // tool with what the user described, we run the normal build pipeline.
   const [showVoice, setShowVoice] = useState(false)
+  // Minimized = the session is live but collapsed to a floating bubble so the
+  // workspace (the site building) is visible. Auto-collapses once the
+  // conversation goes live; the user can expand/minimize manually after.
+  const [voiceMinimized, setVoiceMinimized] = useState(false)
+  const voiceAutoMinimizedRef = useRef(false)
   const realtimeVoice = useRealtimeVoice({
     onBuild: (p) => { setSidebarCollapsed(true); void handleChatMessage(p) },
   })
-  const openVoice = useCallback(() => { setShowVoice(true); void realtimeVoice.start() }, [realtimeVoice])
-  const closeVoice = useCallback(() => { realtimeVoice.stop(); setShowVoice(false) }, [realtimeVoice])
+  const openVoice = useCallback(() => {
+    voiceAutoMinimizedRef.current = false
+    setVoiceMinimized(false)
+    setShowVoice(true)
+    void realtimeVoice.start()
+  }, [realtimeVoice])
+  const closeVoice = useCallback(() => {
+    realtimeVoice.stop()
+    setShowVoice(false)
+    setVoiceMinimized(false)
+    voiceAutoMinimizedRef.current = false
+  }, [realtimeVoice])
+  // Once the conversation is live (data channel open → 'listening'), shift to
+  // the workspace + floating bubble so the user watches their project cook
+  // while still talking. Only auto-minimizes once.
+  useEffect(() => {
+    if (!showVoice || voiceAutoMinimizedRef.current) return
+    if (realtimeVoice.status === 'listening' || realtimeVoice.status === 'speaking') {
+      voiceAutoMinimizedRef.current = true
+      setVoiceMinimized(true)
+    }
+  }, [showVoice, realtimeVoice.status])
   // Speak the chef's replies when the toggle is on — only new, settled
   // assistant turns (not mid-stream), tracked by index so none is re-spoken.
   useEffect(() => {
@@ -9878,8 +9904,10 @@ npx eas build --platform all
           />
         )}
 
-        {/* Realtime voice-build overlay — talk and it builds. */}
-        {showVoice && (
+        {/* Realtime voice-build — talk and it builds. Full-screen orb while
+            connecting; once the conversation is live it collapses to the
+            floating bubble so the workspace (the site cooking) is visible. */}
+        {showVoice && (!voiceMinimized || realtimeVoice.status === 'error') && (
           <VoiceBuildOverlay
             isDark={isDark}
             status={realtimeVoice.status}
@@ -9888,6 +9916,17 @@ npx eas build --platform all
             assistantText={realtimeVoice.assistantText}
             onClose={closeVoice}
             onRetry={() => void realtimeVoice.start()}
+            onMinimize={() => setVoiceMinimized(true)}
+          />
+        )}
+        {showVoice && voiceMinimized && realtimeVoice.status !== 'error' && (
+          <VoiceBubble
+            isDark={isDark}
+            status={realtimeVoice.status}
+            userText={realtimeVoice.userText}
+            assistantText={realtimeVoice.assistantText}
+            onExpand={() => setVoiceMinimized(false)}
+            onEnd={closeVoice}
           />
         )}
 
