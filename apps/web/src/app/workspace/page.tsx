@@ -146,6 +146,8 @@ import {
   Paperclip,
   Bell,
   Menu,
+  Mic,
+  Keyboard,
   UserCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -340,21 +342,6 @@ type BuildTarget = 'website' | 'astro' | 'nextjs' | 'react' | 'expo'
 // agent (the same one desktop uses) — it asks the right questions, drafts
 // the prompt, shows the draft modal for approval, then builds. No
 // parallel surface needed.
-interface QuickstartIntent {
-  id: string
-  icon: string
-  title: string
-  sub: string
-  target: BuildTarget
-  seed: string  // thin intent message — triggers planner via !isRichPrompt
-}
-const QUICKSTART_INTENTS: QuickstartIntent[] = [
-  { id: 'website', icon: '🌐', title: 'Website',     sub: 'Landing, marketing, blog',  target: 'website', seed: 'I want to build a website.' },
-  { id: 'mobile',  icon: '📱', title: 'Mobile app',  sub: 'iOS + Android — installable', target: 'website', seed: 'I want to build a mobile app for iOS and Android — an installable mobile web app (PWA).' },
-  { id: 'store',   icon: '🛒', title: 'Online store', sub: 'Products, cart, checkout', target: 'website', seed: 'I want to build an online store.' },
-  { id: 'app',     icon: '⚡', title: 'Web app',      sub: 'Dashboard, tools, SaaS',    target: 'react',   seed: 'I want to build a web app.' },
-]
-
 // Does a fresh-build request clearly want MORE THAN ONE page? The one-shot
 // generator only ever produces a single index.html (its "multi-page awareness"
 // just links the nav), so we use this to schedule a follow-up agent pass that
@@ -8263,7 +8250,11 @@ npx eas build --platform all
   return (
     <div
       className={cn(
-        "h-screen flex overflow-hidden transition-colors duration-300 max-w-full",
+        // h-screen-safe (100svh) instead of h-screen (100vh): on iOS 100vh is
+        // taller than the visible area, which let the body scroll behind the
+        // toolbar and dragged the fixed bottom bar around. overscroll-none kills
+        // the rubber-band that did the same.
+        "h-screen h-screen-safe overscroll-none flex overflow-hidden transition-colors duration-300 max-w-full",
         isDark ? "bg-[#09090b] text-white" : "bg-white text-slate-900"
       )}
       onDragOver={(e) => {
@@ -8723,7 +8714,7 @@ npx eas build --platform all
         className={cn(
           "flex flex-col overflow-hidden",
           isMobile
-            ? "fixed inset-x-0 bottom-0 z-50 h-[88vh] rounded-t-2xl border-t shadow-2xl shadow-black/40"
+            ? "fixed inset-x-0 bottom-0 z-50 h-sheet rounded-t-2xl border-t shadow-2xl shadow-black/40"
             : "relative z-10 h-full border-r",
           isDark ? "border-white/[0.08] bg-zinc-900/95 backdrop-blur-xl" : "border-slate-200 bg-white",
           focusMode && !isMobile && "opacity-0 pointer-events-none"
@@ -9883,11 +9874,6 @@ npx eas build --platform all
             onVoice={openVoice}
             onBuild={() => { setActivePanel('build'); setSidebarCollapsed(false); setTimeout(() => inputRef.current?.focus(), 80) }}
             onEdit={() => setEditMode(v => !v)}
-            onTemplates={() => { setActivePanel('templates'); setSidebarCollapsed(false) }}
-            onImages={() => { setActivePanel('images'); setSidebarCollapsed(false) }}
-            onVideo={() => { setActivePanel('video'); setSidebarCollapsed(false) }}
-            onGrade={() => setGraderOpen(true)}
-            onProjects={() => { setActivePanel('projects'); setSidebarCollapsed(false) }}
             onShip={() => { setActivePanel('deploy'); setSidebarCollapsed(false) }}
           />
         )}
@@ -11108,17 +11094,16 @@ npx eas build --platform all
                     </div>
                   </div>
                 ) : isMobile ? (
-                  // Vibecode-style mobile hero. Passive "Your website appears
-                  // here" placeholder replaced with a real first-tap CTA so
-                  // new users have an obvious next step instead of staring
-                  // at an empty preview. Quick-start cards mirror the
-                  // "What do you want to build?" pattern. Each card sets
-                  // the build target + auto-focuses the docked chat input.
+                  // Voice-first mobile hero. On a phone the whole experience is
+                  // "full-screen preview + talk to build", so the empty state
+                  // leads with one big, highlighted "Talk and I'll build it"
+                  // CTA (opens the realtime voice overlay). Typing and templates
+                  // are quieter fallbacks underneath — no card grid clutter.
                   <div className={cn(
-                    'w-full h-full flex flex-col overflow-y-auto',
+                    'w-full h-full flex flex-col items-center justify-center px-6 pb-28 text-center',
                     isDark ? 'bg-zinc-950' : 'bg-slate-50'
                   )}>
-                    <div className="px-5 pt-8 pb-4">
+                    <div className="w-full max-w-sm flex flex-col items-center">
                       <h2 className={cn(
                         'text-[26px] font-bold leading-tight tracking-tight',
                         isDark ? 'text-white' : 'text-slate-900'
@@ -11126,77 +11111,50 @@ npx eas build --platform all
                         What do you want to build?
                       </h2>
                       <p className={cn(
-                        'text-[15px] mt-1.5',
+                        'text-[15px] mt-2 mb-8',
                         isDark ? 'text-zinc-400' : 'text-slate-500'
                       )}>
-                        Pick a starting point — you can change it later.
+                        Just talk — describe it out loud and I’ll build it live.
                       </p>
-                    </div>
-                    <div className={cn(
-                      'px-3 grid gap-2',
-                      // Clear the floating tool carousel (~100px) on mobile so
-                      // "Or just describe it" isn't hidden behind it.
-                      isMobile ? 'pb-32' : 'pb-6'
-                    )}>
-                      {/* Fastest path — start from a ready-made template and
-                          customize it in chat. No waiting on a from-scratch
-                          build. This is the recommended way in. */}
+
+                      {/* Primary: voice. The highlighted, unmistakable way in. */}
+                      <button
+                        onClick={openVoice}
+                        aria-label="Talk and I'll build it"
+                        className="w-full flex flex-col items-center gap-3 rounded-3xl px-6 py-7 bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-2xl shadow-violet-500/30 active:scale-[0.98] transition"
+                      >
+                        <span className="relative flex items-center justify-center">
+                          <span className="absolute w-16 h-16 rounded-full bg-white/20 animate-ping" />
+                          <span className="relative w-16 h-16 rounded-full bg-white/15 flex items-center justify-center">
+                            <Mic className="w-8 h-8" />
+                          </span>
+                        </span>
+                        <span className="text-[17px] font-bold">Talk and I’ll build it</span>
+                        <span className="text-[13px] text-white/80">Tap, then say what you want</span>
+                      </button>
+
+                      {/* Secondary: type instead */}
+                      <button
+                        onClick={() => { setSidebarCollapsed(false); setTimeout(() => inputRef.current?.focus(), 200) }}
+                        className={cn(
+                          'mt-3 w-full flex items-center justify-center gap-2 rounded-2xl px-6 py-4 border font-semibold text-[15px] transition active:scale-[0.98]',
+                          isDark
+                            ? 'bg-white/[0.04] border-white/10 text-zinc-200 active:bg-white/10'
+                            : 'bg-white border-slate-200 text-slate-700 active:bg-slate-50 shadow-sm'
+                        )}
+                      >
+                        <Keyboard className="w-[18px] h-[18px]" /> Type it instead
+                      </button>
+
+                      {/* Tertiary: templates */}
                       <button
                         onClick={() => { setActivePanel('templates'); setSidebarCollapsed(false) }}
                         className={cn(
-                          'flex items-center gap-3 p-4 rounded-2xl border transition text-left',
-                          isDark
-                            ? 'bg-gradient-to-r from-violet-600/20 to-fuchsia-600/15 border-violet-500/40 active:from-violet-600/30'
-                            : 'bg-gradient-to-r from-violet-50 to-fuchsia-50 border-violet-200 active:from-violet-100 shadow-sm'
+                          'mt-5 text-[13px] font-medium transition',
+                          isDark ? 'text-zinc-500 active:text-zinc-300' : 'text-slate-400 active:text-slate-600'
                         )}
                       >
-                        <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white">✨</div>
-                        <div className="flex-1 min-w-0">
-                          <div className={cn('font-semibold text-[15px]', isDark ? 'text-white' : 'text-slate-900')}>Start from a template</div>
-                          <div className={cn('text-[12px]', isDark ? 'text-violet-300/80' : 'text-violet-600')}>Fastest — pick one, then customize it</div>
-                        </div>
-                      </button>
-                      <div className={cn('text-[11px] font-medium uppercase tracking-wide pt-2 pb-0.5', isDark ? 'text-zinc-600' : 'text-slate-400')}>Or build from scratch</div>
-                      {(QUICKSTART_INTENTS).map((c) => (
-                        <button
-                          key={c.id}
-                          onClick={() => {
-                            // Tap a card → set target → open the chat drawer →
-                            // build immediately from the thin intent (no
-                            // interview; the user refines from the first draft).
-                            setBuildTarget(c.target as BuildTarget)
-                            setSidebarCollapsed(false)
-                            void handleChatMessage(c.seed)
-                          }}
-                          className={cn(
-                            'flex items-center gap-3 p-4 rounded-2xl border transition text-left',
-                            isDark
-                              ? 'bg-white/[0.04] border-white/10 active:bg-white/10'
-                              : 'bg-white border-slate-200 active:bg-slate-50 shadow-sm'
-                          )}
-                        >
-                          <div className={cn(
-                            'w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0',
-                            isDark
-                              ? 'bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 border border-violet-500/30'
-                              : 'bg-gradient-to-br from-violet-100 to-fuchsia-100 border border-violet-200'
-                          )}>
-                            {c.icon}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className={cn('font-semibold text-[15px]', isDark ? 'text-white' : 'text-slate-900')}>{c.title}</div>
-                            <div className={cn('text-[12px] truncate', isDark ? 'text-zinc-500' : 'text-slate-500')}>{c.sub}</div>
-                          </div>
-                        </button>
-                      ))}
-                      <button
-                        onClick={() => {
-                          setSidebarCollapsed(false)
-                          setTimeout(() => inputRef.current?.focus(), 200)
-                        }}
-                        className="mt-2 w-full py-3 text-[13px] font-medium text-violet-300 hover:text-violet-200 transition"
-                      >
-                        Or just describe it →
+                        Or start from a template →
                       </button>
                     </div>
                   </div>
@@ -11221,6 +11179,17 @@ npx eas build --platform all
                         <>
                           <p className="text-zinc-500 font-medium text-sm">{levelCopy[skillLevel].previewEmptyTitle}</p>
                           <p className="text-zinc-400 text-xs mt-1">{levelCopy[skillLevel].previewEmptyBody}</p>
+                          {/* Voice as a first-class, highlighted way in — not
+                              buried in the chat mic. Opens the realtime
+                              voice-build overlay; a tool call routes straight
+                              into the normal build pipeline. */}
+                          <button
+                            onClick={openVoice}
+                            className="mt-5 inline-flex items-center gap-2.5 rounded-2xl px-5 py-3 bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white text-sm font-semibold shadow-lg shadow-violet-500/30 hover:shadow-violet-500/40 hover:scale-[1.02] transition"
+                          >
+                            <Mic className="w-[18px] h-[18px]" /> Talk and I’ll build it
+                          </button>
+                          <p className="text-zinc-600 text-[11px] mt-2.5">or describe it in the chat →</p>
                         </>
                       )}
                     </div>

@@ -129,6 +129,9 @@
 
   html {
     scroll-behavior: smooth;
+    /* Stop iOS rubber-band/overscroll from dragging fixed bars (the bottom
+       tool bar) around the screen during a swipe. */
+    overscroll-behavior: none;
   }
 
   body {
@@ -137,6 +140,7 @@
     transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1),
                 color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     overflow-x: hidden;
+    overscroll-behavior: none;
   }
 
   /* Theme transition overlay */
@@ -1027,6 +1031,24 @@
 .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
 .pl-safe { padding-left: env(safe-area-inset-left, 0px); }
 .pr-safe { padding-right: env(safe-area-inset-right, 0px); }
+
+/* ============================================
+   MOBILE-SAFE VIEWPORT HEIGHT
+   ============================================
+   The builder shell used `h-screen` (100vh). On iOS Safari 100vh is the
+   TALLEST viewport (browser toolbars collapsed), so the shell is taller than
+   what's actually visible: the body becomes scrollable by the toolbar delta
+   (overscroll then drags the fixed bottom tool bar around — "swiping pulls the
+   menu bar down") and the bottom sheet / tool bar anchor BELOW the visible
+   fold ("the menu bar isn't attached", "the side panel doesn't work").
+
+   100svh = the SMALL viewport (toolbars visible) — always on-screen, so a
+   bottom-anchored bar is always reachable and the body never overflows. The
+   first `vh` line is the fallback for browsers without svh (pre-2022). */
+.h-screen-safe { height: 100vh; height: 100svh; }
+/* Bottom sheet height — tracks the dynamic viewport so it fills to just under
+   full height without ever exceeding the visible area. */
+.h-sheet { height: 88vh; height: 88dvh; }
 
 /* Min-height variants — useful for bottom-anchored bars that already have
    their own padding; the constant + env() keeps the visual padding while
