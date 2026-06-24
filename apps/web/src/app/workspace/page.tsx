@@ -8691,31 +8691,46 @@ npx eas build --platform all
         />
       )}
 
-      {/* Sidebar — flex sibling on desktop (width animated), slide-over drawer
-          on mobile (transform animated; width is set via class). */}
+      {/* Sidebar — flex sibling on desktop (width animated). On mobile it's an
+          app-style BOTTOM SHEET (slides up from the bottom, rounded top, ~88vh)
+          opened by the floating MobileWorkspaceBar's Build/Tools/Ship. Reuses
+          the same content; just a sheet presentation instead of a side drawer. */}
       <motion.aside
         initial={false}
         animate={
           isMobile
-            ? { x: sidebarCollapsed || focusMode ? '-100%' : '0%' }
+            ? { y: sidebarCollapsed || focusMode ? '100%' : '0%' }
             : { width: focusMode ? 0 : sidebarCollapsed ? 56 : 380, x: '0%' }
         }
-        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
         className={cn(
-          "h-full border-r flex flex-col overflow-hidden",
+          "flex flex-col overflow-hidden",
           isMobile
-            ? "fixed inset-y-0 left-0 z-50 shadow-2xl w-[85vw] max-w-[340px]"
-            : "relative z-10",
+            ? "fixed inset-x-0 bottom-0 z-50 h-[88vh] rounded-t-2xl border-t shadow-2xl shadow-black/40"
+            : "relative z-10 h-full border-r",
           isDark ? "border-white/[0.08] bg-zinc-900/95 backdrop-blur-xl" : "border-slate-200 bg-white",
           focusMode && !isMobile && "opacity-0 pointer-events-none"
         )}
       >
+        {/* Mobile sheet drag-handle — tap to dismiss; visual affordance that
+            this is a pull-down sheet, not a fixed panel. */}
+        {isMobile && (
+          <button
+            onClick={() => setSidebarCollapsed(true)}
+            aria-label="Close panel"
+            className="shrink-0 w-full pt-2.5 pb-1.5 flex justify-center"
+          >
+            <span className={cn('w-10 h-1.5 rounded-full', isDark ? 'bg-zinc-600' : 'bg-slate-300')} />
+          </button>
+        )}
+
         {/* Top accent line */}
         <div className="absolute top-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-violet-500/50 to-transparent" />
 
         {/* Header */}
         <div className={cn(
-          "h-14 border-b flex items-center justify-between px-3",
+          "h-14 border-b flex items-center justify-between",
+          isMobile ? "px-4" : "px-3",
           isDark ? "border-white/[0.08]" : "border-slate-200"
         )}>
           {!sidebarCollapsed && (
@@ -8932,7 +8947,10 @@ npx eas build --platform all
             )} />
 
             {/* Scrollable tabs container */}
-            <div className="flex gap-1 px-2 py-1.5 overflow-x-auto scrollbar-hide scroll-smooth">
+            <div className={cn(
+              "flex overflow-x-auto scrollbar-hide scroll-smooth",
+              isMobile ? "gap-1.5 px-3 py-2.5" : "gap-1 px-2 py-1.5"
+            )}>
               {([
                 { id: 'build' as Panel, icon: Wand2, label: 'Build', color: 'violet', levels: ['no-code','low-code','full-stack'] },
                 { id: 'templates' as Panel, icon: Layout, label: 'Templates', tour: 'templates', color: 'blue', levels: ['no-code','low-code','full-stack'] },
@@ -9316,7 +9334,9 @@ npx eas build --platform all
         {!sidebarCollapsed && (
           <div
             className={cn(
-              "px-3 py-3.5 border-t",
+              "border-t",
+              // More breathing room on mobile — the docked input felt cramped.
+              isMobile ? "px-4 pt-4 pb-3" : "px-3 py-3.5",
               isDark ? "border-white/[0.08] bg-zinc-900/50" : "border-slate-200 bg-slate-50"
             )}
             // Reserve the iPhone home-indicator's safe area on PWAs so the
