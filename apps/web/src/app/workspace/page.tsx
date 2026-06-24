@@ -173,6 +173,8 @@ import { ProjectList } from './components/ProjectList'
 import { NewProjectChooser } from './components/NewProjectChooser'
 import { useElementActions } from './hooks/useElementActions'
 import { MobileToolCarousel } from './components/MobileToolCarousel'
+import { VoiceBuildOverlay } from './components/VoiceBuildOverlay'
+import { useRealtimeVoice } from './hooks/useRealtimeVoice'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import type { ImportedProject } from '@/lib/import-project'
 import { buildProjectFiles, chatSidecarFile, parseStoredProjectFiles } from '@/lib/project-sidecars'
@@ -7703,6 +7705,16 @@ ${html}
     // handleChatMessage is stable for this purpose; voice/isGenerating drive it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voice, isGenerating])
+
+  // Realtime voice-build: talk to the builder and it builds (OpenAI Realtime
+  // over WebRTC; see useRealtimeVoice). When the model calls the build_site
+  // tool with what the user described, we run the normal build pipeline.
+  const [showVoice, setShowVoice] = useState(false)
+  const realtimeVoice = useRealtimeVoice({
+    onBuild: (p) => { setSidebarCollapsed(true); void handleChatMessage(p) },
+  })
+  const openVoice = useCallback(() => { setShowVoice(true); void realtimeVoice.start() }, [realtimeVoice])
+  const closeVoice = useCallback(() => { realtimeVoice.stop(); setShowVoice(false) }, [realtimeVoice])
   // Speak the chef's replies when the toggle is on — only new, settled
   // assistant turns (not mid-stream), tracked by index so none is re-spoken.
   useEffect(() => {
@@ -9868,6 +9880,7 @@ npx eas build --platform all
             hasContent={!!html.trim() || Object.keys(vfsFiles).length > 0}
             canShip={!!html.trim() || Object.keys(vfsFiles).length > 0}
             editMode={editMode}
+            onVoice={openVoice}
             onBuild={() => { setActivePanel('build'); setSidebarCollapsed(false); setTimeout(() => inputRef.current?.focus(), 80) }}
             onEdit={() => setEditMode(v => !v)}
             onTemplates={() => { setActivePanel('templates'); setSidebarCollapsed(false) }}
@@ -9876,6 +9889,19 @@ npx eas build --platform all
             onGrade={() => setGraderOpen(true)}
             onProjects={() => { setActivePanel('projects'); setSidebarCollapsed(false) }}
             onShip={() => { setActivePanel('deploy'); setSidebarCollapsed(false) }}
+          />
+        )}
+
+        {/* Realtime voice-build overlay — talk and it builds. */}
+        {showVoice && (
+          <VoiceBuildOverlay
+            isDark={isDark}
+            status={realtimeVoice.status}
+            error={realtimeVoice.error}
+            userText={realtimeVoice.userText}
+            assistantText={realtimeVoice.assistantText}
+            onClose={closeVoice}
+            onRetry={() => void realtimeVoice.start()}
           />
         )}
 

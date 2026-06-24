@@ -9,7 +9,7 @@
 import { cn } from '@/lib/utils'
 import {
   MessageSquarePlus, Pencil, LayoutTemplate, Image as ImageIcon,
-  Clapperboard, Gauge, Rocket, FolderOpen,
+  Clapperboard, Gauge, Rocket, FolderOpen, Mic,
 } from 'lucide-react'
 
 export interface CarouselTool {
@@ -27,6 +27,7 @@ interface Props {
   canShip: boolean
   editMode: boolean
   onBuild: () => void
+  onVoice: () => void
   onEdit: () => void
   onTemplates: () => void
   onImages: () => void
@@ -38,9 +39,10 @@ interface Props {
 
 export function MobileToolCarousel({
   isDark, hasContent, canShip, editMode,
-  onBuild, onEdit, onTemplates, onImages, onVideo, onGrade, onProjects, onShip,
+  onBuild, onVoice, onEdit, onTemplates, onImages, onVideo, onGrade, onProjects, onShip,
 }: Props) {
   const tools: CarouselTool[] = [
+    { key: 'voice', label: 'Talk', Icon: Mic, onClick: onVoice },
     { key: 'build', label: 'Build', Icon: MessageSquarePlus, onClick: onBuild },
     { key: 'edit', label: 'Edit', Icon: Pencil, onClick: onEdit, disabled: !hasContent, active: editMode },
     { key: 'templates', label: 'Templates', Icon: LayoutTemplate, onClick: onTemplates },
