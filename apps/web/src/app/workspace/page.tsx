@@ -9823,6 +9823,11 @@ npx eas build --platform all
             onVoice={openVoice}
             onBuild={() => { setActivePanel('build'); setSidebarCollapsed(false); setTimeout(() => inputRef.current?.focus(), 80) }}
             onEdit={() => setEditMode(v => !v)}
+            onTemplates={() => { setActivePanel('templates'); setSidebarCollapsed(false) }}
+            onImages={() => { setActivePanel('images'); setSidebarCollapsed(false) }}
+            onVideo={() => { setActivePanel('video'); setSidebarCollapsed(false) }}
+            onGrade={() => setGraderOpen(true)}
+            onProjects={() => { setActivePanel('projects'); setSidebarCollapsed(false) }}
             onShip={() => { setActivePanel('deploy'); setSidebarCollapsed(false) }}
           />
         )}
