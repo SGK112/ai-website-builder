@@ -145,7 +145,6 @@ import {
   Link as LinkIcon,
   Paperclip,
   Bell,
-  Menu,
   Mic,
   Keyboard,
   UserCircle,
@@ -9805,86 +9804,10 @@ npx eas build --platform all
           )}
         </AnimatePresence>
 
-        {/* Mobile header — proper-sized controls. Left: menu + brand.
-            Right: undo / redo / save / profile, sized for thumbs (40px
-            tap targets). Save + undo/redo are the controls users actually
-            need most often; everything else lives behind the drawer. */}
-        {isMobile && (
-          <header
-            className={cn(
-              "flex items-center justify-between px-3 backdrop-blur-xl relative z-50",
-              isDark ? "border-b border-white/[0.06] bg-zinc-950/95" : "border-b border-slate-200 bg-white/95"
-            )}
-            style={{
-              height: 'calc(52px + env(safe-area-inset-top, 0px))',
-              paddingTop: 'env(safe-area-inset-top, 0px)',
-            }}
-          >
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setSidebarCollapsed(v => !v)}
-                className={cn(
-                  "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
-                  isDark ? "text-zinc-300 hover:bg-white/5" : "text-slate-700 hover:bg-slate-100"
-                )}
-                aria-label="Menu"
-              >
-                {sidebarCollapsed
-                  ? <Menu className="w-5 h-5" />
-                  : <X className="w-5 h-5" />}
-              </button>
-              <div className="flex items-center gap-1.5 pl-1">
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-base">
-                  🍲
-                </div>
-                <span className={cn('text-[15px] font-bold', isDark ? 'text-white' : 'text-slate-900')}>
-                  Webstew
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-0.5">
-              {/* Undo / Redo — only meaningful once history exists. We
-                  show them disabled-styled when there's nothing to undo
-                  so the layout doesn't reflow when users start building. */}
-              <button
-                onClick={() => historyIndex > 0 && setHistoryIndex(historyIndex - 1)}
-                disabled={historyIndex <= 0}
-                className={cn(
-                  "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
-                  historyIndex > 0
-                    ? isDark ? "text-zinc-300 hover:bg-white/5" : "text-slate-700 hover:bg-slate-100"
-                    : isDark ? "text-zinc-700 opacity-40" : "text-slate-400 opacity-50"
-                )}
-                aria-label="Undo"
-              >
-                <Undo2 className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => historyIndex < history.length - 1 && setHistoryIndex(historyIndex + 1)}
-                disabled={historyIndex >= history.length - 1}
-                className={cn(
-                  "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
-                  historyIndex < history.length - 1
-                    ? isDark ? "text-zinc-300 hover:bg-white/5" : "text-slate-700 hover:bg-slate-100"
-                    : isDark ? "text-zinc-700 opacity-40" : "text-slate-400 opacity-50"
-                )}
-                aria-label="Redo"
-              >
-                <Redo2 className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => router.push('/profile')}
-                className={cn(
-                  "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
-                  isDark ? "text-zinc-300 hover:bg-white/5" : "text-slate-700 hover:bg-slate-100"
-                )}
-                aria-label="Profile"
-              >
-                <UserCircle className="w-5 h-5" />
-              </button>
-            </div>
-          </header>
-        )}
+        {/* No mobile top bar — the preview runs full-bleed to the top for an
+            app-like feel. The sidebar/panels open from the floating bottom bar
+            (Build) and close via the sheet's own drag handle; profile + undo/
+            redo live in the panels and other app surfaces. */}
 
         {/* Mobile: ONE floating toolbar (replaces the old top step bar + the
             global bottom tab nav inside the workspace). Shown only over the
