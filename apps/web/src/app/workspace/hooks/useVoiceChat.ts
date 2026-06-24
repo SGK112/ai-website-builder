@@ -124,17 +124,39 @@ export function useVoiceChat() {
     } catch { setIsSpeaking(false) }
   }, [voiceId, providerFor])
 
-  const startListening = useCallback(async () => {
+  // Returns {ok,error}. Previously this swallowed every failure silently, so a
+  // blocked mic / insecure origin / unsupported browser looked like "the mic
+  // button does nothing" — the #1 mobile complaint. The caller surfaces `error`.
+  const startListening = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
     try {
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+        return {
+          ok: false,
+          error: (typeof window !== 'undefined' && !window.isSecureContext)
+            ? 'Microphone needs a secure (https) connection — open the site over https, not a local IP.'
+            : 'Voice input isn’t supported on this browser.',
+        }
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      // No explicit mimeType: iOS Safari rejects audio/webm and picks audio/mp4
+      // itself; we read mr.mimeType back when building the blob (see stopListening).
       const mr = new MediaRecorder(stream)
       chunksRef.current = []
       mr.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data) }
       mr.start()
       recRef.current = mr
       setIsListening(true)
-    } catch {
+      return { ok: true }
+    } catch (e: any) {
       setIsListening(false)
+      const name = e?.name || ''
+      const error =
+        name === 'NotAllowedError' || name === 'SecurityError'
+          ? 'Microphone blocked — allow mic access for this site in your browser settings, then try again.'
+          : name === 'NotFoundError'
+            ? 'No microphone found on this device.'
+            : 'Couldn’t start the microphone. Try again.'
+      return { ok: false, error }
     }
   }, [])
 

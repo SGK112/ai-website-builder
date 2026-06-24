@@ -51,7 +51,7 @@ export function VoiceControls({
         aria-label={isListening ? 'Stop recording and send' : 'Start voice input'}
         aria-pressed={isListening}
         className={cn(
-          'w-7 h-7 rounded-md flex items-center justify-center shrink-0 transition-all disabled:opacity-40',
+          'w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-all disabled:opacity-40',
           isListening
             ? 'bg-red-500 text-white animate-pulse'
             : isDark
@@ -59,7 +59,7 @@ export function VoiceControls({
               : 'text-slate-400 hover:text-violet-600 hover:bg-slate-200',
         )}
       >
-        <Mic className="w-3.5 h-3.5" />
+        <Mic className="w-4 h-4" />
       </button>
 
       {/* Speak-replies toggle */}
@@ -70,13 +70,13 @@ export function VoiceControls({
         aria-label="Toggle spoken replies"
         aria-pressed={speakReplies}
         className={cn(
-          'w-7 h-7 rounded-md flex items-center justify-center shrink-0 transition-all',
+          'w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-all',
           speakReplies
             ? isDark ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-100 text-violet-700'
             : isDark ? 'text-zinc-500 hover:text-violet-300 hover:bg-white/5' : 'text-slate-400 hover:text-violet-600 hover:bg-slate-200',
         )}
       >
-        {isSpeaking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : speakReplies ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+        {isSpeaking ? <Loader2 className="w-4 h-4 animate-spin" /> : speakReplies ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
       </button>
 
       {/* Voice picker — icon-only to keep the input roomy; current voice shows
@@ -88,13 +88,13 @@ export function VoiceControls({
           title={currentVoice ? `Chef voice: ${currentVoice.label}` : "Choose the chef's voice"}
           aria-label="Choose the chef's voice"
           className={cn(
-            'w-7 h-7 rounded-md flex items-center justify-center shrink-0 transition-all',
+            'w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-all',
             pickerOpen
               ? isDark ? 'bg-white/10 text-violet-300' : 'bg-slate-300 text-violet-700'
               : isDark ? 'text-zinc-500 hover:text-violet-300 hover:bg-white/5' : 'text-slate-400 hover:text-violet-600 hover:bg-slate-200',
           )}
         >
-          <ChevronDown className="w-3.5 h-3.5" />
+          <ChevronDown className="w-4 h-4" />
         </button>
         {pickerOpen && (
           <>

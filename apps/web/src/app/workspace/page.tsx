@@ -172,7 +172,7 @@ import { ShipPanel } from './components/ShipPanel'
 import { ProjectList } from './components/ProjectList'
 import { NewProjectChooser } from './components/NewProjectChooser'
 import { useElementActions } from './hooks/useElementActions'
-import { MobileWorkspaceBar } from './components/MobileWorkspaceBar'
+import { MobileToolCarousel } from './components/MobileToolCarousel'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import type { ImportedProject } from '@/lib/import-project'
 import { buildProjectFiles, chatSidecarFile, parseStoredProjectFiles } from '@/lib/project-sidecars'
@@ -7692,8 +7692,13 @@ ${html}
     if (voice.isListening) {
       const transcript = await voice.stopListening()
       if (transcript) handleChatMessage(transcript)
+      else addToast('info', "Didn't catch that — try again, a little closer to the mic.")
     } else {
-      void voice.startListening()
+      // Surface why the mic failed instead of silently doing nothing (the main
+      // "voice doesn't work on mobile" symptom). startListening classifies the
+      // error (blocked permission, insecure origin, unsupported, no device).
+      const { ok, error } = await voice.startListening()
+      if (!ok && error) addToast('error', error)
     }
     // handleChatMessage is stable for this purpose; voice/isGenerating drive it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -8693,7 +8698,7 @@ npx eas build --platform all
 
       {/* Sidebar — flex sibling on desktop (width animated). On mobile it's an
           app-style BOTTOM SHEET (slides up from the bottom, rounded top, ~88vh)
-          opened by the floating MobileWorkspaceBar's Build/Tools/Ship. Reuses
+          opened by the floating MobileToolCarousel's Build/Tools/Ship. Reuses
           the same content; just a sheet presentation instead of a side drawer. */}
       <motion.aside
         initial={false}
@@ -9343,7 +9348,7 @@ npx eas build --platform all
             // send button isn't under the home bar (14px floor; env() → 0 on
             // browsers without notches). --bottom-nav-h is 0 on /workspace now
             // (the global tab nav no longer renders here — the builder uses its
-            // own floating MobileWorkspaceBar), but we keep the term so the
+            // own floating MobileToolCarousel), but we keep the term so the
             // input stays clear if a bottom nav is ever reintroduced.
             style={{ paddingBottom: 'calc(14px + env(safe-area-inset-bottom, 0px) + var(--bottom-nav-h, 0px))' }}
           >
@@ -9858,14 +9863,18 @@ npx eas build --platform all
             carries its own controls. App-like: condensed, thumb-reachable,
             floating above the home indicator. */}
         {isMobile && sidebarCollapsed && !focusMode && !selectedElement && (
-          <MobileWorkspaceBar
+          <MobileToolCarousel
             isDark={isDark}
             hasContent={!!html.trim() || Object.keys(vfsFiles).length > 0}
             canShip={!!html.trim() || Object.keys(vfsFiles).length > 0}
             editMode={editMode}
-            onChat={() => { setActivePanel('build'); setSidebarCollapsed(false); setTimeout(() => inputRef.current?.focus(), 80) }}
-            onToggleEdit={() => setEditMode(v => !v)}
-            onTools={() => { setActivePanel('templates'); setSidebarCollapsed(false) }}
+            onBuild={() => { setActivePanel('build'); setSidebarCollapsed(false); setTimeout(() => inputRef.current?.focus(), 80) }}
+            onEdit={() => setEditMode(v => !v)}
+            onTemplates={() => { setActivePanel('templates'); setSidebarCollapsed(false) }}
+            onImages={() => { setActivePanel('images'); setSidebarCollapsed(false) }}
+            onVideo={() => { setActivePanel('video'); setSidebarCollapsed(false) }}
+            onGrade={() => setGraderOpen(true)}
+            onProjects={() => { setActivePanel('projects'); setSidebarCollapsed(false) }}
             onShip={() => { setActivePanel('deploy'); setSidebarCollapsed(false) }}
           />
         )}
@@ -13797,7 +13806,7 @@ npx eas build --platform all
           }}
           ariaStatus={null}
           hideFabOnDesktop
-          // Mobile: the floating MobileWorkspaceBar owns the bottom; suppress
+          // Mobile: the floating MobileToolCarousel owns the bottom; suppress
           // SectionChat's FAB so there aren't two floating controls. The
           // element-tap sheet still opens for section-aware edits.
           hideFab={isMobile}
