@@ -146,7 +146,6 @@ import {
   Paperclip,
   Bell,
   Mic,
-  LayoutTemplate,
   UserCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -9814,7 +9813,7 @@ npx eas build --platform all
             full-screen preview — opening a panel swaps to the drawer, which
             carries its own controls. App-like: condensed, thumb-reachable,
             floating above the home indicator. */}
-        {isMobile && sidebarCollapsed && !focusMode && !selectedElement && (!!html.trim() || Object.keys(vfsFiles).length > 0) && (
+        {isMobile && sidebarCollapsed && !focusMode && !selectedElement && (
           <MobileToolCarousel
             isDark={isDark}
             hasContent={!!html.trim() || Object.keys(vfsFiles).length > 0}
@@ -11065,11 +11064,14 @@ npx eas build --platform all
                   // box. No hero, no card grid. Type or tap the mic; one quiet
                   // Templates pill. The floating tool bar only appears once a
                   // build exists, so the blank state stays blank.
-                  <div className={cn('w-full h-full flex flex-col p-4', isDark ? 'bg-zinc-950' : 'bg-slate-50')}>
-                    <div className={cn(
-                      'relative flex-1 flex flex-col rounded-3xl border overflow-hidden',
-                      isDark ? 'bg-zinc-900/60 border-white/10' : 'bg-white border-slate-200 shadow-sm'
-                    )}>
+                  <div className={cn('w-full h-full flex flex-col px-4 pt-4', isDark ? 'bg-zinc-950' : 'bg-slate-50')}>
+                    {/* pb leaves room for the floating tool bar below. */}
+                    <div
+                      className={cn(
+                        'relative flex-1 flex flex-col rounded-3xl border overflow-hidden mb-[88px]',
+                        isDark ? 'bg-zinc-900/60 border-white/10' : 'bg-white border-slate-200 shadow-sm'
+                      )}
+                    >
                       <textarea
                         value={commandInput}
                         onChange={(e) => setCommandInput(e.target.value)}
@@ -11083,18 +11085,10 @@ npx eas build --platform all
                           isDark ? 'text-white placeholder-zinc-500' : 'text-slate-900 placeholder-slate-400'
                         )}
                       />
-                      {/* Bottom controls — one quiet Templates pill + a circular
-                          mic (talk) that morphs to send once there's text. */}
-                      <div className="flex items-center justify-between gap-2 px-3 pb-3 pt-1">
-                        <button
-                          onClick={() => { setActivePanel('templates'); setSidebarCollapsed(false) }}
-                          className={cn(
-                            'flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium transition',
-                            isDark ? 'bg-white/[0.06] text-zinc-300 active:bg-white/10' : 'bg-slate-100 text-slate-600 active:bg-slate-200'
-                          )}
-                        >
-                          <LayoutTemplate className="w-4 h-4" /> Templates
-                        </button>
+                      {/* In-composer control: a circular mic (talk) that morphs to
+                          send once there's text. The rest of the tools live in the
+                          floating bar below. */}
+                      <div className="flex items-center justify-end px-3 pb-3 pt-1">
                         {commandInput.trim() ? (
                           <button
                             onClick={handleCommandSubmit}
