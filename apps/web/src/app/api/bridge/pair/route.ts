@@ -4,6 +4,7 @@
 // locally and uses as Authorization: Bearer for all later calls.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 import { consumePairingCode, createBridgeSession } from '@/lib/bridge-store'
 import {
   PROTOCOL_VERSION,
@@ -14,6 +15,16 @@ import {
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
+  // Brute-force ceiling: a pairing code claims a bridge onto an account, so cap
+  // guesses per IP (auth bucket = 10 / 15 min).
+  try {
+    await checkApiRateLimit(req, 'auth')
+  } catch (err) {
+    const limited = handleRateLimitError(err)
+    if (limited) return limited
+    throw err
+  }
+
   let body: PairingExchangeRequest
   try {
     body = (await req.json()) as PairingExchangeRequest

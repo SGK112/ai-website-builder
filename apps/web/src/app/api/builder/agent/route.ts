@@ -46,6 +46,7 @@ import { sendMail } from '@/lib/mailer'
 import { getRecentNegativeNotes } from '@/lib/feedback-store'
 import { connectDB, User, trackUsage, getUserUsageThisMonth, PLAN_LIMITS, isAdminEmail } from '@ai-website-builder/database'
 import mongoose from 'mongoose'
+import { ObjectId } from 'mongodb'
 import { dispatchToBridge, getBridgeStatus } from '@/lib/bridge-store'
 
 export const dynamic = 'force-dynamic'
@@ -189,7 +190,14 @@ interface AgentRequest {
 // Persistence is best-effort: a sync failure must never block the in-memory
 // write that drives the build/preview (the client snapshot + build store still
 // hold the file).
-function makeFilePersistence(db: any, oid: any) {
+function makeFilePersistence(db: any, oid: any, userId: string) {
+  // IDOR guard: only ever write to a project the SESSION user owns. Filtering by
+  // _id alone let any authed user pass another user's projectId and overwrite/
+  // wipe their saved files. userId is a string on some docs and an ObjectId on
+  // others, so match both (mirrors the GET /api/projects + deploy patterns).
+  const ownerOr: any[] = [{ userId }]
+  try { ownerOr.push({ userId: new ObjectId(userId) }) } catch { /* userId not an ObjectId */ }
+  const ownerFilter = { _id: oid, $or: ownerOr }
   const fileType = (p: string): string => {
     const ext = p.split('.').pop()?.toLowerCase()
     if (ext === 'html' || ext === 'htm') return 'html'
@@ -202,7 +210,7 @@ function makeFilePersistence(db: any, oid: any) {
   }
   const write = async (path: string, contents: string) => {
     try {
-      await db.collection('projects').updateOne({ _id: oid }, [
+      await db.collection('projects').updateOne(ownerFilter, [
         {
           $set: {
             files: {
@@ -226,7 +234,7 @@ function makeFilePersistence(db: any, oid: any) {
   }
   const del = async (path: string) => {
     try {
-      await db.collection('projects').updateOne({ _id: oid }, [
+      await db.collection('projects').updateOne(ownerFilter, [
         {
           $set: {
             files: {
@@ -351,7 +359,7 @@ export async function POST(req: NextRequest) {
           const { ObjectId } = await import('mongodb')
           let oid: any
           try { oid = new ObjectId(body.projectId) } catch { oid = body.projectId }
-          const fp = makeFilePersistence(db, oid)
+          const fp = makeFilePersistence(db, oid, session.user.id)
           persistUpdate = fp.write
           persistDelete = fp.del
         }
@@ -490,7 +498,7 @@ export async function POST(req: NextRequest) {
         let oid: any
         try { oid = new ObjectId(body.projectId) } catch { oid = body.projectId }
         // `files` is an ARRAY of { path, content, type } — see makeFilePersistence.
-        const fp = makeFilePersistence(db, oid)
+        const fp = makeFilePersistence(db, oid, session.user.id)
         persistHook = fp.write
         persistDeleteHook = fp.del
       }

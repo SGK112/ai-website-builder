@@ -119,14 +119,16 @@ const pendingPermissions = state.pendingPermissions
 const PAIRING_CODE_TTL_MS = 10 * 60 * 1000
 
 function genPairingCode(): string {
-  // 5 bytes → 8 base32 chars. base32-style alphabet without confusing
-  // chars (no 0/O, 1/I, etc.) so users can read it off a small UI
-  // chip without squinting.
+  // base32-style alphabet without confusing chars (no 0/O, 1/I) so it's easy to
+  // read off a UI chip. Use ONE INDEPENDENT random byte per char — the old code
+  // indexed bytes[i % 5] over only 5 bytes, so chars 5–7 duplicated 0–2,
+  // cutting real entropy to ~5 chars. 10 independent chars ≈ 49 bits.
   const alpha = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
-  const bytes = crypto.randomBytes(5)
+  const LEN = 10
+  const bytes = crypto.randomBytes(LEN)
   let out = 'BRDG-'
-  for (let i = 0; i < 8; i++) {
-    out += alpha[bytes[i % 5] % alpha.length]
+  for (let i = 0; i < LEN; i++) {
+    out += alpha[bytes[i] % alpha.length]
   }
   return out
 }
