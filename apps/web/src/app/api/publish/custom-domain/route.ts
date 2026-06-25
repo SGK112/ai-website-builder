@@ -14,7 +14,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { connectDB } from '@/lib/db'
-import { attachDomainToSharedService, RENDER_APP_HOST, RENDER_DOMAINS_LIVE } from '@/lib/render-domains'
+import { attachDomainToSharedService, ensureCustomDomainIndex, RENDER_APP_HOST, RENDER_DOMAINS_LIVE } from '@/lib/render-domains'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,7 +63,12 @@ export async function POST(req: NextRequest) {
     }, { status: 503 })
   }
 
-  // Ensure the domain isn't already mapped to someone else's site.
+  // Ensure the domain isn't already mapped to someone else's site. The fast
+  // pre-check below is racy on its own (two concurrent connects both pass), so
+  // the real guard is the unique index on customDomain — the stamp below catches
+  // its duplicate-key error. Together they stop a domain being claimed twice or
+  // squatted onto another user's site.
+  await ensureCustomDomainIndex(db)
   const taken = await db.collection('published_sites').findOne({
     customDomain: { $in: [domain, `www.${domain}`] },
     slug: { $ne: site.slug },
@@ -82,10 +87,17 @@ export async function POST(req: NextRequest) {
     }, { status: 502 })
   }
 
-  await db.collection('published_sites').updateOne(
-    { _id: site._id },
-    { $set: { customDomain: domain, customDomainTarget: attach.target, customDomainAttachedAt: new Date(), updatedAt: new Date() } },
-  )
+  try {
+    await db.collection('published_sites').updateOne(
+      { _id: site._id },
+      { $set: { customDomain: domain, customDomainTarget: attach.target, customDomainAttachedAt: new Date(), updatedAt: new Date() } },
+    )
+  } catch (e: any) {
+    if (e?.code === 11000) {
+      return NextResponse.json({ error: 'That domain was just connected to another site.' }, { status: 409 })
+    }
+    throw e
+  }
 
   // DNS the user must set at their registrar. Apex: prefer an A record to
   // Render's anycast IP (works on every registrar); CNAME @ only works where

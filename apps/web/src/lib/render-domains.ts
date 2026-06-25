@@ -15,6 +15,27 @@ export const RENDER_APP_HOST = process.env.RENDER_APP_HOST || 'ai-website-builde
 
 export const RENDER_DOMAINS_LIVE = !!(RENDER_API_KEY && RENDER_SERVICE_ID)
 
+// A custom domain may map to exactly ONE published site. A unique partial index
+// (only over docs where customDomain is a string) turns a concurrent double-
+// claim into a duplicate-key error instead of two sites silently sharing a
+// domain — and stops one user squatting a domain already mapped to another.
+// Once-per-process; createIndex is idempotent. MUST run on the DEFAULT DB
+// (where published_sites actually lives + is served from).
+let customDomainIndexEnsured = false
+export async function ensureCustomDomainIndex(db: any): Promise<void> {
+  if (customDomainIndexEnsured || !db) return
+  customDomainIndexEnsured = true
+  try {
+    await db.collection('published_sites').createIndex(
+      { customDomain: 1 },
+      { unique: true, partialFilterExpression: { customDomain: { $type: 'string' } } },
+    )
+  } catch (e: any) {
+    // Pre-existing duplicates (shouldn't happen) or perms — log, don't crash.
+    console.error('[domains] could not ensure unique customDomain index:', e?.message || e)
+  }
+}
+
 export interface RenderAttachResult {
   ok: boolean
   mock: boolean

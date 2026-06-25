@@ -13,16 +13,25 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import clientPromise from '@/lib/mongodb'
+import { connectDB } from '@/lib/db'
 import { isAdminEmail } from '@ai-website-builder/database'
 import { getStripe } from '@/lib/stripe'
 import { registerDomain, autoConfigureDns } from '@/lib/domains'
-import { attachDomainToSharedService } from '@/lib/render-domains'
+import { attachDomainToSharedService, ensureCustomDomainIndex } from '@/lib/render-domains'
 
 export const dynamic = 'force-dynamic'
 
+// domain_orders lives in the marketplace DB...
 async function getDb() {
   const client = await clientPromise
   return client.db('ai-website-builder')
+}
+// ...but published_sites lives in the DEFAULT DB (where the publisher + the
+// /sites/by-host serving route read/write). Mapping a domain in the wrong DB
+// means it never actually serves.
+async function getSiteDb() {
+  const mongoose = await connectDB()
+  return mongoose.connection.db
 }
 
 async function requireAdmin() {
@@ -46,8 +55,13 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(Number(searchParams.get('limit')) || 100, 500)
 
   const db = await getDb()
-  const query: Record<string, any> = {}
-  if (status) query.status = status
+  // "stuck" = paid but still 'pending' after 10 min — a webhook that crashed
+  // mid-fulfillment (the event-id dedupe then suppresses Stripe's retry), so
+  // the customer is charged with nothing to show. Surface these explicitly;
+  // they were previously invisible (only needs_attention/register_failed showed).
+  const STUCK_MS = 10 * 60 * 1000
+  const stuckFilter = { status: 'pending', createdAt: { $lt: new Date(Date.now() - STUCK_MS) } }
+  const query: Record<string, any> = status === 'stuck' ? stuckFilter : (status ? { status } : {})
   const orders = await db.collection('domain_orders')
     .find(query, { projection: { stripeSessionId: 0 } })
     .sort({ createdAt: -1 })
@@ -58,10 +72,11 @@ export async function GET(req: NextRequest) {
   const counts = await db.collection('domain_orders').aggregate([
     { $group: { _id: '$status', n: { $sum: 1 } } },
   ]).toArray()
+  const stuckCount = await db.collection('domain_orders').countDocuments(stuckFilter)
 
   return NextResponse.json({
     orders,
-    counts: Object.fromEntries(counts.map((c: any) => [c._id || 'unknown', c.n])),
+    counts: { ...Object.fromEntries(counts.map((c: any) => [c._id || 'unknown', c.n])), stuck: stuckCount },
   })
 }
 
@@ -108,16 +123,29 @@ export async function POST(req: NextRequest) {
       { _id: order._id },
       { $set: { status: newStatus, registrar: reg, render: attach, dns, target: attach.target, updatedAt: new Date() } },
     )
-    if (fullyDone || attach.ok) {
-      // (Re)map the domain → the user's published site so it serves.
-      const pubFilter: Record<string, any> = order.projectId
-        ? { userId: order.userId, projectId: order.projectId }
-        : { userId: order.userId }
-      await db.collection('published_sites').findOneAndUpdate(
-        pubFilter,
-        { $set: { customDomain: domain, customDomainTarget: attach.target, updatedAt: new Date() } },
-        { sort: { updatedAt: -1 } },
-      )
+    if (attach.ok) {
+      // (Re)map the domain → the user's published site so it serves — in the
+      // DEFAULT db (where by-host reads), not the marketplace db.
+      const siteDb = await getSiteDb()
+      if (siteDb) {
+        await ensureCustomDomainIndex(siteDb)
+        const pubFilter: Record<string, any> = order.projectId
+          ? { userId: order.userId, projectId: order.projectId }
+          : { userId: order.userId }
+        try {
+          await siteDb.collection('published_sites').findOneAndUpdate(
+            pubFilter,
+            { $set: { customDomain: domain, customDomainTarget: attach.target, updatedAt: new Date() } },
+            { sort: { updatedAt: -1 } },
+          )
+        } catch (mapErr: any) {
+          if (mapErr?.code === 11000) {
+            await audit(db, 'domain_order.map_conflict', email, { orderId, domain })
+            return NextResponse.json({ ok: false, status: newStatus, conflict: true, message: `${domain} is already mapped to another site.` }, { status: 409 })
+          }
+          throw mapErr
+        }
+      }
     }
     await audit(db, 'domain_order.retry', email, { orderId, domain, status: newStatus, attach: attach.ok, dns: dns.ok })
     return NextResponse.json({ ok: true, status: newStatus, attach: attach.ok, dns: dns.ok, message: attach.message })

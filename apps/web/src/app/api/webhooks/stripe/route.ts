@@ -8,7 +8,7 @@ import { connectDB } from '@/lib/db'
 import { User } from '@ai-website-builder/database'
 import clientPromise from '@/lib/mongodb'
 import { registerDomain, autoConfigureDns } from '@/lib/domains'
-import { attachDomainToSharedService } from '@/lib/render-domains'
+import { attachDomainToSharedService, ensureCustomDomainIndex } from '@/lib/render-domains'
 
 // Marketplace collections (template_purchases, marketplace_purchases,
 // community_posts, payouts_log) live in the dedicated 'ai-website-builder'
@@ -261,17 +261,41 @@ export async function POST(req: NextRequest) {
                 )
 
                 // Map the domain → the user's published site so the by-host
-                // route serves it. Prefer the project's published site; else the
-                // user's most recent one.
-                const pubFilter = projectId ? { userId, projectId } : { userId }
-                // updateOne ignores `sort`, so "most recent" was never honored —
-                // a domain bought without a projectId could land on an arbitrary
-                // site. findOneAndUpdate DOES honor sort; pick the newest match.
-                await db.collection('published_sites').findOneAndUpdate(
-                  pubFilter,
-                  { $set: { customDomain: domain, customDomainTarget: attach.target, updatedAt: new Date() } },
-                  { sort: { updatedAt: -1 } },
-                )
+                // route serves it. TWO fixes here:
+                //  (a) published_sites lives in the DEFAULT db (where the
+                //      publisher + /sites/by-host read/write) — NOT the
+                //      marketplace db this handler used, which meant a bought
+                //      domain's mapping landed in a DB nothing serves from, so it
+                //      never loaded.
+                //  (b) only map when the domain is actually attached to Render
+                //      (otherwise it can't serve — leave it needs_attention).
+                if (attach.ok) {
+                  const siteDb = mongoose.connection.db
+                  if (siteDb) {
+                    await ensureCustomDomainIndex(siteDb)
+                    const pubFilter = projectId ? { userId, projectId } : { userId }
+                    try {
+                      // findOneAndUpdate honors `sort` (updateOne doesn't) → newest match.
+                      await siteDb.collection('published_sites').findOneAndUpdate(
+                        pubFilter,
+                        { $set: { customDomain: domain, customDomainTarget: attach.target, updatedAt: new Date() } },
+                        { sort: { updatedAt: -1 } },
+                      )
+                    } catch (mapErr: any) {
+                      if (mapErr?.code === 11000) {
+                        await db.collection('domain_orders').updateOne(
+                          { stripeSessionId: sess.id },
+                          { $set: { status: 'needs_attention', domainConflict: true, updatedAt: new Date() } },
+                        )
+                        console.error(`[domains] ${domain} already mapped to another site — needs_attention`)
+                      } else {
+                        throw mapErr
+                      }
+                    }
+                  }
+                } else {
+                  console.warn(`[domains] ${domain} registered but attach failed — not mapping (needs_attention)`)
+                }
                 console.log(`[domains] purchased ${domain} → Render(${attach.target}) reg=${reg.ok} attach=${attach.ok} dns=${dns.ok} (mock reg=${reg.mock}/attach=${attach.mock})`)
               }
             }
