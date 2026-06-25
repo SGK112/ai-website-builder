@@ -65,12 +65,24 @@ function subscriptionIsForeign(sub: Stripe.Subscription): boolean {
   return priceIds.length > 0 && !priceIds.some((p) => OUR_PRICE_IDS.has(p))
 }
 function invoiceIsForeign(inv: Stripe.Invoice): boolean {
+  // Shared Stripe account: FAIL CLOSED. Only treat an invoice as ours when we
+  // have POSITIVE evidence (our app marker, or one of our price IDs). The old
+  // logic returned "ours" whenever it couldn't parse a price id, so an
+  // unparseable VoiceNow invoice would mint webstew credits. Worst case now is
+  // a missed renewal-credit grant on a parse failure (customer-side, not a
+  // platform money loss), which is the safe direction on a shared account.
+  const invMeta = (inv as any).metadata as Stripe.Metadata | undefined
+  const subMeta = (inv as any).subscription_details?.metadata as Stripe.Metadata | undefined
+  if (isForeignByMarker(invMeta) || isForeignByMarker(subMeta)) return true
+  if (invMeta?.app === OUR_APP || subMeta?.app === OUR_APP) return false
   const priceIds: string[] = []
   for (const l of (inv.lines?.data || []) as any[]) {
     const pid = l?.price?.id || l?.pricing?.price_details?.price
     if (pid) priceIds.push(pid)
   }
-  return priceIds.length > 0 && !priceIds.some((p) => OUR_PRICE_IDS.has(p))
+  if (priceIds.some((p) => OUR_PRICE_IDS.has(p))) return false
+  // No positive proof it's ours → treat as foreign.
+  return true
 }
 
 export async function POST(req: NextRequest) {
@@ -481,8 +493,10 @@ export async function POST(req: NextRequest) {
           if (user) {
             const grant = getPlanCredits(user.plan)
             if (grant > 0) {
-              user.credits = (user.credits || 0) + grant
-              await user.save()
+              // Atomic $inc — a read-modify-save here races with the atomic
+              // spendCredits deduction and would silently erase a mid-flight
+              // charge (free generation). Every other grant path uses $inc.
+              await User.updateOne({ _id: user._id }, { $inc: { credits: grant }, $set: { updatedAt: new Date() } })
               console.log(`Added ${grant} monthly credits to user ${user._id} (${user.plan})`)
             }
           }
@@ -531,7 +545,40 @@ export async function POST(req: NextRequest) {
             .collection('marketplace_purchases')
             .findOne({ stripePaymentIntentId: paymentIntentId })
           if (!purchase) {
-            console.log(`[marketplace] charge.refunded: no purchase row for PI ${paymentIntentId}`)
+            // Not a marketplace refund. It may be a SUBSCRIPTION refund/chargeback
+            // — which must downgrade the plan + claw back the plan's credit grant,
+            // otherwise a user can refund and keep premium forever. Confirm it's a
+            // WEBSTEW subscription charge via its invoice (isolates VoiceNow on the
+            // shared account) before touching anything.
+            try {
+              const invoiceId = typeof charge.invoice === 'string' ? charge.invoice : charge.invoice?.id
+              const amountRefunded = Number(charge.amount_refunded) || 0
+              const amountTotal = Number(charge.amount) || 0
+              const isFullRefund = amountRefunded >= amountTotal && amountTotal > 0
+              if (invoiceId && isFullRefund) {
+                const invoice = await stripe.invoices.retrieve(invoiceId)
+                if (!invoiceIsForeign(invoice) && charge.customer) {
+                  const customerId = typeof charge.customer === 'string' ? charge.customer : charge.customer.id
+                  const subUser = await User.findOne({ stripeCustomerId: customerId })
+                  if (subUser) {
+                    const grant = getPlanCredits(subUser.plan)
+                    await User.updateOne(
+                      { _id: subUser._id },
+                      [{ $set: {
+                        plan: 'free',
+                        subscriptionStatus: 'canceled',
+                        updatedAt: new Date(),
+                        // Claw back the plan grant; never push the balance negative.
+                        credits: { $max: [{ $subtract: [{ $ifNull: ['$credits', 0] }, grant] }, 0] },
+                      } }],
+                    )
+                    console.log(`[billing] subscription refund → downgraded user ${subUser._id} to free (−${grant} credits)`)
+                  }
+                }
+              }
+            } catch (e: any) {
+              console.error('[billing] subscription-refund handling failed:', e?.message || e)
+            }
             break
           }
           if (purchase.status === 'refunded') {
