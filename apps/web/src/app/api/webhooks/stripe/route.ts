@@ -353,11 +353,10 @@ export async function POST(req: NextRequest) {
             const sellerId = sess.metadata.seller_user_id
             const creditsValue = parseInt(sess.metadata.credits || '0', 10) || 0
             if (listingId && buyerId && ObjectId.isValid(listingId)) {
-              // Two-database write: marketplace_purchases + community_posts
-              // live in ai-website-builder; users (for the seller-earnings
-              // ledger) lives in the Mongoose-default DB (voiceflow-crm).
+              // marketplace_purchases + community_posts live in ai-website-builder.
+              // No user-DB write needed: the seller is paid by the Connect
+              // destination charge, not a ledger.
               const mkt = await getMarketplaceDb()
-              const usersDb = mongoose.connection.db
               if (mkt) {
                 // Idempotent: marketplace_purchases keyed on (buyerId, listingId)
                 // so retried webhook deliveries don't double-record. We
@@ -390,13 +389,10 @@ export async function POST(req: NextRequest) {
                   await mkt
                     .collection('community_posts')
                     .updateOne({ _id: new ObjectId(listingId) }, { $inc: { downloads: 1 } })
-                  // Seller earnings ledger is on the USER doc — different DB.
-                  if (sellerId && ObjectId.isValid(sellerId) && creditsValue > 0 && usersDb) {
-                    await usersDb.collection('users').updateOne(
-                      { _id: new ObjectId(sellerId) },
-                      { $inc: { marketplace_earnings_credits: creditsValue } }
-                    )
-                  }
+                  // NOTE: do NOT credit a seller earnings ledger here. This is a
+                  // Connect destination charge — the seller already received 97%
+                  // directly in their own Stripe account (3% application fee kept
+                  // by the platform). Crediting a ledger on top was a double-pay.
                   console.log(`[marketplace] checkout completed → minted purchase for ${buyerId} on ${listingId}`)
                 }
               }
