@@ -155,16 +155,21 @@ export async function POST(req: NextRequest, { params }: { params: { postId: str
   // credit if it landed) — otherwise the buyer pays for nothing.
   const sellerValid = listing.author?.id && ObjectId.isValid(listing.author.id)
   const sellerObjId = sellerValid ? new ObjectId(listing.author.id) : null
+  // Platform keeps a 3% fee; the seller receives 97% as SPENDABLE credits
+  // (money in, never out — earned credits are used on the platform, not cashed
+  // out to USD). The 3% difference is platform margin (the cash already came in
+  // when those credits were originally purchased).
+  const sellerShare = Math.max(0, price - Math.ceil(price * 0.03))
   const refundBuyer = async () => {
     try { await userDb.collection('users').updateOne({ _id: buyerId }, { $inc: { credits: price }, $set: { updatedAt: new Date() } }) }
     catch (e) { console.error('[buy] CRITICAL: buyer refund failed for', String(buyerId), e) }
   }
   const reverseSeller = async () => {
-    if (!sellerObjId) return
+    if (!sellerObjId || sellerShare <= 0) return
     try {
       await userDb.collection('users').updateOne(
         { _id: sellerObjId },
-        [{ $set: { marketplace_earnings_credits: { $max: [{ $subtract: [{ $ifNull: ['$marketplace_earnings_credits', 0] }, price] }, 0] } } }],
+        [{ $set: { credits: { $max: [{ $subtract: [{ $ifNull: ['$credits', 0] }, sellerShare] }, 0] } } }],
       )
     } catch (e) { console.error('[buy] seller-credit reversal failed for', String(sellerObjId), e) }
   }
@@ -173,10 +178,10 @@ export async function POST(req: NextRequest, { params }: { params: { postId: str
 
   let sellerCredited = false
   try {
-    if (sellerObjId) {
+    if (sellerObjId && sellerShare > 0) {
       await userDb.collection('users').updateOne(
         { _id: sellerObjId },
-        { $inc: { marketplace_earnings_credits: price }, $set: { updatedAt: new Date() } },
+        { $inc: { credits: sellerShare }, $set: { updatedAt: new Date() } },
       )
       sellerCredited = true
     }
@@ -189,6 +194,8 @@ export async function POST(req: NextRequest, { params }: { params: { postId: str
       listingTitle: listing.title,
       listingType: listing.type,
       priceCredits: price,
+      sellerCredits: sellerShare,
+      platformFeeCredits: price - sellerShare,
       purchasedAt: new Date(),
     })
   } catch (e: any) {

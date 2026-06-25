@@ -106,8 +106,17 @@ export async function GET(request: NextRequest) {
     const posts = postsRaw.map((p) => {
       const liked = viewerId && Array.isArray(p.likedBy) && p.likedBy.includes(viewerId)
       const saved = viewerId && Array.isArray(p.savedBy) && p.savedBy.includes(viewerId)
+      // Never ship a PREMIUM listing's deliverable (html / file contents) in the
+      // feed — that would hand the paid source to everyone for free. Only the
+      // author keeps it here; buyers fetch it via the entitled detail/buy route.
+      const isPremium = !!p.isPremium && (Number(p.price_credits) || 0) > 0
+      const isAuthor = viewerId && String(p.author?.id || '') === String(viewerId)
+      const stripped = isPremium && !isAuthor
       return {
         ...p,
+        ...(stripped
+          ? { html: undefined, files: Array.isArray(p.files) ? p.files.map((f: any) => ({ ...f, content: undefined })) : p.files, locked: true }
+          : {}),
         viewerLiked: !!liked,
         viewerSaved: !!saved,
         // Drop the full sets from the response — they can grow large and

@@ -29,7 +29,37 @@ export async function GET(
       { $inc: { views: 1 } }
     )
 
-    return NextResponse.json({ post: { ...post, views: post.views + 1 } })
+    // Entitlement gate: a PREMIUM listing's deliverable (html / file contents)
+    // must NOT be handed out to non-owners — otherwise the paywall is bypassed
+    // (anyone fetches the source for free). Free listings are unaffected.
+    const isPremium = !!post.isPremium && (Number(post.price_credits) || 0) > 0
+    let owned = false
+    if (isPremium) {
+      const session = await getServerSession(authOptions)
+      const uid = session?.user?.id
+      if (uid) {
+        if (String(post.author?.id || '') === String(uid)) {
+          owned = true
+        } else {
+          const purchase = await db.collection('marketplace_purchases').findOne(
+            { buyerId: String(uid), listingId: String(params.id) },
+            { projection: { _id: 1 } },
+          )
+          owned = !!purchase
+        }
+      }
+    }
+
+    const safe: any = { ...post, views: post.views + 1 }
+    if (isPremium && !owned) {
+      delete safe.html
+      if (Array.isArray(safe.files)) {
+        safe.files = safe.files.map((f: any) => ({ ...f, content: undefined }))
+      }
+      safe.locked = true
+    }
+
+    return NextResponse.json({ post: safe })
   } catch (error) {
     console.error('Post GET error:', error)
     return NextResponse.json({ error: 'Failed to fetch post' }, { status: 500 })
