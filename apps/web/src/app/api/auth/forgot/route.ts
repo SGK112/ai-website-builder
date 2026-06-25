@@ -43,8 +43,11 @@ export async function POST(req: NextRequest) {
     const user = await User.findOne({ email }).select('_id email').lean()
     if (user) {
       const token = makeResetToken(email)
+      // NEVER use the request Origin/Host here — it's attacker-controlled, so a
+      // crafted Origin would email the VICTIM a real reset link (with a valid
+      // token) pointing at the attacker's domain → token capture → takeover.
+      // Trust only server config. (signup + verify routes already do this.)
       const origin =
-        req.headers.get('origin') ||
         process.env.NEXT_PUBLIC_APP_URL ||
         process.env.NEXTAUTH_URL ||
         'https://www.webstew.net'

@@ -2,8 +2,14 @@ import { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
 import GitHubProvider from 'next-auth/providers/github'
+import bcrypt from 'bcryptjs'
 import { connectDB } from './db'
 import { User } from '@ai-website-builder/database'
+
+// A real bcrypt hash to compare against when the account doesn't exist, so a
+// missing email takes the same time as a wrong password — closes the login
+// timing oracle that otherwise reveals which emails are registered.
+const DUMMY_BCRYPT_HASH = '$2a$12$vE.IvorxsUFxzwbzBIcPJuOGCLJ3QMr0WTPVj5x8NXCkhNz0ZJWYe'
 
 declare module 'next-auth' {
   interface Session {
@@ -47,6 +53,9 @@ const providers: any[] = [
       )
 
       if (!user || !user.password) {
+        // Equalize timing with the wrong-password path so a non-existent email
+        // isn't faster to reject (user-enumeration oracle).
+        await bcrypt.compare(credentials.password, DUMMY_BCRYPT_HASH)
         throw new Error('Invalid email or password')
       }
 
@@ -118,7 +127,23 @@ export const authOptions: NextAuthOptions = {
         // now linking an OAuth provider.
         let existingUser = await User.findOne({ [providerIdField]: providerId })
         if (!existingUser && user.email) {
-          existingUser = await User.findOne({ email: user.email })
+          // Email-based linking is an account-takeover vector: if a provider
+          // hands us an UNVERIFIED email that matches an existing account, we'd
+          // log the OAuth user straight into that account. Only link when the
+          // email is provider-verified. Google exposes email_verified; the
+          // NextAuth GitHub provider only ever returns the verified primary
+          // email, so it's trusted.
+          const emailVerified = account.provider === 'google'
+            ? (profile as any)?.email_verified === true
+            : true
+          const byEmail = await User.findOne({ email: user.email })
+          if (byEmail) {
+            if (!emailVerified) {
+              console.warn('[auth] refused OAuth link to existing account — unverified email', user.email)
+              return false
+            }
+            existingUser = byEmail
+          }
         }
 
         if (!existingUser) {
