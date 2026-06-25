@@ -9067,6 +9067,7 @@ npx eas build --platform all
             {!sidebarCollapsed && activePanel === 'build' && (
               <BuildChatPanel
                 isDark={isDark}
+                isMobile={isMobile}
                 skillLevel={skillLevel}
                 buildPhase={buildPhase}
                 currentSteps={currentSteps}
@@ -9583,7 +9584,8 @@ npx eas build --platform all
               />
               </div>
             </div>
-            {/* Model selector */}
+            {/* Model selector + credits — desktop only; mobile stays minimal (chat/voice/tools). */}
+            {!isMobile && (
             <div className="flex items-center justify-between gap-2 mt-3 relative">
               <button
                 onClick={() => setShowChatModelSelector(!showChatModelSelector)}
@@ -9759,11 +9761,12 @@ npx eas build --platform all
                 )}
               </div>
             </div>
+            )}
           </div>
         )}
 
-        {/* Status Bar */}
-        {!sidebarCollapsed && (
+        {/* Status Bar — desktop only */}
+        {!sidebarCollapsed && !isMobile && (
           <div className="h-8 border-t border-white/[0.08] flex items-center justify-between px-3 text-[10px] text-zinc-600 bg-black/20">
             <div className="flex items-center gap-2">
               <div className={cn(

@@ -117,11 +117,12 @@ function CookingIndicator({ isDark }: { isDark: boolean }) {
 }
 
 function ChatMessageBubble({
-  msg, index, isDark, isStreaming, prevUserPrompt, projectId, buildTarget, onSendMessage, onResolvePermission,
+  msg, index, isDark, isMobile, isStreaming, prevUserPrompt, projectId, buildTarget, onSendMessage, onResolvePermission,
 }: {
   msg: ChatMessage
   index: number
   isDark: boolean
+  isMobile?: boolean
   isStreaming?: boolean
   prevUserPrompt?: string
   projectId?: string
@@ -165,7 +166,7 @@ function ChatMessageBubble({
             : renderRichText(msg.content, isDark)}
         </div>
 
-        {msg.suggestions && msg.suggestions.length > 0 && (
+        {msg.suggestions && msg.suggestions.length > 0 && !isMobile && (
           <div className="flex flex-wrap gap-1.5 mt-3 pt-2 border-t border-border">
             {msg.suggestions.map((suggestion, sIdx) => (
               <button
@@ -240,6 +241,7 @@ function ChatMessageBubble({
 
 interface BuildChatPanelProps {
   isDark: boolean
+  isMobile?: boolean
   skillLevel: SkillLevel
   buildPhase: BuildPhase
   currentSteps: BuildStep[]
@@ -271,6 +273,7 @@ interface BuildChatPanelProps {
 
 export function BuildChatPanel({
   isDark,
+  isMobile,
   skillLevel,
   buildPhase,
   currentSteps,
@@ -297,7 +300,9 @@ export function BuildChatPanel({
   quickStartTemplates,
   onLoadInlineTemplate,
 }: BuildChatPanelProps) {
-  const showQuickStart = !plannerActive && (chatMessages.length === 1 || !hasHtml) && !isGenerating
+  // On mobile keep it minimal — chat, voice, tools only. No quick-start card
+  // grid (it's the bulk of the "way too much" clutter on a phone).
+  const showQuickStart = !plannerActive && (chatMessages.length === 1 || !hasHtml) && !isGenerating && !isMobile
   // The "Thinking…" pill is only the *pre-reply* wait. Once an assistant
   // bubble exists it streams its own live tool status ("Editing index.html…"),
   // so showing both was the confusing double-bubble. Gate on "last turn is the
@@ -367,6 +372,7 @@ export function BuildChatPanel({
             msg={msg}
             index={i}
             isDark={isDark}
+            isMobile={isMobile}
             // The last assistant bubble is "live" while a request is in flight
             // — drives the cooking animation so it never looks frozen.
             isStreaming={msg.role === 'assistant' && i === chatMessages.length - 1 && (isThinking || isGenerating)}
