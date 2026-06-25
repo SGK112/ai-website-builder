@@ -179,6 +179,10 @@ export const CREDIT_COSTS = {
   video_generation: 20,
   audio_generation: 10,
   image_enhance: 3,
+  // Realtime voice (OpenAI Realtime over WebRTC) bills ~$0.06/min in + ~$0.24/min
+  // out and the browser holds the session open — charge per session mint so a
+  // 0-credit user can't burn unbounded provider money.
+  voice_realtime: 10,
   deployment: 0,
 }
 

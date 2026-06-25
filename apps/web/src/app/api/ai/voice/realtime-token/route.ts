@@ -11,6 +11,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { spendCredits } from '@/lib/credits'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -60,6 +61,16 @@ export async function POST() {
     return NextResponse.json({ error: 'Voice is not configured on this server.' }, { status: 503 })
   }
 
+  // Meter per session mint — a 0-credit user could otherwise hold/re-mint
+  // realtime sessions and burn unbounded OpenAI money (audio never touches us).
+  const charge = await spendCredits(session, 'voice_realtime')
+  if (!charge.ok) {
+    return NextResponse.json(
+      { error: charge.error || 'Not enough credits for voice.', requireCredits: charge.status === 402 },
+      { status: charge.status || 402 },
+    )
+  }
+
   try {
     const res = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
       method: 'POST',
@@ -89,14 +100,20 @@ export async function POST() {
     if (!res.ok) {
       const detail = await res.text().catch(() => '')
       console.error('[realtime-token] OpenAI error', res.status, detail.slice(0, 300))
+      await charge.refund()
       return NextResponse.json({ error: 'Could not start a voice session. Try again.' }, { status: 502 })
     }
 
     const data = await res.json()
+    if (!data?.value) {
+      await charge.refund()
+      return NextResponse.json({ error: 'Could not start a voice session. Try again.' }, { status: 502 })
+    }
     // GA shape: { value: 'ek_...', expires_at, session: {...} }
     return NextResponse.json({ token: data.value, expiresAt: data.expires_at, model: MODEL })
   } catch (e: any) {
     console.error('[realtime-token] failed:', e?.message || e)
+    await charge.refund()
     return NextResponse.json({ error: 'Could not start a voice session. Try again.' }, { status: 502 })
   }
 }

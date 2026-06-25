@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
+import { spendCredits } from '@/lib/credits'
 import OpenAI from 'openai'
 
 // Lazy initialization to avoid build-time errors
@@ -44,22 +45,39 @@ export async function POST(request: NextRequest) {
       }, { status: 503 })
     }
 
+    // Meter — DALL-E costs real money per image. Charge up front, refund on
+    // failure. (Previously unmetered: free unlimited generation.)
+    const charge = await spendCredits(session, 'image_generation')
+    if (!charge.ok) {
+      return NextResponse.json(
+        { error: charge.error || 'Not enough credits.', requireCredits: charge.status === 402 },
+        { status: charge.status || 402 },
+      )
+    }
+
     // Enhance prompt for better results
     const enhancedPrompt = `Professional high-quality photograph: ${prompt}. Photorealistic, sharp focus, excellent lighting, modern aesthetic.`
 
-    const response = await getOpenAI().images.generate({
+    let response
+    try {
+      response = await getOpenAI().images.generate({
       model: 'dall-e-3',
       prompt: enhancedPrompt,
       n: 1,
       size: size as '1024x1024' | '1792x1024' | '1024x1792',
       quality: quality as 'standard' | 'hd',
       style: style as 'vivid' | 'natural',
-    })
+      })
+    } catch (e) {
+      await charge.refund()
+      throw e
+    }
 
     const imageData = response.data?.[0]
     const imageUrl = imageData?.url
 
     if (!imageUrl) {
+      await charge.refund()
       return NextResponse.json({
         error: 'DALL-E returned no image. Try a different prompt or check the OpenAI status page.',
         feature: 'dalle',

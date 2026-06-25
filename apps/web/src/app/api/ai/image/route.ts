@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { spendCredits } from '@/lib/credits'
 
 export const dynamic = 'force-dynamic'
 // 300s — long-running Anthropic/Replicate/OpenAI/Runpod call. Without this
@@ -54,8 +55,34 @@ export async function POST(request: NextRequest) {
     const body: GenerateRequest = await request.json()
     const { action, prompt, imageUrl, style, aspectRatio = '16:9' } = body
 
+    // Map action → credit cost, then validate inputs BEFORE charging so a
+    // missing-input 400 never bills the user.
+    const op = action === 'generate' ? 'image_generation'
+      : (action === 'upscale' || action === 'remove-bg' || action === 'restore' || action === 'caption') ? 'image_enhance'
+      : null
+    if (!op) {
+      return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+    }
+    if (action === 'generate' && !prompt) {
+      return NextResponse.json({ error: 'Prompt required for generation' }, { status: 400 })
+    }
+    if (action !== 'generate' && !imageUrl) {
+      return NextResponse.json({ error: 'Image URL required' }, { status: 400 })
+    }
+
+    // Replicate costs real money per call — charge up front (atomic), refund if
+    // the provider call fails. (Previously unmetered: free unlimited generation.)
+    const charge = await spendCredits(session, op)
+    if (!charge.ok) {
+      return NextResponse.json(
+        { error: charge.error || 'Not enough credits.', requireCredits: charge.status === 402 },
+        { status: charge.status || 402 },
+      )
+    }
+
     let prediction
 
+    try {
     switch (action) {
       case 'generate':
         if (!prompt) {
@@ -112,13 +139,24 @@ export async function POST(request: NextRequest) {
         break
 
       default:
+        await charge.refund()
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+    }
+
+    // Refund if the provider job didn't actually succeed.
+    if (prediction?.status === 'failed') {
+      await charge.refund()
+      return NextResponse.json({ error: 'Image generation failed.' }, { status: 502 })
     }
 
     return NextResponse.json({
       success: true,
       ...prediction,
     })
+    } catch (e) {
+      await charge.refund()
+      throw e
+    }
   } catch (error: any) {
     console.error('Replicate API error:', error)
     return NextResponse.json(
