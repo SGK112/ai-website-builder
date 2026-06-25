@@ -55,7 +55,8 @@ export async function POST() {
     // Realtime voice burns paid tokens fast — signed-in only.
     return NextResponse.json({ error: 'Sign in to use voice building.', requireAuth: true }, { status: 401 })
   }
-  if (!process.env.OPENAI_API_KEY) {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey || apiKey.length < 20) {
     return NextResponse.json({ error: 'Voice is not configured on this server.' }, { status: 503 })
   }
 
@@ -63,7 +64,7 @@ export async function POST() {
     const res = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

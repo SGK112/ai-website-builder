@@ -57,16 +57,23 @@ export function useRealtimeVoice(opts: { onBuild: (prompt: string) => void }) {
       case 'response.function_call_arguments.done': {
         try {
           const args = JSON.parse(msg.arguments || '{}')
-          if (msg.name === 'build_site' && args.prompt) {
-            onBuildRef.current(String(args.prompt))
+          const prompt = typeof args?.prompt === 'string' ? args.prompt.trim() : ''
+          // Validate before kicking off a real build: must be a non-trivial,
+          // bounded string (guards against malformed/empty/runaway tool calls).
+          if (msg.name === 'build_site' && prompt.length >= 3 && prompt.length <= 4000) {
+            onBuildRef.current(prompt)
             // Tell the model the build started so it can speak a confirmation.
             send({
               type: 'conversation.item.create',
               item: { type: 'function_call_output', call_id: msg.call_id, output: JSON.stringify({ status: 'building' }) },
             })
             send({ type: 'response.create' })
+          } else if (msg.name === 'build_site') {
+            console.warn('[realtime] build_site ignored — invalid prompt', { len: prompt.length })
           }
-        } catch { /* malformed args — ignore */ }
+        } catch (e) {
+          console.error('[realtime] build_site args parse failed:', e, msg?.arguments)
+        }
         break
       }
       case 'error':
@@ -109,7 +116,10 @@ export function useRealtimeVoice(opts: { onBuild: (prompt: string) => void }) {
       const dc = pc.createDataChannel('oai-events')
       dcRef.current = dc
       dc.onopen = () => setStatus('listening')
-      dc.onmessage = (e) => { try { handleEvent(JSON.parse(e.data)) } catch {} }
+      dc.onmessage = (e) => {
+        try { handleEvent(JSON.parse(e.data)) }
+        catch (err) { console.error('[realtime] event parse failed:', err) }
+      }
 
       // 4) SDP offer → OpenAI GA realtime WebRTC endpoint
       const offer = await pc.createOffer()

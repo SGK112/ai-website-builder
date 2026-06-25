@@ -221,7 +221,6 @@ import {
   RESTAURANT_MENU_TEMPLATE,
   applyTemplateVariables,
 } from '@/lib/templates'
-// AgentPanel removed for simplicity - agent code preserved in /lib/agent if needed later
 import { ExportPanel } from '@/components/builder/ExportPanel'
 
 type DeviceMode = 'desktop' | 'tablet' | 'mobile'
@@ -2435,9 +2434,6 @@ function WorkspaceContent() {
     }
   }, [workspaceDragOver])
   const docFileRef = useRef<HTMLInputElement>(null)
-
-  // Agent Mode state - Manus-like autonomous AI agent
-  // Agent mode removed for simplicity
 
   // Export panel state
   const [showExportPanel, setShowExportPanel] = useState(false)
@@ -9806,7 +9802,50 @@ npx eas build --platform all
           )}
         </AnimatePresence>
 
-        {/* Mobile has no top bar — preview is full-bleed; tools are at the bottom. */}
+        {/* Mobile: minimal floating brand (left) + account (right). Not a bar —
+            two corner controls over a faint scrim, so the preview stays full-bleed
+            but users still get Webstew branding + profile/login access. */}
+        {isMobile && !focusMode && (
+          <>
+            <div className="absolute inset-x-0 top-0 h-16 z-30 pointer-events-none bg-gradient-to-b from-black/35 to-transparent" aria-hidden />
+            <div
+              className="absolute inset-x-0 top-0 z-40 flex items-center justify-between px-4 pointer-events-none"
+              style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 10px)' }}
+            >
+              <button
+                onClick={() => router.push('/')}
+                aria-label="Webstew home"
+                className="pointer-events-auto flex items-center gap-1.5 drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]"
+              >
+                <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-base shadow-lg shadow-violet-500/30">🍲</span>
+                <span className="text-[15px] font-bold bg-gradient-to-r from-violet-200 to-fuchsia-200 bg-clip-text text-transparent">webstew</span>
+              </button>
+              {session?.user ? (
+                <button
+                  onClick={() => router.push('/profile')}
+                  aria-label="Your profile"
+                  className="pointer-events-auto w-9 h-9 rounded-full p-[2px] bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-lg shadow-violet-500/30"
+                >
+                  {session.user.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={session.user.image} alt="" className="w-full h-full rounded-full object-cover" />
+                  ) : (
+                    <span className="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center text-[13px] font-bold text-white">
+                      {(session.user.name || session.user.email || '?').charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={() => router.push('/login')}
+                  className="pointer-events-auto px-3.5 py-1.5 rounded-full text-[13px] font-semibold text-white bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-lg shadow-violet-500/30"
+                >
+                  Sign in
+                </button>
+              )}
+            </div>
+          </>
+        )}
 
         {/* Realtime voice-build — talk and it builds. Full-screen orb while
             connecting; once the conversation is live it collapses to the
@@ -11038,13 +11077,16 @@ npx eas build --platform all
                   </div>
                 ) : isMobile ? (
                   // Mobile blank state: one full-screen composer. Type or tap the mic.
-                  <div className={cn('w-full h-full flex flex-col p-4', isDark ? 'bg-zinc-950' : 'bg-slate-50')}>
+                  <div className={cn('w-full h-full flex flex-col px-4 pb-4 pt-16', isDark ? 'bg-zinc-950' : 'bg-slate-50')}>
                     <div
                       className={cn(
                         'relative flex-1 flex flex-col rounded-3xl border overflow-hidden',
-                        isDark ? 'bg-zinc-900/60 border-white/10' : 'bg-white border-slate-200 shadow-sm'
+                        'shadow-[0_0_50px_-16px_rgba(139,92,246,0.35)]',
+                        isDark ? 'bg-zinc-900/60 border-violet-500/15' : 'bg-white border-slate-200 shadow-sm'
                       )}
                     >
+                      {/* Webstew gradient accent line */}
+                      <div className="h-[3px] shrink-0 bg-gradient-to-r from-violet-500 via-fuchsia-500 to-violet-500" />
                       <textarea
                         value={commandInput}
                         onChange={(e) => setCommandInput(e.target.value)}
@@ -11065,7 +11107,7 @@ npx eas build --platform all
                             onClick={handleCommandSubmit}
                             disabled={isGenerating}
                             aria-label="Send"
-                            className="w-11 h-11 rounded-full flex items-center justify-center bg-violet-600 text-white shadow-lg shadow-violet-600/30 active:scale-95 transition"
+                            className="w-11 h-11 rounded-full flex items-center justify-center bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-lg shadow-violet-600/30 active:scale-95 transition"
                           >
                             <Send className="w-5 h-5" />
                           </button>

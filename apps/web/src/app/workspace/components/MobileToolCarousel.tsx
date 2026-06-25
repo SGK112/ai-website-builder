@@ -46,7 +46,7 @@ export function MobileToolCarousel({
     <div
       className={cn(
         'md:hidden shrink-0 border-t',
-        isDark ? 'bg-zinc-950 border-white/10' : 'bg-white border-slate-200'
+        isDark ? 'bg-gradient-to-b from-zinc-900 to-zinc-950 border-violet-500/10' : 'bg-white border-slate-200'
       )}
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >

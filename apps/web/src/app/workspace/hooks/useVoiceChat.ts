@@ -121,7 +121,10 @@ export function useVoiceChat() {
       a.onended = () => setIsSpeaking(false)
       a.onerror = () => setIsSpeaking(false)
       await a.play()
-    } catch { setIsSpeaking(false) }
+    } catch (e) {
+      console.error('[voice] speak failed:', e)
+      setIsSpeaking(false)
+    }
   }, [voiceId, providerFor])
 
   // Returns {ok,error}. Previously this swallowed every failure silently, so a
