@@ -161,6 +161,26 @@ export interface RegisterResult {
  * Never throws — returns ok:false with a message so the webhook can mark the
  * order register_failed (and a human can refund / retry) instead of losing it.
  */
+// Cloudflare registrar domains AUTO-RENEW by default against OUR billing
+// profile. The customer pays once (first-year registration), so any auto-renew
+// is money straight out of Webstew's pocket every following year. We sell
+// domains, we don't gift perpetual renewals — force auto-renew OFF. Best-effort
+// + logged: registration already succeeded and the customer paid, so a failed
+// toggle must not fail the sale — but it's loud so it can be caught/retried.
+async function disableAutoRenew(domain: string): Promise<void> {
+  try {
+    const { ok, status, json } = await cf(`/accounts/${CF_ACCOUNT}/registrar/domains/${encodeURIComponent(domain)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ auto_renew: false }),
+    })
+    if (!ok) {
+      console.error('[domains] CRITICAL: could not disable auto_renew for', domain, status, json?.errors?.[0]?.message)
+    }
+  } catch (e: any) {
+    console.error('[domains] CRITICAL: disable auto_renew threw for', domain, e?.message || e)
+  }
+}
+
 export async function registerDomain(domain: string): Promise<RegisterResult> {
   if (!REGISTRAR_LIVE) {
     return { ok: true, domain, mock: true, message: 'Mock registration (set CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID to register for real).' }
@@ -168,11 +188,14 @@ export async function registerDomain(domain: string): Promise<RegisterResult> {
   try {
     const { ok, status, json } = await cf(`/accounts/${CF_ACCOUNT}/registrar/registrations`, {
       method: 'POST',
-      body: JSON.stringify({ domain_name: domain }),
+      // auto_renew:false in the create body (honored where supported) — backed
+      // up by disableAutoRenew() after success in case CF ignores it here.
+      body: JSON.stringify({ domain_name: domain, auto_renew: false }),
     })
     const state = json?.result?.state
     const completed = json?.result?.completed === true || json?.result?.context?.registration?.status === 'active'
     if (ok && (completed || state === 'succeeded')) {
+      await disableAutoRenew(domain)
       return { ok: true, domain, mock: false, message: 'Registered.' }
     }
     if (ok && (state === 'in_progress' || status === 202)) {
@@ -182,7 +205,7 @@ export async function registerDomain(domain: string): Promise<RegisterResult> {
         await new Promise(r => setTimeout(r, 2500))
         const poll = await cf(`/accounts/${CF_ACCOUNT}/registrar/registrations/${encodeURIComponent(domain)}/registration-status`)
         const s = poll.json?.result?.state
-        if (s === 'succeeded') return { ok: true, domain, mock: false, message: 'Registered.' }
+        if (s === 'succeeded') { await disableAutoRenew(domain); return { ok: true, domain, mock: false, message: 'Registered.' } }
         if (s === 'failed' || s === 'blocked') { hardFailed = true; break }
         if (s === 'action_required') return { ok: false, domain, mock: false, terminal: false, message: 'Registration needs manual action in the Cloudflare dashboard.' }
       }
