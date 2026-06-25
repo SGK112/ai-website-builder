@@ -9803,10 +9803,7 @@ npx eas build --platform all
           )}
         </AnimatePresence>
 
-        {/* No mobile top bar — the preview runs full-bleed to the top for an
-            app-like feel. The sidebar/panels open from the floating bottom bar
-            (Build) and close via the sheet's own drag handle; profile + undo/
-            redo live in the panels and other app surfaces. */}
+        {/* Mobile has no top bar — preview is full-bleed; tools are at the bottom. */}
 
         {/* Realtime voice-build — talk and it builds. Full-screen orb while
             connecting; once the conversation is live it collapses to the
@@ -11037,10 +11034,7 @@ npx eas build --platform all
                     </div>
                   </div>
                 ) : isMobile ? (
-                  // Calm, Vibecode-style composer — the screen IS the prompt
-                  // box. No hero, no card grid. Type or tap the mic; one quiet
-                  // Templates pill. The floating tool bar only appears once a
-                  // build exists, so the blank state stays blank.
+                  // Mobile blank state: one full-screen composer. Type or tap the mic.
                   <div className={cn('w-full h-full flex flex-col p-4', isDark ? 'bg-zinc-950' : 'bg-slate-50')}>
                     <div
                       className={cn(
@@ -11061,9 +11055,7 @@ npx eas build --platform all
                           isDark ? 'text-white placeholder-zinc-500' : 'text-slate-900 placeholder-slate-400'
                         )}
                       />
-                      {/* In-composer control: a circular mic (talk) that morphs to
-                          send once there's text. The rest of the tools live in the
-                          floating bar below. */}
+                      {/* Mic morphs to send once there's text. */}
                       <div className="flex items-center justify-end px-3 pb-3 pt-1">
                         {commandInput.trim() ? (
                           <button
@@ -11180,8 +11172,7 @@ npx eas build --platform all
           )}
         </div>
 
-        {/* Solid bottom tool bar — all tools, always visible, real layout row
-            (not floating) so Safari's chrome can't hide it. */}
+        {/* Bottom tool bar — all tools, always visible. */}
         {isMobile && !focusMode && !selectedElement && (
           <MobileToolCarousel
             isDark={isDark}
