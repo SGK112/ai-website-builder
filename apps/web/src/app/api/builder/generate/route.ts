@@ -8,7 +8,7 @@ import { wantsMobileApp, MOBILE_APP_PROMPT } from '@/lib/mobile-app-recipe'
 import { generateTextFree, FreeAIProvider } from '@/lib/free-ai-providers'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 import { guardAnonAbuse } from '@/lib/abuse-guard'
-import { creditsForUsage } from '@/lib/builder-gate'
+import { creditsForUsage, estimateBuildCredits } from '@/lib/builder-gate'
 import {
   User,
   trackUsage,
@@ -2469,8 +2469,10 @@ export async function POST(req: NextRequest) {
           // Admin users get enterprise plan treatment
           userPlan = isAdmin ? 'enterprise' : (user.plan || 'free')
 
-          // Check usage limits before generation (skip for admins)
-          const limitCheck = await checkUsageLimits(userId!, userPlan, 'generation', userEmail)
+          // Check usage limits before generation (skip for admins). Gate on the
+          // ESTIMATED cost of this build so a near-zero balance can't launch an
+          // expensive one and go negative.
+          const limitCheck = await checkUsageLimits(userId!, userPlan, 'generation', userEmail, estimateBuildCredits(model))
 
           if (!limitCheck.allowed) {
             return new Response(JSON.stringify({

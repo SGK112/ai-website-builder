@@ -173,6 +173,14 @@ export function creditsForUsage(model: string, inputTokens: number, outputTokens
   return Math.max(1, Math.ceil(cogs / USD_PER_CREDIT))
 }
 
+// Conservative up-front estimate of a fresh build's cost for the chosen model,
+// so the gate can require the user can AFFORD it before we burn tokens — instead
+// of letting a near-zero balance launch an expensive build and go negative.
+// Based on a typical fresh-build token profile (~4k in / ~20k out).
+export function estimateBuildCredits(model?: string): number {
+  return creditsForUsage(model || '', 4000, 20000)
+}
+
 // Record a successful multi-target generation, metered on real token usage.
 // Fire-and-forget — never block on this. Callers must skip it for BYOK
 // builds (the user pays Anthropic directly).

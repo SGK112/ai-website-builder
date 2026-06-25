@@ -315,7 +315,11 @@ export async function checkUsageLimits(
   userId: string | mongoose.Types.ObjectId,
   plan: UserPlan,
   type: 'generation' | 'image',
-  userEmail?: string
+  userEmail?: string,
+  // Estimated cost of THIS action. The gate requires the balance can cover it,
+  // so a near-zero balance can't launch an expensive build and go negative.
+  // Defaults to 1 → preserves the old "needs > 0 credits" behavior.
+  requiredCredits?: number,
 ): Promise<{ allowed: boolean; reason?: string; remaining?: number | string }> {
   // Admin emails get unlimited access
   if (userEmail && isAdminEmail(userEmail)) {
@@ -336,11 +340,14 @@ export async function checkUsageLimits(
     }
     const userDoc = (await User.findById(userId).select('credits').lean()) as { credits?: number } | null
     const creditsRemaining = typeof userDoc?.credits === 'number' ? userDoc.credits : 0
-    if (creditsRemaining <= 0) {
+    const need = Math.max(1, Math.floor(requiredCredits || 1))
+    if (creditsRemaining < need) {
       return {
         allowed: false,
-        reason: `You're out of credits. Upgrade your plan or top up to keep building.`,
-        remaining: 0,
+        reason: creditsRemaining <= 0
+          ? `You're out of credits. Upgrade your plan or top up to keep building.`
+          : `This build needs about ${need} credits and you have ${creditsRemaining}. Top up or upgrade to keep building.`,
+        remaining: creditsRemaining,
       }
     }
     // Guardrail: a hard daily build cap stops scripted abuse even when the
