@@ -265,6 +265,13 @@ function buildPrompt(prompt: string, style?: string): string {
 
 // Check status of a running prediction
 export async function GET(request: NextRequest) {
+  // Signed-in only — this uses our Replicate token and returns prediction
+  // output; leaving it open let anyone poll any prediction by id.
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
   const { searchParams } = new URL(request.url)
   const predictionId = searchParams.get('id')
 
