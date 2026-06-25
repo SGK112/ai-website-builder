@@ -73,8 +73,9 @@ export async function POST(req: NextRequest) {
     // multi-tenant deploys possible: each user's deploy lands in *their*
     // GitHub + Render accounts.
     const githubToken = (await getUserCredential(session.user.id, 'github')) || ENV_GITHUB_TOKEN
-    const byoRenderKey = await getUserCredential(session.user.id, 'render')
-    const renderKey = byoRenderKey || ENV_RENDER_API_KEY
+    // Platform hosts in the cloud on Render by default (that's the product) —
+    // BYO key just lets a user deploy into their own Render account instead.
+    const renderKey = (await getUserCredential(session.user.id, 'render')) || ENV_RENDER_API_KEY
     if (!githubToken) {
       return NextResponse.json({
         error: 'No GitHub token. Add one in Profile → Deploy credentials, or set GITHUB_ACCESS_TOKEN in the environment.',
@@ -132,16 +133,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Decide the service shape up front. A PAID web_service must NOT be funded
-    // on the platform's Render account — require the user's OWN Render key for
-    // anything that isn't a free static_site. (Their infra, their bill.)
     const shape = detectDeployShape(finalFiles)
-    if (shape.kind !== 'static' && !byoRenderKey) {
-      return NextResponse.json({
-        error: 'Full-stack apps (Next.js/Node) deploy to YOUR own Render account. Add your Render API key in Profile → Deploy credentials.',
-        needsCredential: 'render',
-      }, { status: 400 })
-    }
 
     // Never push secret-bearing dotfiles (.env*) into the repo.
     finalFiles = finalFiles.filter(f => !/(^|\/)\.env(\.|$)/i.test(String(f?.path || '')))

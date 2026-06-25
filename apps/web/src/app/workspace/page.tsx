@@ -173,6 +173,7 @@ import { ProjectList } from './components/ProjectList'
 import { NewProjectChooser } from './components/NewProjectChooser'
 import { useElementActions } from './hooks/useElementActions'
 import { MobileToolCarousel } from './components/MobileToolCarousel'
+import { MobileAccountMenu } from './components/MobileAccountMenu'
 import { VoiceBuildOverlay } from './components/VoiceBuildOverlay'
 import { VoiceBubble } from './components/VoiceBubble'
 import { useRealtimeVoice } from './hooks/useRealtimeVoice'
@@ -9820,29 +9821,7 @@ npx eas build --platform all
                 <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-base shadow-lg shadow-violet-500/30">🍲</span>
                 <span className="text-[15px] font-bold bg-gradient-to-r from-violet-200 to-fuchsia-200 bg-clip-text text-transparent">webstew</span>
               </button>
-              {session?.user ? (
-                <button
-                  onClick={() => router.push('/profile')}
-                  aria-label="Your profile"
-                  className="pointer-events-auto w-9 h-9 rounded-full p-[2px] bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-lg shadow-violet-500/30"
-                >
-                  {session.user.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={session.user.image} alt="" className="w-full h-full rounded-full object-cover" />
-                  ) : (
-                    <span className="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center text-[13px] font-bold text-white">
-                      {(session.user.name || session.user.email || '?').charAt(0).toUpperCase()}
-                    </span>
-                  )}
-                </button>
-              ) : (
-                <button
-                  onClick={() => router.push('/login')}
-                  className="pointer-events-auto px-3.5 py-1.5 rounded-full text-[13px] font-semibold text-white bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-lg shadow-violet-500/30"
-                >
-                  Sign in
-                </button>
-              )}
+              <MobileAccountMenu isDark={isDark} user={session?.user ?? null} />
             </div>
           </>
         )}
