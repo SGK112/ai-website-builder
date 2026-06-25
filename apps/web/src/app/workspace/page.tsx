@@ -9808,29 +9808,6 @@ npx eas build --platform all
             (Build) and close via the sheet's own drag handle; profile + undo/
             redo live in the panels and other app surfaces. */}
 
-        {/* Mobile: ONE floating toolbar (replaces the old top step bar + the
-            global bottom tab nav inside the workspace). Shown only over the
-            full-screen preview — opening a panel swaps to the drawer, which
-            carries its own controls. App-like: condensed, thumb-reachable,
-            floating above the home indicator. */}
-        {isMobile && sidebarCollapsed && !focusMode && !selectedElement && (
-          <MobileToolCarousel
-            isDark={isDark}
-            hasContent={!!html.trim() || Object.keys(vfsFiles).length > 0}
-            canShip={!!html.trim() || Object.keys(vfsFiles).length > 0}
-            editMode={editMode}
-            onVoice={openVoice}
-            onBuild={() => { setActivePanel('build'); setSidebarCollapsed(false); setTimeout(() => inputRef.current?.focus(), 80) }}
-            onEdit={() => setEditMode(v => !v)}
-            onTemplates={() => { setActivePanel('templates'); setSidebarCollapsed(false) }}
-            onImages={() => { setActivePanel('images'); setSidebarCollapsed(false) }}
-            onVideo={() => { setActivePanel('video'); setSidebarCollapsed(false) }}
-            onGrade={() => setGraderOpen(true)}
-            onProjects={() => { setActivePanel('projects'); setSidebarCollapsed(false) }}
-            onShip={() => { setActivePanel('deploy'); setSidebarCollapsed(false) }}
-          />
-        )}
-
         {/* Realtime voice-build — talk and it builds. Full-screen orb while
             connecting; once the conversation is live it collapses to the
             floating bubble so the workspace (the site cooking) is visible. */}
@@ -11064,11 +11041,10 @@ npx eas build --platform all
                   // box. No hero, no card grid. Type or tap the mic; one quiet
                   // Templates pill. The floating tool bar only appears once a
                   // build exists, so the blank state stays blank.
-                  <div className={cn('w-full h-full flex flex-col px-4 pt-4', isDark ? 'bg-zinc-950' : 'bg-slate-50')}>
-                    {/* pb leaves room for the floating tool bar below. */}
+                  <div className={cn('w-full h-full flex flex-col p-4', isDark ? 'bg-zinc-950' : 'bg-slate-50')}>
                     <div
                       className={cn(
-                        'relative flex-1 flex flex-col rounded-3xl border overflow-hidden mb-[88px]',
+                        'relative flex-1 flex flex-col rounded-3xl border overflow-hidden',
                         isDark ? 'bg-zinc-900/60 border-white/10' : 'bg-white border-slate-200 shadow-sm'
                       )}
                     >
@@ -11203,6 +11179,26 @@ npx eas build --platform all
             </div>
           )}
         </div>
+
+        {/* Solid bottom tool bar — all tools, always visible, real layout row
+            (not floating) so Safari's chrome can't hide it. */}
+        {isMobile && !focusMode && !selectedElement && (
+          <MobileToolCarousel
+            isDark={isDark}
+            hasContent={!!html.trim() || Object.keys(vfsFiles).length > 0}
+            canShip={!!html.trim() || Object.keys(vfsFiles).length > 0}
+            editMode={editMode}
+            onVoice={openVoice}
+            onBuild={() => { setActivePanel('build'); setSidebarCollapsed(false); setTimeout(() => inputRef.current?.focus(), 80) }}
+            onEdit={() => setEditMode(v => !v)}
+            onTemplates={() => { setActivePanel('templates'); setSidebarCollapsed(false) }}
+            onImages={() => { setActivePanel('images'); setSidebarCollapsed(false) }}
+            onVideo={() => { setActivePanel('video'); setSidebarCollapsed(false) }}
+            onGrade={() => setGraderOpen(true)}
+            onProjects={() => { setActivePanel('projects'); setSidebarCollapsed(false) }}
+            onShip={() => { setActivePanel('deploy'); setSidebarCollapsed(false) }}
+          />
+        )}
 
       </main>
 

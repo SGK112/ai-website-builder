@@ -1,10 +1,8 @@
 'use client'
 
-// Mobile tool bar — Vibecode-style: small, uniform icon+label tools that float
-// over the preview, no chunky chips or enclosing panel. The full tool set lives
-// here in a horizontally scrollable row; a soft bottom scrim keeps the icons
-// legible over any preview content without looking like a bar. Talk is the
-// accented primary.
+// Mobile bottom tool bar. A solid, always-visible row at the bottom of the
+// workspace (a real layout row, not a floating fixed element — so Safari's
+// bottom chrome can't cover it). All tools live here, scrolling horizontally.
 
 import { cn } from '@/lib/utils'
 import {
@@ -29,7 +27,7 @@ interface Props {
 }
 
 export function MobileToolCarousel({
-  hasContent, canShip, editMode,
+  isDark, hasContent, canShip, editMode,
   onBuild, onVoice, onEdit, onTemplates, onImages, onVideo, onGrade, onProjects, onShip,
 }: Props) {
   const tools: { key: string; label: string; Icon: React.ComponentType<{ className?: string }>; onClick: () => void; disabled?: boolean; active?: boolean; primary?: boolean }[] = [
@@ -45,16 +43,14 @@ export function MobileToolCarousel({
   ]
 
   return (
-    <div className="md:hidden fixed inset-x-0 bottom-0 z-[55] pointer-events-none">
-      {/* Soft scrim so the floating icons read over light/busy previews. */}
-      <div
-        className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/45 to-transparent"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-auto relative flex items-end gap-1 overflow-x-auto scrollbar-hide px-4 [-webkit-overflow-scrolling:touch]"
-        style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))', paddingTop: '8px' }}
-      >
+    <div
+      className={cn(
+        'md:hidden shrink-0 border-t',
+        isDark ? 'bg-zinc-950 border-white/10' : 'bg-white border-slate-200'
+      )}
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    >
+      <div className="flex items-stretch gap-1 overflow-x-auto scrollbar-hide px-3 py-2 [-webkit-overflow-scrolling:touch]">
         {tools.map(({ key, label, Icon, onClick, disabled, active, primary }) => (
           <button
             key={key}
@@ -63,10 +59,13 @@ export function MobileToolCarousel({
             aria-label={label}
             aria-pressed={active}
             className={cn(
-              'shrink-0 flex flex-col items-center justify-center gap-1 w-[58px] transition-opacity active:opacity-60',
-              'drop-shadow-[0_1px_4px_rgba(0,0,0,0.55)]',
+              'shrink-0 flex flex-col items-center justify-center gap-1 w-[60px] py-1.5 rounded-xl transition-colors',
               disabled && 'opacity-35',
-              active || primary ? 'text-violet-400' : 'text-white',
+              active
+                ? 'text-white bg-gradient-to-br from-violet-600 to-fuchsia-600'
+                : primary
+                  ? 'text-violet-500'
+                  : isDark ? 'text-zinc-300 active:bg-white/5' : 'text-slate-600 active:bg-slate-100',
             )}
           >
             <Icon className="w-[22px] h-[22px]" />
