@@ -55,6 +55,21 @@ async function getDb() {
   return db
 }
 
+// A slug maps to exactly ONE site. Without a unique index the publish write
+// (upsert on {slug}) could overwrite another user's doc when two users race the
+// same candidate slug. The unique index turns that race into a duplicate-key
+// error we re-mint around. Once per process; createIndex is idempotent.
+let slugIndexEnsured = false
+async function ensureSlugIndex(col: any) {
+  if (slugIndexEnsured) return
+  slugIndexEnsured = true
+  try {
+    await col.createIndex({ slug: 1 }, { unique: true, partialFilterExpression: { slug: { $type: 'string' } } })
+  } catch (e: any) {
+    console.error('[publish] could not ensure unique slug index:', e?.message || e)
+  }
+}
+
 export interface PublishInput {
   userId: string
   name: string
@@ -143,23 +158,40 @@ export async function publishSite(input: PublishInput): Promise<PublishResult> {
   }
 
   const now = new Date()
-  await col.updateOne(
-    { slug },
-    {
-      $set: {
-        slug,
-        userId: input.userId,
-        projectId: projectId || null,
-        name,
-        files: filesToStore,
-        bytes: totalBytes,
-        published: true,
-        updatedAt: now,
+  await ensureSlugIndex(col)
+  // Owner-scoped upsert: filter on (slug, userId) so we can only ever update OUR
+  // OWN doc. If the slug is owned by someone else, no doc matches → the upsert
+  // attempts an insert → the unique slug index throws E11000 → we re-mint a
+  // fresh slug and retry. This closes the publish-time slug-hijack race.
+  const writeSlug = async (s: string) => {
+    await col.updateOne(
+      { slug: s, userId: input.userId },
+      {
+        $set: {
+          slug: s,
+          userId: input.userId,
+          projectId: projectId || null,
+          name,
+          files: filesToStore,
+          bytes: totalBytes,
+          published: true,
+          updatedAt: now,
+        },
+        $setOnInsert: { createdAt: now },
       },
-      $setOnInsert: { createdAt: now },
-    },
-    { upsert: true }
-  )
+      { upsert: true }
+    )
+  }
+  try {
+    await writeSlug(slug)
+  } catch (e: any) {
+    if (e?.code === 11000) {
+      slug = `${slugify(name) || 'site'}-${randSuffix()}`
+      await writeSlug(slug)
+    } else {
+      throw e
+    }
+  }
 
   // If the project's slug was renamed, remove the old-slug doc so it stops
   // serving stale content and a later re-publish can't nondeterministically
