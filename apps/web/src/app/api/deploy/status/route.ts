@@ -10,6 +10,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getUserCredential } from '@/lib/credentials-store'
+import { connectDB } from '@/lib/db'
+import { ObjectId } from 'mongodb'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,9 +35,31 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Valid serviceId required' }, { status: 400 })
   }
 
-  const renderKey = (await getUserCredential(session.user.id, 'render')) || ENV_RENDER_API_KEY
+  const byoKey = await getUserCredential(session.user.id, 'render')
+  const renderKey = byoKey || ENV_RENDER_API_KEY
   if (!renderKey) {
     return NextResponse.json({ error: 'Render not configured', status: 'unknown' }, { status: 503 })
+  }
+
+  // IDOR guard: with the PLATFORM key, the serviceId must belong to a project
+  // this user owns — otherwise anyone could read any service's deploy status
+  // (incl. other users' sites + platform infra) on the shared account by
+  // enumerating srv-… ids. A BYO key is the user's own Render account, so no
+  // cross-tenant exposure there.
+  if (!byoKey) {
+    const mongoose = await connectDB()
+    const db = mongoose.connection.db
+    const ownerOr: any[] = [{ userId: session.user.id }]
+    if (ObjectId.isValid(session.user.id)) ownerOr.push({ userId: new ObjectId(session.user.id) })
+    const owned = db
+      ? await db.collection('projects').findOne(
+          { 'deployment.renderServiceId': serviceId, $or: ownerOr },
+          { projection: { _id: 1 } },
+        )
+      : null
+    if (!owned) {
+      return NextResponse.json({ error: 'Not found', status: 'unknown' }, { status: 404 })
+    }
   }
 
   try {

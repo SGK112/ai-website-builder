@@ -73,7 +73,8 @@ export async function POST(req: NextRequest) {
     // multi-tenant deploys possible: each user's deploy lands in *their*
     // GitHub + Render accounts.
     const githubToken = (await getUserCredential(session.user.id, 'github')) || ENV_GITHUB_TOKEN
-    const renderKey = (await getUserCredential(session.user.id, 'render')) || ENV_RENDER_API_KEY
+    const byoRenderKey = await getUserCredential(session.user.id, 'render')
+    const renderKey = byoRenderKey || ENV_RENDER_API_KEY
     if (!githubToken) {
       return NextResponse.json({
         error: 'No GitHub token. Add one in Profile → Deploy credentials, or set GITHUB_ACCESS_TOKEN in the environment.',
@@ -131,13 +132,25 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Decide the service shape up front. A PAID web_service must NOT be funded
+    // on the platform's Render account — require the user's OWN Render key for
+    // anything that isn't a free static_site. (Their infra, their bill.)
+    const shape = detectDeployShape(finalFiles)
+    if (shape.kind !== 'static' && !byoRenderKey) {
+      return NextResponse.json({
+        error: 'Full-stack apps (Next.js/Node) deploy to YOUR own Render account. Add your Render API key in Profile → Deploy credentials.',
+        needsCredential: 'render',
+      }, { status: 400 })
+    }
+
+    // Never push secret-bearing dotfiles (.env*) into the repo.
+    finalFiles = finalFiles.filter(f => !/(^|\/)\.env(\.|$)/i.test(String(f?.path || '')))
+
     // Step 1: Create GitHub repo
     console.log('Creating GitHub repo:', repoName, 'CMS files baked:', cmsCounts)
     const repoUrl = await createGitHubRepo(repoName, finalFiles, githubToken)
 
-    // Step 2: Create Render service. Pick static_site vs web_service based on
-    // the framework signature in package.json — see detectDeployShape below.
-    const shape = detectDeployShape(finalFiles)
+    // Step 2: Create Render service.
     console.log('Creating Render service:', shape)
     const renderResult = await createRenderService(repoName, repoUrl, shape, renderKey)
 
@@ -211,7 +224,8 @@ async function createGitHubRepo(name: string, files: ProjectFile[], token: strin
     },
     body: JSON.stringify({
       name,
-      private: false,
+      // Private by default — don't publish a user's source/secrets publicly.
+      private: true,
       auto_init: true,
     }),
   })

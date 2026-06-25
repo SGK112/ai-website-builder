@@ -138,28 +138,31 @@ export async function POST(
       })
       await deployment.save()
 
-      // For Render deployment, we'd integrate with Render API here
-      // For now, we'll mark as success and provide manual deployment instructions
+      // HONEST STATUS: we created the GitHub repo but did NOT deploy to a live
+      // host. Don't claim "deployed" or hand back the repo URL as a live site —
+      // that previously told users they were live when nothing was serving.
       deployment.status = 'success'
-      deployment.deploymentUrl = repoResult.url
+      deployment.deploymentUrl = undefined
       deployment.logs.push({
         timestamp: new Date(),
-        message: 'Deployment preparation complete. Connect to Render manually.',
+        message: 'Repository created. Connect it to Render to go live — not a live site yet.',
         level: 'info',
       })
       await deployment.save()
 
-      project.status = 'deployed'
       project.deploymentId = deployment._id
       await project.save()
 
       return NextResponse.json({
         success: true,
+        live: false,
+        repositoryUrl: repoResult.url,
+        message: 'Repository created. Connect it to Render to go live — this is not a live site yet.',
         deployment: {
           id: deployment._id,
           status: deployment.status,
           repositoryUrl: repoResult.url,
-          deploymentUrl: deployment.deploymentUrl,
+          deploymentUrl: null,
         },
       })
     } catch (deployError) {

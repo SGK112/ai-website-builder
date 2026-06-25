@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 
 interface ProjectFile {
   path: string
@@ -9,9 +10,24 @@ interface ProjectFile {
 
 export async function POST(req: NextRequest) {
   try {
+    // Signed-in only. This route was unauthenticated AND fell back to the
+    // platform GitHub token — so anyone could create unlimited repos on
+    // Webstew's own GitHub account. Now: auth required, and we ONLY use the
+    // user's own connected token (users own their repos; the platform never
+    // creates them under its account).
     const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+    try {
+      await checkApiRateLimit(req, 'deployment')
+    } catch (error) {
+      const rateLimitResponse = handleRateLimitError(error)
+      if (rateLimitResponse) return rateLimitResponse
+      throw error
+    }
 
-    const { projectId, files, repoName, isPrivate, useUserToken } = await req.json()
+    const { files, repoName, isPrivate } = await req.json()
 
     if (!files || !repoName) {
       return NextResponse.json(
@@ -20,25 +36,21 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Determine which token to use
-    let githubToken: string | undefined
-
-    if (useUserToken && session?.user?.githubAccessToken) {
-      githubToken = session.user.githubAccessToken
-    } else {
-      // Fall back to platform token
-      githubToken = process.env.GITHUB_ACCESS_TOKEN
-    }
-
+    const githubToken = session.user.githubAccessToken
     if (!githubToken) {
       return NextResponse.json(
-        { error: 'GitHub authentication required. Please connect your GitHub account.' },
+        { error: 'Connect your GitHub account first to deploy to GitHub.', needsGithub: true },
         { status: 401 }
       )
     }
 
-    // Create the repository
-    const repoUrl = await createGitHubRepo(githubToken, repoName, files, isPrivate)
+    // Never push secret-bearing dotfiles (.env*) into a repo.
+    const safeFiles: ProjectFile[] = (Array.isArray(files) ? files : []).filter(
+      (f: ProjectFile) => !/(^|\/)\.env(\.|$)/i.test(String(f?.path || ''))
+    )
+
+    // Private by default — don't publish a user's source/secrets unless they opt in.
+    const repoUrl = await createGitHubRepo(githubToken, repoName, safeFiles, isPrivate !== false)
 
     return NextResponse.json({
       success: true,
