@@ -14,7 +14,8 @@
 import { connectDB } from '@/lib/db'
 import { createHmac } from 'crypto'
 
-const SECRET = process.env.NEXTAUTH_SECRET || 'webstew-backend-dev-secret'
+// NO dev fallback — a hardcoded secret would let anyone forge end-user tokens.
+const SECRET = process.env.NEXTAUTH_SECRET || ''
 
 export function appEntityId(appId: string, appUserId: string): string {
   return `app:${appId}:${appUserId}`
@@ -23,7 +24,7 @@ export function appEntityId(appId: string, appUserId: string): string {
 // Verify the HMAC end-user token minted by /api/backend/[appId]/auth
 // (shape: `appId.userId.exp.sig`). Returns the appUserId or null.
 export function verifyAppUserToken(appId: string, token: string | null): string | null {
-  if (!token) return null
+  if (!token || !SECRET) return null
   const parts = token.split('.')
   if (parts.length !== 4) return null
   const [tAppId, userId, expStr, sig] = parts

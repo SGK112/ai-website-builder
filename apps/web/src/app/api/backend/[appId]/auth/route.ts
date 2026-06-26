@@ -16,7 +16,10 @@ import { backendRateLimited } from '@/lib/backend-ratelimit'
 export const dynamic = 'force-dynamic'
 
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
-const SECRET = process.env.NEXTAUTH_SECRET || 'webstew-backend-dev-secret'
+// NO dev fallback: a hardcoded fallback secret means anyone can mint a valid
+// end-user token for any app (forge any user). Require the real secret; the
+// route hard-fails below if it's unset.
+const SECRET = process.env.NEXTAUTH_SECRET || ''
 
 function cors(res: NextResponse): NextResponse {
   res.headers.set('Access-Control-Allow-Origin', '*')
@@ -46,6 +49,9 @@ interface Ctx { params: { appId: string } }
 
 export async function POST(req: NextRequest, { params }: Ctx) {
   const { appId } = params
+  if (!SECRET) {
+    return cors(NextResponse.json({ error: 'Auth is not configured on this server.' }, { status: 503 }))
+  }
   // Tight per-(app, ip) cap — auth is the prime credential-stuffing / signup-spam target.
   const limited = backendRateLimited(req, appId, 'auth', 'auth')
   if (limited) return limited
@@ -63,6 +69,9 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   const users = db.collection('app_users')
 
   if (action === 'signup') {
+    if (password.length < 8) {
+      return cors(NextResponse.json({ error: 'Password must be at least 8 characters.' }, { status: 400 }))
+    }
     const exists = await users.findOne({ appId, email })
     if (exists) return cors(NextResponse.json({ error: 'An account with this email already exists.' }, { status: 409 }))
     const userId = randomUUID()

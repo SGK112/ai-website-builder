@@ -19,7 +19,18 @@ import { backendRateLimited } from '@/lib/backend-ratelimit'
 
 export const dynamic = 'force-dynamic'
 
-const RESERVED_COLLECTIONS = new Set(['_users']) // managed by /auth route only
+// Collections the PUBLIC data API must never touch. `_users` is auth-only.
+// `orders`/`payments` are written only by the Stripe checkout + webhook
+// (server-verified money) — exposing them here let anyone forge a paid order
+// (status:'paid', total:0) or read every customer's order PII with the public key.
+const RESERVED_COLLECTIONS = new Set(['_users', 'orders', '_orders', 'payments', '_payments'])
+
+// Cap a single document so the public (key-in-page) write API can't be used to
+// exhaust the shared store with giant payloads.
+const MAX_DOC_BYTES = 256 * 1024
+function tooLarge(payload: any): boolean {
+  try { return Buffer.byteLength(JSON.stringify(payload ?? {}), 'utf8') > MAX_DOC_BYTES } catch { return true }
+}
 
 function cors(res: NextResponse): NextResponse {
   // Generated sites live on other origins ({slug}.webstew.app, custom domains),
@@ -91,6 +102,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   const { appId, collection } = params
   let payload: any
   try { payload = await req.json() } catch { return cors(NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })) }
+  if (tooLarge(payload)) return cors(NextResponse.json({ error: 'Document too large (max 256KB).' }, { status: 413 }))
   const docId = randomUUID()
   const now = new Date()
   await g.db.collection('app_data').insertOne({ appId, collection, docId, data: payload ?? {}, createdAt: now, updatedAt: now })
@@ -107,6 +119,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
   if (!id) return cors(NextResponse.json({ error: 'id required' }, { status: 400 }))
   let payload: any
   try { payload = await req.json() } catch { return cors(NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })) }
+  if (tooLarge(payload)) return cors(NextResponse.json({ error: 'Document too large (max 256KB).' }, { status: 413 }))
   const now = new Date()
   const res = await g.db.collection('app_data').updateOne(
     { appId, collection, docId: id },
