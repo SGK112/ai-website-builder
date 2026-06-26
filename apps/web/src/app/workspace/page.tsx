@@ -173,7 +173,8 @@ import { ProjectList } from './components/ProjectList'
 import { NewProjectChooser } from './components/NewProjectChooser'
 import { useElementActions } from './hooks/useElementActions'
 import { MobileToolCarousel } from './components/MobileToolCarousel'
-import { MobileBuildHero } from './components/MobileBuildHero'
+import { MobileChatRail } from './components/MobileChatRail'
+import { MobileComposer } from './components/MobileComposer'
 import { MobileAccountMenu } from './components/MobileAccountMenu'
 import { VoiceBuildOverlay } from './components/VoiceBuildOverlay'
 import { VoiceBubble } from './components/VoiceBubble'
@@ -7664,11 +7665,6 @@ ${html}
     // even be implied) — but nudge for a default instruction if there's no text.
     if (!commandInput.trim() && pendingChatImages.length === 0) return
     const msg = commandInput.trim() || 'Update the site to match the attached image.'
-    // On mobile the conversation lives in the bottom sheet — surface it so the
-    // user watches the chef cook in a VISIBLE thread (their message bubble pops
-    // in, the build streams) instead of staring at the composer. The sheet
-    // springs up = the "idea → live build" transform.
-    if (isMobile) { setActivePanel('build'); setSidebarCollapsed(false) }
     handleChatMessage(msg)
   }
 
@@ -11067,16 +11063,16 @@ npx eas build --platform all
                     </div>
                   </div>
                 ) : isMobile ? (
-                  // Mobile blank state — branded hero + composer (own component
-                  // so page.tsx stays thin).
-                  <MobileBuildHero
-                    isDark={isDark}
-                    value={commandInput}
-                    onChange={setCommandInput}
-                    onSubmit={handleCommandSubmit}
-                    onVoice={openVoice}
-                    isGenerating={isGenerating}
-                  />
+                  // Blank canvas — the creation happens here. The composer +
+                  // floating chat rail overlay it (rendered just below the canvas).
+                  <div className={cn('relative w-full h-full overflow-hidden', isDark ? 'bg-zinc-950' : 'bg-white')}>
+                    {isDark && (
+                      <div
+                        className="pointer-events-none absolute inset-0"
+                        style={{ background: 'radial-gradient(60% 40% at 50% 36%, rgba(139,92,246,0.10), transparent 70%)' }}
+                      />
+                    )}
+                  </div>
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-zinc-900/50 p-6">
                     <div className="text-center max-w-md">
@@ -11115,6 +11111,23 @@ npx eas build --platform all
                   </div>
                 )}
               </motion.div>
+
+              {/* Mobile: the conversation floats up the side over the canvas,
+                  and one minimal composer (text or voice) sits at the bottom —
+                  so the building site stays the star. */}
+              {isMobile && (
+                <>
+                  <MobileChatRail isDark={isDark} messages={chatMessages} streaming={isThinking || isGenerating} />
+                  <MobileComposer
+                    isDark={isDark}
+                    value={commandInput}
+                    onChange={setCommandInput}
+                    onSubmit={handleCommandSubmit}
+                    onVoice={openVoice}
+                    isGenerating={isGenerating}
+                  />
+                </>
+              )}
             </div>
           )}
 
