@@ -39,10 +39,14 @@ export async function POST(req: NextRequest) {
     if (limited) return limited
   }
 
+  // Voice INPUT (stt) is part of the anon-first build funnel: talking to the
+  // builder works exactly like typing, for signed-in AND anonymous users
+  // (metered when signed in; anon is allowed — STT is cheap and the request is
+  // IP-rate-limited above). Spoken-reply OUTPUT (tts) still needs an account.
   const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-  }
+  const userId = session?.user?.id
+  // No-op meter for the anon path so the spend/refund flow below is uniform.
+  const noMeter = { ok: true as const, charged: 0, status: 200, error: undefined as string | undefined, refund: async () => {} }
 
   let body: any
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
@@ -52,6 +56,7 @@ export async function POST(req: NextRequest) {
 
   // ── TTS: text → speech ───────────────────────────────────────────────────
   if (action === 'tts') {
+    if (!userId) return NextResponse.json({ error: 'Sign in to hear spoken replies.' }, { status: 401 })
     const text = String(body?.text || '').trim()
     if (!text) return NextResponse.json({ error: 'text is required' }, { status: 400 })
 
@@ -98,8 +103,9 @@ export async function POST(req: NextRequest) {
     try { audio = Buffer.from(raw, 'base64') } catch { return NextResponse.json({ error: 'audio must be base64' }, { status: 400 }) }
     if (!audio.length) return NextResponse.json({ error: 'audio is empty' }, { status: 400 })
 
-    // Transcription is cheap — metered at chat_message rate.
-    const spend = await spendCredits(session, 'chat_message')
+    // Transcription is cheap — metered at chat_message rate when signed in;
+    // anonymous voice input is allowed (the build funnel meters at generate).
+    const spend = userId ? await spendCredits(session, 'chat_message') : noMeter
     if (!spend.ok) return NextResponse.json({ error: spend.error }, { status: spend.status || 402 })
 
     try {

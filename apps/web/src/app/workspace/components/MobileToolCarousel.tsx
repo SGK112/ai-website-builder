@@ -7,7 +7,7 @@
 import { cn } from '@/lib/utils'
 import {
   MessageSquarePlus, Pencil, LayoutTemplate, Image as ImageIcon,
-  Clapperboard, Gauge, Rocket, FolderOpen, Mic, Square,
+  Clapperboard, Gauge, Rocket, FolderOpen,
 } from 'lucide-react'
 
 interface Props {
@@ -15,11 +15,7 @@ interface Props {
   hasContent: boolean
   canShip: boolean
   editMode: boolean
-  // True while the mic is recording — talk to the builder, STT happens in the
-  // background and lands in the chat. Tap again to stop & send.
-  voiceListening?: boolean
   onBuild: () => void
-  onVoice: () => void
   onEdit: () => void
   onTemplates: () => void
   onImages: () => void
@@ -30,11 +26,10 @@ interface Props {
 }
 
 export function MobileToolCarousel({
-  isDark, hasContent, canShip, editMode, voiceListening,
-  onBuild, onVoice, onEdit, onTemplates, onImages, onVideo, onGrade, onProjects, onShip,
+  isDark, hasContent, canShip, editMode,
+  onBuild, onEdit, onTemplates, onImages, onVideo, onGrade, onProjects, onShip,
 }: Props) {
   const tools: { key: string; label: string; Icon: React.ComponentType<{ className?: string }>; onClick: () => void; disabled?: boolean; active?: boolean; primary?: boolean; pulse?: boolean }[] = [
-    { key: 'voice', label: voiceListening ? 'Listening' : 'Talk', Icon: voiceListening ? Square : Mic, onClick: onVoice, primary: true, pulse: voiceListening },
     { key: 'build', label: 'Build', Icon: MessageSquarePlus, onClick: onBuild },
     { key: 'edit', label: 'Edit', Icon: Pencil, onClick: onEdit, disabled: !hasContent, active: editMode },
     { key: 'templates', label: 'Templates', Icon: LayoutTemplate, onClick: onTemplates },

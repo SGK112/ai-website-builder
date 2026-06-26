@@ -163,17 +163,19 @@ export function useVoiceChat() {
     }
   }, [])
 
-  // Stop recording and resolve the transcript ('' on any failure).
-  const stopListening = useCallback(async (): Promise<string> => {
+  // Stop recording and resolve the transcript. Returns the real failure reason
+  // (auth, credits, empty audio, network) so the caller can SHOW it — silently
+  // swallowing it made every failure look like "didn't catch that".
+  const stopListening = useCallback(async (): Promise<{ text: string; error?: string }> => {
     const mr = recRef.current
     recRef.current = null
-    if (!mr) { setIsListening(false); return '' }
+    if (!mr) { setIsListening(false); return { text: '' } }
     setIsListening(false)
     const blob: Blob = await new Promise((resolve) => {
       mr.onstop = () => resolve(new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' }))
       try { mr.stop(); mr.stream.getTracks().forEach((t) => t.stop()) } catch { resolve(new Blob()) }
     })
-    if (!blob.size) return ''
+    if (!blob.size) return { text: '', error: 'No audio captured — check your microphone and try again.' }
     try {
       const dataUri = await blobToBase64(blob)
       const res = await fetch('/api/ai/voice', {
@@ -181,11 +183,11 @@ export function useVoiceChat() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'stt', audio: dataUri, mimeType: blob.type, provider: providerFor(voiceId) }),
       })
-      if (!res.ok) return ''
-      const data = await res.json()
-      return String(data?.text || '').trim()
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) return { text: '', error: data?.error || `Voice failed (${res.status}). Try again.` }
+      return { text: String(data?.text || '').trim() }
     } catch {
-      return ''
+      return { text: '', error: 'Voice request failed — check your connection.' }
     }
   }, [voiceId, providerFor])
 

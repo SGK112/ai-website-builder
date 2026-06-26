@@ -187,7 +187,6 @@ import { ImagesPanel } from './components/ImagesPanel'
 import { VideoPanel } from './components/VideoPanel'
 import { TemplatesPanel } from './components/TemplatesPanel'
 import { BuildChatPanel } from './components/BuildChatPanel'
-import { VoiceControls } from './components/VoiceControls'
 import { PhonePreview } from './components/PhonePreview'
 import { useVoiceChat } from './hooks/useVoiceChat'
 import { levelCopy, defaultBuildTargetForLevel } from './constants'
@@ -7679,9 +7678,9 @@ ${html}
   const handleMicToggle = useCallback(async () => {
     if (isGenerating) return
     if (voice.isListening) {
-      const transcript = await voice.stopListening()
-      if (transcript) { spokeByVoiceRef.current = true; handleChatMessage(transcript) }
-      else addToast('info', "Didn't catch that — try again, a little closer to the mic.")
+      const { text, error } = await voice.stopListening()
+      if (text) { spokeByVoiceRef.current = true; handleChatMessage(text) }
+      else addToast(error ? 'error' : 'info', error || "Didn't catch that — try again, a little closer to the mic.")
     } else {
       // Surface why the mic failed instead of silently doing nothing (the main
       // "voice doesn't work on mobile" symptom). startListening classifies the
@@ -9440,8 +9439,8 @@ npx eas build --platform all
                     const file = img?.getAsFile()
                     if (file) { e.preventDefault(); void attachImageToChat(file) }
                   }}
-                  placeholder={currentProject?.role === 'viewer' ? 'View only — ask the owner for edit access' : isGenerating ? 'Creating...' : levelCopy[skillLevel].chatPlaceholder}
-                  disabled={isGenerating || currentProject?.role === 'viewer'}
+                  placeholder={currentProject?.role === 'viewer' ? 'View only — ask the owner for edit access' : voice.isListening ? 'Listening…' : isGenerating ? 'Creating...' : levelCopy[skillLevel].chatPlaceholder}
+                  disabled={isGenerating || voice.isListening || currentProject?.role === 'viewer'}
                   className={cn(
                     "flex-1 min-w-0 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/50 disabled:opacity-50",
                     isDark
@@ -9449,6 +9448,27 @@ npx eas build --platform all
                       : "bg-white border-slate-200 text-slate-900 placeholder-slate-400"
                   )}
                 />
+                {/* Talk — same input, just by voice. Tap to record, tap to send;
+                    STT runs in the background and lands in the chat like a typed
+                    message. The one voice control (no separate widget). */}
+                {voice.available && !isThinking && !isGenerating && (
+                  <button
+                    type="button"
+                    onClick={handleMicToggle}
+                    disabled={currentProject?.role === 'viewer'}
+                    title={voice.isListening ? 'Stop & send' : 'Talk to the builder'}
+                    aria-label={voice.isListening ? 'Stop recording and send' : 'Talk to the builder'}
+                    aria-pressed={voice.isListening}
+                    className={cn(
+                      'w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-all disabled:opacity-40',
+                      voice.isListening
+                        ? 'bg-rose-500 text-white animate-pulse'
+                        : isDark ? 'text-zinc-400 hover:text-violet-300 hover:bg-white/5' : 'text-slate-500 hover:text-violet-600 hover:bg-slate-200'
+                    )}
+                  >
+                    {voice.isListening ? <Square className="w-4 h-4 fill-current" /> : <Mic className="w-4 h-4" />}
+                  </button>
+                )}
                 {/* Send / Stop — inline with the input. Morphs to Stop while a
                     request is in flight (recovery for stuck "thinking" states). */}
                 {isThinking || isGenerating ? (
@@ -9546,20 +9566,6 @@ npx eas build --platform all
                 <ChefHat className="w-3.5 h-3.5" />
               </button>
 
-              {/* Voice for the chef — talk to the builder, hear it answer, pick a voice */}
-              <VoiceControls
-                isDark={isDark}
-                available={voice.available}
-                voices={voice.voices}
-                voiceId={voice.voiceId}
-                onSelectVoice={voice.selectVoice}
-                speakReplies={voice.speakReplies}
-                onToggleSpeakReplies={voice.toggleSpeakReplies}
-                isListening={voice.isListening}
-                isSpeaking={voice.isSpeaking}
-                busy={isGenerating || currentProject?.role === 'viewer'}
-                onMicToggle={handleMicToggle}
-              />
               </div>
             </div>
             {/* Model selector + credits — desktop only; mobile stays minimal (chat/voice/tools). */}
@@ -11140,8 +11146,6 @@ npx eas build --platform all
             hasContent={!!html.trim() || Object.keys(vfsFiles).length > 0}
             canShip={!!html.trim() || Object.keys(vfsFiles).length > 0}
             editMode={editMode}
-            onVoice={handleMicToggle}
-            voiceListening={voice.isListening}
             onBuild={() => { setActivePanel('build'); setSidebarCollapsed(false); setTimeout(() => inputRef.current?.focus(), 80) }}
             onEdit={() => setEditMode(v => !v)}
             onTemplates={() => { setActivePanel('templates'); setSidebarCollapsed(false) }}
