@@ -31,6 +31,14 @@ vi.mock('@ai-website-builder/ai-agents', () => ({
   CODE_GENERATION_PROMPTS: {},
 }))
 
+// Anon project-create now passes through the abuse guard (per-IP rate limit +
+// bot-UA check). It's an external concern with its own tests; here it's a no-op
+// by default so the route logic is what's under test. Individual tests override
+// it to assert the gate is wired.
+vi.mock('@/lib/abuse-guard', () => ({
+  guardAnonAbuse: vi.fn().mockResolvedValue(null),
+}))
+
 vi.mock('mongoose', () => {
   const ObjectId: any = vi.fn().mockImplementation((id) => id || 'mock-object-id')
   // Routes call the static mongoose.Types.ObjectId.isValid(); the mock omitted
@@ -39,8 +47,10 @@ vi.mock('mongoose', () => {
   return { default: { Types: { ObjectId } } }
 })
 
+import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { Project } from '@ai-website-builder/database'
+import { guardAnonAbuse } from '@/lib/abuse-guard'
 import { GET, POST } from '@/app/api/projects/route'
 
 describe('Projects API', () => {
@@ -246,6 +256,36 @@ describe('Projects API', () => {
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
+    })
+
+    it('runs the abuse guard on anonymous creation and returns its block', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce(null)
+      vi.mocked(guardAnonAbuse).mockResolvedValueOnce(
+        NextResponse.json({ error: 'Automated clients are not permitted on this endpoint.' }, { status: 403 }) as any
+      )
+
+      const req = new NextRequest('http://localhost:3000/api/projects', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Anon', type: 'website' }),
+      })
+      const response = await POST(req)
+
+      expect(response.status).toBe(403)
+      expect(vi.mocked(guardAnonAbuse)).toHaveBeenCalled()
+      expect(Project.create).not.toHaveBeenCalled()
+    })
+
+    it('does NOT run the abuse guard for authenticated creation', async () => {
+      vi.mocked(getServerSession).mockResolvedValueOnce(mockSession as any)
+      vi.mocked(Project.create).mockResolvedValueOnce({ _id: 'id', name: 'Test', type: 'website', status: 'ready', config: {} } as any)
+
+      const req = new NextRequest('http://localhost:3000/api/projects', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Test', type: 'website' }),
+      })
+      await POST(req)
+
+      expect(vi.mocked(guardAnonAbuse)).not.toHaveBeenCalled()
     })
 
     it('sets default values for optional fields', async () => {
