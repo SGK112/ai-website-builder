@@ -89,8 +89,12 @@ async function parseBody(req: NextRequest): Promise<{ projectId?: string; formId
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0] ||
+    // Cloudflare fronts the app and overwrites CF-Connecting-IP with the real
+    // client IP, so it can't be spoofed — unlike X-Forwarded-For, whose leftmost
+    // value a client can forge to rotate "IPs" and defeat the rate limit.
+    const ip = req.headers.get('cf-connecting-ip') ||
                req.headers.get('x-real-ip') ||
+               req.headers.get('x-forwarded-for')?.split(',')[0] ||
                'unknown'
 
     // Rate limiting
@@ -236,11 +240,26 @@ export async function GET(req: NextRequest) {
 
     // Authentication check - require login to view submissions
     const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 })
     }
 
     await connectDB()
+
+    // IDOR guard: submissions hold visitor PII (name/email/phone/message) — only
+    // the project's OWNER may read them. Without this, any logged-in user could
+    // pass any projectId (exposed in published-site markup) and read everyone's.
+    const db = mongoose.connection.db
+    const project = db && await db.collection('projects').findOne(
+      { _id: new mongoose.Types.ObjectId(projectId) },
+      { projection: { userId: 1 } }
+    )
+    if (!project || project.userId?.toString?.() !== session.user.id) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
 
     const query: Record<string, string> = { projectId }
     if (status) query.status = status
@@ -390,9 +409,12 @@ function isValidEmail(email: string): boolean {
   return emailRegex.test(email)
 }
 
+// Cap the number of fields too — per-field length is bounded below, but an
+// unbounded key count still lets one submission bloat toward Mongo's 16MB limit.
+const MAX_FORM_FIELDS = 50
 function sanitizeObject(obj: Record<string, any>): Record<string, any> {
   const sanitized: Record<string, any> = {}
-  for (const [key, value] of Object.entries(obj)) {
+  for (const [key, value] of Object.entries(obj).slice(0, MAX_FORM_FIELDS)) {
     if (typeof value === 'string') {
       // Basic HTML sanitization
       sanitized[key] = value

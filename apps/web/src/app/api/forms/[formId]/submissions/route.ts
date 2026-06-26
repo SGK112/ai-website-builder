@@ -46,6 +46,21 @@ export async function GET(
   }
 }
 
+// Escape HTML + cap fields for the public submit path. Returns null when the
+// payload isn't a usable object, so the caller can 400.
+function sanitizeSubmission(raw: unknown): Record<string, any> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const out: Record<string, any> = {}
+  const esc = (s: string) => s.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').slice(0, 10000)
+  for (const [key, value] of Object.entries(raw as Record<string, any>).slice(0, 50)) {
+    if (typeof value === 'string') out[key] = esc(value)
+    else if (typeof value === 'number' || typeof value === 'boolean') out[key] = value
+    else if (Array.isArray(value)) out[key] = value.slice(0, 100).map((v) => (typeof v === 'string' ? esc(v) : v))
+    // drop nested objects/other types
+  }
+  return Object.keys(out).length ? out : null
+}
+
 // POST - Submit a form (public endpoint for websites)
 export async function POST(
   request: NextRequest,
@@ -53,10 +68,17 @@ export async function POST(
 ) {
   try {
     const { formId } = params
-    const data = await request.json()
+    const raw = await request.json().catch(() => null)
 
     if (!ObjectId.isValid(formId)) {
       return NextResponse.json({ error: 'Invalid form ID' }, { status: 400 })
+    }
+    // Public, unauthenticated write — escape HTML and cap field count/length so a
+    // submission can't store XSS that fires in the owner's dashboard or bloat the
+    // collection toward Mongo's 16MB limit.
+    const data = sanitizeSubmission(raw)
+    if (!data) {
+      return NextResponse.json({ error: 'Form data is required' }, { status: 400 })
     }
 
     const client = await clientPromise
