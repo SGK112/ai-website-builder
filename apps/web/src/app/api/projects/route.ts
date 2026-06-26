@@ -3,6 +3,7 @@ import { getApiSession } from '@/lib/api-auth'
 import { connectDB } from '@/lib/db'
 import { Project } from '@ai-website-builder/database'
 import mongoose from 'mongoose'
+import { guardAnonAbuse } from '@/lib/abuse-guard'
 
 // GET /api/projects - List all projects for the authenticated user
 export async function GET(req: NextRequest) {
@@ -67,6 +68,16 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getApiSession(req)
+
+    // Anonymous create is allowed (demo funnel — a temp ObjectId owns the draft),
+    // but unbounded it lets an unauthenticated caller flood the shared `projects`
+    // collection with orphan docs. Bound the ANON path per-IP (authed users are
+    // accountable via their userId, and may be non-browser API/bridge clients, so
+    // they skip the bot-UA/rate guard).
+    if (!session?.user?.id) {
+      const blocked = await guardAnonAbuse(req, { rateLimit: 'projectCreation' })
+      if (blocked) return blocked
+    }
 
     const body = await req.json()
     const { name, description, type, config, preferredAgent } = body
