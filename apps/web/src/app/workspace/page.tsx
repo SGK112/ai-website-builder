@@ -7662,6 +7662,7 @@ ${html}
     // even be implied) — but nudge for a default instruction if there's no text.
     if (!commandInput.trim() && pendingChatImages.length === 0) return
     const msg = commandInput.trim() || 'Update the site to match the attached image.'
+    spokeByVoiceRef.current = false // typed turn → silent reply
     handleChatMessage(msg)
   }
 
@@ -7670,12 +7671,16 @@ ${html}
   // just the glue to the existing chat send + reply stream.
   const voice = useVoiceChat()
   const lastSpokenIdxRef = useRef(-1)
+  // True when the user's last turn came in by VOICE — then the chef speaks its
+  // reply back (a real two-way conversation). Typed turns stay silent. Resets
+  // per turn so the modality of the latest input decides.
+  const spokeByVoiceRef = useRef(false)
   // Tap mic to talk; tap again to stop → transcribe → send as a chat message.
   const handleMicToggle = useCallback(async () => {
     if (isGenerating) return
     if (voice.isListening) {
       const transcript = await voice.stopListening()
-      if (transcript) handleChatMessage(transcript)
+      if (transcript) { spokeByVoiceRef.current = true; handleChatMessage(transcript) }
       else addToast('info', "Didn't catch that — try again, a little closer to the mic.")
     } else {
       // Surface why the mic failed instead of silently doing nothing (the main
@@ -7692,10 +7697,11 @@ ${html}
   // (handleMicToggle → useVoiceChat) records, transcribes in the background, and
   // drops the text into the chat like a typed message. No separate voice screen.
 
-  // Speak the chef's replies when the toggle is on — only new, settled
-  // assistant turns (not mid-stream), tracked by index so none is re-spoken.
+  // Speak the chef's replies when the user started by voice (two-way) OR the
+  // persistent speak-toggle is on — only new, settled assistant turns (not
+  // mid-stream), tracked by index so none is re-spoken.
   useEffect(() => {
-    if (!voice.speakReplies || isThinking || isGenerating) return
+    if ((!voice.speakReplies && !spokeByVoiceRef.current) || isThinking || isGenerating) return
     const idx = chatMessages.length - 1
     const last = chatMessages[idx]
     if (idx > lastSpokenIdxRef.current && last?.role === 'assistant' && last.content?.trim()) {
