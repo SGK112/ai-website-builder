@@ -140,25 +140,31 @@ function ChatMessageBubble({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={cn('flex gap-2', msg.role === 'user' ? 'justify-end' : 'justify-start')}
+      initial={{ opacity: 0, y: 12, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+      className={cn('flex gap-2 items-end', msg.role === 'user' ? 'justify-end' : 'justify-start')}
     >
       {msg.role === 'assistant' && (
         <div className={cn(
-          'w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0',
-          isStreaming && 'ring-2 ring-violet-400/40'
+          'w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-md shadow-violet-500/30',
+          isStreaming && 'ring-2 ring-violet-400/50'
         )}>
           {isStreaming
             ? <motion.span animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 1.2, repeat: Infinity }}><Sparkles className="w-3.5 h-3.5 text-white" /></motion.span>
             : <Bot className="w-4 h-4 text-white" />}
         </div>
       )}
+      {/* Floating bubble: lifted off the canvas with a soft shadow (+ colored glow
+          on the user side), glass on the assistant side — so the thread reads as
+          a clear, legible conversation rather than flat panels. */}
       <div className={cn(
-        'max-w-[85%] rounded-2xl px-3 py-2 text-sm',
+        'max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm shadow-lg',
         msg.role === 'user'
-          ? isDark ? 'bg-violet-500/20 text-violet-100 rounded-br-sm' : 'bg-violet-500 text-white rounded-br-sm'
-          : isDark ? 'bg-zinc-800/80 text-zinc-100 rounded-bl-sm' : 'bg-slate-100 text-slate-800 rounded-bl-sm'
+          ? 'bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white rounded-br-md shadow-violet-500/30'
+          : isDark
+            ? 'bg-zinc-800/70 text-zinc-100 rounded-bl-md border border-white/10 shadow-black/30 backdrop-blur-sm'
+            : 'bg-white/90 text-slate-800 rounded-bl-md border border-slate-200/80 shadow-slate-300/60 backdrop-blur-sm'
       )}>
         <div className="whitespace-pre-wrap text-[13px] leading-relaxed">
           {isWaitingPlaceholder
@@ -231,7 +237,7 @@ function ChatMessageBubble({
         )}
       </div>
       {msg.role === 'user' && (
-        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center flex-shrink-0">
+        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center flex-shrink-0 shadow-md shadow-emerald-500/30">
           <User className="w-4 h-4 text-white" />
         </div>
       )}
@@ -394,10 +400,10 @@ export function BuildChatPanel({
               </motion.span>
             </div>
             <div className={cn(
-              "rounded-2xl rounded-bl-sm px-3.5 py-2 flex items-center gap-2 border",
+              "rounded-2xl rounded-bl-md px-3.5 py-2 flex items-center gap-2 border shadow-lg backdrop-blur-sm",
               isDark
-                ? "bg-gradient-to-r from-violet-500/15 to-fuchsia-500/10 border-violet-400/20"
-                : "bg-gradient-to-r from-violet-50 to-fuchsia-50 border-violet-200"
+                ? "bg-gradient-to-r from-violet-500/15 to-fuchsia-500/10 border-violet-400/20 shadow-violet-500/10"
+                : "bg-gradient-to-r from-violet-50 to-fuchsia-50 border-violet-200 shadow-violet-200/50"
             )}>
               <span className="flex gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -417,10 +423,13 @@ export function BuildChatPanel({
         {/* Generation progress */}
         {isGenerating && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex gap-2">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-md shadow-violet-500/30">
               <Loader2 className="w-4 h-4 text-white animate-spin" />
             </div>
-            <div className={cn("rounded-2xl rounded-bl-sm px-3 py-2", isDark ? "bg-zinc-800/80" : "bg-slate-100")}>
+            <div className={cn(
+              "rounded-2xl rounded-bl-md px-3.5 py-2.5 shadow-lg backdrop-blur-sm border",
+              isDark ? "bg-zinc-800/70 border-white/10 shadow-black/30" : "bg-white/90 border-slate-200/80 shadow-slate-300/60"
+            )}>
               <div className={cn("flex items-center gap-2 text-sm", isDark ? "text-violet-300" : "text-violet-600")}>
                 <span className="animate-pulse">Creating your {conversationIntent || 'content'}...</span>
               </div>
