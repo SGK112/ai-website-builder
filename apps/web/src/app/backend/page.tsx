@@ -146,6 +146,7 @@ export default function DataStudioPage() {
                 </table>
               </div>
             )}
+            <AddRowForm defaultCollection={active || 'products'} qs={qs} onAdded={(col) => { setActive(col); loadRows(col); loadOverview() }} />
           </section>
 
           <SecretsSection overview={overview} qs={qs} reload={loadOverview} />
@@ -186,6 +187,60 @@ function RowView({ row, columns, onDelete, onSave }: { row: Row; columns: string
         </tr>
       )}
     </>
+  )
+}
+
+// Owner-side row creation. Notably how the store's `products` price catalog gets
+// seeded — prices set here are trusted at checkout; the public app key can't write them.
+const PRODUCT_TEMPLATE = '{\n  "name": "Blue Hoodie",\n  "price": 4500,\n  "active": true\n}'
+function AddRowForm({ defaultCollection, qs, onAdded }: { defaultCollection: string; qs: () => string; onAdded: (collection: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const [collection, setCollection] = useState(defaultCollection)
+  const [json, setJson] = useState('')
+  const [err, setErr] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const start = () => {
+    const col = defaultCollection
+    setCollection(col)
+    setJson(col === 'products' ? PRODUCT_TEMPLATE : '{\n  \n}')
+    setErr(null); setOpen(true)
+  }
+  const submit = async () => {
+    let data: any
+    try { data = JSON.parse(json) } catch { setErr('Invalid JSON'); return }
+    const col = collection.trim()
+    if (!col) { setErr('Collection name required'); return }
+    setBusy(true); setErr(null)
+    try {
+      const r = await fetch(`/api/backend/admin/data?${qs()}&collection=${encodeURIComponent(col)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data }),
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error || 'Failed to add row')
+      setOpen(false); setJson(''); onAdded(col)
+    } catch (e: any) { setErr(e?.message || 'Failed') } finally { setBusy(false) }
+  }
+
+  if (!open) return (
+    <button onClick={start} className="mt-2 rounded-lg bg-white/5 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/10">+ Add row</button>
+  )
+  return (
+    <div className="mt-2 rounded-lg border border-white/10 bg-black/30 p-3">
+      <div className="mb-2 flex items-center gap-2">
+        <span className="text-[11px] text-zinc-500">Collection</span>
+        <input value={collection} onChange={(e) => setCollection(e.target.value)} placeholder="products"
+          className="w-40 rounded bg-white/[0.03] px-2 py-1 font-mono text-[11px] text-white outline-none ring-1 ring-white/10 placeholder-zinc-600" />
+        <span className="text-[10px] text-zinc-600">Use “products” for a trusted store price catalog.</span>
+      </div>
+      <textarea value={json} onChange={(e) => setJson(e.target.value)} rows={Math.min(12, json.split('\n').length + 1)}
+        className="w-full rounded bg-black/40 p-2 font-mono text-[11px] text-zinc-200 outline-none ring-1 ring-white/10" />
+      <div className="mt-1 flex items-center gap-2">
+        <button onClick={submit} disabled={busy} className="rounded bg-violet-600 px-2 py-1 text-[11px] text-white hover:bg-violet-500 disabled:opacity-50">Add</button>
+        <button onClick={() => setOpen(false)} className="rounded bg-white/5 px-2 py-1 text-[11px] text-zinc-300">Cancel</button>
+        {err && <span className="text-[11px] text-red-400">{err}</span>}
+      </div>
+    </div>
   )
 }
 

@@ -26,6 +26,17 @@ export const dynamic = 'force-dynamic'
 // (status:'paid', total:0) or read every customer's order PII with the public key.
 const RESERVED_COLLECTIONS = new Set(['_users', 'orders', '_orders', 'payments', '_payments'])
 
+// Collections the public API may READ but never WRITE. `products` is the store's
+// price catalog: the storefront reads it to render prices, but only the owner
+// (via the session-gated admin API) may create/edit it — otherwise the public,
+// in-page key could rewrite a product to 1¢ and defeat server-side pricing.
+const WRITE_RESERVED_COLLECTIONS = new Set(['products'])
+function writeReserved(collection: string): NextResponse | null {
+  return WRITE_RESERVED_COLLECTIONS.has(collection)
+    ? cors(NextResponse.json({ error: 'Read-only collection — managed by the app owner.' }, { status: 403 }))
+    : null
+}
+
 // Cap a single document so the public (key-in-page) write API can't be used to
 // exhaust the shared store with giant payloads.
 const MAX_DOC_BYTES = 256 * 1024
@@ -121,6 +132,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   const g = await guard(req, params)
   if ('err' in g) return g.err
   const { appId, collection } = params
+  const wr = writeReserved(collection); if (wr) return wr
   let payload: any
   try { payload = await req.json() } catch { return cors(NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })) }
   if (tooLarge(payload)) return cors(NextResponse.json({ error: 'Document too large (max 256KB).' }, { status: 413 }))
@@ -141,6 +153,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
   const g = await guard(req, params)
   if ('err' in g) return g.err
   const { appId, collection } = params
+  const wr = writeReserved(collection); if (wr) return wr
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return cors(NextResponse.json({ error: 'id required' }, { status: 400 }))
   let payload: any
@@ -163,6 +176,7 @@ export async function DELETE(req: NextRequest, { params }: Ctx) {
   const g = await guard(req, params)
   if ('err' in g) return g.err
   const { appId, collection } = params
+  const wr = writeReserved(collection); if (wr) return wr
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return cors(NextResponse.json({ error: 'id required' }, { status: 400 }))
   const me = getEndUser(appId, req)

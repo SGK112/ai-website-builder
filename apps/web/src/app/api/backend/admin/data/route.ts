@@ -11,6 +11,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { connectDB } from '@/lib/db'
 import { resolveOwnedBackend } from '@/lib/app-backend'
+import { randomUUID } from 'crypto'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,6 +53,26 @@ export async function GET(req: NextRequest) {
     items: rows.map((d) => ({ id: d.docId, data: d.data, createdAt: d.createdAt, updatedAt: d.updatedAt })),
     count: rows.length,
   })
+}
+
+// Owner-authenticated row CREATE. Unlike the public data API, the owner may
+// write reserved/managed collections here — notably `products` (the store's
+// trusted price catalog the public key cannot touch).
+export async function POST(req: NextRequest) {
+  const r = await ownedAppId(req)
+  if ('err' in r) return r.err
+  const collection = collectionParam(req)
+  if (!collection) return NextResponse.json({ error: 'collection required' }, { status: 400 })
+  let body: any
+  try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
+  const data = body && typeof body === 'object' && body.data && typeof body.data === 'object' ? body.data : body
+  if (!data || typeof data !== 'object') return NextResponse.json({ error: 'data object required' }, { status: 400 })
+
+  const db = await getDb()
+  const docId = randomUUID()
+  const now = new Date()
+  await db.collection('app_data').insertOne({ appId: r.appId, collection, docId, data, createdAt: now, updatedAt: now })
+  return NextResponse.json({ id: docId, data, createdAt: now, updatedAt: now }, { status: 201 })
 }
 
 export async function PUT(req: NextRequest) {

@@ -78,21 +78,57 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   try { body = await req.json() } catch { return cors(NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })) }
 
   const rawItems = Array.isArray(body?.items) ? body.items : []
-  if (!rawItems.length) return cors(NextResponse.json({ error: 'items required: [{ name, amount, quantity? }]' }, { status: 400 }))
+  if (!rawItems.length) return cors(NextResponse.json({ error: 'items required: [{ productId, quantity? }] or [{ name, amount, quantity? }]' }, { status: 400 }))
   if (rawItems.length > 50) return cors(NextResponse.json({ error: 'Too many line items (max 50).' }, { status: 400 }))
 
   const currency = String(body?.currency || 'usd').toLowerCase().slice(0, 3)
+
+  // Server-side price authority. A store can define a trusted product catalog
+  // (app_data collection `products`, written ONLY by the owner via Data Studio —
+  // the public data API blocks writes to it). When a catalog exists, checkout
+  // honors ONLY items referenced by `productId` and looks the price up here, so a
+  // buyer can never POST their own amount. Stores with no catalog keep the legacy
+  // inline-price path unchanged (backward compatible).
+  const appData = db.collection('app_data')
+  const hasCatalog = (await appData.countDocuments({ appId, collection: 'products' }, { limit: 1 })) > 0
+  const itemProductId = (it: any): string | null =>
+    (typeof it?.productId === 'string' && it.productId) || (typeof it?.id === 'string' && it.id) || null
+  const wantedIds = Array.from(new Set(rawItems.map(itemProductId).filter(Boolean))) as string[]
+  const catalog = new Map<string, any>()
+  if (wantedIds.length) {
+    const docs = await appData.find({ appId, collection: 'products', docId: { $in: wantedIds } }).toArray()
+    for (const d of docs) catalog.set(d.docId, d.data || {})
+  }
+
   const lineItems: any[] = []
+  const orderItems: any[] = []
   let total = 0
   for (const it of rawItems) {
-    const name = String(it?.name || '').trim().slice(0, 200)
-    const amount = Math.round(Number(it?.amount)) // cents
     const quantity = Math.min(Math.max(parseInt(String(it?.quantity ?? 1), 10) || 1, 1), 999)
-    if (!name) return cors(NextResponse.json({ error: 'Each item needs a name.' }, { status: 400 }))
-    if (!Number.isFinite(amount) || amount < 50 || amount > 100_000_00) {
-      return cors(NextResponse.json({ error: `Invalid amount for "${name}" (cents, 50–10,000,000).` }, { status: 400 }))
+    const productId = itemProductId(it)
+    let name: string
+    let amount: number // cents — server-trusted for catalog items
+    let image: string | undefined
+
+    if (productId) {
+      const p = catalog.get(productId)
+      if (!p) return cors(NextResponse.json({ error: `Unknown product: ${productId}` }, { status: 400 }))
+      if (p.active === false) return cors(NextResponse.json({ error: `Product is unavailable: ${productId}` }, { status: 400 }))
+      name = String(p.name || '').trim().slice(0, 200) || 'Item'
+      amount = Math.round(Number(p.price))
+      image = typeof p.image === 'string' && /^https?:\/\//.test(p.image) ? p.image : undefined
+    } else {
+      // Legacy inline price — allowed ONLY when the store has no trusted catalog.
+      if (hasCatalog) return cors(NextResponse.json({ error: 'This store prices items server-side — pass { productId, quantity }.' }, { status: 400 }))
+      name = String(it?.name || '').trim().slice(0, 200)
+      amount = Math.round(Number(it?.amount))
+      image = typeof it?.image === 'string' && /^https?:\/\//.test(it.image) ? it.image : undefined
+      if (!name) return cors(NextResponse.json({ error: 'Each item needs a name.' }, { status: 400 }))
     }
-    const image = typeof it?.image === 'string' && /^https?:\/\//.test(it.image) ? it.image : undefined
+
+    if (!Number.isFinite(amount) || amount < 50 || amount > 100_000_00) {
+      return cors(NextResponse.json({ error: `Invalid price for "${name}" (cents, 50–10,000,000).` }, { status: 400 }))
+    }
     lineItems.push({
       quantity,
       price_data: {
@@ -101,6 +137,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
         product_data: { name, ...(image ? { images: [image] } : {}) },
       },
     })
+    orderItems.push({ name, amount, quantity, ...(productId ? { productId } : {}) })
     total += amount * quantity
   }
 
@@ -160,7 +197,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       status: 'pending',
       currency,
       total,
-      items: lineItems.map((l) => ({ name: l.price_data.product_data.name, amount: l.price_data.unit_amount, quantity: l.quantity })),
+      items: orderItems,
       stripeSessionId: session.id,
       customerEmail: typeof body?.customerEmail === 'string' ? body.customerEmail : null,
       // Payout routing for this order (always owner-routed — blocked otherwise).

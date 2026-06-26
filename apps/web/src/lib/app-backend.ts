@@ -138,8 +138,16 @@ export function webstewDbClientScript(appId: string, apiKey: string): string {
         remove: function(id){ return req("/"+name+"?id="+encodeURIComponent(id),"DELETE"); }
       };
     },
-    // Stripe checkout for a store/cart. Pass items with prices in CENTS; the
-    // browser is redirected to Stripe's hosted checkout, then back to your site.
+    // Read-only product catalog (prices set by the owner in Data Studio). Render
+    // your storefront from these, then checkout by productId so prices are trusted
+    // server-side and a shopper can't tamper with them: products.list() -> [{id,name,price,...}]
+    products: {
+      list: function(){ return req("/products","GET").then(function(d){ return d.items||[]; }); }
+    },
+    // Stripe checkout for a store/cart. PREFER items by productId (price looked up
+    // server-side from the catalog above): checkout({ items:[{ productId, quantity }] }).
+    // Legacy inline prices ({ name, amount(CENTS), quantity }) work only for stores
+    // with no catalog. The browser is redirected to Stripe, then back to your site.
     checkout: async function(opts){
       var d = await req("/checkout","POST",opts||{});
       if(d && d.url){ try{ window.top.location.href = d.url; }catch(e){ window.location.href = d.url; } }
@@ -162,9 +170,13 @@ export function backendUsageGuide(appId: string): string {
     `   const jobs = await WebstewDB.collection("leads").list()      // newest first`,
     `   await WebstewDB.collection("leads").update(id, { status:"claimed" })`,
     `4. Store checkout / cart (real Stripe — no keys needed, the platform handles it):`,
-    `   await WebstewDB.checkout({ items:[{ name:"Blue Hoodie", amount:4500, quantity:2 }] })`,
-    `   amount is in CENTS. It redirects to Stripe, then back to your site (?paid=1).`,
-    `   Each completed order is saved to the "orders" collection automatically.`,
+    `   For a store with set prices, the OWNER adds products in Data Studio (collection`,
+    `   "products": { name, price(CENTS), active }); render them and checkout by id:`,
+    `     const products = await WebstewDB.products.list()   // [{ id, name, price }]`,
+    `     await WebstewDB.checkout({ items:[{ productId: id, quantity:2 }] })   // price is TRUSTED server-side`,
+    `   (Inline prices — { name, amount(CENTS), quantity } — still work only if no catalog exists,`,
+    `   but a shopper could tamper with them, so prefer productId for anything real.)`,
+    `   It redirects to Stripe, then back to your site (?paid=1). Orders are saved to "orders" automatically.`,
     `Use real onsubmit handlers (e.preventDefault() + await) — NEVER action="mailto:".`,
     `This is a static-site backend: data is shared per app (fine for a jobs board).`,
   ].join('\n')
