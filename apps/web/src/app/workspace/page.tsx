@@ -176,9 +176,6 @@ import { MobileToolCarousel } from './components/MobileToolCarousel'
 import { MobileChatRail } from './components/MobileChatRail'
 import { MobileComposer } from './components/MobileComposer'
 import { MobileAccountMenu } from './components/MobileAccountMenu'
-import { VoiceBuildOverlay } from './components/VoiceBuildOverlay'
-import { VoiceBubble } from './components/VoiceBubble'
-import { useRealtimeVoice } from './hooks/useRealtimeVoice'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import type { ImportedProject } from '@/lib/import-project'
 import { buildProjectFiles, chatSidecarFile, parseStoredProjectFiles } from '@/lib/project-sidecars'
@@ -7691,40 +7688,10 @@ ${html}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voice, isGenerating])
 
-  // Realtime voice-build: talk to the builder and it builds (OpenAI Realtime
-  // over WebRTC; see useRealtimeVoice). When the model calls the build_site
-  // tool with what the user described, we run the normal build pipeline.
-  const [showVoice, setShowVoice] = useState(false)
-  // Minimized = the session is live but collapsed to a floating bubble so the
-  // workspace (the site building) is visible. Auto-collapses once the
-  // conversation goes live; the user can expand/minimize manually after.
-  const [voiceMinimized, setVoiceMinimized] = useState(false)
-  const voiceAutoMinimizedRef = useRef(false)
-  const realtimeVoice = useRealtimeVoice({
-    onBuild: (p) => { setSidebarCollapsed(true); void handleChatMessage(p) },
-  })
-  const openVoice = useCallback(() => {
-    voiceAutoMinimizedRef.current = false
-    setVoiceMinimized(false)
-    setShowVoice(true)
-    void realtimeVoice.start()
-  }, [realtimeVoice])
-  const closeVoice = useCallback(() => {
-    realtimeVoice.stop()
-    setShowVoice(false)
-    setVoiceMinimized(false)
-    voiceAutoMinimizedRef.current = false
-  }, [realtimeVoice])
-  // Once the conversation is live (data channel open → 'listening'), shift to
-  // the workspace + floating bubble so the user watches their project cook
-  // while still talking. Only auto-minimizes once.
-  useEffect(() => {
-    if (!showVoice || voiceAutoMinimizedRef.current) return
-    if (realtimeVoice.status === 'listening' || realtimeVoice.status === 'speaking') {
-      voiceAutoMinimizedRef.current = true
-      setVoiceMinimized(true)
-    }
-  }, [showVoice, realtimeVoice.status])
+  // One build process: the chat. Voice is just an option within it — the mic
+  // (handleMicToggle → useVoiceChat) records, transcribes in the background, and
+  // drops the text into the chat like a typed message. No separate voice screen.
+
   // Speak the chef's replies when the toggle is on — only new, settled
   // assistant turns (not mid-stream), tracked by index so none is re-spoken.
   useEffect(() => {
@@ -9834,32 +9801,6 @@ npx eas build --platform all
           </>
         )}
 
-        {/* Realtime voice-build — talk and it builds. Full-screen orb while
-            connecting; once the conversation is live it collapses to the
-            floating bubble so the workspace (the site cooking) is visible. */}
-        {showVoice && (!voiceMinimized || realtimeVoice.status === 'error') && (
-          <VoiceBuildOverlay
-            isDark={isDark}
-            status={realtimeVoice.status}
-            error={realtimeVoice.error}
-            userText={realtimeVoice.userText}
-            assistantText={realtimeVoice.assistantText}
-            onClose={closeVoice}
-            onRetry={() => void realtimeVoice.start()}
-            onMinimize={() => setVoiceMinimized(true)}
-          />
-        )}
-        {showVoice && voiceMinimized && realtimeVoice.status !== 'error' && (
-          <VoiceBubble
-            isDark={isDark}
-            status={realtimeVoice.status}
-            userText={realtimeVoice.userText}
-            assistantText={realtimeVoice.assistantText}
-            onExpand={() => setVoiceMinimized(false)}
-            onEnd={closeVoice}
-          />
-        )}
-
         {/* Toolbar - High z-index so dropdowns appear above preview.
             Desktop only — mobile uses the minimal header above. */}
         {!isMobile && <header
@@ -11094,15 +11035,19 @@ npx eas build --platform all
                         <>
                           <p className="text-zinc-500 font-medium text-sm">{levelCopy[skillLevel].previewEmptyTitle}</p>
                           <p className="text-zinc-400 text-xs mt-1">{levelCopy[skillLevel].previewEmptyBody}</p>
-                          {/* Voice as a first-class, highlighted way in — not
-                              buried in the chat mic. Opens the realtime
-                              voice-build overlay; a tool call routes straight
-                              into the normal build pipeline. */}
+                          {/* Voice = an option in the one build process: the mic
+                              records, transcribes in the background, and drops
+                              the text into the chat like any message. */}
                           <button
-                            onClick={openVoice}
-                            className="mt-5 inline-flex items-center gap-2.5 rounded-2xl px-5 py-3 bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white text-sm font-semibold shadow-lg shadow-violet-500/30 hover:shadow-violet-500/40 hover:scale-[1.02] transition"
+                            onClick={handleMicToggle}
+                            className={cn(
+                              "mt-5 inline-flex items-center gap-2.5 rounded-2xl px-5 py-3 text-white text-sm font-semibold shadow-lg transition hover:scale-[1.02]",
+                              voice.isListening
+                                ? "bg-gradient-to-br from-rose-500 to-fuchsia-600 shadow-rose-500/40 animate-pulse"
+                                : "bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-violet-500/30 hover:shadow-violet-500/40"
+                            )}
                           >
-                            <Mic className="w-[18px] h-[18px]" /> Talk and I’ll build it
+                            <Mic className="w-[18px] h-[18px]" /> {voice.isListening ? 'Listening… tap to send' : 'Talk and I’ll build it'}
                           </button>
                           <p className="text-zinc-600 text-[11px] mt-2.5">or describe it in the chat →</p>
                         </>
