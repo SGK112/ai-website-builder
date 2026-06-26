@@ -7,7 +7,7 @@
 import { cn } from '@/lib/utils'
 import {
   MessageSquarePlus, Pencil, LayoutTemplate, Image as ImageIcon,
-  Clapperboard, Gauge, Rocket, FolderOpen, Mic,
+  Clapperboard, Gauge, Rocket, FolderOpen, Mic, Square,
 } from 'lucide-react'
 
 interface Props {
@@ -15,6 +15,9 @@ interface Props {
   hasContent: boolean
   canShip: boolean
   editMode: boolean
+  // True while the mic is recording — talk to the builder, STT happens in the
+  // background and lands in the chat. Tap again to stop & send.
+  voiceListening?: boolean
   onBuild: () => void
   onVoice: () => void
   onEdit: () => void
@@ -27,11 +30,11 @@ interface Props {
 }
 
 export function MobileToolCarousel({
-  isDark, hasContent, canShip, editMode,
+  isDark, hasContent, canShip, editMode, voiceListening,
   onBuild, onVoice, onEdit, onTemplates, onImages, onVideo, onGrade, onProjects, onShip,
 }: Props) {
-  const tools: { key: string; label: string; Icon: React.ComponentType<{ className?: string }>; onClick: () => void; disabled?: boolean; active?: boolean; primary?: boolean }[] = [
-    { key: 'voice', label: 'Talk', Icon: Mic, onClick: onVoice, primary: true },
+  const tools: { key: string; label: string; Icon: React.ComponentType<{ className?: string }>; onClick: () => void; disabled?: boolean; active?: boolean; primary?: boolean; pulse?: boolean }[] = [
+    { key: 'voice', label: voiceListening ? 'Listening' : 'Talk', Icon: voiceListening ? Square : Mic, onClick: onVoice, primary: true, pulse: voiceListening },
     { key: 'build', label: 'Build', Icon: MessageSquarePlus, onClick: onBuild },
     { key: 'edit', label: 'Edit', Icon: Pencil, onClick: onEdit, disabled: !hasContent, active: editMode },
     { key: 'templates', label: 'Templates', Icon: LayoutTemplate, onClick: onTemplates },
@@ -51,16 +54,17 @@ export function MobileToolCarousel({
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       <div className="flex items-stretch gap-1 overflow-x-auto scrollbar-hide px-3 py-2 [-webkit-overflow-scrolling:touch]">
-        {tools.map(({ key, label, Icon, onClick, disabled, active, primary }) => (
+        {tools.map(({ key, label, Icon, onClick, disabled, active, primary, pulse }) => (
           <button
             key={key}
             onClick={onClick}
             disabled={disabled}
             aria-label={label}
-            aria-pressed={active}
+            aria-pressed={active || pulse}
             className={cn(
               'shrink-0 flex flex-col items-center justify-center gap-1 w-[60px] py-1.5 rounded-xl transition-colors',
               disabled && 'opacity-35',
+              pulse && 'animate-pulse',
               active
                 ? 'text-white bg-gradient-to-br from-violet-600 to-fuchsia-600'
                 : primary

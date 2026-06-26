@@ -11123,7 +11123,8 @@ npx eas build --platform all
                     value={commandInput}
                     onChange={setCommandInput}
                     onSubmit={handleCommandSubmit}
-                    onVoice={openVoice}
+                    onVoice={handleMicToggle}
+                    isListening={voice.isListening}
                     isGenerating={isGenerating}
                   />
                 </>
@@ -11188,7 +11189,8 @@ npx eas build --platform all
             hasContent={!!html.trim() || Object.keys(vfsFiles).length > 0}
             canShip={!!html.trim() || Object.keys(vfsFiles).length > 0}
             editMode={editMode}
-            onVoice={openVoice}
+            onVoice={handleMicToggle}
+            voiceListening={voice.isListening}
             onBuild={() => { setActivePanel('build'); setSidebarCollapsed(false); setTimeout(() => inputRef.current?.focus(), 80) }}
             onEdit={() => setEditMode(v => !v)}
             onTemplates={() => { setActivePanel('templates'); setSidebarCollapsed(false) }}
