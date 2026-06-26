@@ -64,7 +64,9 @@ export function MobileToolCarousel({
               active
                 ? 'text-white bg-gradient-to-br from-violet-600 to-fuchsia-600'
                 : primary
-                  ? 'text-violet-500'
+                  // The voice build — Webstew's marquee move. Make it the one
+                  // filled, glowing chip so the eye lands on "Talk" first.
+                  ? 'text-white bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-md shadow-violet-600/30'
                   : isDark ? 'text-zinc-300 active:bg-white/5' : 'text-slate-600 active:bg-slate-100',
             )}
           >

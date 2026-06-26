@@ -173,6 +173,7 @@ import { ProjectList } from './components/ProjectList'
 import { NewProjectChooser } from './components/NewProjectChooser'
 import { useElementActions } from './hooks/useElementActions'
 import { MobileToolCarousel } from './components/MobileToolCarousel'
+import { MobileBuildHero } from './components/MobileBuildHero'
 import { MobileAccountMenu } from './components/MobileAccountMenu'
 import { VoiceBuildOverlay } from './components/VoiceBuildOverlay'
 import { VoiceBubble } from './components/VoiceBubble'
@@ -11055,56 +11056,16 @@ npx eas build --platform all
                     </div>
                   </div>
                 ) : isMobile ? (
-                  // Mobile blank state: one full-screen composer. Type or tap the mic.
-                  <div className={cn('w-full h-full flex flex-col px-4 pb-4 pt-16', isDark ? 'bg-zinc-950' : 'bg-slate-50')}>
-                    <div
-                      className={cn(
-                        'relative flex-1 flex flex-col rounded-3xl border overflow-hidden',
-                        'shadow-[0_0_50px_-16px_rgba(139,92,246,0.35)]',
-                        isDark ? 'bg-zinc-900/60 border-violet-500/15' : 'bg-white border-slate-200 shadow-sm'
-                      )}
-                    >
-                      {/* Webstew gradient accent line */}
-                      <div className="h-[3px] shrink-0 bg-gradient-to-r from-violet-500 via-fuchsia-500 to-violet-500" />
-                      <textarea
-                        value={commandInput}
-                        onChange={(e) => setCommandInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleCommandSubmit() }
-                        }}
-                        placeholder="Describe your website or app…"
-                        disabled={isGenerating}
-                        className={cn(
-                          'flex-1 w-full resize-none bg-transparent px-5 pt-5 text-[17px] leading-relaxed outline-none',
-                          isDark ? 'text-white placeholder-zinc-500' : 'text-slate-900 placeholder-slate-400'
-                        )}
-                      />
-                      {/* Mic morphs to send once there's text. */}
-                      <div className="flex items-center justify-end px-3 pb-3 pt-1">
-                        {commandInput.trim() ? (
-                          <button
-                            onClick={handleCommandSubmit}
-                            disabled={isGenerating}
-                            aria-label="Send"
-                            className="w-11 h-11 rounded-full flex items-center justify-center bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-lg shadow-violet-600/30 active:scale-95 transition"
-                          >
-                            <Send className="w-5 h-5" />
-                          </button>
-                        ) : (
-                          <button
-                            onClick={openVoice}
-                            aria-label="Talk to build"
-                            className={cn(
-                              'w-11 h-11 rounded-full flex items-center justify-center transition active:scale-95',
-                              isDark ? 'bg-white/[0.08] text-zinc-200 active:bg-white/15' : 'bg-slate-200 text-slate-600 active:bg-slate-300'
-                            )}
-                          >
-                            <Mic className="w-5 h-5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  // Mobile blank state — branded hero + composer (own component
+                  // so page.tsx stays thin).
+                  <MobileBuildHero
+                    isDark={isDark}
+                    value={commandInput}
+                    onChange={setCommandInput}
+                    onSubmit={handleCommandSubmit}
+                    onVoice={openVoice}
+                    isGenerating={isGenerating}
+                  />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-zinc-900/50 p-6">
                     <div className="text-center max-w-md">
