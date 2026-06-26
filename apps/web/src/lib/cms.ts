@@ -46,19 +46,35 @@ export function validateSchema(input: any): { ok: true; schema: CmsSchema } | { 
 // failure (so callers can 400) or a typed value on success. Doesn't enforce
 // required-ness — that's the route's job since it knows whether this is a
 // create or a partial update.
+// Per-field length caps. Every item lives inline in the single project doc, so
+// an unbounded field can bloat it toward Mongo's 16MB ceiling and brick the
+// project. URLs are short; long-form text is generous but bounded.
+const MAX_TEXT_LEN = 100_000
+const MAX_URL_LEN = 2048
+// Schemes that execute when a stored URL is dropped into an href/src on the
+// published site. Reject at write time (defense-in-depth against stored XSS).
+const UNSAFE_URL_SCHEME = /^\s*(javascript|vbscript):/i
+
 export function coerceField(type: CmsFieldType, value: any): { ok: true; value: any } | { ok: false; error: string } {
   if (value === null || value === undefined) return { ok: true, value: null }
   switch (type) {
     case 'text':
     case 'textarea':
     case 'markdown':
-      return typeof value === 'string' ? { ok: true, value } : { ok: false, error: 'expected string' }
+      if (typeof value !== 'string') return { ok: false, error: 'expected string' }
+      if (value.length > MAX_TEXT_LEN) return { ok: false, error: `too long (max ${MAX_TEXT_LEN} chars)` }
+      return { ok: true, value }
     case 'url':
       if (typeof value !== 'string') return { ok: false, error: 'expected string url' }
+      if (value.length > MAX_URL_LEN) return { ok: false, error: 'url too long' }
+      if (UNSAFE_URL_SCHEME.test(value)) return { ok: false, error: 'unsafe url scheme' }
       try { new URL(value); return { ok: true, value } } catch { return { ok: false, error: 'invalid url' } }
     case 'image':
       // Stored as URL (Cloudinary or external). Empty string allowed = cleared.
-      return typeof value === 'string' ? { ok: true, value } : { ok: false, error: 'expected image url string' }
+      if (typeof value !== 'string') return { ok: false, error: 'expected image url string' }
+      if (value.length > MAX_URL_LEN) return { ok: false, error: 'image url too long' }
+      if (UNSAFE_URL_SCHEME.test(value)) return { ok: false, error: 'unsafe image url scheme' }
+      return { ok: true, value }
     case 'boolean':
       return typeof value === 'boolean' ? { ok: true, value } : { ok: false, error: 'expected boolean' }
     case 'number':

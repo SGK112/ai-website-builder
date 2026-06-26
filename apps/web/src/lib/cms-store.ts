@@ -45,9 +45,10 @@ export async function loadProjectCms(projectId: string, userId: string): Promise
   const db = mongoose.connection.db
   if (!db) return { ok: false, status: 400, error: 'DB not connected' }
   const project = await db.collection('projects').findOne({ _id: new ObjectId(projectId) })
-  if (!project) return { ok: false, status: 404, error: `Project ${projectId} not found in DB` }
-  if (project.userId?.toString?.() !== userId) {
-    return { ok: false, status: 403, error: 'Project ownership mismatch' }
+  // Same 404 for "doesn't exist" and "not yours" — don't leak which projectIds
+  // exist to a caller who isn't the owner.
+  if (!project || project.userId?.toString?.() !== userId) {
+    return { ok: false, status: 404, error: `Project ${projectId} not found` }
   }
   const cms: CmsStore = project.cms || { schemas: {}, items: {} }
   // Ensure subkeys exist even if older docs only have one

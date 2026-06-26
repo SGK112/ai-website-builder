@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateBridge } from '@/lib/bridge-store'
-import clientPromise from '@/lib/mongodb'
+import { connectDB } from '@/lib/db'
 import { ObjectId } from 'mongodb'
 
 export interface McpRouteContext {
@@ -52,8 +52,12 @@ export function mcpRoute<T = unknown>(
  * most-recent be the rule.
  */
 export async function activeProjectId(userId: string): Promise<string | null> {
-  const client = await clientPromise
-  const db = client.db('ai-website-builder')
+  // Projects live in the mongoose default DB (shared with VoiceNow), NOT the
+  // `ai-website-builder` templates DB. Resolve against the same connection
+  // cms-store reads from, so the id we return is one loadProjectCms can load.
+  const mongoose = await connectDB()
+  const db = mongoose.connection.db
+  if (!db) return null
   const userOid = ObjectId.isValid(userId) ? new ObjectId(userId) : userId
   const proj = await db.collection('projects').findOne(
     { userId: userOid as any },
