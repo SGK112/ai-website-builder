@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/db'
 import { randomUUID } from 'crypto'
 import { backendRateLimited } from '@/lib/backend-ratelimit'
+import { verifyAppUserToken } from '@/lib/app-integrations'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,6 +59,25 @@ function getKey(req: NextRequest): string | null {
   return req.headers.get('x-webstew-key') || req.nextUrl.searchParams.get('key')
 }
 
+// The end-user identity, if the app logged this visitor in. The SDK client
+// already sends the token as `Authorization: Bearer <token>`; we just honor it.
+function getEndUser(appId: string, req: NextRequest): string | null {
+  const h = req.headers.get('authorization') || ''
+  const token = h.toLowerCase().startsWith('bearer ') ? h.slice(7).trim() : null
+  return verifyAppUserToken(appId, token)
+}
+
+// Row-level scope. A request may touch PUBLIC docs (no ownerId — this is all
+// existing/legacy data + anything an anonymous visitor creates) PLUS the
+// authenticated end-user's OWN docs. A doc an end-user creates while logged in
+// is private to them — this is what stops one visitor from reading/overwriting/
+// deleting another end-user's data. Apps that never log users in keep the
+// previous all-public behavior, so nothing currently working breaks.
+function ownerScope(me: string | null): Record<string, any> {
+  const pub = [{ ownerId: { $exists: false } }, { ownerId: null }]
+  return me ? { $or: [...pub, { ownerId: me }] } : { $or: pub }
+}
+
 interface Ctx { params: { appId: string; collection: string } }
 
 async function guard(req: NextRequest, params: Ctx['params']) {
@@ -78,16 +98,17 @@ export async function GET(req: NextRequest, { params }: Ctx) {
   const g = await guard(req, params)
   if ('err' in g) return g.err
   const { appId, collection } = params
+  const me = getEndUser(appId, req)
   const id = req.nextUrl.searchParams.get('id')
   const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') || '100', 10) || 100, 500)
   const data = g.db.collection('app_data')
 
   if (id) {
-    const doc = await data.findOne({ appId, collection, docId: id })
+    const doc = await data.findOne({ appId, collection, docId: id, ...ownerScope(me) })
     if (!doc) return cors(NextResponse.json({ error: 'Not found' }, { status: 404 }))
     return cors(NextResponse.json({ id: doc.docId, ...doc.data, createdAt: doc.createdAt, updatedAt: doc.updatedAt }))
   }
-  const rows = await data.find({ appId, collection }).sort({ createdAt: -1 }).limit(limit).toArray()
+  const rows = await data.find({ appId, collection, ...ownerScope(me) }).sort({ createdAt: -1 }).limit(limit).toArray()
   return cors(NextResponse.json({
     items: rows.map(d => ({ id: d.docId, ...d.data, createdAt: d.createdAt, updatedAt: d.updatedAt })),
     count: rows.length,
@@ -103,9 +124,14 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   let payload: any
   try { payload = await req.json() } catch { return cors(NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })) }
   if (tooLarge(payload)) return cors(NextResponse.json({ error: 'Document too large (max 256KB).' }, { status: 413 }))
+  const me = getEndUser(appId, req)
   const docId = randomUUID()
   const now = new Date()
-  await g.db.collection('app_data').insertOne({ appId, collection, docId, data: payload ?? {}, createdAt: now, updatedAt: now })
+  // Logged-in writes are owned (private to that end-user); anonymous writes are
+  // public (ownerId omitted), preserving the old behavior for apps without auth.
+  const doc: any = { appId, collection, docId, data: payload ?? {}, createdAt: now, updatedAt: now }
+  if (me) doc.ownerId = me
+  await g.db.collection('app_data').insertOne(doc)
   return cors(NextResponse.json({ id: docId, ...payload, createdAt: now, updatedAt: now }, { status: 201 }))
 }
 
@@ -120,9 +146,11 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
   let payload: any
   try { payload = await req.json() } catch { return cors(NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })) }
   if (tooLarge(payload)) return cors(NextResponse.json({ error: 'Document too large (max 256KB).' }, { status: 413 }))
+  const me = getEndUser(appId, req)
   const now = new Date()
+  // Owner scope: you can only update a public doc or your own.
   const res = await g.db.collection('app_data').updateOne(
-    { appId, collection, docId: id },
+    { appId, collection, docId: id, ...ownerScope(me) },
     { $set: { data: payload ?? {}, updatedAt: now } }
   )
   if (!res.matchedCount) return cors(NextResponse.json({ error: 'Not found' }, { status: 404 }))
@@ -137,6 +165,8 @@ export async function DELETE(req: NextRequest, { params }: Ctx) {
   const { appId, collection } = params
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return cors(NextResponse.json({ error: 'id required' }, { status: 400 }))
-  const res = await g.db.collection('app_data').deleteOne({ appId, collection, docId: id })
+  const me = getEndUser(appId, req)
+  // Owner scope: you can only delete a public doc or your own.
+  const res = await g.db.collection('app_data').deleteOne({ appId, collection, docId: id, ...ownerScope(me) })
   return cors(NextResponse.json({ ok: true, removed: res.deletedCount }))
 }
