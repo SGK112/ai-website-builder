@@ -19,23 +19,36 @@ interface FormSubmissionHookArgs {
   submissionId: string
 }
 
+// Form submissions are ANONYMOUS + attacker-controlled. Escape Slack control
+// sequences so a submitter can't inject links/mentions (<!channel>, <@user>,
+// <http://evil|click>) or break formatting in the owner's workspace. Per Slack
+// docs, escaping & < > is sufficient; also flatten newlines.
+function slackSafe(v: unknown, max = 60): string {
+  return String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/[\r\n]+/g, ' ')
+    .slice(0, max)
+}
+
 function summarizeFields(data: Record<string, any>): string {
   // Pull the most useful identifying fields into a short summary line.
   // Falls back to the first 3 key/value pairs if no obvious identity.
   const name = data.name || data.fullName || data.full_name
   const email = data.email
   const phone = data.phone || data.phoneNumber
-  const subject = data.subject || data.topic || data.message?.slice?.(0, 40)
+  const subject = data.subject || data.topic || data.message
   const parts: string[] = []
-  if (name) parts.push(String(name))
-  if (email) parts.push(String(email))
-  if (phone) parts.push(String(phone))
-  if (subject) parts.push(`"${String(subject).slice(0, 40)}"`)
+  if (name) parts.push(slackSafe(name))
+  if (email) parts.push(slackSafe(email))
+  if (phone) parts.push(slackSafe(phone))
+  if (subject) parts.push(`"${slackSafe(subject, 40)}"`)
   if (parts.length > 0) return parts.join(' · ')
   // No identity fields — show first 3 entries.
   return Object.entries(data)
     .slice(0, 3)
-    .map(([k, v]) => `${k}: ${String(v).slice(0, 30)}`)
+    .map(([k, v]) => `${slackSafe(k, 20)}: ${slackSafe(v, 30)}`)
     .join(' · ')
 }
 

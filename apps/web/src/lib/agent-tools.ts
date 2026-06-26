@@ -825,6 +825,17 @@ export async function executeTool(
         if (!vfs.cms?.userId) return { ok: false, content: 'run_integration_action requires a user context' }
         const action = String(input?.action || '').trim()
         if (!action) return { ok: false, content: 'action is required' }
+        // SECURITY: the build agent must NOT autonomously fire side-effecting
+        // third-party actions (send email, create/charge in Stripe, write/delete
+        // in Shopify, post to Slack…). A prompt-injected template/page/CMS item
+        // could otherwise trigger real-world actions on the user's connected
+        // accounts with no confirmation. Default-DENY: only read-only verbs run
+        // automatically; side-effecting actions must be done deliberately by the
+        // user from the Plugins panel.
+        const READ_ONLY = /(^|_)(GET|LIST|FETCH|SEARCH|READ|RETRIEVE|FIND|CHECK|COUNT|VIEW|DESCRIBE|LOOKUP|EXPORT)(_|$)/i
+        if (!READ_ONLY.test(action)) {
+          return { ok: false, content: `Refused: "${action}" can change or send data on a connected account. The builder only runs read-only integration actions automatically — run side-effecting actions yourself from the Plugins panel.` }
+        }
         const args = (input && typeof input.args === 'object' && input.args) || {}
         try {
           const result = await executeAction({ userId: vfs.cms.userId, actionSlug: action, args })

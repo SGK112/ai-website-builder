@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 import { initiateConnection, metaForToolkit } from '@/lib/composio'
 
 export const dynamic = 'force-dynamic'
@@ -17,6 +18,15 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
+  // Each connect is a billed Composio call — cap initiations per caller.
+  try {
+    await checkApiRateLimit(req, 'auth')
+  } catch (err) {
+    const limited = handleRateLimitError(err)
+    if (limited) return limited
+    throw err
   }
 
   let body: { toolkit?: string }
