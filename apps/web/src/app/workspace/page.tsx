@@ -7664,6 +7664,11 @@ ${html}
     // even be implied) — but nudge for a default instruction if there's no text.
     if (!commandInput.trim() && pendingChatImages.length === 0) return
     const msg = commandInput.trim() || 'Update the site to match the attached image.'
+    // On mobile the conversation lives in the bottom sheet — surface it so the
+    // user watches the chef cook in a VISIBLE thread (their message bubble pops
+    // in, the build streams) instead of staring at the composer. The sheet
+    // springs up = the "idea → live build" transform.
+    if (isMobile) { setActivePanel('build'); setSidebarCollapsed(false) }
     handleChatMessage(msg)
   }
 
@@ -8732,7 +8737,13 @@ npx eas build --platform all
             ? { y: sidebarCollapsed || focusMode ? '100%' : '0%' }
             : { width: focusMode ? 0 : sidebarCollapsed ? 56 : 380, x: '0%' }
         }
-        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+        transition={
+          isMobile
+            // The thread springs up into view — a livelier "transform" than a
+            // linear slide when an idea becomes a build.
+            ? { type: 'spring', stiffness: 320, damping: 32, mass: 0.9 }
+            : { duration: 0.28, ease: [0.16, 1, 0.3, 1] }
+        }
         className={cn(
           "flex flex-col overflow-hidden",
           isMobile
