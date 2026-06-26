@@ -97,9 +97,20 @@ export async function transcribeSpeech(opts: {
     return { text, provider }
   }
 
-  // openai whisper
+  // openai whisper — it infers the format from the FILENAME extension, so a
+  // wrong ext = "could not decode" / 400. iOS Safari's MediaRecorder emits
+  // audio/mp4; mapping that to 'webm' (the old fallback) silently broke voice on
+  // every iPhone. Map each real container to its own ext.
+  const m = mimeType.toLowerCase()
+  const ext =
+    m.includes('wav') ? 'wav'
+    : m.includes('mp3') || m.includes('mpeg') ? 'mp3'
+    : m.includes('m4a') || m.includes('x-m4a') ? 'm4a'
+    : m.includes('mp4') ? 'mp4'   // iOS Safari
+    : m.includes('ogg') ? 'ogg'
+    : m.includes('flac') ? 'flac'
+    : 'webm'                       // Chrome/Firefox default
   const form = new FormData()
-  const ext = mimeType.includes('wav') ? 'wav' : mimeType.includes('mp3') || mimeType.includes('mpeg') ? 'mp3' : mimeType.includes('m4a') ? 'm4a' : 'webm'
   form.append('file', new Blob([new Uint8Array(opts.audio)], { type: mimeType }), `audio.${ext}`)
   form.append('model', 'whisper-1')
   const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
