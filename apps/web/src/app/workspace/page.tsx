@@ -5761,6 +5761,12 @@ ${html}
       const reader = res.body?.getReader()
       const decoder = new TextDecoder()
       let generatedHtml = ''
+      // Coalesce streamed state updates: this 14k-line page re-renders on EVERY
+      // setHtml, and a build streams hundreds of deltas — that main-thread storm
+      // is what glitches live WebRTC voice audio ("breaking up"). Push at most
+      // ~10x/sec; the authoritative final html still lands immediately (the
+      // `complete` frame's parsed.html + the post-loop flush).
+      let lastHtmlPush = 0
       let hasShownInteractivity = false
       let wasTruncated = false
       let codeWarnings: string[] = []
@@ -5809,8 +5815,10 @@ ${html}
             }
             if (typeof parsed.delta === 'string') {
               generatedHtml += parsed.delta
-              setHtml(generatedHtml)
+              const now = (typeof performance !== 'undefined' ? performance.now() : Date.now())
+              if (now - lastHtmlPush >= 100) { lastHtmlPush = now; setHtml(generatedHtml) }
             } else if (typeof parsed.html === 'string') {
+              // Authoritative final/complete html — always apply immediately.
               generatedHtml = parsed.html
               setHtml(generatedHtml)
             }
@@ -5834,6 +5842,11 @@ ${html}
             }
           }
         }
+        // Flush the final streamed html (the last <100ms of deltas may have been
+        // coalesced out of state above). The `complete` frame usually already
+        // applied the authoritative html; this covers a truncated/early-ended
+        // stream so the preview matches what was generated.
+        if (generatedHtml) setHtml(generatedHtml)
         // Content-filter fallback — Claude refused this topic. Re-run the
         // whole build on Grok (no output filter), once. The `!opts?.forceModel`
         // guard means a Grok run never recurses back into another retry.
