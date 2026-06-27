@@ -348,6 +348,17 @@ type BuildTarget = 'website' | 'astro' | 'nextjs' | 'react' | 'expo'
 // actually creates the sibling pages. Tuned to avoid false positives — "a
 // landing page about coffee" mentions "about" but isn't multi-page.
 const PAGE_NOUNS = ['about', 'services', 'contact', 'pricing', 'faq', 'blog', 'gallery', 'portfolio', 'menu', 'team', 'products', 'testimonials', 'careers', 'shop']
+// During streaming, the model emits raw {{STOCK_*}} image markers; they're only
+// swapped for real /api/media photos in the server's `complete` event. Until
+// then the preview iframe requests "/{{STOCK_HERO}}" etc. → a 404 storm for the
+// whole (slow) build. Strip them to a neutral gradient placeholder in the
+// preview so there's zero broken-image flood while it cooks. (The final HTML
+// from `complete` has real URLs, no markers — this becomes a no-op.)
+const STOCK_PLACEHOLDER = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxMjAwJyBoZWlnaHQ9JzgwMCc+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSdnJyB4MT0nMCcgeTE9JzAnIHgyPScxJyB5Mj0nMSc+PHN0b3Agb2Zmc2V0PScwJyBzdG9wLWNvbG9yPScjMjExYTM2Jy8+PHN0b3Agb2Zmc2V0PScxJyBzdG9wLWNvbG9yPScjMmMxZjNmJy8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3Qgd2lkdGg9JzEyMDAnIGhlaWdodD0nODAwJyBmaWxsPSd1cmwoI2cpJy8+PC9zdmc+'
+function stripStockMarkers(html: string): string {
+  return html ? html.replace(/\{\{STOCK_[A-Z0-9_]+\}\}/g, STOCK_PLACEHOLDER) : html
+}
+
 function detectMultiPageIntent(prompt: string): boolean {
   const p = (prompt || '').toLowerCase()
   if (/\b([2-9]|1[0-9])\s*-?\s*pages?\b/.test(p)) return true        // "4 page", "4-page", "5 pages"
@@ -11001,7 +11012,7 @@ npx eas build --platform all
                   <iframe
                     key={previewBumpKey}
                     ref={iframeRef}
-                    srcDoc={getHtmlWithConsole(previewHtml || html)}
+                    srcDoc={getHtmlWithConsole(stripStockMarkers(previewHtml || html))}
                     className="w-full h-full border-0"
                     // SANDBOX HARDENING: removed `allow-same-origin`. With it,
                     // generated HTML (which is LLM-authored and could be
