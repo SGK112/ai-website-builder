@@ -12,7 +12,7 @@ import { useCallback, useRef, useState } from 'react'
 export type RealtimeStatus = 'idle' | 'connecting' | 'listening' | 'speaking' | 'error'
 export interface VoiceTurn { id: number; role: 'user' | 'assistant'; text: string }
 
-export function useRealtimeVoice(opts: { onBuild: (prompt: string) => void }) {
+export function useRealtimeVoice(opts: { onBuild: (prompt: string, mode: 'build' | 'edit') => void }) {
   const [status, setStatus] = useState<RealtimeStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [userText, setUserText] = useState('')
@@ -69,19 +69,22 @@ export function useRealtimeVoice(opts: { onBuild: (prompt: string) => void }) {
       case 'response.function_call_arguments.done': {
         try {
           const args = JSON.parse(msg.arguments || '{}')
-          const prompt = typeof args?.prompt === 'string' ? args.prompt.trim() : ''
+          // build_site uses `prompt`, edit_site uses `change` — accept either.
+          const prompt = String(args?.prompt ?? args?.change ?? '').trim()
           // Validate before kicking off a real build: must be a non-trivial,
           // bounded string (guards against malformed/empty/runaway tool calls).
-          if (msg.name === 'build_site' && prompt.length >= 3 && prompt.length <= 4000) {
-            onBuildRef.current(prompt)
-            // Tell the model the build started so it can speak a confirmation.
+          const isBuild = msg.name === 'build_site'
+          const isEdit = msg.name === 'edit_site'
+          if ((isBuild || isEdit) && prompt.length >= 3 && prompt.length <= 4000) {
+            onBuildRef.current(prompt, isEdit ? 'edit' : 'build')
+            // Tell the model the work started so it can speak a confirmation.
             send({
               type: 'conversation.item.create',
-              item: { type: 'function_call_output', call_id: msg.call_id, output: JSON.stringify({ status: 'building' }) },
+              item: { type: 'function_call_output', call_id: msg.call_id, output: JSON.stringify({ status: isEdit ? 'editing' : 'building' }) },
             })
             send({ type: 'response.create' })
-          } else if (msg.name === 'build_site') {
-            console.warn('[realtime] build_site ignored — invalid prompt', { len: prompt.length })
+          } else if (isBuild || isEdit) {
+            console.warn('[realtime] tool ignored — invalid prompt', { name: msg.name, len: prompt.length })
           }
         } catch (e) {
           console.error('[realtime] build_site args parse failed:', e, msg?.arguments)

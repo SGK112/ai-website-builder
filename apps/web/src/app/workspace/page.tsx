@@ -6826,7 +6826,7 @@ ${html}
   }
 
   // Handle conversational chat with AI assistant
-  const handleChatMessage = async (message: string) => {
+  const handleChatMessage = async (message: string, opts?: { forceEdit?: boolean }) => {
     if (!message.trim() || isGenerating || isThinking) return
     // View-only collaborators can't edit — the server 403s the save anyway, so
     // block here to avoid edits that silently fail to persist.
@@ -6914,7 +6914,9 @@ ${html}
     //     hero — that's the "same header, only the text changed" bug.
     // Genuine edits ("make the hero bigger", "change the button colour")
     // carry an edit signal and fall through to the agent's modify_html below.
-    if (buildTarget === 'website') {
+    // forceEdit (a voice edit_site call on an existing site) must NEVER be
+    // re-routed as a fresh build — go straight to the agent edit path below.
+    if (buildTarget === 'website' && !(opts?.forceEdit && html)) {
       const freshSiteRegex = /\b(build|create|make|generate|design|launch|spin\s*up|put\s*together|whip\s*up|need|want|give\s*me|let'?s\s*(?:build|make|do))\b[\s\S]*?\b(site|website|web\s*page|home\s*page|landing\s*page|online\s*store|storefront|web\s*store|e-?commerce|blog|portfolio|web\s*app)\b/i
       const resetIntentRegex = /\b(start\s*over|from\s*scratch|brand\s*new|new\s+(?:site|website|build|project|one)|different\s+(?:site|website)|scratch\s*that|fresh\s+(?:site|build|start))\b/i
       const editSignalRegex = /\b(change|update|edit|move|remove|delete|swap|replace|tweak|adjust|resize|recolou?r|rename|bigger|smaller|darker|lighter|the\s+(?:hero|header|footer|nav|button|section|background|font|colou?r|logo|menu|cta|image|text|title))\b/i
@@ -7679,7 +7681,7 @@ ${html}
   // starts, so the user can watch it cook while the conversation continues.
   const [voiceMinimized, setVoiceMinimized] = useState(false)
   const realtimeVoice = useRealtimeVoice({
-    onBuild: (p) => { setVoiceMinimized(true); setSidebarCollapsed(true); void handleChatMessage(p) },
+    onBuild: (p, mode) => { setVoiceMinimized(true); setSidebarCollapsed(true); void handleChatMessage(p, { forceEdit: mode === 'edit' }) },
   })
   const voiceActive = showVoice && (realtimeVoice.status === 'listening' || realtimeVoice.status === 'speaking' || realtimeVoice.status === 'connecting')
   const openVoice = useCallback(() => {

@@ -37,7 +37,11 @@ FLOW:
 2. INTERVIEW — ask focused questions ONE at a time to shape the best result: who it's for, the goal (sell / book / showcase / capture leads), the must-have pages or sections, the vibe and style, and any real content (business name, offerings, colors). Ask only what moves the needle — usually 2 to 4 questions. React like a designer ("nice — bold and modern, then?").
 3. When you have enough (or they say "just build it"), SUMMARIZE the plan in one or two sentences and confirm ("So: a modern coffee-shop site with a menu, hours, and a contact form — building it now?").
 4. On a yes, call build_site with ONE vivid, self-contained prompt that captures EVERYTHING from the whole conversation (purpose, audience, pages/sections, style, real content). Then say it's generating and they'll watch it appear.
-5. After it builds, offer to refine ("want to change anything?") — refinements also go through build_site, carrying the new request plus the relevant context.
+5. After it builds, offer to refine ("want to change anything?"). EVERY change to the existing site goes through the edit_site tool with JUST the change ("make the header navy", "add a contact form", "remove the pricing"). NEVER re-describe the whole site for an edit, and never call build_site again unless they explicitly want a brand-new, different site.
+
+BUILD vs EDIT — this matters:
+- No site yet, or they clearly want a fresh/different one → build_site (full prompt).
+- A site is already on screen and they want a tweak → edit_site (only the change). When in doubt on an existing project, it's an edit.
 
 STYLE:
 - Spoken, warm, concise. Under 15 words per turn (up to 25 when summarizing). One question at a time.
@@ -50,7 +54,7 @@ const BUILD_SITE_TOOL = {
   type: 'function',
   name: 'build_site',
   description:
-    'Build a new website/app, or modify the current one. Call this only AFTER you have consulted with the user and confirmed the plan (or they asked to just build it).',
+    'Build a NEW website/app from scratch. Call this only AFTER you have consulted with the user and confirmed the plan (or they asked to just build it). Do NOT use this for changes to a site that already exists — use edit_site for that.',
   parameters: {
     type: 'object',
     properties: {
@@ -61,6 +65,24 @@ const BUILD_SITE_TOOL = {
       },
     },
     required: ['prompt'],
+  },
+}
+
+const EDIT_SITE_TOOL = {
+  type: 'function',
+  name: 'edit_site',
+  description:
+    'Change the site that already exists (the one you just built or the user is looking at). Use this for EVERY tweak, addition, removal, or restyle once a site is on screen — never re-describe the whole site for an edit.',
+  parameters: {
+    type: 'object',
+    properties: {
+      change: {
+        type: 'string',
+        description:
+          'ONLY the specific change to make, phrased like a short instruction — e.g. "make the header navy", "add a contact form below the menu", "remove the pricing section", "use a bolder font for the headline". Do NOT restate the whole site.',
+      },
+    },
+    required: ['change'],
   },
 }
 
@@ -104,7 +126,7 @@ export async function POST() {
             },
             output: { voice: VOICE },
           },
-          tools: [BUILD_SITE_TOOL],
+          tools: [BUILD_SITE_TOOL, EDIT_SITE_TOOL],
           tool_choice: 'auto',
         },
       }),
