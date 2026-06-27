@@ -143,7 +143,8 @@ export function useRealtimeVoice(opts: { onBuild: (prompt: string) => void }) {
           send({
             type: 'response.create',
             response: {
-              instructions: "Greet the user warmly in ONE short sentence, then ask what they'd like to build today. Under 18 words. Don't list features.",
+              instructions:
+                "Greet the user and welcome them to Webstew, then ask what they want to build — with a light, clever cooking/stew touch (Webstew 'cooks up' sites). ONE short, warm sentence, under 18 words. E.g. \"Hey, welcome to Webstew — what should we cook up today?\" Don't list features.",
             },
           })
         }, 350)
