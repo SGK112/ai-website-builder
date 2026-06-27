@@ -248,15 +248,15 @@ CRITICAL OUTPUT RULES:
    iframe or a static map image (/api/media?q=CITY+map). All JS must run
    error-free on first load.
 
-⛔ MINIMUM OUTPUT BAR — ANY OUTPUT THAT FAILS THIS IS BROKEN:
-A site that ships only a nav + hero + footer is FAILURE. Every page MUST contain at least all of:
-- Sticky/fixed nav with brand, ≥4 navigation links, AT LEAST ONE working dropdown menu (services/products/resources), and a primary CTA button
-- Hero with eyebrow badge, headline, subheadline, primary CTA, secondary CTA, and a hero visual (image OR illustration block)
-- 3+ distinct content sections beyond hero (features grid, showcase, social proof / testimonials / logos, pricing OR FAQ, etc.)
-- At least one functional web form (contact, booking, newsletter, or signup) with proper input types (email, tel, date, textarea, select)
-- Multi-column footer with brand block, link columns, and social icons
+⚡ LEAN-BY-DEFAULT — build a FOCUSED, COMPLETE page, not a sprawling one (the user can ask for more, and will):
+Ship a tight, polished single page. Include exactly what the page needs, no padding:
+- Clean sticky nav: brand, 3-4 links, one primary CTA. (Dropdowns ONLY if the content genuinely needs them — skip otherwise.)
+- A strong hero: headline, subheadline, primary CTA, and a hero visual.
+- 1-2 content sections that actually fit the purpose (e.g. a menu, key features, or an about/gallery) — pick what matters, don't add filler sections.
+- ONE simple working form (contact/booking/newsletter) OR clear contact info — whichever fits.
+- A compact footer: brand + a few links + socials.
 
-If your token budget is tight, write SHORTER copy and SMALLER examples — but never skip a required element. A site missing dropdowns, forms, or distinct sections does not satisfy this prompt.
+KEEP COPY CONCISE — short, punchy, REAL (no Lorem ipsum, no filler paragraphs, no repeated boilerplate). A sharp page that builds FAST beats a giant one. Quality over quantity. If the user wants more sections or depth, they'll ask — then add it.
 
 Quality bar: produce code at the level a senior engineer would commit to production — semantic HTML, real content (not "Lorem ipsum"), working interactivity wired up via the data attributes the runtime script expects (data-mobile-toggle, data-mobile-menu, data-dropdown, data-accordion-trigger, data-accordion-content).
 
@@ -949,17 +949,18 @@ RESPONSIVE DESIGN (MANDATORY — site is previewed on mobile, tablet, and deskto
 - Test the layout mentally at 375px (mobile), 768px (tablet), 1280px (desktop) — all three must look intentional, not just "shrunk"
 
 ✅ FINAL CHECKLIST — BEFORE YOU EMIT </html>, VERIFY:
-[ ] <nav> exists, is fixed/sticky, contains brand + ≥4 links + ≥1 dropdown menu (data-dropdown-trigger) + a primary CTA button
+[ ] <nav> exists, is fixed/sticky, contains brand + 3-4 links + a primary CTA button
 [ ] Mobile hamburger button (data-mobile-toggle) and mobile menu (data-mobile-menu) are present
-[ ] Hero has eyebrow badge, headline, subheadline, primary CTA, secondary CTA
-[ ] At least 3 distinct content sections beyond hero (features, showcase, testimonials, pricing, FAQ, etc.)
-[ ] At least one <form> with realistic inputs (email, tel, textarea, etc.) and a submit button
-[ ] Footer is multi-column with brand + link columns + social icons
+[ ] Hero has headline, subheadline, primary CTA, and a hero visual
+[ ] 1-2 focused content sections beyond hero that fit the purpose — concise, no filler
+[ ] One <form> with realistic inputs (email, tel, textarea, etc.) and a submit button, OR clear contact info
+[ ] Compact footer with brand + a few links + social icons
 [ ] Layout uses Tailwind responsive prefixes (sm:, md:, lg:) — no fixed pixel widths that break on mobile
-[ ] All required images use /api/media?q=KEYWORD&w=W&h=H or i.pravatar.cc/SIZE?img=N
+[ ] All images use /api/media?q=KEYWORD&w=W&h=H or i.pravatar.cc/SIZE?img=N
+[ ] Copy is CONCISE and REAL — no Lorem ipsum, no padding
 [ ] HTML closes cleanly: </body></html>
 
-If your output is missing ANY checklist item, add it before stopping. A truncated page is a failed page.
+Build it tight and complete, then STOP — don't pad to look bigger. The user will ask for more if they want it.
 
 Generate a complete, stunning website. No placeholders - fill in realistic content. Return ONLY the HTML.`
 
@@ -1071,7 +1072,7 @@ This is a restaurant / cafe / dining site. The sections must reflect what a real
 REQUIRED SECTIONS (in this order):
 1. Hero — full-bleed appetizing food photo or warm interior shot, restaurant name in serif/display type, location/neighborhood, hours-today indicator, "Reserve a table" primary CTA and "View menu" secondary CTA.
 2. About / Story — chef's bio or restaurant origin story, philosophy, ~2-3 paragraphs with one supporting image.
-3. Menu — REAL menu sections by category (Starters, Mains, Desserts, Drinks) with item names, 1-line descriptions, and prices. Use a 2-column layout on desktop. Include "Vegetarian", "GF", "Spicy" icon badges where appropriate. AT LEAST 8 menu items.
+3. Menu — a REAL menu with a few categories (e.g. Coffee, Food, Sweets), item names, short descriptions, and prices in a clean 2-column layout. ~5-6 items is plenty for a first build — the user can ask to expand it.
 4. Gallery — 6-9 image masonry grid of food/interior/staff (use /api/media?q=food&w=600&h=400, /api/media?q=restaurant+interior&w=600&h=400, /api/media?q=plating&w=600&h=400).
 5. Reviews / Testimonials — 3-4 quote cards with diner name + star rating.
 6. Reservations — form with name, party size, date, time, special requests. Use proper input types (date, time, number).
