@@ -12,7 +12,12 @@ import { useCallback, useRef, useState } from 'react'
 export type RealtimeStatus = 'idle' | 'connecting' | 'listening' | 'speaking' | 'error'
 export interface VoiceTurn { id: number; role: 'user' | 'assistant'; text: string }
 
-export function useRealtimeVoice(opts: { onBuild: (prompt: string, mode: 'build' | 'edit') => 'started' | 'queued' }) {
+export function useRealtimeVoice(opts: {
+  onBuild: (prompt: string, mode: 'build' | 'edit') => 'started' | 'queued'
+  // Live status the model can CHECK (so it never guesses "still cooking" /
+  // "done"). e.g. "still building", "finished — on screen", "no site yet".
+  getStatus: () => string
+}) {
   const [status, setStatus] = useState<RealtimeStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [userText, setUserText] = useState('')
@@ -39,6 +44,8 @@ export function useRealtimeVoice(opts: { onBuild: (prompt: string, mode: 'build'
   const greetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onBuildRef = useRef(opts.onBuild)
   onBuildRef.current = opts.onBuild
+  const getStatusRef = useRef(opts.getStatus)
+  getStatusRef.current = opts.getStatus
 
   const send = (obj: unknown) => {
     const dc = dcRef.current
@@ -85,6 +92,13 @@ export function useRealtimeVoice(opts: { onBuild: (prompt: string, mode: 'build'
         break
       case 'response.function_call_arguments.done': {
         try {
+          // Status check — answer from the LIVE workspace, never from memory.
+          if (msg.name === 'check_status') {
+            const statusText = (() => { try { return getStatusRef.current() } catch { return 'unknown' } })()
+            send({ type: 'conversation.item.create', item: { type: 'function_call_output', call_id: msg.call_id, output: JSON.stringify({ status: statusText }) } })
+            send({ type: 'response.create' })
+            break
+          }
           const args = JSON.parse(msg.arguments || '{}')
           // build_site uses `prompt`, edit_site uses `change` — accept either.
           const prompt = String(args?.prompt ?? args?.change ?? '').trim()

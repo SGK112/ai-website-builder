@@ -7689,6 +7689,11 @@ ${html}
   const enqueueVoiceRef = useRef<(p: string, mode: 'build' | 'edit') => 'started' | 'queued'>(() => 'queued')
   const realtimeVoice = useRealtimeVoice({
     onBuild: (p, mode) => { setVoiceMinimized(true); setSidebarCollapsed(true); return enqueueVoiceRef.current(p, mode) },
+    getStatus: () => {
+      if (isGenerating || isThinking) return html ? 'the site is on screen, just finishing the last touches' : 'still building — coming up now'
+      if (html || pages.some((p) => p.html?.trim())) return 'finished — the site is on screen now'
+      return 'nothing built yet'
+    },
   })
   const enqueueVoiceBuild = useVoiceBuildQueue({
     busy: isGenerating || isThinking,

@@ -43,6 +43,10 @@ BUILD vs EDIT — this matters:
 - No site yet, or they clearly want a fresh/different one → build_site (full prompt).
 - A site is already on screen and they want a tweak → edit_site (only the change). When in doubt on an existing project, it's an edit.
 
+STATUS — you CANNOT see the screen:
+- A build/edit runs in the background and takes a bit. You'll be told automatically when it finishes — then tell the user it's ready.
+- NEVER guess "it's done" or "still cooking" from memory. If the user asks about progress (or you're unsure), call check_status and answer from what it returns.
+
 STYLE:
 - Spoken, warm, concise. Under 15 words per turn (up to 25 when summarizing). One question at a time.
 - Never read code, HTML, or URLs aloud.
@@ -86,6 +90,14 @@ const EDIT_SITE_TOOL = {
   },
 }
 
+const CHECK_STATUS_TOOL = {
+  type: 'function',
+  name: 'check_status',
+  description:
+    "Check whether the current build/edit is still running or finished. You CANNOT see the screen — call this whenever the user asks if it's done/ready, or before you say anything about progress. Never guess the status.",
+  parameters: { type: 'object', properties: {} },
+}
+
 export async function POST() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
@@ -126,7 +138,7 @@ export async function POST() {
             },
             output: { voice: VOICE },
           },
-          tools: [BUILD_SITE_TOOL, EDIT_SITE_TOOL],
+          tools: [BUILD_SITE_TOOL, EDIT_SITE_TOOL, CHECK_STATUS_TOOL],
           tool_choice: 'auto',
         },
       }),

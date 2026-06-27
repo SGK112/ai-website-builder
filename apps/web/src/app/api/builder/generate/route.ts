@@ -1759,17 +1759,26 @@ async function fetchStockImagesForPrompt(
   const markers = new Map<string, string>()
   const pixabayKey = process.env.PIXABAY_API_KEY
   const pexelsKey = process.env.PEXELS_API_KEY
-  if (!pixabayKey && !pexelsKey) {
-    return { markers, addendum: '' }
-  }
 
   // Keep query focused — search engines work best on short subject phrases
-  const query = prompt.replace(/\s+/g, ' ').trim().slice(0, 80).split(/[.,!?]/)[0].trim()
-  if (!query) return { markers, addendum: '' }
+  const query = prompt.replace(/\s+/g, ' ').trim().slice(0, 80).split(/[.,!?]/)[0].trim() || 'website'
 
   type Photo = { url: string }
   let photos: Photo[] = []
   let provider = ''
+
+  // Keyless fallback. With no Pixabay/Pexels key (or on any failure) the markers
+  // MUST still resolve to real images — otherwise {{STOCK_*}} ships literally into
+  // the HTML → every image broken AND the browser floods 404s for "/{{STOCK_HERO}}".
+  // Use the platform media proxy (/api/media → Pexels, Mongo-cached, auto-fallback,
+  // already working in prod) — the SAME source the edit agent uses. NOT picsum
+  // (rate-limits under load). Light per-image descriptor variety so they differ.
+  const SITE_ORIGIN = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXTAUTH_URL || 'https://www.webstew.net').replace(/\/+$/, '')
+  const VARIETY = ['', 'closeup', 'interior', 'detail', 'lifestyle', 'background', 'scene', 'wide']
+  const mediaFallback = (): Photo[] =>
+    Array.from({ length: count }, (_, i) => ({
+      url: `${SITE_ORIGIN}/api/media?q=${encodeURIComponent((query + ' ' + (VARIETY[i] || '')).trim())}&w=1200&h=800`,
+    }))
 
   try {
     const controller = new AbortController()
@@ -1814,18 +1823,22 @@ async function fetchStockImagesForPrompt(
       }
     }
 
-    if (photos.length === 0) return { markers, addendum: '' }
+  } catch (e: any) {
+    if (e?.name === 'AbortError') console.warn('[Generate] Stock image search timed out')
+    else console.warn('[Generate] Stock image fetch error:', e?.message || e)
+  }
 
-    photos.forEach((p, i) => {
-      const role = i === 0 ? 'HERO' : i === 1 ? 'SHOWCASE' : `FEATURE_${i - 1}`
-      const marker = `{{STOCK_${role}}}`
-      markers.set(marker, p.url)
-    })
+  // ALWAYS finish with populated markers (Picsum keyless fallback on no-key /
+  // empty / error) so {{STOCK_*}} never ships into the HTML unreplaced.
+  if (photos.length === 0) { photos = mediaFallback(); provider = 'media-proxy (keyless fallback)' }
+  photos.forEach((p, i) => {
+    const role = i === 0 ? 'HERO' : i === 1 ? 'SHOWCASE' : `FEATURE_${i - 1}`
+    markers.set(`{{STOCK_${role}}}`, p.url)
+  })
+  console.log(`[Generate] ${markers.size} ${provider} images for "${query}"`)
 
-    console.log(`[Generate] Fetched ${markers.size} ${provider} images for "${query}"`)
-
-    const list = Array.from(markers.keys()).map(m => `- ${m}`).join('\n')
-    const addendum = `\n\n🖼️ CURATED STOCK IMAGES (use these markers — they will be replaced with REAL relevant photos for "${query}"):
+  const list = Array.from(markers.keys()).map(m => `- ${m}`).join('\n')
+  const addendum = `\n\n🖼️ CURATED STOCK IMAGES (use these markers — they will be replaced with REAL photos for "${query}"):
 ${list}
 
 Usage rules:
@@ -1833,18 +1846,9 @@ Usage rules:
 - Use {{STOCK_SHOWCASE}} for any large feature showcase, about, or story section.
 - Use {{STOCK_FEATURE_1}}, {{STOCK_FEATURE_2}}, etc. for feature cards, gallery items, or service tiles.
 - Place markers EXACTLY as shown inside src="..." — do not modify them.
-- Prefer these markers over /api/media?q=... URLs — markers are topic-matched to the actual prompt.
+- Prefer these markers over /api/media?q=... URLs.
 - For testimonial avatars, KEEP using https://i.pravatar.cc/SIZE?img=N (markers above are content photos, not portraits).`
-
-    return { markers, addendum }
-  } catch (e: any) {
-    if (e?.name === 'AbortError') {
-      console.warn('[Generate] Stock image search timed out')
-    } else {
-      console.warn('[Generate] Stock image fetch error:', e?.message || e)
-    }
-    return { markers, addendum: '' }
-  }
+  return { markers, addendum }
 }
 
 // Verify all images in HTML are valid
