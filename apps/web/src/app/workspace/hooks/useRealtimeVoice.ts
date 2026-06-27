@@ -121,7 +121,12 @@ export function useRealtimeVoice(opts: { onBuild: (prompt: string) => void }) {
       pcRef.current = pc
       let audio = audioRef.current
       if (!audio) { audio = new Audio(); audio.autoplay = true; audioRef.current = audio }
-      pc.ontrack = (e) => { if (audioRef.current) audioRef.current.srcObject = e.streams[0] }
+      pc.ontrack = (e) => {
+        if (!audioRef.current) return
+        audioRef.current.srcObject = e.streams[0]
+        // iOS Safari can ignore autoplay; nudge it (the open was a user gesture).
+        audioRef.current.play().catch(() => {})
+      }
       const track = stream.getAudioTracks()[0]
       if (track) pc.addTrack(track, stream)
 
@@ -130,14 +135,18 @@ export function useRealtimeVoice(opts: { onBuild: (prompt: string) => void }) {
       dc.onopen = () => {
         setStatus('listening')
         // Intro: the builder greets FIRST and opens the consultation, so it's a
-        // conversation from the start instead of dead air. (The consultative
-        // behaviour itself lives in the session instructions on the token route.)
-        send({
-          type: 'response.create',
-          response: {
-            instructions: "Greet the user warmly in ONE short sentence, then ask what they'd like to build today. Under 18 words. Don't list features.",
-          },
-        })
+        // conversation from the start instead of dead air. Small delay so the
+        // session is fully settled before we ask for a response (firing on the
+        // same tick can be dropped). The consultative behaviour itself lives in
+        // the session instructions on the token route.
+        setTimeout(() => {
+          send({
+            type: 'response.create',
+            response: {
+              instructions: "Greet the user warmly in ONE short sentence, then ask what they'd like to build today. Under 18 words. Don't list features.",
+            },
+          })
+        }, 350)
       }
       dc.onmessage = (e) => {
         try { handleEvent(JSON.parse(e.data)) }

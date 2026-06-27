@@ -7672,16 +7672,17 @@ ${html}
   // →transcribe. When the model calls the build_site tool with what the user
   // described, we run the normal build pipeline; the conversation keeps going.
   const [showVoice, setShowVoice] = useState(false)
-  // Minimized = the session is live but collapsed to a floating bubble so the
-  // workspace (the site building) stays visible. Auto-collapses once live.
+  // Minimized = the session is still live but collapsed to a floating bubble so
+  // the workspace (the site cooking) is visible. We DON'T auto-minimize on
+  // connect — the whole consultation happens in the full orb (greeting + the
+  // back-and-forth thread); we only drop to the bubble once a BUILD actually
+  // starts, so the user can watch it cook while the conversation continues.
   const [voiceMinimized, setVoiceMinimized] = useState(false)
-  const voiceAutoMinimizedRef = useRef(false)
   const realtimeVoice = useRealtimeVoice({
-    onBuild: (p) => { setSidebarCollapsed(true); void handleChatMessage(p) },
+    onBuild: (p) => { setVoiceMinimized(true); setSidebarCollapsed(true); void handleChatMessage(p) },
   })
   const voiceActive = showVoice && (realtimeVoice.status === 'listening' || realtimeVoice.status === 'speaking' || realtimeVoice.status === 'connecting')
   const openVoice = useCallback(() => {
-    voiceAutoMinimizedRef.current = false
     setVoiceMinimized(false)
     setShowVoice(true)
     void realtimeVoice.start()
@@ -7690,17 +7691,7 @@ ${html}
     realtimeVoice.stop()
     setShowVoice(false)
     setVoiceMinimized(false)
-    voiceAutoMinimizedRef.current = false
   }, [realtimeVoice])
-  // Once the conversation goes live, collapse to the floating bubble so the user
-  // watches their project cook while still talking. Only auto-minimizes once.
-  useEffect(() => {
-    if (!showVoice || voiceAutoMinimizedRef.current) return
-    if (realtimeVoice.status === 'listening' || realtimeVoice.status === 'speaking') {
-      voiceAutoMinimizedRef.current = true
-      setVoiceMinimized(true)
-    }
-  }, [showVoice, realtimeVoice.status])
 
   // Anon can build freely, but exporting the source is "doing something with
   // it" — gate every export surface behind signup like publish/deploy/save.
