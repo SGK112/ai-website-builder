@@ -9814,8 +9814,7 @@ npx eas build --platform all
             isDark={isDark}
             status={realtimeVoice.status}
             error={realtimeVoice.error}
-            userText={realtimeVoice.userText}
-            assistantText={realtimeVoice.assistantText}
+            transcript={realtimeVoice.transcript}
             onClose={closeVoice}
             onRetry={() => void realtimeVoice.start()}
             onMinimize={() => setVoiceMinimized(true)}

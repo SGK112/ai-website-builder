@@ -10,12 +10,22 @@
 import { useCallback, useRef, useState } from 'react'
 
 export type RealtimeStatus = 'idle' | 'connecting' | 'listening' | 'speaking' | 'error'
+export interface VoiceTurn { id: number; role: 'user' | 'assistant'; text: string }
 
 export function useRealtimeVoice(opts: { onBuild: (prompt: string) => void }) {
   const [status, setStatus] = useState<RealtimeStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [userText, setUserText] = useState('')
   const [assistantText, setAssistantText] = useState('')
+  // Full conversation thread (not just the latest line) so the orb reads like a
+  // real back-and-forth, the way Aria's does.
+  const [transcript, setTranscript] = useState<VoiceTurn[]>([])
+  const turnIdRef = useRef(0)
+  const addTurn = useCallback((role: 'user' | 'assistant', raw: unknown) => {
+    const text = String(raw || '').trim()
+    if (!text) return
+    setTranscript((prev) => [...prev, { id: turnIdRef.current++, role, text }])
+  }, [])
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
@@ -31,7 +41,7 @@ export function useRealtimeVoice(opts: { onBuild: (prompt: string) => void }) {
     try { streamRef.current?.getTracks().forEach((t) => t.stop()) } catch {}
     if (audioRef.current) { try { audioRef.current.srcObject = null } catch {} }
     pcRef.current = null; dcRef.current = null; streamRef.current = null
-    setStatus('idle'); setUserText(''); setAssistantText('')
+    setStatus('idle'); setUserText(''); setAssistantText(''); setTranscript([])
   }, [])
 
   const send = (obj: unknown) => {
@@ -50,10 +60,12 @@ export function useRealtimeVoice(opts: { onBuild: (prompt: string) => void }) {
       case 'response.done':
         setStatus((s) => (s === 'speaking' ? 'listening' : s)); break
       case 'conversation.item.input_audio_transcription.completed':
-        if (msg.transcript) setUserText(String(msg.transcript)); break
+        if (msg.transcript) { setUserText(String(msg.transcript)); addTurn('user', msg.transcript) }
+        break
       case 'response.audio_transcript.done':
       case 'response.output_audio_transcript.done':
-        if (msg.transcript) setAssistantText(String(msg.transcript)); break
+        if (msg.transcript) { setAssistantText(String(msg.transcript)); addTurn('assistant', msg.transcript) }
+        break
       case 'response.function_call_arguments.done': {
         try {
           const args = JSON.parse(msg.arguments || '{}')
@@ -79,7 +91,7 @@ export function useRealtimeVoice(opts: { onBuild: (prompt: string) => void }) {
       case 'error':
         setError(msg.error?.message || 'Voice error'); break
     }
-  }, [])
+  }, [addTurn])
 
   const start = useCallback(async () => {
     if (status === 'connecting' || status === 'listening' || status === 'speaking') return
@@ -115,7 +127,18 @@ export function useRealtimeVoice(opts: { onBuild: (prompt: string) => void }) {
 
       const dc = pc.createDataChannel('oai-events')
       dcRef.current = dc
-      dc.onopen = () => setStatus('listening')
+      dc.onopen = () => {
+        setStatus('listening')
+        // Intro: the builder greets FIRST and opens the consultation, so it's a
+        // conversation from the start instead of dead air. (The consultative
+        // behaviour itself lives in the session instructions on the token route.)
+        send({
+          type: 'response.create',
+          response: {
+            instructions: "Greet the user warmly in ONE short sentence, then ask what they'd like to build today. Under 18 words. Don't list features.",
+          },
+        })
+      }
       dc.onmessage = (e) => {
         try { handleEvent(JSON.parse(e.data)) }
         catch (err) { console.error('[realtime] event parse failed:', err) }
@@ -154,6 +177,7 @@ export function useRealtimeVoice(opts: { onBuild: (prompt: string) => void }) {
     error,
     userText,
     assistantText,
+    transcript,
     start,
     stop,
     isActive: status === 'connecting' || status === 'listening' || status === 'speaking',
