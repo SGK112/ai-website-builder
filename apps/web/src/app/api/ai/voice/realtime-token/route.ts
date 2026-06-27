@@ -122,7 +122,7 @@ export async function POST() {
           audio: {
             input: {
               transcription: { model: 'whisper-1' },
-              turn_detection: { type: 'server_vad', threshold: 0.5, silence_duration_ms: 600 },
+              turn_detection: { type: 'server_vad', threshold: 0.5, silence_duration_ms: 500 },
             },
             output: { voice: VOICE },
           },

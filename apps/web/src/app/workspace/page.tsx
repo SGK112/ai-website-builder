@@ -178,6 +178,7 @@ import { MobileComposer } from './components/MobileComposer'
 import { VoiceBuildOverlay } from './components/VoiceBuildOverlay'
 import { VoiceBubble } from './components/VoiceBubble'
 import { useRealtimeVoice } from './hooks/useRealtimeVoice'
+import { useVoiceBuildQueue } from './hooks/useVoiceBuildQueue'
 import { MobileAccountMenu } from './components/MobileAccountMenu'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import type { ImportedProject } from '@/lib/import-project'
@@ -6826,7 +6827,7 @@ ${html}
   }
 
   // Handle conversational chat with AI assistant
-  const handleChatMessage = async (message: string, opts?: { forceEdit?: boolean }) => {
+  const handleChatMessage = async (message: string, opts?: { forceEdit?: boolean; fromVoice?: boolean }) => {
     if (!message.trim() || isGenerating || isThinking) return
     // View-only collaborators can't edit — the server 403s the save anyway, so
     // block here to avoid edits that silently fail to persist.
@@ -6851,7 +6852,9 @@ ${html}
     // Stew Planner intercept — while the clarifying agent is interviewing,
     // every chat message is an answer to it. Route there before the message
     // ever reaches the normal chat log or any build dispatch.
-    if (plannerActive && !showPlanModal) {
+    // Voice already consulted by talking — never hand a voice dispatch to the
+    // typed Stew Planner modal (the voice user can't see or drive it → stall).
+    if (plannerActive && !showPlanModal && !opts?.fromVoice) {
       setCommandInput('')
       await handlePlannerTurn(message, plannerMessages, plannerPlan)
       return
@@ -6899,7 +6902,8 @@ ${html}
     if (buildTarget !== 'website' && Object.keys(vfsFiles).length === 0) {
       // Thin first prompt → interview the user to craft a strong app spec
       // before scaffolding blind. Detailed prompts skip straight to the build.
-      if (!isRichPrompt(message)) {
+      // Voice already consulted by talking, so it never opens the typed planner.
+      if (!isRichPrompt(message) && !opts?.fromVoice) {
         await startPlannerInterview(message)
         return
       }
@@ -6916,7 +6920,7 @@ ${html}
     // carry an edit signal and fall through to the agent's modify_html below.
     // forceEdit (a voice edit_site call on an existing site) must NEVER be
     // re-routed as a fresh build — go straight to the agent edit path below.
-    if (buildTarget === 'website' && !(opts?.forceEdit && html)) {
+    if (buildTarget === 'website' && !(opts?.forceEdit && (html || pages.length > 1))) {
       const freshSiteRegex = /\b(build|create|make|generate|design|launch|spin\s*up|put\s*together|whip\s*up|need|want|give\s*me|let'?s\s*(?:build|make|do))\b[\s\S]*?\b(site|website|web\s*page|home\s*page|landing\s*page|online\s*store|storefront|web\s*store|e-?commerce|blog|portfolio|web\s*app)\b/i
       const resetIntentRegex = /\b(start\s*over|from\s*scratch|brand\s*new|new\s+(?:site|website|build|project|one)|different\s+(?:site|website)|scratch\s*that|fresh\s+(?:site|build|start))\b/i
       const editSignalRegex = /\b(change|update|edit|move|remove|delete|swap|replace|tweak|adjust|resize|recolou?r|rename|bigger|smaller|darker|lighter|the\s+(?:hero|header|footer|nav|button|section|background|font|colou?r|logo|menu|cta|image|text|title))\b/i
@@ -6932,9 +6936,9 @@ ${html}
         }
         // Thin fresh-build prompt → interview the user via the Stew Planner to
         // craft a strong build prompt first. Rich, fully-specified prompts skip
-        // straight to the generator. The planner offers one-tap replies + a
-        // Skip-&-build-now escape, so it guides without blocking.
-        if (!isRichPrompt(message)) {
+        // straight to the generator. Voice already consulted by talking, so it
+        // never opens the typed planner (the voice user can't drive it).
+        if (!isRichPrompt(message) && !opts?.fromVoice) {
           await startPlannerInterview(message)
           return
         }
@@ -7680,9 +7684,19 @@ ${html}
   // back-and-forth thread); we only drop to the bubble once a BUILD actually
   // starts, so the user can watch it cook while the conversation continues.
   const [voiceMinimized, setVoiceMinimized] = useState(false)
+  // Voice tool calls dispatch through the queue (defined below) — ref breaks the
+  // cycle (onBuild → enqueue → realtimeVoice.notifyComplete).
+  const enqueueVoiceRef = useRef<(p: string, mode: 'build' | 'edit') => 'started' | 'queued'>(() => 'queued')
   const realtimeVoice = useRealtimeVoice({
-    onBuild: (p, mode) => { setVoiceMinimized(true); setSidebarCollapsed(true); void handleChatMessage(p, { forceEdit: mode === 'edit' }) },
+    onBuild: (p, mode) => { setVoiceMinimized(true); setSidebarCollapsed(true); return enqueueVoiceRef.current(p, mode) },
   })
+  const enqueueVoiceBuild = useVoiceBuildQueue({
+    busy: isGenerating || isThinking,
+    active: showVoice,
+    dispatch: (prompt, mode) => { void handleChatMessage(prompt, { forceEdit: mode === 'edit', fromVoice: true }) },
+    onAllDone: () => realtimeVoice.notifyComplete(),
+  })
+  enqueueVoiceRef.current = enqueueVoiceBuild
   const voiceActive = showVoice && (realtimeVoice.status === 'listening' || realtimeVoice.status === 'speaking' || realtimeVoice.status === 'connecting')
   const openVoice = useCallback(() => {
     setVoiceMinimized(false)

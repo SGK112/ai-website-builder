@@ -12,7 +12,7 @@ import { useCallback, useRef, useState } from 'react'
 export type RealtimeStatus = 'idle' | 'connecting' | 'listening' | 'speaking' | 'error'
 export interface VoiceTurn { id: number; role: 'user' | 'assistant'; text: string }
 
-export function useRealtimeVoice(opts: { onBuild: (prompt: string, mode: 'build' | 'edit') => void }) {
+export function useRealtimeVoice(opts: { onBuild: (prompt: string, mode: 'build' | 'edit') => 'started' | 'queued' }) {
   const [status, setStatus] = useState<RealtimeStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [userText, setUserText] = useState('')
@@ -24,17 +24,29 @@ export function useRealtimeVoice(opts: { onBuild: (prompt: string, mode: 'build'
   const addTurn = useCallback((role: 'user' | 'assistant', raw: unknown) => {
     const text = String(raw || '').trim()
     if (!text) return
-    setTranscript((prev) => [...prev, { id: turnIdRef.current++, role, text }])
+    setTranscript((prev) => {
+      // De-dupe: the GA API can emit two transcript-done events for one turn.
+      const last = prev[prev.length - 1]
+      if (last && last.role === role && last.text === text) return prev
+      return [...prev, { id: turnIdRef.current++, role, text }]
+    })
   }, [])
 
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const dcRef = useRef<RTCDataChannel | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const greetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onBuildRef = useRef(opts.onBuild)
   onBuildRef.current = opts.onBuild
 
+  const send = (obj: unknown) => {
+    const dc = dcRef.current
+    if (dc && dc.readyState === 'open') dc.send(JSON.stringify(obj))
+  }
+
   const stop = useCallback(() => {
+    if (greetTimerRef.current) { clearTimeout(greetTimerRef.current); greetTimerRef.current = null }
     try { dcRef.current?.close() } catch {}
     try { pcRef.current?.getSenders().forEach((s) => s.track?.stop()) } catch {}
     try { pcRef.current?.close() } catch {}
@@ -44,10 +56,15 @@ export function useRealtimeVoice(opts: { onBuild: (prompt: string, mode: 'build'
     setStatus('idle'); setUserText(''); setAssistantText(''); setTranscript([])
   }, [])
 
-  const send = (obj: unknown) => {
-    const dc = dcRef.current
-    if (dc && dc.readyState === 'open') dc.send(JSON.stringify(obj))
-  }
+  // Tell the model (mid-conversation) that the build/edit just landed, so it can
+  // truthfully say it's ready and offer changes — instead of claiming "done"
+  // the instant the tool was called (it ran ~30-60s ago, async).
+  const notifyComplete = useCallback(() => {
+    send({
+      type: 'response.create',
+      response: { instructions: 'The site just finished and is on screen now. In ONE short sentence, tell the user it’s ready and ask if they’d like any changes.' },
+    })
+  }, [])
 
   const handleEvent = useCallback((msg: any) => {
     switch (msg?.type) {
@@ -76,11 +93,16 @@ export function useRealtimeVoice(opts: { onBuild: (prompt: string, mode: 'build'
           const isBuild = msg.name === 'build_site'
           const isEdit = msg.name === 'edit_site'
           if ((isBuild || isEdit) && prompt.length >= 3 && prompt.length <= 4000) {
-            onBuildRef.current(prompt, isEdit ? 'edit' : 'build')
-            // Tell the model the work started so it can speak a confirmation.
+            // The page either starts it now or queues it behind an in-flight
+            // build. Ack the ACTUAL outcome so the chef doesn't claim it's done
+            // when it was queued (or dropped).
+            const outcome = onBuildRef.current(prompt, isEdit ? 'edit' : 'build')
+            const statusMsg = outcome === 'queued'
+              ? 'queued — finishing the current change first, then this one. Tell the user you’ll do it right after.'
+              : (isEdit ? 'editing now' : 'building now')
             send({
               type: 'conversation.item.create',
-              item: { type: 'function_call_output', call_id: msg.call_id, output: JSON.stringify({ status: isEdit ? 'editing' : 'building' }) },
+              item: { type: 'function_call_output', call_id: msg.call_id, output: JSON.stringify({ status: statusMsg }) },
             })
             send({ type: 'response.create' })
           } else if (isBuild || isEdit) {
@@ -142,7 +164,7 @@ export function useRealtimeVoice(opts: { onBuild: (prompt: string, mode: 'build'
         // session is fully settled before we ask for a response (firing on the
         // same tick can be dropped). The consultative behaviour itself lives in
         // the session instructions on the token route.
-        setTimeout(() => {
+        greetTimerRef.current = setTimeout(() => {
           send({
             type: 'response.create',
             response: {
@@ -150,7 +172,7 @@ export function useRealtimeVoice(opts: { onBuild: (prompt: string, mode: 'build'
                 "Greet the user and welcome them to Webstew, then ask what they want to build — with a light, clever cooking/stew touch (Webstew 'cooks up' sites). ONE short, warm sentence, under 18 words. E.g. \"Hey, welcome to Webstew — what should we cook up today?\" Don't list features.",
             },
           })
-        }, 350)
+        }, 250)
       }
       dc.onmessage = (e) => {
         try { handleEvent(JSON.parse(e.data)) }
@@ -168,12 +190,16 @@ export function useRealtimeVoice(opts: { onBuild: (prompt: string, mode: 'build'
           headers: { Authorization: `Bearer ${data.token}`, 'Content-Type': 'application/sdp' },
         },
       )
-      if (!sdpRes.ok) { setStatus('error'); setError('Voice connection failed. Try again.'); stop(); return }
+      if (!sdpRes.ok) { stop(); setStatus('error'); setError('Voice connection failed. Try again.'); return }
       const answerSdp = await sdpRes.text()
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
       // status flips to 'listening' when the data channel opens
     } catch (e: any) {
       const name = e?.name || ''
+      // Tear down FIRST, then set the error — stop() resets status to 'idle',
+      // so doing it last would clobber 'error' and leave a dead, message-less orb.
+      stop()
+      setStatus('error')
       setError(
         name === 'NotAllowedError' || name === 'SecurityError'
           ? 'Microphone blocked — allow mic access for this site, then try again.'
@@ -181,7 +207,6 @@ export function useRealtimeVoice(opts: { onBuild: (prompt: string, mode: 'build'
             ? 'No microphone found on this device.'
             : 'Couldn’t start voice. Try again.',
       )
-      setStatus('error'); stop()
     }
   }, [status, handleEvent, stop])
 
@@ -193,6 +218,7 @@ export function useRealtimeVoice(opts: { onBuild: (prompt: string, mode: 'build'
     transcript,
     start,
     stop,
+    notifyComplete,
     isActive: status === 'connecting' || status === 'listening' || status === 'speaking',
   }
 }
