@@ -45,6 +45,9 @@ export function useRealtimeVoice(opts: {
   const streamRef = useRef<MediaStream | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const greetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Grace timer for a 'disconnected' ICE state (which often self-heals) before
+  // we declare the link dead.
+  const dropTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onBuildRef = useRef(opts.onBuild)
   onBuildRef.current = opts.onBuild
   const getStatusRef = useRef(opts.getStatus)
@@ -59,6 +62,7 @@ export function useRealtimeVoice(opts: {
 
   const stop = useCallback(() => {
     if (greetTimerRef.current) { clearTimeout(greetTimerRef.current); greetTimerRef.current = null }
+    if (dropTimerRef.current) { clearTimeout(dropTimerRef.current); dropTimerRef.current = null }
     try { dcRef.current?.close() } catch {}
     try { pcRef.current?.getSenders().forEach((s) => s.track?.stop()) } catch {}
     try { pcRef.current?.close() } catch {}
@@ -183,6 +187,35 @@ export function useRealtimeVoice(opts: {
       }
       const track = stream.getAudioTracks()[0]
       if (track) pc.addTrack(track, stream)
+
+      // The WebRTC link can silently die — a network change, the phone sleeping,
+      // or a long session drifting until OpenAI drops it. Audio just goes quiet
+      // while the orb still looks live ("I lost audio, not sure what I did").
+      // Watch the connection: surface a clean "reconnect" prompt on a real drop
+      // so a FRESH session restores audio (and clears any gradual degradation a
+      // very long session accumulates). 'disconnected' often self-heals, so give
+      // it a grace window; 'failed' is terminal.
+      const declareDropped = () => {
+        if (pcRef.current !== pc) return
+        stop()
+        setStatus('error')
+        setError('Voice connection dropped — tap the mic to reconnect.')
+      }
+      pc.onconnectionstatechange = () => {
+        if (pcRef.current !== pc) return
+        const st = pc.connectionState
+        if (st === 'failed') { declareDropped() }
+        else if (st === 'disconnected') {
+          if (!dropTimerRef.current) dropTimerRef.current = setTimeout(() => {
+            dropTimerRef.current = null
+            if (pcRef.current === pc && pc.connectionState !== 'connected') declareDropped()
+          }, 6000)
+        } else if (st === 'connected') {
+          if (dropTimerRef.current) { clearTimeout(dropTimerRef.current); dropTimerRef.current = null }
+          // Re-nudge playback — iOS can suspend the audio element across a blip.
+          audioRef.current?.play().catch(() => {})
+        }
+      }
 
       const dc = pc.createDataChannel('oai-events')
       dcRef.current = dc
