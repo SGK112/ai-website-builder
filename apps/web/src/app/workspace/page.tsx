@@ -175,6 +175,9 @@ import { useElementActions } from './hooks/useElementActions'
 import { MobileToolCarousel } from './components/MobileToolCarousel'
 import { MobileChatRail } from './components/MobileChatRail'
 import { MobileComposer } from './components/MobileComposer'
+import { VoiceBuildOverlay } from './components/VoiceBuildOverlay'
+import { VoiceBubble } from './components/VoiceBubble'
+import { useRealtimeVoice } from './hooks/useRealtimeVoice'
 import { MobileAccountMenu } from './components/MobileAccountMenu'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import type { ImportedProject } from '@/lib/import-project'
@@ -188,7 +191,6 @@ import { VideoPanel } from './components/VideoPanel'
 import { TemplatesPanel } from './components/TemplatesPanel'
 import { BuildChatPanel } from './components/BuildChatPanel'
 import { PhonePreview } from './components/PhonePreview'
-import { useVoiceChat } from './hooks/useVoiceChat'
 import { levelCopy, defaultBuildTargetForLevel } from './constants'
 import { PublishToCommunityModal } from '@/components/builder/PublishToCommunityModal'
 import { SiteGraderModal } from '@/components/builder/SiteGraderModal'
@@ -7661,53 +7663,44 @@ ${html}
     // even be implied) — but nudge for a default instruction if there's no text.
     if (!commandInput.trim() && pendingChatImages.length === 0) return
     const msg = commandInput.trim() || 'Update the site to match the attached image.'
-    spokeByVoiceRef.current = false // typed turn → silent reply
     handleChatMessage(msg)
   }
 
   // ── Voice for the chef (build assistant) ──────────────────────────────────
-  // Talk to the builder + hear it answer. Logic lives in useVoiceChat; this is
-  // just the glue to the existing chat send + reply stream.
-  const voice = useVoiceChat()
-  const lastSpokenIdxRef = useRef(-1)
-  // True when the user's last turn came in by VOICE — then the chef speaks its
-  // reply back (a real two-way conversation). Typed turns stay silent. Resets
-  // per turn so the modality of the latest input decides.
-  const spokeByVoiceRef = useRef(false)
-  // Tap mic to talk; tap again to stop → transcribe → send as a chat message.
-  const handleMicToggle = useCallback(async () => {
-    if (isGenerating) return
-    if (voice.isListening) {
-      const { text, error } = await voice.stopListening()
-      if (text) { spokeByVoiceRef.current = true; handleChatMessage(text) }
-      else addToast(error ? 'error' : 'info', error || "Didn't catch that — try again, a little closer to the mic.")
-    } else {
-      // Surface why the mic failed instead of silently doing nothing (the main
-      // "voice doesn't work on mobile" symptom). startListening classifies the
-      // error (blocked permission, insecure origin, unsupported, no device).
-      const { ok, error } = await voice.startListening()
-      if (!ok && error) addToast('error', error)
-    }
-    // handleChatMessage is stable for this purpose; voice/isGenerating drive it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voice, isGenerating])
-
-  // One build process: the chat. Voice is just an option within it — the mic
-  // (handleMicToggle → useVoiceChat) records, transcribes in the background, and
-  // drops the text into the chat like a typed message. No separate voice screen.
-
-  // Speak the chef's replies when the user started by voice (two-way) OR the
-  // persistent speak-toggle is on — only new, settled assistant turns (not
-  // mid-stream), tracked by index so none is re-spoken.
+  // Realtime voice-build (Aria-style): talk to the builder and it builds live —
+  // a real-time conversation over WebRTC (see useRealtimeVoice), NOT record→stop
+  // →transcribe. When the model calls the build_site tool with what the user
+  // described, we run the normal build pipeline; the conversation keeps going.
+  const [showVoice, setShowVoice] = useState(false)
+  // Minimized = the session is live but collapsed to a floating bubble so the
+  // workspace (the site building) stays visible. Auto-collapses once live.
+  const [voiceMinimized, setVoiceMinimized] = useState(false)
+  const voiceAutoMinimizedRef = useRef(false)
+  const realtimeVoice = useRealtimeVoice({
+    onBuild: (p) => { setSidebarCollapsed(true); void handleChatMessage(p) },
+  })
+  const voiceActive = showVoice && (realtimeVoice.status === 'listening' || realtimeVoice.status === 'speaking' || realtimeVoice.status === 'connecting')
+  const openVoice = useCallback(() => {
+    voiceAutoMinimizedRef.current = false
+    setVoiceMinimized(false)
+    setShowVoice(true)
+    void realtimeVoice.start()
+  }, [realtimeVoice])
+  const closeVoice = useCallback(() => {
+    realtimeVoice.stop()
+    setShowVoice(false)
+    setVoiceMinimized(false)
+    voiceAutoMinimizedRef.current = false
+  }, [realtimeVoice])
+  // Once the conversation goes live, collapse to the floating bubble so the user
+  // watches their project cook while still talking. Only auto-minimizes once.
   useEffect(() => {
-    if ((!voice.speakReplies && !spokeByVoiceRef.current) || isThinking || isGenerating) return
-    const idx = chatMessages.length - 1
-    const last = chatMessages[idx]
-    if (idx > lastSpokenIdxRef.current && last?.role === 'assistant' && last.content?.trim()) {
-      lastSpokenIdxRef.current = idx
-      void voice.speak(last.content)
+    if (!showVoice || voiceAutoMinimizedRef.current) return
+    if (realtimeVoice.status === 'listening' || realtimeVoice.status === 'speaking') {
+      voiceAutoMinimizedRef.current = true
+      setVoiceMinimized(true)
     }
-  }, [chatMessages, isThinking, isGenerating, voice])
+  }, [showVoice, realtimeVoice.status])
 
   // Anon can build freely, but exporting the source is "doing something with
   // it" — gate every export surface behind signup like publish/deploy/save.
@@ -9439,8 +9432,8 @@ npx eas build --platform all
                     const file = img?.getAsFile()
                     if (file) { e.preventDefault(); void attachImageToChat(file) }
                   }}
-                  placeholder={currentProject?.role === 'viewer' ? 'View only — ask the owner for edit access' : voice.isListening ? 'Listening…' : isGenerating ? 'Creating...' : levelCopy[skillLevel].chatPlaceholder}
-                  disabled={isGenerating || voice.isListening || currentProject?.role === 'viewer'}
+                  placeholder={currentProject?.role === 'viewer' ? 'View only — ask the owner for edit access' : isGenerating ? 'Creating...' : levelCopy[skillLevel].chatPlaceholder}
+                  disabled={isGenerating || currentProject?.role === 'viewer'}
                   className={cn(
                     "flex-1 min-w-0 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/50 disabled:opacity-50",
                     isDark
@@ -9448,25 +9441,25 @@ npx eas build --platform all
                       : "bg-white border-slate-200 text-slate-900 placeholder-slate-400"
                   )}
                 />
-                {/* Talk — same input, just by voice. Tap to record, tap to send;
-                    STT runs in the background and lands in the chat like a typed
-                    message. The one voice control (no separate widget). */}
-                {voice.available && !isThinking && !isGenerating && (
+                {/* Talk — same input, just by voice. Opens a live, hands-free
+                    conversation with the builder (Aria-style realtime); it builds
+                    as you talk. The one voice control (no separate widget). */}
+                {!isThinking && !isGenerating && (
                   <button
                     type="button"
-                    onClick={handleMicToggle}
+                    onClick={voiceActive ? closeVoice : openVoice}
                     disabled={currentProject?.role === 'viewer'}
-                    title={voice.isListening ? 'Stop & send' : 'Talk to the builder'}
-                    aria-label={voice.isListening ? 'Stop recording and send' : 'Talk to the builder'}
-                    aria-pressed={voice.isListening}
+                    title={voiceActive ? 'End voice conversation' : 'Talk to the builder'}
+                    aria-label={voiceActive ? 'End voice conversation' : 'Talk to the builder'}
+                    aria-pressed={voiceActive}
                     className={cn(
                       'w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-all disabled:opacity-40',
-                      voice.isListening
-                        ? 'bg-rose-500 text-white animate-pulse'
+                      voiceActive
+                        ? 'bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white animate-pulse'
                         : isDark ? 'text-zinc-400 hover:text-violet-300 hover:bg-white/5' : 'text-slate-500 hover:text-violet-600 hover:bg-slate-200'
                     )}
                   >
-                    {voice.isListening ? <Square className="w-4 h-4 fill-current" /> : <Mic className="w-4 h-4" />}
+                    <Mic className="w-4 h-4" />
                   </button>
                 )}
                 {/* Send / Stop — inline with the input. Morphs to Stop while a
@@ -9811,6 +9804,32 @@ npx eas build --platform all
               <MobileAccountMenu isDark={isDark} user={session?.user ?? null} />
             </div>
           </>
+        )}
+
+        {/* Realtime voice-build — talk and it builds. Full-screen orb while
+            connecting; once the conversation is live it collapses to the
+            floating bubble so the workspace (the site cooking) is visible. */}
+        {showVoice && (!voiceMinimized || realtimeVoice.status === 'error') && (
+          <VoiceBuildOverlay
+            isDark={isDark}
+            status={realtimeVoice.status}
+            error={realtimeVoice.error}
+            userText={realtimeVoice.userText}
+            assistantText={realtimeVoice.assistantText}
+            onClose={closeVoice}
+            onRetry={() => void realtimeVoice.start()}
+            onMinimize={() => setVoiceMinimized(true)}
+          />
+        )}
+        {showVoice && voiceMinimized && realtimeVoice.status !== 'error' && (
+          <VoiceBubble
+            isDark={isDark}
+            status={realtimeVoice.status}
+            userText={realtimeVoice.userText}
+            assistantText={realtimeVoice.assistantText}
+            onExpand={() => setVoiceMinimized(false)}
+            onEnd={closeVoice}
+          />
         )}
 
         {/* Toolbar - High z-index so dropdowns appear above preview.
@@ -11047,19 +11066,17 @@ npx eas build --platform all
                         <>
                           <p className="text-zinc-500 font-medium text-sm">{levelCopy[skillLevel].previewEmptyTitle}</p>
                           <p className="text-zinc-400 text-xs mt-1">{levelCopy[skillLevel].previewEmptyBody}</p>
-                          {/* Voice = an option in the one build process: the mic
-                              records, transcribes in the background, and drops
-                              the text into the chat like any message. */}
+                          {/* Voice = a live, hands-free conversation with the
+                              builder (Aria-style realtime) — talk and it builds. */}
                           <button
-                            onClick={handleMicToggle}
+                            onClick={voiceActive ? closeVoice : openVoice}
                             className={cn(
                               "mt-5 inline-flex items-center gap-2.5 rounded-2xl px-5 py-3 text-white text-sm font-semibold shadow-lg transition hover:scale-[1.02]",
-                              voice.isListening
-                                ? "bg-gradient-to-br from-rose-500 to-fuchsia-600 shadow-rose-500/40 animate-pulse"
-                                : "bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-violet-500/30 hover:shadow-violet-500/40"
+                              "bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-violet-500/30 hover:shadow-violet-500/40",
+                              voiceActive && "animate-pulse"
                             )}
                           >
-                            <Mic className="w-[18px] h-[18px]" /> {voice.isListening ? 'Listening… tap to send' : 'Talk and I’ll build it'}
+                            <Mic className="w-[18px] h-[18px]" /> {voiceActive ? 'Listening… tap to end' : 'Talk and I’ll build it'}
                           </button>
                           <p className="text-zinc-600 text-[11px] mt-2.5">or describe it in the chat →</p>
                         </>
@@ -11080,8 +11097,8 @@ npx eas build --platform all
                     value={commandInput}
                     onChange={setCommandInput}
                     onSubmit={handleCommandSubmit}
-                    onVoice={handleMicToggle}
-                    isListening={voice.isListening}
+                    onVoice={voiceActive ? closeVoice : openVoice}
+                    isListening={voiceActive}
                     isGenerating={isGenerating}
                   />
                 </>
