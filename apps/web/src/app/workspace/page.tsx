@@ -180,6 +180,7 @@ import { VoiceBubble } from './components/VoiceBubble'
 import { useRealtimeVoice } from './hooks/useRealtimeVoice'
 import { useVoiceBuildQueue } from './hooks/useVoiceBuildQueue'
 import { useVoiceVideo } from './hooks/useVoiceVideo'
+import { useAutoRepublish } from './hooks/useAutoRepublish'
 import { VideoResultOverlay } from './components/VideoResultOverlay'
 import { MobileAccountMenu } from './components/MobileAccountMenu'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -2289,6 +2290,11 @@ function WorkspaceContent() {
   // Instant-publish state (Go Live → {slug}.webstew.app, no GitHub/Render).
   const [isPublishing, setIsPublishing] = useState(false)
   const [publishUrl, setPublishUrl] = useState<string | null>(null)
+  // Bumps whenever a committed edit changes the live content — drives auto-sync
+  // of the published site (useAutoRepublish). Ref to publishInstant so the
+  // debounced sync always calls the latest closure (fresh html/pages state).
+  const [contentVersion, setContentVersion] = useState(0)
+  const publishInstantRef = useRef<((opts?: { auto?: boolean }) => Promise<void>) | null>(null)
   // Ship tab: keep the primary flow (Go Live → custom domain) clean and tuck
   // the power-user stuff (BYO API keys, raw GitHub/Render deploy, export)
   // behind an "Advanced" disclosure so the panel isn't a wall of buttons.
@@ -4294,19 +4300,23 @@ function WorkspaceContent() {
   // repo, no Render service, no cold start. Website target only for now —
   // app targets (React/Astro/Next) need a build step the managed builder
   // doesn't run server-side yet, so those keep Export / Deploy.
-  const publishInstant = async () => {
+  const publishInstant = async (opts?: { auto?: boolean }) => {
+    const auto = !!opts?.auto
     if (!session?.user) {
-      setSignupNudge({ show: true, reason: 'deploy-render' })
+      if (!auto) setSignupNudge({ show: true, reason: 'deploy-render' })
       return
     }
     if (!html.trim()) {
-      addToast('error', 'Nothing to publish yet — build a site first')
+      if (!auto) addToast('error', 'Nothing to publish yet — build a site first')
       return
     }
     if (buildTarget !== 'website') {
-      addToast('error', 'Instant publish is for websites. For app targets, use Deploy or Export.')
+      if (!auto) addToast('error', 'Instant publish is for websites. For app targets, use Deploy or Export.')
       return
     }
+    // Auto-sync only ever UPDATES a site that's already live, and never while a
+    // publish is already running.
+    if (auto && (!publishUrl || isPublishing)) return
 
     setIsPublishing(true)
     try {
@@ -4351,10 +4361,16 @@ ${body}
 
       setPublishUrl(data.url)
       setPublishPath(data.path)
-      addTerminalLine('success', `✅ Live at ${data.url}`)
-      addConsoleLog('success', `Published: ${data.url} (${data.pages} page${data.pages === 1 ? '' : 's'})`)
-      addToast('success', 'Published — your site is live!')
-      try { await navigator.clipboard.writeText(data.url) } catch { /* clipboard blocked — URL still shown */ }
+      if (auto) {
+        // Quiet sync — the site was already live; we just pushed the latest edit.
+        addConsoleLog('success', `Live site auto-synced: ${data.url}`)
+        addToast('success', 'Live site updated ✨')
+      } else {
+        addTerminalLine('success', `✅ Live at ${data.url}`)
+        addConsoleLog('success', `Published: ${data.url} (${data.pages} page${data.pages === 1 ? '' : 's'})`)
+        addToast('success', 'Published — your site is live!')
+        try { await navigator.clipboard.writeText(data.url) } catch { /* clipboard blocked — URL still shown */ }
+      }
     } catch (e: any) {
       const msg = e?.message || 'Publish failed'
       addTerminalLine('error', `❌ ${msg}`)
@@ -4363,6 +4379,17 @@ ${body}
       setIsPublishing(false)
     }
   }
+  // Always point at the latest closure so the debounced auto-sync reads current
+  // html/pages, not a stale render's.
+  publishInstantRef.current = publishInstant
+  const autoRepublish = useCallback(() => { void publishInstantRef.current?.({ auto: true }) }, [])
+  // Keep a live published site in sync with edits (debounced; only once live).
+  useAutoRepublish({
+    enabled: !!publishUrl,
+    busy: isGenerating || isThinking || isPublishing,
+    version: contentVersion,
+    republish: autoRepublish,
+  })
 
   const deployToGitHub = async () => {
     // Anon users get the signup wall instead of a silent 401. Don't even
@@ -7007,10 +7034,13 @@ ${html}
     // page tabs, and the NEXT turn's file snapshot all include it (and the agent
     // route already persisted each write to Mongo).
     const commitAgentWork = () => {
+      const changed = (!!committedHtml && committedHtml !== html) || pageEdits.size > 0 || newPageFiles.size > 0 || deletedPageIds.size > 0
       if (committedHtml && committedHtml !== html) {
         setHtml(committedHtml)
         addToHistory(committedHtml, 'AI Edit: ' + message.slice(0, 60))
       }
+      // Mark the content as changed so a live site auto-syncs this edit.
+      if (changed) setContentVersion(v => v + 1)
       if (buildTarget === 'website' && (pageEdits.size || newPageFiles.size || deletedPageIds.size)) {
         setPages(prevPages => {
           let next = prevPages.map(p => {
