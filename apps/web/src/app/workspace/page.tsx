@@ -179,6 +179,8 @@ import { VoiceBuildOverlay } from './components/VoiceBuildOverlay'
 import { VoiceBubble } from './components/VoiceBubble'
 import { useRealtimeVoice } from './hooks/useRealtimeVoice'
 import { useVoiceBuildQueue } from './hooks/useVoiceBuildQueue'
+import { useVoiceVideo } from './hooks/useVoiceVideo'
+import { VideoResultOverlay } from './components/VideoResultOverlay'
 import { MobileAccountMenu } from './components/MobileAccountMenu'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import type { ImportedProject } from '@/lib/import-project'
@@ -7698,6 +7700,10 @@ ${html}
   // Voice tool calls dispatch through the queue (defined below) — ref breaks the
   // cycle (onBuild → enqueue → realtimeVoice.notifyComplete).
   const enqueueVoiceRef = useRef<(p: string, mode: 'build' | 'edit') => 'started' | 'queued'>(() => 'queued')
+  // Voice-driven short video clips (Grok). Generation + polling + result state
+  // live in the hook; the overlay renders it. Defined before realtimeVoice so
+  // the make_video tool can kick it off.
+  const voiceVideo = useVoiceVideo()
   const realtimeVoice = useRealtimeVoice({
     onBuild: (p, mode) => { setVoiceMinimized(true); setSidebarCollapsed(true); return enqueueVoiceRef.current(p, mode) },
     getStatus: () => {
@@ -7705,6 +7711,7 @@ ${html}
       if (html || pages.some((p) => p.html?.trim())) return 'finished — the site is on screen now'
       return 'nothing built yet'
     },
+    onVideo: (prompt) => { setVoiceMinimized(true); void voiceVideo.generate(prompt) },
   })
   const enqueueVoiceBuild = useVoiceBuildQueue({
     busy: isGenerating || isThinking,
@@ -9867,6 +9874,17 @@ npx eas build --platform all
             onEnd={closeVoice}
           />
         )}
+
+        {/* Voice-generated short video — cooking spinner → looping clip + download. */}
+        <VideoResultOverlay
+          isDark={isDark}
+          status={voiceVideo.status}
+          videoUrl={voiceVideo.videoUrl}
+          error={voiceVideo.error}
+          prompt={voiceVideo.prompt}
+          onClose={voiceVideo.dismiss}
+          onRetry={() => void voiceVideo.generate(voiceVideo.prompt)}
+        />
 
         {/* Toolbar - High z-index so dropdowns appear above preview.
             Desktop only — mobile uses the minimal header above. */}

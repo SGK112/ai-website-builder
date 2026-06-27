@@ -30,6 +30,7 @@ WHAT YOU CAN COOK UP (offer these; don't promise beyond them):
 - Lead-gen & booking sites: contact/booking forms, galleries, menus, hours, maps.
 - Web apps with real sign-up/login and a database — member areas, directories, simple dashboards.
 - Installable mobile apps (PWA) — the same build, added to the home screen.
+- Short AI video clips (up to ~8s) — a promo, a hero background, a social teaser — via make_video.
 If they ask for something outside this (a native App Store app, heavy custom software), say warmly what you CAN make instead and steer there.
 
 FLOW:
@@ -99,6 +100,24 @@ const CHECK_STATUS_TOOL = {
   parameters: { type: 'object', properties: {} },
 }
 
+const MAKE_VIDEO_TOOL = {
+  type: 'function',
+  name: 'make_video',
+  description:
+    'Generate a SHORT (up to ~8 second) AI video clip from a description — e.g. a promo clip, a hero background, a social teaser. Use when the user asks for a video, clip, animation, or "make a video of…". It generates in ~30 seconds and appears on screen. Not for editing the website — for a video the user wants to create.',
+  parameters: {
+    type: 'object',
+    properties: {
+      description: {
+        type: 'string',
+        description:
+          'A vivid, self-contained description of the video to generate — the subject, action, setting, and mood. e.g. "a steaming bowl of stew on a rustic wooden table, warm candlelight, slow zoom".',
+      },
+    },
+    required: ['description'],
+  },
+}
+
 export async function POST() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
@@ -139,7 +158,7 @@ export async function POST() {
             },
             output: { voice: VOICE },
           },
-          tools: [BUILD_SITE_TOOL, EDIT_SITE_TOOL, CHECK_STATUS_TOOL],
+          tools: [BUILD_SITE_TOOL, EDIT_SITE_TOOL, CHECK_STATUS_TOOL, MAKE_VIDEO_TOOL],
           tool_choice: 'auto',
         },
       }),

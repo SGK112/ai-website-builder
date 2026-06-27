@@ -17,6 +17,9 @@ export function useRealtimeVoice(opts: {
   // Live status the model can CHECK (so it never guesses "still cooking" /
   // "done"). e.g. "still building", "finished — on screen", "no site yet".
   getStatus: () => string
+  // Generate a short video from a spoken description (Grok Imagine). Fire-and-
+  // forget — the video overlay shows progress + result; the chef just kicks it off.
+  onVideo: (prompt: string) => void
 }) {
   const [status, setStatus] = useState<RealtimeStatus>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -46,6 +49,8 @@ export function useRealtimeVoice(opts: {
   onBuildRef.current = opts.onBuild
   const getStatusRef = useRef(opts.getStatus)
   getStatusRef.current = opts.getStatus
+  const onVideoRef = useRef(opts.onVideo)
+  onVideoRef.current = opts.onVideo
 
   const send = (obj: unknown) => {
     const dc = dcRef.current
@@ -100,6 +105,16 @@ export function useRealtimeVoice(opts: {
             break
           }
           const args = JSON.parse(msg.arguments || '{}')
+          // Video generation — kick off the async clip and ack immediately.
+          if (msg.name === 'make_video') {
+            const desc = String(args?.description ?? args?.prompt ?? '').trim()
+            if (desc.length >= 3 && desc.length <= 500) {
+              try { onVideoRef.current(desc) } catch (e) { console.error('[realtime] onVideo failed', e) }
+              send({ type: 'conversation.item.create', item: { type: 'function_call_output', call_id: msg.call_id, output: JSON.stringify({ status: 'making the video now — it appears on screen in ~30 seconds' }) } })
+              send({ type: 'response.create' })
+            }
+            break
+          }
           // build_site uses `prompt`, edit_site uses `change` — accept either.
           const prompt = String(args?.prompt ?? args?.change ?? '').trim()
           // Validate before kicking off a real build: must be a non-trivial,
