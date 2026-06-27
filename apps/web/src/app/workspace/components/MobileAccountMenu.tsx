@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import { cn } from '@/lib/utils'
-import { User as UserIcon, LogOut, LogIn, UserPlus } from 'lucide-react'
+import { User as UserIcon, LogOut, LogIn, UserPlus, Coins } from 'lucide-react'
 
 interface Props {
   isDark: boolean
@@ -18,6 +18,8 @@ interface Props {
 export function MobileAccountMenu({ isDark, user }: Props) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
+  const [credits, setCredits] = useState<number | null>(null)
+  const [plan, setPlan] = useState<string>('')
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -28,6 +30,18 @@ export function MobileAccountMenu({ isDark, user }: Props) {
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
   }, [open])
+
+  // Pull the live credit balance when the menu opens (so the user can actually
+  // see what they have / what builds are costing).
+  useEffect(() => {
+    if (!open || !user) return
+    let alive = true
+    fetch('/api/credits')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && d) { if (typeof d.credits === 'number') setCredits(d.credits); if (d.plan) setPlan(String(d.plan)) } })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [open, user])
 
   const go = (href: string) => { setOpen(false); router.push(href) }
 
@@ -63,9 +77,25 @@ export function MobileAccountMenu({ isDark, user }: Props) {
         >
           {user ? (
             <>
-              <div className={cn('px-3.5 py-2.5 border-b text-[12px] truncate', isDark ? 'border-white/10 text-zinc-400' : 'border-slate-200 text-slate-500')}>
+              <div className={cn('px-3.5 py-2 border-b text-[12px] truncate', isDark ? 'border-white/10 text-zinc-400' : 'border-slate-200 text-slate-500')}>
                 {user.name || user.email || 'Signed in'}
               </div>
+              {/* Credits — what you have + a tap to top up. */}
+              <button
+                onClick={() => go('/upgrade')}
+                className={cn('w-full flex items-center justify-between gap-2 px-3.5 py-2.5 border-b transition-colors',
+                  isDark ? 'border-white/10 active:bg-white/10' : 'border-slate-200 active:bg-slate-100')}
+              >
+                <span className="flex items-center gap-2 text-[14px] font-semibold">
+                  <Coins className="w-[18px] h-[18px] text-amber-400" />
+                  <span className={isDark ? 'text-white' : 'text-slate-900'}>{credits != null ? credits.toLocaleString() : '—'}</span>
+                  <span className={cn('text-[12px] font-medium', isDark ? 'text-zinc-500' : 'text-slate-400')}>credits</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  {plan && <span className={cn('text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded', isDark ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-100 text-violet-700')}>{plan}</span>}
+                  <span className="text-[11px] font-semibold text-violet-400">Top up →</span>
+                </span>
+              </button>
               <button onClick={() => go('/profile')} className={itemCls}>
                 <UserIcon className="w-[18px] h-[18px]" /> Profile
               </button>

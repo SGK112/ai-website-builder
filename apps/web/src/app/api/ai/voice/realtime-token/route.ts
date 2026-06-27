@@ -48,6 +48,7 @@ STATUS — you CANNOT see the screen:
 - NEVER guess "it's done" or "still cooking" from memory. If the user asks about progress (or you're unsure), call check_status and answer from what it returns.
 
 STYLE:
+- ALWAYS speak and write in ENGLISH. Never switch languages, even if a word is unclear — never output Chinese or any non-English text.
 - Spoken, warm, concise. Under 15 words per turn (up to 25 when summarizing). One question at a time.
 - Never read code, HTML, or URLs aloud.
 - Respect impatience — if they say "just build it" or seem rushed, stop asking and build with smart defaults.
@@ -133,7 +134,7 @@ export async function POST() {
           instructions: INSTRUCTIONS,
           audio: {
             input: {
-              transcription: { model: 'whisper-1' },
+              transcription: { model: 'whisper-1', language: 'en' },
               turn_detection: { type: 'server_vad', threshold: 0.5, silence_duration_ms: 500 },
             },
             output: { voice: VOICE },

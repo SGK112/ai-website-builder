@@ -9824,7 +9824,21 @@ npx eas build --platform all
                 <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-base shadow-lg shadow-violet-500/30">🍲</span>
                 <span className="text-[15px] font-bold bg-gradient-to-r from-violet-200 to-fuchsia-200 bg-clip-text text-transparent">webstew</span>
               </button>
-              <MobileAccountMenu isDark={isDark} user={session?.user ?? null} />
+              <div className="pointer-events-auto flex items-center gap-2.5">
+                {/* Focus mode = clean, full-screen preview of the site (no chat,
+                    no tools) — works in portrait, no need to rotate. */}
+                {(html.trim() || Object.keys(vfsFiles).length > 0) && (
+                  <button
+                    onClick={() => setFocusMode(true)}
+                    aria-label="Preview the site full-screen"
+                    title="Full-screen preview"
+                    className="w-9 h-9 rounded-full flex items-center justify-center bg-black/35 backdrop-blur-sm text-white shadow-lg active:scale-95 transition drop-shadow-[0_1px_3px_rgba(0,0,0,0.5)]"
+                  >
+                    <Maximize2 className="w-[18px] h-[18px]" />
+                  </button>
+                )}
+                <MobileAccountMenu isDark={isDark} user={session?.user ?? null} />
+              </div>
             </div>
           </>
         )}
@@ -11110,8 +11124,9 @@ npx eas build --platform all
 
               {/* Mobile: the conversation floats up the side over the canvas,
                   and one minimal composer (text or voice) sits at the bottom —
-                  so the building site stays the star. */}
-              {isMobile && (
+                  so the building site stays the star. Hidden in focus mode so
+                  it's a pure, clean preview of the site. */}
+              {isMobile && !focusMode && (
                 <>
                   <MobileChatRail isDark={isDark} messages={chatMessages} streaming={isThinking || isGenerating} />
                   <MobileComposer
