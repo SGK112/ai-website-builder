@@ -19,6 +19,9 @@ export const dynamic = 'force-dynamic'
 // GA realtime model. Override per-env if the account is pinned to a snapshot.
 const MODEL = process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime'
 const VOICE = process.env.OPENAI_REALTIME_VOICE || 'marin'
+// Input transcription (display only — the model hears audio directly). 4o-mini
+// hallucinates far less than whisper-1 on silence/noise. Override per-env.
+const TRANSCRIBE_MODEL = process.env.OPENAI_REALTIME_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe'
 
 const INSTRUCTIONS = `You are Webstew's build chef — a warm, sharp designer who "cooks up" a website or app WITH the user, fully hands-free, by talking it through. Webstew's whole vibe is a stew: you gather the ingredients (what they want) and cook them into a site. The user never types; the whole project is built from your conversation. Lean into the cooking/stew brand LIGHTLY and cleverly — an occasional "let's cook this up" or "what's the main ingredient?" — never forced, never on every line.
 
@@ -184,7 +187,12 @@ export async function POST() {
           instructions: INSTRUCTIONS,
           audio: {
             input: {
-              transcription: { model: 'whisper-1', language: 'en' },
+              // gpt-4o-mini-transcribe, NOT whisper-1: whisper hallucinates whole
+              // paragraphs of garbage on silence/room-noise (it polluted the
+              // on-screen transcript — the realtime model itself hears the audio
+              // directly and ignored it, but the text thread filled with junk).
+              // The 4o transcribers barely hallucinate on non-speech.
+              transcription: { model: TRANSCRIBE_MODEL, language: 'en' },
               // Less trigger-happy VAD: a higher threshold + longer trailing
               // silence stops the model's own greeting echo / room noise / breath
               // from being detected as "speech" — which was interrupting the
