@@ -180,8 +180,10 @@ import { VoiceBubble } from './components/VoiceBubble'
 import { useRealtimeVoice } from './hooks/useRealtimeVoice'
 import { useVoiceBuildQueue } from './hooks/useVoiceBuildQueue'
 import { useVoiceVideo } from './hooks/useVoiceVideo'
+import { useVoiceImage } from './hooks/useVoiceImage'
 import { useAutoRepublish } from './hooks/useAutoRepublish'
 import { VideoResultOverlay, VideoMiniChip } from './components/VideoResultOverlay'
+import { ImageResultOverlay, ImageMiniChip } from './components/ImageResultOverlay'
 import { MobileAccountMenu } from './components/MobileAccountMenu'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import type { ImportedProject } from '@/lib/import-project'
@@ -7773,6 +7775,7 @@ ${html}
   // live in the hook; the overlay renders it. Defined before realtimeVoice so
   // the make_video tool can kick it off.
   const voiceVideo = useVoiceVideo()
+  const voiceImage = useVoiceImage()
   const realtimeVoice = useRealtimeVoice({
     onBuild: (p, mode, title) => {
       setVoiceMinimized(true); setSidebarCollapsed(true)
@@ -7785,6 +7788,7 @@ ${html}
       return 'nothing built yet'
     },
     onVideo: (prompt) => { setVoiceMinimized(true); void voiceVideo.generate(prompt) },
+    onImage: (prompt) => { setVoiceMinimized(true); void voiceImage.generate(prompt) },
     onListForSale: (priceUsd, description) => {
       if (!session?.user) { setSignupNudge({ show: true, reason: 'deploy-render' }); return 'need-signin' }
       if (!html.trim()) return 'no-site'
@@ -9993,6 +9997,20 @@ npx eas build --platform all
           onRetry={() => void voiceVideo.generate(voiceVideo.prompt)}
         />
         <VideoMiniChip status={voiceVideo.status} minimized={voiceVideo.minimized} onReopen={voiceVideo.reopen} />
+
+        {/* Voice-generated logo/image — designing spinner → image + download. */}
+        <ImageResultOverlay
+          isDark={isDark}
+          status={voiceImage.status}
+          imageUrl={voiceImage.imageUrl}
+          error={voiceImage.error}
+          prompt={voiceImage.prompt}
+          saved={voiceImage.saved}
+          minimized={voiceImage.minimized}
+          onClose={() => { if (voiceImage.status === 'error') voiceImage.discard(); else voiceImage.minimize() }}
+          onRetry={() => void voiceImage.generate(voiceImage.prompt)}
+        />
+        <ImageMiniChip status={voiceImage.status} minimized={voiceImage.minimized} onReopen={voiceImage.reopen} />
 
         {/* Toolbar - High z-index so dropdowns appear above preview.
             Desktop only — mobile uses the minimal header above. */}

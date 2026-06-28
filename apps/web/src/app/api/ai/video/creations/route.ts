@@ -34,8 +34,9 @@ export async function POST(request: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   let body: { kind?: string; url?: string; title?: string }
   try { body = await request.json() } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }
-  const kind = body.kind === 'clip' ? 'clip' : body.kind === 'video' ? 'video' : null
-  if (!kind) return NextResponse.json({ error: 'kind must be clip or video' }, { status: 400 })
+  const ALLOWED_KINDS = ['clip', 'video', 'image', 'logo']
+  const kind = typeof body.kind === 'string' && ALLOWED_KINDS.includes(body.kind) ? body.kind : null
+  if (!kind) return NextResponse.json({ error: 'kind must be clip, video, image, or logo' }, { status: 400 })
   if (!body.url || !urlOk(body.url)) return NextResponse.json({ error: 'A valid media URL is required.' }, { status: 400 })
 
   const c = await col()

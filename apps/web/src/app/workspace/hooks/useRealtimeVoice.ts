@@ -20,6 +20,8 @@ export function useRealtimeVoice(opts: {
   // Generate a short video from a spoken description (Grok Imagine). Fire-and-
   // forget — the video overlay shows progress + result; the chef just kicks it off.
   onVideo: (prompt: string) => void
+  // Generate a logo/image from a spoken description (grok-imagine-image).
+  onImage: (prompt: string) => void
   // List the current site for sale. Returns a short status for the chef to relay
   // ('listing' kicked off, 'no-site' nothing to sell, 'need-signin').
   onListForSale: (priceUsd: number, description?: string) => 'listing' | 'no-site' | 'need-signin'
@@ -57,6 +59,8 @@ export function useRealtimeVoice(opts: {
   getStatusRef.current = opts.getStatus
   const onVideoRef = useRef(opts.onVideo)
   onVideoRef.current = opts.onVideo
+  const onImageRef = useRef(opts.onImage)
+  onImageRef.current = opts.onImage
   const onListForSaleRef = useRef(opts.onListForSale)
   onListForSaleRef.current = opts.onListForSale
 
@@ -120,6 +124,16 @@ export function useRealtimeVoice(opts: {
             if (desc.length >= 3 && desc.length <= 500) {
               try { onVideoRef.current(desc) } catch (e) { console.error('[realtime] onVideo failed', e) }
               send({ type: 'conversation.item.create', item: { type: 'function_call_output', call_id: msg.call_id, output: JSON.stringify({ status: 'making the video now — it appears on screen in ~30 seconds' }) } })
+              send({ type: 'response.create' })
+            }
+            break
+          }
+          // Create a logo/image — kick off the async generation and ack.
+          if (msg.name === 'make_logo') {
+            const desc = String(args?.description ?? args?.prompt ?? '').trim()
+            if (desc.length >= 3 && desc.length <= 500) {
+              try { onImageRef.current(desc) } catch (e) { console.error('[realtime] onImage failed', e) }
+              send({ type: 'conversation.item.create', item: { type: 'function_call_output', call_id: msg.call_id, output: JSON.stringify({ status: 'designing it now — it appears on screen in a few seconds, saved to their creations' }) } })
               send({ type: 'response.create' })
             }
             break

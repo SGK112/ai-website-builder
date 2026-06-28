@@ -34,7 +34,7 @@ WHAT YOU CAN COOK UP (offer these; don't promise beyond them):
 - Web apps with real sign-up/login and a database — member areas, directories, simple dashboards.
 - Installable mobile apps (PWA) — the same build, added to the home screen.
 - Short AI video clips (up to ~8s) — a promo, a hero background, a social teaser — via make_video.
-- Images & logos ON a site: real photos for any section, plus a custom logo / brand mark / favicon. You CAN do these — just say "add a logo" or "use a photo of …"; they're applied as an edit, so a site must exist first. (Never tell the user you can't add images or a logo — you can.)
+- Logos, icons & images you CREATE standalone — a real generated PNG logo / brand mark / app icon / illustration — via make_logo. Just say "make me a logo for my coffee shop". (You can ALSO add photos or a logo directly onto an existing site via an edit.) NEVER tell the user you can't make a logo or image — you can.
 If they ask for something outside this (a native App Store app, heavy custom software), say warmly what you CAN make instead and steer there.
 
 FLOW:
@@ -132,6 +132,24 @@ const MAKE_VIDEO_TOOL = {
   },
 }
 
+const MAKE_LOGO_TOOL = {
+  type: 'function',
+  name: 'make_logo',
+  description:
+    'Create a logo, icon, or image from a description (a real generated PNG image, e.g. a brand mark, app icon, or illustration). Use when the user says "make/create a logo", "design an icon", "make me an image of…". It generates in a few seconds and appears on screen, saved to their creations. This CREATES a standalone image — different from adding an existing image to a site.',
+  parameters: {
+    type: 'object',
+    properties: {
+      description: {
+        type: 'string',
+        description:
+          'A vivid description of the logo/image — subject, style (flat/vector/3d/minimal), colors, and "transparent background" for a logo or icon. e.g. "a minimal flat logo icon of a coffee bean, warm brown, transparent background".',
+      },
+    },
+    required: ['description'],
+  },
+}
+
 const LIST_FOR_SALE_TOOL = {
   type: 'function',
   name: 'list_for_sale',
@@ -202,7 +220,7 @@ export async function POST() {
             },
             output: { voice: VOICE },
           },
-          tools: [BUILD_SITE_TOOL, EDIT_SITE_TOOL, CHECK_STATUS_TOOL, MAKE_VIDEO_TOOL, LIST_FOR_SALE_TOOL],
+          tools: [BUILD_SITE_TOOL, EDIT_SITE_TOOL, CHECK_STATUS_TOOL, MAKE_VIDEO_TOOL, MAKE_LOGO_TOOL, LIST_FOR_SALE_TOOL],
           tool_choice: 'auto',
         },
       }),
