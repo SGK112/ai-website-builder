@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getApiSession } from '@/lib/api-auth'
 import { inlineTailwind } from '@/lib/tailwind-compile'
+import { isBuilderAppShell } from '@/lib/app-shell'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 import { createSnapshot, listSnapshotsByUser } from '@/lib/preview-store'
 
@@ -21,6 +22,11 @@ export async function POST(req: NextRequest) {
     const { html, name, type, ttlDays, ownerEmail, ownerPhone } = await req.json().catch(() => ({} as any))
     if (!html || typeof html !== 'string') {
       return NextResponse.json({ error: 'html (string) is required' }, { status: 400 })
+    }
+    // Don't snapshot the builder app's own shell — it CORS-errors to a white
+    // page in the sandboxed preview. Build a real site first.
+    if (isBuilderAppShell(html)) {
+      return NextResponse.json({ error: 'Build a site first — there\'s nothing to preview yet.' }, { status: 400 })
     }
     // Shared preview is a public artifact — compile Tailwind to static CSS so it
     // doesn't depend on the runtime CDN (falls back to the original on any miss).

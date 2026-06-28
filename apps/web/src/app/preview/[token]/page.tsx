@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { NotAvailable } from '@/components/NotAvailable'
 import { getSnapshotByToken } from '@/lib/preview-store'
+import { isBuilderAppShell } from '@/lib/app-shell'
 import type { Metadata } from 'next'
 import { ProposalClient } from './ProposalClient'
 
@@ -45,6 +46,17 @@ export default async function PreviewPage({ params }: PageProps) {
     <NotAvailable
       title="This preview has expired"
       message="Preview links are temporary. Build or open your project to get a fresh one."
+      primaryHref="/workspace"
+      primaryLabel="Open the builder"
+    />
+  )
+
+  // Old snapshots can hold a captured builder-app shell (not a site). It can
+  // only CORS-error to a white page in the sandbox — show a clean message.
+  if (isBuilderAppShell(snap.html)) return (
+    <NotAvailable
+      title="This preview isn't available"
+      message="This snapshot didn't capture a built site. Open your project and create a fresh preview."
       primaryHref="/workspace"
       primaryLabel="Open the builder"
     />

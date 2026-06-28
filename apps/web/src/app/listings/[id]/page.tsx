@@ -10,6 +10,7 @@ import { ObjectId } from 'mongodb'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isAdminEmail } from '@ai-website-builder/database'
+import { isBuilderAppShell } from '@/lib/app-shell'
 import { ListingActions } from '@/components/marketplace/ListingActions'
 import { seoTitle, seoDescription, clip } from '@/lib/seo'
 
@@ -67,8 +68,7 @@ async function loadListing(id: string): Promise<ListingSummary | null> {
   // Never render a captured builder-app shell (old corrupt listings): in the
   // sandboxed preview (origin null) it just spews CORS errors and shows a white
   // page. Treat it as no content so the page degrades cleanly.
-  const isAppShell = typeof doc.html === 'string' && (doc.html.includes('__NEXT_DATA__') || doc.html.includes('/_next/static/chunks/'))
-  const showHtml = canSeeContent && !isAppShell
+  const showHtml = canSeeContent && !isBuilderAppShell(doc.html)
   return {
     _id: String(doc._id),
     type: doc.type,

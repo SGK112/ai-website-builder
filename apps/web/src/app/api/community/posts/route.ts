@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { guardAnonAbuse } from '@/lib/abuse-guard'
+import { isBuilderAppShell } from '@/lib/app-shell'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import clientPromise from '@/lib/mongodb'
@@ -174,7 +175,7 @@ export async function POST(request: NextRequest) {
     // site. A captured app document carries __NEXT_DATA__ / _next chunks and the
     // workspace's own API calls — in the sandboxed listing preview (origin null)
     // it can only ever render as a broken, CORS-blocked white page.
-    if (type !== 'video' && typeof html === 'string' && (html.includes('__NEXT_DATA__') || html.includes('/_next/static/chunks/'))) {
+    if (type !== 'video' && isBuilderAppShell(html)) {
       return NextResponse.json({ error: "That isn't a site you built — open it in the builder and publish from there." }, { status: 400 })
     }
 

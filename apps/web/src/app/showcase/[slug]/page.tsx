@@ -6,6 +6,7 @@
 
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { isBuilderAppShell } from '@/lib/app-shell'
 import { ArrowLeft, Sparkles, BadgeCheck, ExternalLink, Tag, Wand2 } from 'lucide-react'
 import type { Metadata } from 'next'
 import { DEMO_SITES } from '@/lib/demo-sites'
@@ -99,12 +100,18 @@ export default function ShowcasePage({ params }: PageProps) {
         </header>
 
         <section className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden mb-6">
-          <iframe
-            srcDoc={d.html}
-            className="w-full h-[640px] border-0 bg-white"
-            sandbox="allow-scripts allow-forms allow-modals allow-popups allow-presentation"
-            title={`Preview: ${d.label}`}
-          />
+          {isBuilderAppShell(d.html) ? (
+            <div className="w-full h-[640px] flex items-center justify-center text-sm text-zinc-500">
+              Preview unavailable — this entry didn&apos;t capture a built site.
+            </div>
+          ) : (
+            <iframe
+              srcDoc={d.html}
+              className="w-full h-[640px] border-0 bg-white"
+              sandbox="allow-scripts allow-forms allow-modals allow-popups allow-presentation"
+              title={`Preview: ${d.label}`}
+            />
+          )}
         </section>
 
         {tags.length > 0 && (
