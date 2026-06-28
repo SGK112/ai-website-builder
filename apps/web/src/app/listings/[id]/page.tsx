@@ -54,7 +54,16 @@ async function loadListing(id: string): Promise<ListingSummary | null> {
   const isOwner = !!viewerId && String(doc.author?.id || '') === String(viewerId)
   const isAdmin = !!session?.user?.email && isAdminEmail(session.user.email)
   const isPremium = !!doc.isPremium && (Number(doc.price_credits) || 0) > 0
-  const canSeeContent = !isPremium || isOwner || isAdmin
+  let canSeeContent = !isPremium || isOwner || isAdmin
+  // A buyer who purchased it gets the deliverable too (mirrors the entitlement
+  // check in /api/listings/[id]). Refunded purchases don't count.
+  if (!canSeeContent && viewerId) {
+    const purchase = await db.collection('marketplace_purchases').findOne(
+      { buyerId: viewerId, listingId: String(doc._id), status: { $ne: 'refunded' } },
+      { projection: { _id: 1 } },
+    )
+    if (purchase) canSeeContent = true
+  }
   return {
     _id: String(doc._id),
     type: doc.type,
