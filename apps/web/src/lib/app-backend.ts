@@ -97,6 +97,47 @@ export async function provisionAppBackend(
   return { appId, apiKey, baseUrl: `/api/backend/${appId}`, existing: false }
 }
 
+// Seed the server-side product catalog for a store so prices are TRUSTED (the
+// checkout looks them up here instead of believing the browser). Written
+// owner-side at build time — the public data API blocks client writes to
+// `products`, so a shopper can never create a fake cheap product. Prices come in
+// as DOLLARS and are stored as cents (what checkout expects). Upsert by a stable
+// name-slug docId so re-provisioning updates rather than duplicates.
+export function productSlug(name: string): string {
+  return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'item'
+}
+
+export async function seedAppProducts(
+  appId: string,
+  products: Array<{ name?: string; price?: number; image?: string }>,
+): Promise<number> {
+  if (!Array.isArray(products) || !products.length) return 0
+  const db = await getDb()
+  const now = new Date()
+  const ops: any[] = []
+  for (const p of products.slice(0, 200)) {
+    const name = String(p?.name || '').trim().slice(0, 200)
+    const priceCents = Math.round(Number(p?.price) * 100) // dollars → cents
+    if (!name || !Number.isFinite(priceCents) || priceCents < 50 || priceCents > 100_000_00) continue
+    const docId = productSlug(name)
+    const image = typeof p?.image === 'string' && /^https?:\/\//.test(p.image) ? p.image : undefined
+    ops.push({
+      updateOne: {
+        filter: { appId, collection: 'products', docId },
+        update: {
+          $set: { data: { name, price: priceCents, active: true, ...(image ? { image } : {}) }, updatedAt: now },
+          $setOnInsert: { appId, collection: 'products', docId, createdAt: now },
+        },
+        upsert: true,
+      },
+    })
+  }
+  if (!ops.length) return 0
+  // One round-trip instead of N sequential awaits.
+  await db.collection('app_data').bulkWrite(ops, { ordered: false })
+  return ops.length
+}
+
 // The embeddable client SDK. The generated site drops this <script> in <head>,
 // then calls window.WebstewDB for real auth + persisted data. Uses the absolute
 // backend origin (a published site lives on a different subdomain, so a relative
@@ -170,12 +211,12 @@ export function backendUsageGuide(appId: string): string {
     `   const jobs = await WebstewDB.collection("leads").list()      // newest first`,
     `   await WebstewDB.collection("leads").update(id, { status:"claimed" })`,
     `4. Store checkout / cart (real Stripe — no keys needed, the platform handles it):`,
-    `   For a store with set prices, the OWNER adds products in Data Studio (collection`,
-    `   "products": { name, price(CENTS), active }); render them and checkout by id:`,
-    `     const products = await WebstewDB.products.list()   // [{ id, name, price }]`,
-    `     await WebstewDB.checkout({ items:[{ productId: id, quantity:2 }] })   // price is TRUSTED server-side`,
-    `   (Inline prices — { name, amount(CENTS), quantity } — still work only if no catalog exists,`,
-    `   but a shopper could tamper with them, so prefer productId for anything real.)`,
+    `   Pass products:[{ name, price /*DOLLARS*/ }] to provision_backend up front — that seeds a`,
+    `   TRUSTED server-side catalog. Then render your storefront and checkout by id:`,
+    `     await WebstewDB.checkout({ items:[{ productId:"blue-t-shirt", quantity:2 }] })  // id = name slugified`,
+    `   (Checkout by name also works — the server uses the catalog price either way. Any client-supplied`,
+    `   amount is IGNORED whenever a catalog exists, so a shopper can NEVER tamper with prices.)`,
+    `   Read the live catalog if you need it: const products = await WebstewDB.products.list()`,
     `   It redirects to Stripe, then back to your site (?paid=1). Orders are saved to "orders" automatically.`,
     `Use real onsubmit handlers (e.preventDefault() + await) — NEVER action="mailto:".`,
     `This is a static-site backend: data is shared per app (fine for a jobs board).`,

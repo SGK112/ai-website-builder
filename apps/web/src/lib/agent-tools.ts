@@ -27,7 +27,7 @@ import {
 } from '@/lib/cms'
 import { gradeHtml, gradeWebsite } from '@/lib/grader'
 import { publishSite } from '@/lib/publish'
-import { provisionAppBackend, webstewDbClientScript, backendUsageGuide } from '@/lib/app-backend'
+import { provisionAppBackend, webstewDbClientScript, backendUsageGuide, seedAppProducts } from '@/lib/app-backend'
 import {
   SUPPORTED_TOOLKITS,
   listUserConnections,
@@ -436,6 +436,19 @@ export const TOOLS: Anthropic.Messages.Tool[] = [
       type: 'object' as const,
       properties: {
         name: { type: 'string', description: "Optional backend name (defaults to the project name)." },
+        products: {
+          type: 'array' as const,
+          description: "FOR A STORE: every product on sale. Seeds a TRUSTED server-side price catalog so a shopper can't tamper with prices at checkout. Pass this whenever the site sells anything, then checkout by productId (the name lowercased-and-hyphenated, e.g. \"Blue T-Shirt\" -> \"blue-t-shirt\").",
+          items: {
+            type: 'object' as const,
+            properties: {
+              name: { type: 'string', description: 'Product name (also becomes its id, slugified).' },
+              price: { type: 'number', description: 'Price in US DOLLARS (e.g. 19.99).' },
+              image: { type: 'string', description: 'Optional https image URL.' },
+            },
+            required: ['name', 'price'],
+          },
+        },
       },
     },
   },
@@ -905,8 +918,15 @@ export async function executeTool(
             vfs.cms?.projectId || null,
             String(input?.name || vfs.projectName || 'App backend'),
           )
+          // Seed the trusted price catalog if this is a store — checkout then
+          // looks prices up server-side instead of believing the browser.
+          let seededNote = ''
+          if (Array.isArray(input?.products) && input.products.length) {
+            const n = await seedAppProducts(appId, input.products)
+            seededNote = `\n\nSeeded ${n} product${n === 1 ? '' : 's'} into the trusted catalog — checkout by productId (name slugified) and the price is server-enforced; the browser cannot change it.`
+          }
           const script = webstewDbClientScript(appId, apiKey)
-          return { ok: true, content: `${script}\n\n${backendUsageGuide(appId)}` }
+          return { ok: true, content: `${script}\n\n${backendUsageGuide(appId)}${seededNote}` }
         } catch (e: any) {
           return { ok: false, content: `provision_backend failed: ${e?.message || String(e)}` }
         }

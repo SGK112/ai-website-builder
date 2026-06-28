@@ -16,6 +16,7 @@ import { getStripe } from '@/lib/stripe'
 import { randomUUID } from 'crypto'
 import { ObjectId } from 'mongodb'
 import { backendRateLimited } from '@/lib/backend-ratelimit'
+import { productSlug } from '@/lib/app-backend'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,22 +84,26 @@ export async function POST(req: NextRequest, { params }: Ctx) {
 
   const currency = String(body?.currency || 'usd').toLowerCase().slice(0, 3)
 
-  // Server-side price authority. A store can define a trusted product catalog
-  // (app_data collection `products`, written ONLY by the owner via Data Studio —
-  // the public data API blocks writes to it). When a catalog exists, checkout
-  // honors ONLY items referenced by `productId` and looks the price up here, so a
-  // buyer can never POST their own amount. Stores with no catalog keep the legacy
-  // inline-price path unchanged (backward compatible).
+  // Server-side price authority. A store seeds a trusted product catalog at
+  // build time (app_data collection `products` — provision_backend writes it
+  // owner-side; the public data API blocks client writes). When a catalog
+  // EXISTS, prices are looked up HERE and the client's `amount` is IGNORED — and
+  // we match an item by productId OR by name, so even a legacy { name, amount }
+  // checkout call can't be tampered with. Catalog-less stores keep the legacy
+  // inline-price path (backward compatible).
   const appData = db.collection('app_data')
-  const hasCatalog = (await appData.countDocuments({ appId, collection: 'products' }, { limit: 1 })) > 0
+  const catalogDocs = await appData.find({ appId, collection: 'products' }).limit(1000).toArray()
+  const hasCatalog = catalogDocs.length > 0
+  const byId = new Map<string, any>()
+  const byName = new Map<string, any>()
+  for (const d of catalogDocs) {
+    const data = d.data || {}
+    byId.set(String(d.docId), data)
+    const nm = String(data.name || '').trim().toLowerCase()
+    if (nm) byName.set(nm, data)
+  }
   const itemProductId = (it: any): string | null =>
     (typeof it?.productId === 'string' && it.productId) || (typeof it?.id === 'string' && it.id) || null
-  const wantedIds = Array.from(new Set(rawItems.map(itemProductId).filter(Boolean))) as string[]
-  const catalog = new Map<string, any>()
-  if (wantedIds.length) {
-    const docs = await appData.find({ appId, collection: 'products', docId: { $in: wantedIds } }).toArray()
-    for (const d of docs) catalog.set(d.docId, d.data || {})
-  }
 
   const lineItems: any[] = []
   const orderItems: any[] = []
@@ -106,20 +111,24 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   for (const it of rawItems) {
     const quantity = Math.min(Math.max(parseInt(String(it?.quantity ?? 1), 10) || 1, 1), 999)
     const productId = itemProductId(it)
+    const nameKey = String(it?.name || '').trim().toLowerCase()
     let name: string
-    let amount: number // cents — server-trusted for catalog items
+    let amount: number // cents
     let image: string | undefined
+    let orderProductId: string | undefined
 
-    if (productId) {
-      const p = catalog.get(productId)
-      if (!p) return cors(NextResponse.json({ error: `Unknown product: ${productId}` }, { status: 400 }))
-      if (p.active === false) return cors(NextResponse.json({ error: `Product is unavailable: ${productId}` }, { status: 400 }))
+    if (hasCatalog) {
+      // Trusted catalog — match by productId, else by product name. Either way the
+      // PRICE comes from the catalog, never from the request body.
+      const p = (productId && byId.get(productId)) || (nameKey && byName.get(nameKey)) || null
+      if (!p) return cors(NextResponse.json({ error: `Unknown product: ${productId || it?.name || '(unnamed)'} — this store prices items server-side.` }, { status: 400 }))
+      if (p.active === false) return cors(NextResponse.json({ error: `Product is unavailable: ${p.name || productId}` }, { status: 400 }))
       name = String(p.name || '').trim().slice(0, 200) || 'Item'
       amount = Math.round(Number(p.price))
       image = typeof p.image === 'string' && /^https?:\/\//.test(p.image) ? p.image : undefined
+      orderProductId = productSlug(name)
     } else {
-      // Legacy inline price — allowed ONLY when the store has no trusted catalog.
-      if (hasCatalog) return cors(NextResponse.json({ error: 'This store prices items server-side — pass { productId, quantity }.' }, { status: 400 }))
+      // No catalog — legacy inline price (client-trusted; catalog-less stores only).
       name = String(it?.name || '').trim().slice(0, 200)
       amount = Math.round(Number(it?.amount))
       image = typeof it?.image === 'string' && /^https?:\/\//.test(it.image) ? it.image : undefined
@@ -137,7 +146,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
         product_data: { name, ...(image ? { images: [image] } : {}) },
       },
     })
-    orderItems.push({ name, amount, quantity, ...(productId ? { productId } : {}) })
+    orderItems.push({ name, amount, quantity, ...(orderProductId ? { productId: orderProductId } : (productId ? { productId } : {})) })
     total += amount * quantity
   }
 
