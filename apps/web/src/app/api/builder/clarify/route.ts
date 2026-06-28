@@ -132,7 +132,10 @@ async function callModel(
     : lc.includes('sonnet')
       ? 'claude-sonnet-4-6'
       : 'claude-haiku-4-5-20251001'
-  const client = new Anthropic({ apiKey: anthropicKey })
+  // Bound the call — this is a NON-streaming request, so without a timeout a
+  // hung upstream would tie up the Render request for the SDK's 10-min default
+  // (and 524 behind Cloudflare). Clarify is tiny output, so 45s is generous.
+  const client = new Anthropic({ apiKey: anthropicKey, timeout: 45_000 })
   const res = await client.messages.create({
     model: claudeModel,
     max_tokens: CLARIFY_MAX_TOKENS,

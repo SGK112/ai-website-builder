@@ -28,7 +28,10 @@ async function getClient(): Promise<MongoClient> {
   }
 
   if (!cached!.promise) {
-    const client = new MongoClient(uri)
+    // Cap the pool — this driver AND mongoose (lib/db.ts) each open their own
+    // pool against a SHARED Atlas cluster (with VoiceNow), so uncapped defaults
+    // (100 each) could exhaust the cluster's connection limit under load.
+    const client = new MongoClient(uri, { maxPoolSize: 10 })
     cached!.promise = client.connect()
   }
 

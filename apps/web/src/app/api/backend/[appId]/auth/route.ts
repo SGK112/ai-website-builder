@@ -15,6 +15,18 @@ import { backendRateLimited } from '@/lib/backend-ratelimit'
 
 export const dynamic = 'force-dynamic'
 
+// Unique (appId,email) so two concurrent signups can't both pass the existence
+// check and create duplicate accounts. Once per process (idempotent; flag set
+// only after success). The E11000 catch on insert is the actual guard.
+let appUsersIndexEnsured = false
+async function ensureAppUsersIndex(users: any) {
+  if (appUsersIndexEnsured) return
+  try {
+    await users.createIndex({ appId: 1, email: 1 }, { unique: true })
+    appUsersIndexEnsured = true
+  } catch { /* legacy dups can block creation; insert-time E11000 still guards */ }
+}
+
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 // NO dev fallback: a hardcoded fallback secret means anyone can mint a valid
 // end-user token for any app (forge any user). Require the real secret; the
@@ -72,11 +84,17 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     if (password.length < 8) {
       return cors(NextResponse.json({ error: 'Password must be at least 8 characters.' }, { status: 400 }))
     }
+    await ensureAppUsersIndex(users)
     const exists = await users.findOne({ appId, email })
     if (exists) return cors(NextResponse.json({ error: 'An account with this email already exists.' }, { status: 409 }))
     const userId = randomUUID()
     const passwordHash = await bcrypt.hash(password, 10)
-    await users.insertOne({ appId, userId, email, passwordHash, createdAt: new Date() })
+    try {
+      await users.insertOne({ appId, userId, email, passwordHash, createdAt: new Date() })
+    } catch (e: any) {
+      if (e?.code === 11000) return cors(NextResponse.json({ error: 'An account with this email already exists.' }, { status: 409 }))
+      throw e
+    }
     return cors(NextResponse.json({ token: mintToken(appId, userId), user: { id: userId, email } }, { status: 201 }))
   }
 

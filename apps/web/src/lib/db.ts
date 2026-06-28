@@ -32,6 +32,9 @@ export async function connectDB(): Promise<typeof mongoose> {
   if (!cached!.promise) {
     const opts = {
       bufferCommands: false,
+      // Cap the pool — shares an Atlas cluster with VoiceNow + the raw driver
+      // (lib/mongodb.ts); uncapped defaults could exhaust the connection limit.
+      maxPoolSize: 10,
     }
 
     cached!.promise = mongoose.connect(uri, opts).then((mongoose) => {

@@ -74,10 +74,13 @@ export async function GET(request: NextRequest) {
     if (type) query.type = type
     if (category) query.category = category
     if (search) {
+      // Escape regex metachars + cap length — `search` is user input, and an
+      // un-escaped pattern (e.g. "(a+)+$") is a ReDoS / injection vector.
+      const safe = String(search).slice(0, 100).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
       query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-        { tags: { $in: [new RegExp(search, 'i')] } },
+        { title: { $regex: safe, $options: 'i' } },
+        { description: { $regex: safe, $options: 'i' } },
+        { tags: { $in: [new RegExp(safe, 'i')] } },
       ]
     }
 

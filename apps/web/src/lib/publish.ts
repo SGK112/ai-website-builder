@@ -62,9 +62,12 @@ async function getDb() {
 let slugIndexEnsured = false
 async function ensureSlugIndex(col: any) {
   if (slugIndexEnsured) return
-  slugIndexEnsured = true
   try {
     await col.createIndex({ slug: 1 }, { unique: true, partialFilterExpression: { slug: { $type: 'string' } } })
+    // Mark ensured only AFTER success — flipping it up front meant a failed
+    // first attempt was never retried, leaving the unique race-guard absent for
+    // the rest of the process's life.
+    slugIndexEnsured = true
   } catch (e: any) {
     console.error('[publish] could not ensure unique slug index:', e?.message || e)
   }
