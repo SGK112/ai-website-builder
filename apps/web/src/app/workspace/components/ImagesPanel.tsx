@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   Target,
@@ -110,6 +110,19 @@ export function ImagesPanel({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const promptInputRef = useRef<HTMLTextAreaElement>(null)
 
+  // The user's saved logos/images (incl. voice-created ones) — so they live in
+  // the workspace, not only /creations + the Video Studio. Tap one to drop it
+  // into the site. Refetches when a new in-panel generation lands.
+  const [savedImages, setSavedImages] = useState<Array<{ id: string; url: string; title: string; kind: string }>>([])
+  useEffect(() => {
+    let alive = true
+    fetch('/api/ai/video/creations', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : { creations: [] }))
+      .then((d) => { if (alive) setSavedImages((d.creations || []).filter((c: any) => c.kind === 'image' || c.kind === 'logo')) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [generatedImageUrl])
+
   // After a Quick Tool prefills the prompt, bring the main prompt textarea into
   // view and focus it so the user sees the next step (they still hit Generate).
   const focusPrompt = () => {
@@ -138,6 +151,32 @@ export function ImagesPanel({
         onChange={onUpload}
         className="hidden"
       />
+
+      {/* Your logos & images — saved creations (incl. voice-made). Tap to insert. */}
+      {savedImages.length > 0 && (
+        <div className={cn('rounded-xl border p-2.5', isDark ? 'border-white/10 bg-white/[0.02]' : 'border-slate-200 bg-slate-50')}>
+          <p className={cn('text-xs font-medium mb-2 flex items-center justify-between', isDark ? 'text-zinc-300' : 'text-slate-700')}>
+            <span>Your logos &amp; images</span>
+            <span className={cn('text-[10px]', isDark ? 'text-zinc-600' : 'text-slate-400')}>{savedImages.length}</span>
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {savedImages.map((img) => (
+              <button
+                key={img.id}
+                onClick={() => onInsert(img.url, img.title || 'Image')}
+                title={`Insert "${img.title || 'image'}" into your site`}
+                className="group relative aspect-square rounded-lg overflow-hidden border border-white/10 hover:border-violet-500/50 transition"
+                style={{ backgroundColor: '#fff', backgroundImage: 'linear-gradient(45deg,#e5e7eb 25%,transparent 25%),linear-gradient(-45deg,#e5e7eb 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e5e7eb 75%),linear-gradient(-45deg,transparent 75%,#e5e7eb 75%)', backgroundSize: '14px 14px', backgroundPosition: '0 0,0 7px,7px -7px,-7px 0' }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={img.url} alt={img.title} loading="lazy" className="w-full h-full object-contain" />
+                {img.kind === 'logo' && <span className="absolute top-0.5 left-0.5 text-[8px] font-semibold px-1 rounded bg-violet-500/85 text-white">logo</span>}
+              </button>
+            ))}
+          </div>
+          <p className={cn('text-[10px] mt-1.5', isDark ? 'text-zinc-600' : 'text-slate-400')}>Tap one to add it to your site.</p>
+        </div>
+      )}
 
       {/* Selected Image Indicator */}
       {selectedMediaElement && selectedMediaElement.type === 'image' && (
