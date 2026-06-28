@@ -170,6 +170,14 @@ export async function POST(request: NextRequest) {
       safeVideoUrl = videoUrl
     }
 
+    // Guard against listing the BUILDER APP's OWN shell instead of a generated
+    // site. A captured app document carries __NEXT_DATA__ / _next chunks and the
+    // workspace's own API calls — in the sandboxed listing preview (origin null)
+    // it can only ever render as a broken, CORS-blocked white page.
+    if (type !== 'video' && typeof html === 'string' && (html.includes('__NEXT_DATA__') || html.includes('/_next/static/chunks/'))) {
+      return NextResponse.json({ error: "That isn't a site you built — open it in the builder and publish from there." }, { status: 400 })
+    }
+
     // Optional paid listing — clamp to int, cap at $500 (50000 credits) so a
     // typo can't accidentally publish a 5-figure price. 0 / unset = free.
     const priceNum = Math.max(0, Math.min(50000, Math.floor(Number(priceCredits) || 0)))

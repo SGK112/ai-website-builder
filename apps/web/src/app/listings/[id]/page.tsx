@@ -64,6 +64,11 @@ async function loadListing(id: string): Promise<ListingSummary | null> {
     )
     if (purchase) canSeeContent = true
   }
+  // Never render a captured builder-app shell (old corrupt listings): in the
+  // sandboxed preview (origin null) it just spews CORS errors and shows a white
+  // page. Treat it as no content so the page degrades cleanly.
+  const isAppShell = typeof doc.html === 'string' && (doc.html.includes('__NEXT_DATA__') || doc.html.includes('/_next/static/chunks/'))
+  const showHtml = canSeeContent && !isAppShell
   return {
     _id: String(doc._id),
     type: doc.type,
@@ -79,7 +84,7 @@ async function loadListing(id: string): Promise<ListingSummary | null> {
     isPremium,
     priceCredits: Number(doc.price_credits) || 0,
     createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : String(doc.createdAt || ''),
-    html: canSeeContent ? doc.html : undefined,
+    html: showHtml ? doc.html : undefined,
     // Gate the playable file like html: free / owner / admin → playable;
     // otherwise premium → poster + buy overlay only.
     videoUrl: canSeeContent ? doc.videoUrl : undefined,
