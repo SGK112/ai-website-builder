@@ -13,7 +13,9 @@ import { User } from '@ai-website-builder/database'
 export const dynamic = 'force-dynamic'
 
 const CENTS_PER_CREDIT = Math.max(1, parseInt(process.env.MARKETPLACE_CREDIT_USD_CENTS || '1', 10) || 1)
-const MIN_PAYOUT_CENTS = Math.max(100, parseInt(process.env.MARKETPLACE_PAYOUT_MIN_CENTS || '500', 10) || 500)
+// Same fee as the checkout (api/marketplace/checkout): the seller keeps the rest,
+// paid DIRECTLY to their Stripe account by the Connect destination charge.
+const PLATFORM_FEE_BPS = Math.max(0, parseInt(process.env.MARKETPLACE_PLATFORM_FEE_BPS || '300', 10) || 300)
 
 // Lazy index init — fires once per process. Mirrors the pattern in
 // lib/pending-builds.ts so earnings queries don't full-scan the
@@ -55,20 +57,14 @@ export async function GET(_req: NextRequest) {
 
   void ensureMarketplaceIndices(db)
 
-  const [userDoc, recentPayouts, recentSales, lifetimeSales] = await Promise.all([
+  const [userDoc, recentSales, lifetimeSales] = await Promise.all([
     (async () => {
-      let u: any = await User.findById(session.user.id).select('marketplace_earnings_credits stripe_account_id stripe_payouts_enabled stripe_charges_enabled stripeAccountId email').lean()
+      let u: any = await User.findById(session.user.id).select('stripe_account_id stripe_payouts_enabled stripe_charges_enabled stripeAccountId email').lean()
       if (!u && session.user.email) {
-        u = await User.findOne({ email: session.user.email.toLowerCase() }).select('marketplace_earnings_credits stripe_account_id stripe_payouts_enabled stripeAccountId').lean()
+        u = await User.findOne({ email: session.user.email.toLowerCase() }).select('stripe_account_id stripe_payouts_enabled stripeAccountId').lean()
       }
       return u
     })(),
-    db
-      .collection('payouts_log')
-      .find({ userId: String(userId) })
-      .sort({ createdAt: -1 })
-      .limit(20)
-      .toArray(),
     db
       .collection('marketplace_purchases')
       .find({ sellerId: String(userId) })
@@ -85,15 +81,18 @@ export async function GET(_req: NextRequest) {
   ])
   const user = userDoc
 
+  // Sellers are paid by Stripe Connect DIRECTLY (no webstew-held balance, no
+  // manual payout). The dashboard reflects what they've EARNED from sales: gross
+  // = sum of sale prices; net = gross minus the platform fee (what actually
+  // landed in their Stripe account).
+  const grossCredits = lifetimeSales[0]?.credits || 0
+  const grossUsdCents = grossCredits * CENTS_PER_CREDIT
+  const netUsdCents = Math.round(grossUsdCents * (1 - PLATFORM_FEE_BPS / 10000))
+
   return NextResponse.json({
-    balance: {
-      credits: user?.marketplace_earnings_credits || 0,
-      usdCents: (user?.marketplace_earnings_credits || 0) * CENTS_PER_CREDIT,
-    },
     config: {
       centsPerCredit: CENTS_PER_CREDIT,
-      minPayoutCents: MIN_PAYOUT_CENTS,
-      minPayoutCredits: Math.ceil(MIN_PAYOUT_CENTS / CENTS_PER_CREDIT),
+      platformFeePct: PLATFORM_FEE_BPS / 100,
     },
     // Accept either snake_case (raw driver writes) or camelCase (Mongoose-
     // managed fields) — different write paths used different conventions.
@@ -101,9 +100,10 @@ export async function GET(_req: NextRequest) {
     needsOnboarding: !(user?.stripe_account_id || user?.stripeAccountId) || !user?.stripe_payouts_enabled,
     lifetime: {
       salesCount: lifetimeSales[0]?.count || 0,
-      creditsEarned: lifetimeSales[0]?.credits || 0,
+      creditsEarned: grossCredits,
+      grossUsdCents,
+      netUsdCents,
     },
-    recentPayouts,
     recentSales,
   })
 }

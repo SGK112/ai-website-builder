@@ -1,9 +1,10 @@
 'use client'
 
 // /seller — single-page dashboard for creators selling on the Webstew
-// marketplace. Centerpiece is PayoutsCard (Stripe Connect status + balance
-// + cashout); flanked by quick links to publish a new listing and browse
-// the user's authored work. The card itself does all the data fetching.
+// marketplace. Centerpiece is PayoutsCard (Stripe Connect status + lifetime
+// earnings; sales pay out DIRECTLY to the seller's Stripe account, so there's
+// no balance or cash-out). Flanked by quick links to publish a new listing and
+// browse the user's authored work. The card itself does all the data fetching.
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -170,7 +171,7 @@ export default function SellerDashboardPage() {
           </Link>
         </div>
 
-        {/* Payouts card — Stripe Connect status + balance + cashout button */}
+        {/* Payouts card — Stripe Connect status + lifetime earnings (auto-paid) */}
         <div id="payouts">
           <PayoutsCard isDark={isDark} />
         </div>
