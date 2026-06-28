@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getClient } from '@/lib/mongodb'
+import { resolveProjectAccess, canEdit } from '@/lib/project-access'
 import mongoose from 'mongoose'
 import { ObjectId } from 'mongodb'
 
@@ -30,6 +31,14 @@ export async function GET(
 
     const client = await getClient()
     const db = client.db()
+
+    // Access control — this used to read ANY project's page HTML with no auth.
+    // Require at least viewer access (owner, collaborator, or a public project).
+    const session = await getServerSession(authOptions)
+    const { role } = await resolveProjectAccess(db, params.id, session?.user?.id, session?.user?.email)
+    if (!role) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    }
 
     const pages = await db
       .collection<PageDocument>('pages')
@@ -78,6 +87,12 @@ export async function POST(
 
     const client = await getClient()
     const db = client.db()
+
+    // Only the owner or an editor collaborator may add pages — was: any session.
+    const { role } = await resolveProjectAccess(db, params.id, session.user.id, session.user.email)
+    if (!canEdit(role)) {
+      return NextResponse.json({ error: 'You don\'t have edit access to this project' }, { status: 403 })
+    }
 
     // If this is set as home, unset other home pages
     if (isHome) {
@@ -135,6 +150,12 @@ export async function PATCH(
 
     const client = await getClient()
     const db = client.db()
+
+    // Only the owner or an editor collaborator may edit pages — was: any session.
+    const { role } = await resolveProjectAccess(db, params.id, session.user.id, session.user.email)
+    if (!canEdit(role)) {
+      return NextResponse.json({ error: 'You don\'t have edit access to this project' }, { status: 403 })
+    }
 
     // If setting as home, unset other home pages first
     if (isHome) {
@@ -204,6 +225,12 @@ export async function DELETE(
 
     const client = await getClient()
     const db = client.db()
+
+    // Only the owner or an editor collaborator may delete pages — was: any session.
+    const { role } = await resolveProjectAccess(db, params.id, session.user.id, session.user.email)
+    if (!canEdit(role)) {
+      return NextResponse.json({ error: 'You don\'t have edit access to this project' }, { status: 403 })
+    }
 
     // Check if this is the home page
     const page = await db.collection('pages').findOne({

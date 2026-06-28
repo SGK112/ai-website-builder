@@ -117,27 +117,32 @@ export async function POST(req: NextRequest) {
 
   await connectDB()
 
-  // Idempotency — DB-backed so it survives restarts/deploys. The old in-memory
-  // Set lost its dedup state on every restart, so a Stripe retry that landed
-  // after a restart could re-grant credits. Atomic insert keyed by event.id;
-  // a duplicate (E11000) means we already handled this event → skip.
+  // Idempotency — DB-backed, TWO-PHASE so a PAID event is never silently
+  // dropped. We CLAIM the event as processed:false, run the handler, then flip
+  // processed:true only AFTER it succeeds. A retry of an event whose row is
+  // still processed:false RE-RUNS it (the prior attempt died mid-handler — e.g.
+  // a transient Mongo blip in the credit grant). The old code marked the event
+  // done up front, so any handler failure got deduped away on retry and the
+  // customer paid for nothing. (Grants throw-before-effect, so a re-run after a
+  // failed grant applies it exactly once.)
+  const eventsCol = mongoose.connection.db!.collection('stripe_webhook_events')
   try {
-    await mongoose.connection.db!.collection('stripe_webhook_events').insertOne({
-      _id: event.id as any,
-      type: event.type,
-      at: new Date(),
-    })
+    await eventsCol.insertOne({ _id: event.id as any, type: event.type, processed: false, at: new Date() })
   } catch (e: any) {
     if (e?.code === 11000) {
-      console.log(`Event ${event.id} already processed, skipping`)
-      return NextResponse.json({ received: true, duplicate: true })
+      const existing = await eventsCol.findOne({ _id: event.id as any }).catch(() => null)
+      if (existing?.processed) {
+        console.log(`Event ${event.id} already processed, skipping`)
+        return NextResponse.json({ received: true, duplicate: true })
+      }
+      // Row exists but UNFINISHED — a previous delivery failed before completing.
+      // Fall through and re-run the handler so the grant actually lands.
+      console.warn(`[stripe webhook] re-running unfinished event ${event.id}`)
+    } else {
+      // Can't even claim the event → ask Stripe to retry when the store is healthy.
+      console.error('[stripe webhook] idempotency store error — asking Stripe to retry:', e?.message)
+      return NextResponse.json({ error: 'Idempotency store unavailable, retry later' }, { status: 500 })
     }
-    // A non-duplicate store error (e.g. transient DB blip) means we CAN'T prove
-    // this event is new. Proceeding fail-open risks double-crediting on Stripe's
-    // retry. Return 500 so Stripe retries later when the store is healthy and
-    // the dedup insert can do its job — processing exactly once.
-    console.error('[stripe webhook] idempotency store error — asking Stripe to retry:', e?.message)
-    return NextResponse.json({ error: 'Idempotency store unavailable, retry later' }, { status: 500 })
   }
 
   try {
@@ -452,9 +457,12 @@ export async function POST(req: NextRequest) {
           console.log(`Added ${creditsToAdd} credits to user ${user._id}`)
         }
 
-        // Handle subscription — atomic for the same reason.
+        // Handle subscription — atomic for the same reason. Annual buyers paid
+        // for a YEAR up front, so grant 12x the monthly credits — not 1x (which
+        // left annual subscribers running dry in days).
         if (metadata.type === 'subscription' && metadata.planId) {
-          const grant = getPlanCredits(metadata.planId)
+          const months = (metadata.billingPeriod === 'annual' || metadata.billingPeriod === 'yearly') ? 12 : 1
+          const grant = getPlanCredits(metadata.planId) * months
           await User.updateOne(
             { _id: user._id },
             {
@@ -467,7 +475,7 @@ export async function POST(req: NextRequest) {
               ...(grant > 0 ? { $inc: { credits: grant } } : {}),
             },
           )
-          console.log(`Updated user ${user._id} to ${metadata.planId} plan (+${grant} credits)`)
+          console.log(`Updated user ${user._id} to ${metadata.planId} plan (+${grant} credits, ${months}mo)`)
         }
 
         break
@@ -511,13 +519,18 @@ export async function POST(req: NextRequest) {
         if (invoice.billing_reason === 'subscription_cycle') {
           const user = await User.findOne({ stripeCustomerId: customerId })
           if (user) {
-            const grant = getPlanCredits(user.plan)
+            // An annual renewal bills once a YEAR — grant 12 months, not 1, so
+            // annual subscribers aren't starved between renewals.
+            const interval = (invoice as any).lines?.data?.[0]?.price?.recurring?.interval
+              || (invoice as any).lines?.data?.[0]?.plan?.interval
+            const months = interval === 'year' ? 12 : 1
+            const grant = getPlanCredits(user.plan) * months
             if (grant > 0) {
               // Atomic $inc — a read-modify-save here races with the atomic
               // spendCredits deduction and would silently erase a mid-flight
               // charge (free generation). Every other grant path uses $inc.
               await User.updateOne({ _id: user._id }, { $inc: { credits: grant }, $set: { updatedAt: new Date() } })
-              console.log(`Added ${grant} monthly credits to user ${user._id} (${user.plan})`)
+              console.log(`Added ${grant} renewal credits to user ${user._id} (${user.plan}, ${months}mo)`)
             }
           }
         }
@@ -733,8 +746,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Handler finished cleanly — NOW mark the event done so retries skip it.
+    // (If this flip fails, the row stays processed:false and a retry re-runs;
+    // grants throw-before-effect so that's safe.)
+    await eventsCol.updateOne({ _id: event.id as any }, { $set: { processed: true, processedAt: new Date() } })
     return NextResponse.json({ received: true })
   } catch (error: any) {
+    // Leave the event processed:false so Stripe's retry re-runs it.
     console.error('Webhook handler error:', error)
     return NextResponse.json({ error: 'Webhook handler failed' }, { status: 500 })
   }

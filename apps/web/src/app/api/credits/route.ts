@@ -120,66 +120,47 @@ export async function POST(req: NextRequest) {
 // PATCH - Use credits (internal use by other APIs)
 export async function PATCH(req: NextRequest) {
   try {
-    const { userId, amount, operation } = await req.json()
-
+    const { amount, operation } = await req.json()
     const session = await getServerSession(authOptions)
 
-    // For anonymous users (no session AND no explicit userId), allow demo
-    // usage without deducting
-    if (!userId && !session?.user?.id) {
-      return NextResponse.json({
-        success: true,
-        credits: 100, // Demo credits
-        deducted: 0,
-        operation,
-        isDemo: true,
-      })
+    // Anonymous (no session) → demo usage, nothing to deduct. The builder is
+    // anon-first and bounds anon usage client-side (cookie). We NEVER trust a
+    // client-supplied userId here — that let an UNAUTHENTICATED caller deduct
+    // from any user's balance (drain attack).
+    if (!session?.user?.id) {
+      return NextResponse.json({ success: true, credits: 100, deducted: 0, operation, isDemo: true })
     }
 
+    const amt = Math.max(0, Math.floor(Number(amount) || 0))
     await connectDB()
 
-    // Resolve session -> real user even when session.user.id is a legacy
-    // provider account id (same issue we fixed in /api/usage and /api/credits
-    // GET). Without this, findById silently returns null and the deduction
-    // silently no-ops, leaving the user with full credits after generation.
-    let user: any = null
-    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-      user = await User.findById(userId)
-    }
+    // Resolve the real user from the SESSION ONLY (findSessionUser also handles
+    // the legacy provider-id case where session.user.id != the Mongo _id).
+    const user = await findSessionUser(session.user.id, session.user.email || undefined)
     if (!user) {
-      user = await findSessionUser(session?.user?.id, session?.user?.email || undefined)
-    }
-
-    if (!user) {
-      console.error('[Credits PATCH] User not found — userId=', userId, 'sessionId=', session?.user?.id, 'email=', session?.user?.email)
+      console.error('[Credits PATCH] User not found — sessionId=', session.user.id, 'email=', session.user.email)
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const currentCredits = typeof user.credits === 'number' ? user.credits : 0
-
-    // Check if user has enough credits
-    if (currentCredits < amount) {
-      return NextResponse.json(
-        {
-          error: 'Insufficient credits',
-          credits: currentCredits,
-          required: amount,
-        },
-        { status: 402 }
-      )
+    if (amt === 0) {
+      return NextResponse.json({ success: true, credits: typeof user.credits === 'number' ? user.credits : 0, deducted: 0, operation })
     }
 
-    // Deduct credits
-    user.credits = currentCredits - amount
-    await user.save()
-    console.log(`[Credits PATCH] User ${user._id} ${operation}: -${amount} = ${user.credits}`)
+    // Atomic conditional deduction — the credits>=amt guard lives in the filter
+    // so two concurrent deducts can't drive the balance negative or lose an
+    // update (the old read-modify-save raced with itself and every other grant).
+    const updated = await User.findOneAndUpdate(
+      { _id: user._id, credits: { $gte: amt } },
+      { $inc: { credits: -amt }, $set: { updatedAt: new Date() } },
+      { new: true },
+    )
+    if (!updated) {
+      const cur = typeof user.credits === 'number' ? user.credits : 0
+      return NextResponse.json({ error: 'Insufficient credits', credits: cur, required: amt }, { status: 402 })
+    }
 
-    return NextResponse.json({
-      success: true,
-      credits: user.credits,
-      deducted: amount,
-      operation,
-    })
+    console.log(`[Credits PATCH] User ${updated._id} ${operation}: -${amt} = ${updated.credits}`)
+    return NextResponse.json({ success: true, credits: updated.credits, deducted: amt, operation })
   } catch (error: any) {
     console.error('Error using credits:', error)
     return NextResponse.json({ error: 'Failed to use credits' }, { status: 500 })
