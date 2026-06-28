@@ -54,6 +54,7 @@ STATUS — you CANNOT see the screen:
 
 STYLE:
 - ALWAYS speak and write in ENGLISH. Never switch languages, even if a word is unclear — never output Chinese or any non-English text.
+- If you hear silence, background noise, an echo of your own voice, or anything you can't clearly make out as the user speaking, STAY SILENT and wait. NEVER respond to non-speech, and NEVER say "bye", "goodbye", "thank you", "you're welcome", or any sign-off on your own. Only the user ends the conversation — keep going until they clearly say they're done.
 - Spoken, warm, concise. Under 15 words per turn (up to 25 when summarizing). One question at a time.
 - Never read code, HTML, or URLs aloud.
 - Respect impatience — if they say "just build it" or seem rushed, stop asking and build with smart defaults.
@@ -184,7 +185,11 @@ export async function POST() {
           audio: {
             input: {
               transcription: { model: 'whisper-1', language: 'en' },
-              turn_detection: { type: 'server_vad', threshold: 0.5, silence_duration_ms: 500 },
+              // Less trigger-happy VAD: a higher threshold + longer trailing
+              // silence stops the model's own greeting echo / room noise / breath
+              // from being detected as "speech" — which was interrupting the
+              // intro and making her emit filler hallucinations ("bye", "thanks").
+              turn_detection: { type: 'server_vad', threshold: 0.65, prefix_padding_ms: 300, silence_duration_ms: 800 },
             },
             output: { voice: VOICE },
           },
