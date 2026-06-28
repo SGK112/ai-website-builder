@@ -598,14 +598,14 @@ export default function VideoStudio() {
   // layout's pt-16). h-screen here overflowed by 64px and pushed the timeline +
   // voice tracks off the bottom of the viewport.
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col bg-zinc-950 text-zinc-200 overflow-hidden">
+    <div className="min-h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)] flex flex-col bg-zinc-950 text-zinc-200 md:overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10 shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-violet-500/20 flex items-center justify-center"><Clapperboard className="w-4 h-4 text-violet-300" /></div>
           <div>
             <div className="text-sm font-semibold text-white">Video Studio</div>
-            <div className="text-[10px] text-zinc-500">Generate clips → arrange on the timeline → stitch & export</div>
+            <div className="hidden sm:block text-[10px] text-zinc-500">Generate clips → arrange on the timeline → stitch & export</div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -615,10 +615,10 @@ export default function VideoStudio() {
         </div>
       </div>
 
-      {/* Top: tools + preview */}
-      <div className="flex-1 flex min-h-0">
+      {/* Top: tools + preview — stacks vertically on mobile, side-by-side on desktop */}
+      <div className="flex-1 flex flex-col md:flex-row min-h-0">
         {/* CREATE rail */}
-        <div className="w-72 shrink-0 border-r border-white/10 overflow-y-auto p-3 space-y-3">
+        <div className="w-full md:w-72 shrink-0 border-b md:border-r border-white/10 md:overflow-y-auto p-3 space-y-3">
           <div className="flex gap-1.5">
             <button onClick={() => setMode('text')} className={`flex-1 rounded-lg py-1.5 text-xs font-medium ${mode === 'text' ? 'bg-violet-600 text-white' : 'bg-white/5 text-zinc-400'}`}>Text → Video</button>
             <button onClick={() => setMode('image')} className={`flex-1 rounded-lg py-1.5 text-xs font-medium ${mode === 'image' ? 'bg-violet-600 text-white' : 'bg-white/5 text-zinc-400'}`}>Image / Video</button>
@@ -731,7 +731,7 @@ export default function VideoStudio() {
         </div>
 
         {/* PREVIEW */}
-        <div className="flex-1 flex flex-col items-center justify-center p-6 min-w-0">
+        <div className="flex-1 flex flex-col items-center justify-center p-4 md:p-6 min-w-0 min-h-[42vh] md:min-h-0">
           {previewUrl ? (
             <div className="w-full max-w-2xl">
               {stitchedUrl && <div className="text-[11px] text-green-300 mb-1.5 flex items-center gap-1"><Film className="w-3.5 h-3.5" /> Full cut ({doneClips.length} clip{doneClips.length !== 1 ? 's' : ''}{script.trim() ? ' + voiceover' : ''})</div>}
@@ -813,7 +813,7 @@ export default function VideoStudio() {
         </div>
 
         {/* VOICE track */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 md:gap-3">
           <span className="w-16 shrink-0 text-[11px] font-semibold text-violet-300 flex items-center gap-1"><Volume2 className="w-3.5 h-3.5" /> Voice</span>
           <input value={script || narrationText} onChange={e => (script ? setScript(e.target.value) : setNarrationText(e.target.value))}
             placeholder="Voiceover line / notes (optional)"
@@ -823,7 +823,7 @@ export default function VideoStudio() {
         </div>
 
         {/* MUSIC track */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 md:gap-3">
           <span className="w-16 shrink-0 text-[11px] font-semibold text-fuchsia-300 flex items-center gap-1"><Music className="w-3.5 h-3.5" /> Music</span>
           {hasMusic ? (
             <>
