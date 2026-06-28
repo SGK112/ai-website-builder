@@ -428,7 +428,7 @@ export default function CommunityPage() {
 
           {/* Publish & earn path — three-step explainer.
               Visible above the fold so creators see the monetization path
-              before they scroll into the showcase. Webstew takes 30%; the
+              before they scroll into the showcase. Webstew takes 3%; the
               rest goes straight to the creator's Stripe Connect account. */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -456,7 +456,7 @@ export default function CommunityPage() {
                     </div>
                     <div className={cn('text-xs leading-relaxed', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
                       Build → Publish from <span className="font-mono">/library</span> → Set a price.
-                      You keep 70%, paid out to your Stripe account. Free listings also welcome.
+                      You keep 97%, paid out to your Stripe account. Free listings also welcome.
                     </div>
                   </div>
                 </div>

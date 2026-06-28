@@ -92,7 +92,7 @@ export default function SellerDashboardPage() {
         <div>
           <h1 className="text-3xl font-bold mb-1">Earnings & payouts</h1>
           <p className={cn('text-sm', isDark ? 'text-zinc-400' : 'text-slate-500')}>
-            You keep 70% of every sale. Webstew takes 30% to cover Stripe + hosting.
+            You keep 97% of every sale. Webstew takes just 3% to cover Stripe + hosting.
             Payouts go straight to your connected Stripe account.
           </p>
         </div>

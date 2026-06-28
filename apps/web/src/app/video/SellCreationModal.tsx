@@ -18,9 +18,9 @@ export default function SellCreationModal({ target, onClose }: { target: SellTar
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
 
-  // Pricing is in credits (1 credit = $0.01). Sellers keep 70%.
+  // Pricing is in credits (1 credit = $0.01). Sellers keep 97% (3% platform fee).
   const priceCredits = Math.max(0, Math.round(parseFloat(priceUsd || '0') * 100))
-  const youKeep = (priceCredits * 0.7 / 100).toFixed(2)
+  const youKeep = (priceCredits * 0.97 / 100).toFixed(2)
 
   // A still frame from a Cloudinary video makes a good listing thumbnail.
   const poster = /cloudinary\.com/.test(target.url)
@@ -90,7 +90,7 @@ export default function SellCreationModal({ target, onClose }: { target: SellTar
               <div className="flex items-center gap-2">
                 <span className="text-zinc-500 text-sm">$</span>
                 <input type="number" min={0} step={1} value={priceUsd} onChange={e => setPriceUsd(e.target.value)} className="w-24 bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-500/50" />
-                <span className="text-[11px] text-zinc-500">{priceCredits > 0 ? `You keep ~$${youKeep} (70%)` : 'Free'}</span>
+                <span className="text-[11px] text-zinc-500">{priceCredits > 0 ? `You keep ~$${youKeep} (97%)` : 'Free'}</span>
               </div>
             </div>
             {error && <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</div>}

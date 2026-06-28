@@ -222,7 +222,7 @@ export default function RootLayout({
                   name: 'Can I sell my Webstew sites?',
                   acceptedAnswer: {
                     '@type': 'Answer',
-                    text: 'Yes. Publish any site you build to the Webstew marketplace, set a price, and keep 70% of every sale. Payouts go directly to your connected Stripe account. Webstew takes 30% to cover Stripe fees and platform hosting.',
+                    text: 'Yes. Publish any site you build to the Webstew marketplace, set a price, and keep 97% of every sale. Payouts go directly to your connected Stripe account. Webstew takes just 3% to cover Stripe fees and platform hosting.',
                   },
                 },
                 {

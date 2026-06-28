@@ -47,7 +47,7 @@ export function PublishToCommunityModal({
   const [isPublic, setIsPublic] = useState(true)
   // Pricing — empty / 0 = free listing; >0 = paid (priced in credits, where
   // 100 credits = $1). Buyers pay credits via /api/marketplace/buy. Cashout
-  // converts credits → USD via the existing payouts route. Sellers keep 70%.
+  // converts credits → USD via the existing payouts route. Sellers keep 97%.
   const [priceUsd, setPriceUsd] = useState<string>('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -291,7 +291,7 @@ export function PublishToCommunityModal({
               <span>Price <span className="text-zinc-600">(USD — leave blank for free)</span></span>
               {parseFloat(priceUsd) > 0 && (
                 <span className="text-emerald-400 text-[11px]">
-                  you keep ${(parseFloat(priceUsd) * 0.7).toFixed(2)} (70%)
+                  you keep ${(parseFloat(priceUsd) * 0.97).toFixed(2)} (97%)
                 </span>
               )}
             </span>
@@ -308,7 +308,7 @@ export function PublishToCommunityModal({
               />
             </div>
             <span className="text-[10px] text-zinc-600 mt-1 block">
-              Set a price in dollars. Webstew takes 30% to cover Stripe + hosting; you cash out USD at /seller.
+              Set a price in dollars. Webstew takes just 3%; you cash out USD at /seller.
             </span>
           </label>
 
