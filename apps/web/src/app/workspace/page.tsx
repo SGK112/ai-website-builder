@@ -1916,7 +1916,10 @@ function WorkspaceContent() {
   // mobile render so the preview is visible by default.
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const mq = window.matchMedia('(max-width: 767px)')
+    // Width OR a short landscape window — a landscape PHONE is ~844px wide but
+    // only ~400px tall, so width alone treated it as desktop and showed the
+    // desktop FAB ("Edit with AI") + chrome over the build. Catch it by height.
+    const mq = window.matchMedia('(max-width: 767px), (max-height: 500px) and (orientation: landscape)')
     const apply = (matches: boolean) => {
       setIsMobile(matches)
       // App-first on mobile: keep the chat drawer CLOSED on load so it doesn't

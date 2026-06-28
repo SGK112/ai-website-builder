@@ -128,14 +128,17 @@ export default function CreationsPage() {
               const meta = KIND_META[it.kind]
               const Inner = (
                 <>
-                  <div className="aspect-[4/3] bg-gradient-to-br from-zinc-800 to-zinc-900 relative overflow-hidden">
+                  <div className="aspect-[4/3] bg-gradient-to-br from-zinc-800 to-zinc-900 relative overflow-hidden flex items-center justify-center">
                     {it.thumb ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={it.thumb} alt={it.title} loading="lazy" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none' }} />
-                    ) : it.kind === 'video' ? (
-                      <div className="w-full h-full flex items-center justify-center"><Play className="w-7 h-7 text-white/70" /></div>
+                      <img src={it.thumb} alt={it.title} loading="lazy" className="w-full h-full object-cover" />
+                    ) : it.kind === 'video' && it.mediaUrl ? (
+                      <>
+                        <video src={it.mediaUrl} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                        <span className="absolute inset-0 flex items-center justify-center"><Play className="w-7 h-7 text-white/90 drop-shadow-lg" /></span>
+                      </>
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center"><meta.icon className="w-7 h-7 text-white/40" /></div>
+                      <meta.icon className="w-7 h-7 text-white/30" />
                     )}
                     <span className={cn('absolute top-2 left-2 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded text-white', meta.color)}>
                       <meta.icon className="w-3 h-3" /> {it.subkind === 'logo' ? 'Logo' : meta.label}

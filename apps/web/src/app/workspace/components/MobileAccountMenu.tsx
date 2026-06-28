@@ -71,14 +71,15 @@ export function MobileAccountMenu({ isDark, user }: Props) {
       {open && (
         <div
           className={cn(
-            'absolute right-0 top-11 w-52 rounded-2xl border shadow-2xl overflow-hidden backdrop-blur-xl',
+            'absolute right-0 top-11 w-60 rounded-2xl border shadow-2xl overflow-hidden backdrop-blur-xl',
             isDark ? 'bg-zinc-900/95 border-white/10 shadow-black/50' : 'bg-white/95 border-slate-200 shadow-slate-400/30',
           )}
         >
           {user ? (
             <>
-              <div className={cn('px-3.5 py-2 border-b text-[12px] truncate', isDark ? 'border-white/10 text-zinc-400' : 'border-slate-200 text-slate-500')}>
-                {user.name || user.email || 'Signed in'}
+              <div className={cn('px-3.5 py-2 border-b flex items-center justify-between gap-2', isDark ? 'border-white/10' : 'border-slate-200')}>
+                <span className={cn('text-[12px] truncate min-w-0', isDark ? 'text-zinc-400' : 'text-slate-500')}>{user.name || user.email || 'Signed in'}</span>
+                {plan && <span className={cn('shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded', isDark ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-100 text-violet-700')}>{plan}</span>}
               </div>
               {/* Credits — what you have + a tap to top up. */}
               <button
@@ -91,10 +92,7 @@ export function MobileAccountMenu({ isDark, user }: Props) {
                   <span className={isDark ? 'text-white' : 'text-slate-900'}>{credits != null ? credits.toLocaleString() : '—'}</span>
                   <span className={cn('text-[12px] font-medium', isDark ? 'text-zinc-500' : 'text-slate-400')}>credits</span>
                 </span>
-                <span className="flex items-center gap-1.5">
-                  {plan && <span className={cn('text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded', isDark ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-100 text-violet-700')}>{plan}</span>}
-                  <span className="text-[11px] font-semibold text-violet-400">Top up →</span>
-                </span>
+                <span className="shrink-0 text-[11px] font-semibold text-violet-400">Top up →</span>
               </button>
               <button onClick={() => go('/creations')} className={itemCls}>
                 <LayoutGrid className="w-[18px] h-[18px]" /> My creations
