@@ -13,7 +13,7 @@ export type RealtimeStatus = 'idle' | 'connecting' | 'listening' | 'speaking' | 
 export interface VoiceTurn { id: number; role: 'user' | 'assistant'; text: string }
 
 export function useRealtimeVoice(opts: {
-  onBuild: (prompt: string, mode: 'build' | 'edit') => 'started' | 'queued'
+  onBuild: (prompt: string, mode: 'build' | 'edit', title?: string) => 'started' | 'queued'
   // Live status the model can CHECK (so it never guesses "still cooking" /
   // "done"). e.g. "still building", "finished — on screen", "no site yet".
   getStatus: () => string
@@ -129,7 +129,8 @@ export function useRealtimeVoice(opts: {
             // The page either starts it now or queues it behind an in-flight
             // build. Ack the ACTUAL outcome so the chef doesn't claim it's done
             // when it was queued (or dropped).
-            const outcome = onBuildRef.current(prompt, isEdit ? 'edit' : 'build')
+            const title = isBuild ? String(args?.title ?? '').trim().slice(0, 60) || undefined : undefined
+            const outcome = onBuildRef.current(prompt, isEdit ? 'edit' : 'build', title)
             const statusMsg = outcome === 'queued'
               ? 'queued — finishing the current change first, then this one. Tell the user you’ll do it right after.'
               : (isEdit ? 'editing now' : 'building now')

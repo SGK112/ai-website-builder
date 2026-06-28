@@ -5,7 +5,7 @@
 // error with retry. Driven entirely by useVoiceVideo state — thin presentation.
 
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Download, Loader2, AlertCircle, RefreshCw, Clapperboard } from 'lucide-react'
+import { X, Download, Loader2, AlertCircle, RefreshCw, Clapperboard, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { VideoStatus } from '../hooks/useVoiceVideo'
 
@@ -15,12 +15,14 @@ interface Props {
   videoUrl: string | null
   error: string | null
   prompt: string
+  saved: boolean
+  minimized: boolean
   onClose: () => void
   onRetry: () => void
 }
 
-export function VideoResultOverlay({ isDark, status, videoUrl, error, prompt, onClose, onRetry }: Props) {
-  const open = status !== 'idle'
+export function VideoResultOverlay({ isDark, status, videoUrl, error, prompt, saved, minimized, onClose, onRetry }: Props) {
+  const open = status !== 'idle' && !minimized
   return (
     <AnimatePresence>
       {open && (
@@ -68,6 +70,9 @@ export function VideoResultOverlay({ isDark, status, videoUrl, error, prompt, on
                 className="w-full rounded-2xl shadow-2xl border border-white/10 bg-black"
               />
               <p className="mt-3 text-sm text-white/60 text-center line-clamp-2">“{prompt}”</p>
+              <p className={cn('mt-1.5 flex items-center gap-1.5 text-xs', saved ? 'text-emerald-400' : 'text-white/40')}>
+                {saved ? <><Check className="w-3.5 h-3.5" /> Saved to your videos</> : <><Loader2 className="w-3 h-3 animate-spin" /> Saving…</>}
+              </p>
               <div className="mt-4 flex items-center gap-3">
                 <a
                   href={videoUrl}
@@ -108,5 +113,26 @@ export function VideoResultOverlay({ isDark, status, videoUrl, error, prompt, on
         </motion.div>
       )}
     </AnimatePresence>
+  )
+}
+
+// Floating re-open chip — shown when the video overlay is minimized, so a clip
+// is never lost on tap-away. Reflects generating vs ready.
+export function VideoMiniChip({ status, minimized, onReopen }: { status: VideoStatus; minimized: boolean; onReopen: () => void }) {
+  if (!minimized || (status !== 'generating' && status !== 'ready')) return null
+  const generating = status === 'generating'
+  return (
+    <motion.button
+      initial={{ scale: 0.8, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      onClick={onReopen}
+      className="fixed z-[110] bottom-28 right-4 flex items-center gap-2 pl-2.5 pr-4 py-2 rounded-full bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white text-sm font-semibold shadow-xl shadow-violet-500/30 active:scale-95"
+      style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    >
+      <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+        {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Clapperboard className="w-3.5 h-3.5" />}
+      </span>
+      {generating ? 'Making video…' : 'Watch video'}
+    </motion.button>
   )
 }

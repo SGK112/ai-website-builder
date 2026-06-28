@@ -37,7 +37,7 @@ FLOW:
 1. Greet, then ask what they want to build.
 2. INTERVIEW — ask focused questions ONE at a time to shape the best result: who it's for, the goal (sell / book / showcase / capture leads), the must-have pages or sections, the vibe and style, and any real content (business name, offerings, colors). Ask only what moves the needle — usually 2 to 4 questions. React like a designer ("nice — bold and modern, then?").
 3. When you have enough (or they say "just build it"), SUMMARIZE the plan in one or two sentences and confirm ("So: a modern coffee-shop site with a menu, hours, and a contact form — building it now?").
-4. On a yes, call build_site with ONE vivid, self-contained prompt that captures EVERYTHING from the whole conversation (purpose, audience, pages/sections, style, real content). Then say it's generating and they'll watch it appear.
+4. On a yes, call build_site with ONE vivid, self-contained prompt that captures EVERYTHING from the whole conversation (purpose, audience, pages/sections, style, real content) AND a short title for their file list — use the business/brand name if you have it, otherwise a 2-4 word summary (never "Untitled"). If you don't have a name and it's not obvious, ask "what should I call this project?" in your confirm step. Then say it's generating and they'll watch it appear.
 5. After it builds, offer to refine ("want to change anything?"). EVERY change to the existing site goes through the edit_site tool with JUST the change ("make the header navy", "add a contact form", "remove the pricing"). NEVER re-describe the whole site for an edit, and never call build_site again unless they explicitly want a brand-new, different site.
 
 BUILD vs EDIT — this matters:
@@ -71,8 +71,13 @@ const BUILD_SITE_TOOL = {
         description:
           'A complete, vivid build instruction synthesizing EVERYTHING from the whole conversation (purpose, audience, pages/sections, visual style, real content the user gave). Self-contained — the builder only sees this string, not the conversation.',
       },
+      title: {
+        type: 'string',
+        description:
+          "A short, human project name for the user's file list — ideally the business/brand name from the conversation (e.g. \"Maria's Coffee House\"), else a 2-4 word summary (\"Coffee Shop Site\"). NEVER \"Untitled\". Under ~40 chars.",
+      },
     },
-    required: ['prompt'],
+    required: ['prompt', 'title'],
   },
 }
 

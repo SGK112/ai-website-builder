@@ -181,7 +181,7 @@ import { useRealtimeVoice } from './hooks/useRealtimeVoice'
 import { useVoiceBuildQueue } from './hooks/useVoiceBuildQueue'
 import { useVoiceVideo } from './hooks/useVoiceVideo'
 import { useAutoRepublish } from './hooks/useAutoRepublish'
-import { VideoResultOverlay } from './components/VideoResultOverlay'
+import { VideoResultOverlay, VideoMiniChip } from './components/VideoResultOverlay'
 import { MobileAccountMenu } from './components/MobileAccountMenu'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import type { ImportedProject } from '@/lib/import-project'
@@ -360,6 +360,22 @@ const PAGE_NOUNS = ['about', 'services', 'contact', 'pricing', 'faq', 'blog', 'g
 const STOCK_PLACEHOLDER = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxMjAwJyBoZWlnaHQ9JzgwMCc+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSdnJyB4MT0nMCcgeTE9JzAnIHgyPScxJyB5Mj0nMSc+PHN0b3Agb2Zmc2V0PScwJyBzdG9wLWNvbG9yPScjMjExYTM2Jy8+PHN0b3Agb2Zmc2V0PScxJyBzdG9wLWNvbG9yPScjMmMxZjNmJy8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3Qgd2lkdGg9JzEyMDAnIGhlaWdodD0nODAwJyBmaWxsPSd1cmwoI2cpJy8+PC9zdmc+'
 function stripStockMarkers(html: string): string {
   return html ? html.replace(/\{\{STOCK_[A-Z0-9_]+\}\}/g, STOCK_PLACEHOLDER) : html
+}
+
+// Derive a short, human project name from a build prompt so a fresh build never
+// saves as "Untitled". Strips build-instruction filler, keeps the subject head,
+// title-cases it. Used as the fallback when the chef didn't supply a title.
+function deriveProjectName(prompt: string): string {
+  let s = (prompt || '').trim().replace(/\s+/g, ' ')
+  s = s.replace(/^(please\s+)?(can you\s+|could you\s+|i(?:'d| would)? (?:like|want|need)(?: you)?(?: to)?\s+)?(build|make|create|design|generate|develop|whip up|cook up|give me|build me|make me)\s+/i, '')
+  s = s.replace(/^(a|an|the|my|some)\s+/i, '')
+  s = s.replace(/^(modern|simple|clean|beautiful|professional|stunning|sleek)\s+/i, '')
+  s = s.split(/[.,!?;:\n]/)[0].trim()
+  if (!s) return 'My Site'
+  const name = s.split(' ').slice(0, 5).join(' ').slice(0, 44).trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .replace(/\s+(For|With|And|Of|To|A|An|The)$/i, '')
+  return name || 'My Site'
 }
 
 function detectMultiPageIntent(prompt: string): boolean {
@@ -2295,6 +2311,9 @@ function WorkspaceContent() {
   // debounced sync always calls the latest closure (fresh html/pages state).
   const [contentVersion, setContentVersion] = useState(0)
   const publishInstantRef = useRef<((opts?: { auto?: boolean }) => Promise<void>) | null>(null)
+  // A project title the voice chef supplied with build_site, applied when the
+  // build starts (ref avoids the setState race with handleGenerate's closure).
+  const pendingTitleRef = useRef<string | null>(null)
   // Ship tab: keep the primary flow (Go Live → custom domain) clean and tuck
   // the power-user stuff (BYO API keys, raw GitHub/Render deploy, export)
   // behind an "Advanced" disclosure so the panel isn't a wall of buttons.
@@ -5684,6 +5703,13 @@ ${html}
     }
 
     setIsGenerating(true)
+    // Name the project so it never lands in the file list as "Untitled":
+    // prefer the chef's spoken title (captured in the ref), else derive one from
+    // the prompt. Only when still on the default name (don't clobber a rename).
+    if ((projectName === 'Untitled Project' || !projectName.trim()) && promptText) {
+      setProjectName(pendingTitleRef.current || deriveProjectName(promptText))
+    }
+    pendingTitleRef.current = null
     setBuildPhase('structure')
     setCurrentSteps(buildSteps.map(s => ({ ...s, status: 'pending' })))
     // Stay in preview mode to show the cloud loading screen
@@ -7748,7 +7774,11 @@ ${html}
   // the make_video tool can kick it off.
   const voiceVideo = useVoiceVideo()
   const realtimeVoice = useRealtimeVoice({
-    onBuild: (p, mode) => { setVoiceMinimized(true); setSidebarCollapsed(true); return enqueueVoiceRef.current(p, mode) },
+    onBuild: (p, mode, title) => {
+      setVoiceMinimized(true); setSidebarCollapsed(true)
+      if (mode === 'build' && title) pendingTitleRef.current = title
+      return enqueueVoiceRef.current(p, mode)
+    },
     getStatus: () => {
       if (isGenerating || isThinking) return html ? 'the site is on screen, just finishing the last touches' : 'still building — coming up now'
       if (html || pages.some((p) => p.html?.trim())) return 'finished — the site is on screen now'
@@ -9918,16 +9948,21 @@ npx eas build --platform all
           />
         )}
 
-        {/* Voice-generated short video — cooking spinner → looping clip + download. */}
+        {/* Voice-generated short video — cooking spinner → looping clip + download.
+            Closing MINIMIZES to a chip (auto-saved to the user's videos) so the
+            clip is never lost; an error fully discards. */}
         <VideoResultOverlay
           isDark={isDark}
           status={voiceVideo.status}
           videoUrl={voiceVideo.videoUrl}
           error={voiceVideo.error}
           prompt={voiceVideo.prompt}
-          onClose={voiceVideo.dismiss}
+          saved={voiceVideo.saved}
+          minimized={voiceVideo.minimized}
+          onClose={() => { if (voiceVideo.status === 'error') voiceVideo.discard(); else voiceVideo.minimize() }}
           onRetry={() => void voiceVideo.generate(voiceVideo.prompt)}
         />
+        <VideoMiniChip status={voiceVideo.status} minimized={voiceVideo.minimized} onReopen={voiceVideo.reopen} />
 
         {/* Toolbar - High z-index so dropdowns appear above preview.
             Desktop only — mobile uses the minimal header above. */}
