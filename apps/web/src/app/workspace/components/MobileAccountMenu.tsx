@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import { cn } from '@/lib/utils'
-import { User as UserIcon, LogOut, LogIn, UserPlus, Coins } from 'lucide-react'
+import { User as UserIcon, LogOut, LogIn, UserPlus, Coins, LayoutGrid } from 'lucide-react'
 
 interface Props {
   isDark: boolean
@@ -95,6 +95,9 @@ export function MobileAccountMenu({ isDark, user }: Props) {
                   {plan && <span className={cn('text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded', isDark ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-100 text-violet-700')}>{plan}</span>}
                   <span className="text-[11px] font-semibold text-violet-400">Top up →</span>
                 </span>
+              </button>
+              <button onClick={() => go('/creations')} className={itemCls}>
+                <LayoutGrid className="w-[18px] h-[18px]" /> My creations
               </button>
               <button onClick={() => go('/profile')} className={itemCls}>
                 <UserIcon className="w-[18px] h-[18px]" /> Profile
