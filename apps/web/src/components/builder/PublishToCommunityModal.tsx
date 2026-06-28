@@ -48,7 +48,7 @@ export function PublishToCommunityModal({
   // Pricing — empty / 0 = free listing; >0 = paid (priced in credits, where
   // 100 credits = $1). Buyers pay credits via /api/marketplace/buy. Cashout
   // converts credits → USD via the existing payouts route. Sellers keep 70%.
-  const [priceCredits, setPriceCredits] = useState<string>('')
+  const [priceUsd, setPriceUsd] = useState<string>('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -89,7 +89,7 @@ export function PublishToCommunityModal({
       setCategory('general')
       setTags('')
       setIsPublic(true)
-      setPriceCredits('')
+      setPriceUsd('')
       setThumbnailUrl('')
       setError(null)
       setSuccess(null)
@@ -116,7 +116,8 @@ export function PublishToCommunityModal({
       const seed = encodeURIComponent((projectId || title || 'webstew').slice(0, 40))
       const thumbnail = thumbnailUrl || `https://picsum.photos/seed/${seed}/800/600`
 
-      const priceNum = Math.max(0, Math.floor(Number(priceCredits) || 0))
+      // The user enters DOLLARS; we store credits (1 credit = 1¢).
+      const priceNum = Math.max(0, Math.round((parseFloat(priceUsd) || 0) * 100))
       const res = await fetch('/api/community/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -287,28 +288,31 @@ export function PublishToCommunityModal({
               paid. Buyers spend credits; you cash out USD from /seller. */}
           <label className="block">
             <span className="text-xs font-medium text-zinc-400 mb-1.5 block flex items-center justify-between">
-              <span>Price <span className="text-zinc-600">(credits — leave blank for free)</span></span>
-              {Number(priceCredits) > 0 && (
+              <span>Price <span className="text-zinc-600">(USD — leave blank for free)</span></span>
+              {parseFloat(priceUsd) > 0 && (
                 <span className="text-emerald-400 text-[11px]">
-                  ≈ ${(Number(priceCredits) / 100).toFixed(2)} · you keep ${(Number(priceCredits) * 0.7 / 100).toFixed(2)}
+                  you keep ${(parseFloat(priceUsd) * 0.7).toFixed(2)} (70%)
                 </span>
               )}
             </span>
-            <input
-              type="number"
-              min={0}
-              step={50}
-              value={priceCredits}
-              onChange={(e) => setPriceCredits(e.target.value)}
-              placeholder="0 = free"
-              className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500"
-            />
+            <div className="flex items-center gap-2">
+              <span className="text-zinc-500 text-sm">$</span>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={priceUsd}
+                onChange={(e) => setPriceUsd(e.target.value)}
+                placeholder="0 = free"
+                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500"
+              />
+            </div>
             <span className="text-[10px] text-zinc-600 mt-1 block">
-              100 credits = $1. Webstew takes 30% to cover Stripe + hosting. Payouts at /seller.
+              Set a price in dollars. Webstew takes 30% to cover Stripe + hosting; you cash out USD at /seller.
             </span>
           </label>
 
-          {!Number(priceCredits) && (
+          {!parseFloat(priceUsd) && (
             <div className="text-xs text-zinc-500 leading-relaxed bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
               <strong className="text-blue-300">Free listing.</strong> Anyone can view, remix, and use it. Set a price above to make it a paid template.
             </div>

@@ -7,6 +7,9 @@ import { ArrowLeft, Eye, Heart, Sparkles, BadgeCheck, ShoppingBag, Crown, Extern
 import type { Metadata } from 'next'
 import clientPromise from '@/lib/mongodb'
 import { ObjectId } from 'mongodb'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { isAdminEmail } from '@ai-website-builder/database'
 import { ListingActions } from '@/components/marketplace/ListingActions'
 import { seoTitle, seoDescription, clip } from '@/lib/seo'
 
@@ -42,11 +45,16 @@ async function loadListing(id: string): Promise<ListingSummary | null> {
   const db = client.db('ai-website-builder')
   const doc = await db.collection('community_posts').findOne({ _id: new ObjectId(id) })
   if (!doc) return null
-  // SSR doesn't have a session so we render the public-safe shape (no html
-  // unless free). Client-side mounts ListingActions which calls
-  // /api/listings/[id] with the user's session and re-fetches html if
-  // they own it.
+  // Premium listings hide their deliverable (html / video) behind the paywall —
+  // EXCEPT for the owner and admins, who must see their own work (otherwise the
+  // seller hits a "Preview locked" wall on a site they just listed). Buyers get
+  // the entitled content through the /api/listings/[id] + buy/use flow.
+  const session = await getServerSession(authOptions).catch(() => null)
+  const viewerId = session?.user?.id || ''
+  const isOwner = !!viewerId && String(doc.author?.id || '') === String(viewerId)
+  const isAdmin = !!session?.user?.email && isAdminEmail(session.user.email)
   const isPremium = !!doc.isPremium && (Number(doc.price_credits) || 0) > 0
+  const canSeeContent = !isPremium || isOwner || isAdmin
   return {
     _id: String(doc._id),
     type: doc.type,
@@ -62,10 +70,10 @@ async function loadListing(id: string): Promise<ListingSummary | null> {
     isPremium,
     priceCredits: Number(doc.price_credits) || 0,
     createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : String(doc.createdAt || ''),
-    html: !isPremium ? doc.html : undefined,
-    // Gate the playable file like html: free → playable; premium → poster +
-    // buy overlay only (don't hand out a paid video before purchase).
-    videoUrl: !isPremium ? doc.videoUrl : undefined,
+    html: canSeeContent ? doc.html : undefined,
+    // Gate the playable file like html: free / owner / admin → playable;
+    // otherwise premium → poster + buy overlay only.
+    videoUrl: canSeeContent ? doc.videoUrl : undefined,
   }
 }
 
