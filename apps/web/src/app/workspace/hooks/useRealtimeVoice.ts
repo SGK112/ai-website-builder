@@ -20,6 +20,9 @@ export function useRealtimeVoice(opts: {
   // Generate a short video from a spoken description (Grok Imagine). Fire-and-
   // forget — the video overlay shows progress + result; the chef just kicks it off.
   onVideo: (prompt: string) => void
+  // List the current site for sale. Returns a short status for the chef to relay
+  // ('listing' kicked off, 'no-site' nothing to sell, 'need-signin').
+  onListForSale: (priceUsd: number, description?: string) => 'listing' | 'no-site' | 'need-signin'
 }) {
   const [status, setStatus] = useState<RealtimeStatus>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -54,6 +57,8 @@ export function useRealtimeVoice(opts: {
   getStatusRef.current = opts.getStatus
   const onVideoRef = useRef(opts.onVideo)
   onVideoRef.current = opts.onVideo
+  const onListForSaleRef = useRef(opts.onListForSale)
+  onListForSaleRef.current = opts.onListForSale
 
   const send = (obj: unknown) => {
     const dc = dcRef.current
@@ -117,6 +122,20 @@ export function useRealtimeVoice(opts: {
               send({ type: 'conversation.item.create', item: { type: 'function_call_output', call_id: msg.call_id, output: JSON.stringify({ status: 'making the video now — it appears on screen in ~30 seconds' }) } })
               send({ type: 'response.create' })
             }
+            break
+          }
+          // List the current site for sale.
+          if (msg.name === 'list_for_sale') {
+            const priceUsd = Math.max(0, Math.min(500, Math.round(Number(args?.priceUsd) || 0)))
+            const desc = String(args?.description ?? '').trim().slice(0, 300)
+            const outcome = (() => { try { return onListForSaleRef.current(priceUsd, desc) } catch { return 'no-site' as const } })()
+            const statusMsg = outcome === 'need-signin'
+              ? 'the user needs to sign in first to sell.'
+              : outcome === 'no-site'
+                ? 'there’s no built site to sell yet — build one first.'
+                : `listing it now for $${priceUsd}. Tell them it goes live after a quick review, and to set up Stripe payouts in their profile to get paid.`
+            send({ type: 'conversation.item.create', item: { type: 'function_call_output', call_id: msg.call_id, output: JSON.stringify({ status: statusMsg }) } })
+            send({ type: 'response.create' })
             break
           }
           // build_site uses `prompt`, edit_site uses `change` — accept either.

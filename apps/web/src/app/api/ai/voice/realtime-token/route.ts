@@ -46,6 +46,8 @@ BUILD vs EDIT — this matters:
 
 PUBLISHING: to take it live, use edit_site with the change "publish the site"; quote the live link it returns. Once a site is live, any later edit updates that SAME link automatically — never tell the user to re-publish a tweak; just make the edit and it syncs.
 
+SELLING: when the user wants to sell the site ("sell this", "list it for $X"), call list_for_sale with the price in DOLLARS. Confirm the price first if unclear. Max $500. After listing, tell them it goes live after a quick review, and that to actually get paid they need to finish Stripe payout setup in their profile. Don't promise instant payouts.
+
 STATUS — you CANNOT see the screen:
 - A build/edit runs in the background and takes a bit. You'll be told automatically when it finishes — then tell the user it's ready.
 - NEVER guess "it's done" or "still cooking" from memory. If the user asks about progress (or you're unsure), call check_status and answer from what it returns.
@@ -125,6 +127,27 @@ const MAKE_VIDEO_TOOL = {
   },
 }
 
+const LIST_FOR_SALE_TOOL = {
+  type: 'function',
+  name: 'list_for_sale',
+  description:
+    'List the CURRENT site for sale in the Webstew community marketplace. Use when the user says "sell this", "put it up for sale", "list it for $X". There must already be a built site on screen.',
+  parameters: {
+    type: 'object',
+    properties: {
+      priceUsd: {
+        type: 'number',
+        description: 'Sale price in US DOLLARS (e.g. 200 means $200). Whole dollars. Max 500. Use 0 for a free listing.',
+      },
+      description: {
+        type: 'string',
+        description: 'A short one-sentence pitch for the listing — what it is and who it’s for. Derive it from the conversation.',
+      },
+    },
+    required: ['priceUsd'],
+  },
+}
+
 export async function POST() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
@@ -165,7 +188,7 @@ export async function POST() {
             },
             output: { voice: VOICE },
           },
-          tools: [BUILD_SITE_TOOL, EDIT_SITE_TOOL, CHECK_STATUS_TOOL, MAKE_VIDEO_TOOL],
+          tools: [BUILD_SITE_TOOL, EDIT_SITE_TOOL, CHECK_STATUS_TOOL, MAKE_VIDEO_TOOL, LIST_FOR_SALE_TOOL],
           tool_choice: 'auto',
         },
       }),

@@ -7785,6 +7785,36 @@ ${html}
       return 'nothing built yet'
     },
     onVideo: (prompt) => { setVoiceMinimized(true); void voiceVideo.generate(prompt) },
+    onListForSale: (priceUsd, description) => {
+      if (!session?.user) { setSignupNudge({ show: true, reason: 'deploy-render' }); return 'need-signin' }
+      if (!html.trim()) return 'no-site'
+      const priceCredits = Math.max(0, Math.min(50000, Math.round((priceUsd || 0) * 100)))
+      const seed = encodeURIComponent((projectName || 'webstew').slice(0, 40))
+      void (async () => {
+        try {
+          const res = await fetch('/api/community/posts', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'website',
+              title: projectName || 'My Site',
+              description: (description || '').slice(0, 300),
+              html,
+              thumbnail: `https://picsum.photos/seed/${seed}/800/600`,
+              category: 'general',
+              isPublic: true,
+              ...(priceCredits > 0 && { priceCredits }),
+            }),
+          })
+          const data = await res.json().catch(() => ({}))
+          if (!res.ok) throw new Error(data.error || 'Could not list the site')
+          addToast('success', priceCredits > 0 ? `Listed for $${priceUsd} — live after a quick review` : 'Listed free — live after a quick review')
+          addConsoleLog('success', `Listed for sale: ${projectName || 'My Site'} ($${priceUsd})`)
+        } catch (e: any) {
+          addToast('error', e?.message || 'Could not list the site')
+        }
+      })()
+      return 'listing'
+    },
   })
   const enqueueVoiceBuild = useVoiceBuildQueue({
     busy: isGenerating || isThinking,
