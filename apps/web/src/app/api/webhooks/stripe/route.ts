@@ -162,6 +162,17 @@ export async function POST(req: NextRequest) {
           break
         }
 
+        // Don't fulfill until the money is actually captured. checkout.session.
+        // completed can fire on a delayed-settlement method before it settles;
+        // we pin card on our sessions, but gate here too so NO fulfillment path
+        // (store order, marketplace transfer, domain registration) ever runs on
+        // an unpaid/processing session. (payment_status is absent on $0 sessions,
+        // which we allow.)
+        if (sess?.payment_status && sess.payment_status !== 'paid' && sess.payment_status !== 'no_payment_required') {
+          console.log(`Checkout ${sess?.id} not paid yet (payment_status=${sess.payment_status}) — skipping fulfillment`)
+          break
+        }
+
         // Generated-app store order (WebstewDB.checkout). The order row lives in
         // app_data (Mongoose-default DB) keyed by stripeSessionId; flip pending
         // → paid so the app owner sees fulfilled orders in Data Studio. Trusting

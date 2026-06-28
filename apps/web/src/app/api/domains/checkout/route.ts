@@ -59,6 +59,10 @@ export async function POST(req: NextRequest) {
 
   const checkout = await stripe.checkout.sessions.create({
     mode: 'payment',
+    // Card only — domain registration runs on checkout.session.completed; a
+    // delayed-settlement method could trigger a paid registration before the
+    // money settles.
+    payment_method_types: ['card'],
     line_items: [{
       quantity: 1,
       price_data: {

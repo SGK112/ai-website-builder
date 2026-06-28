@@ -109,6 +109,10 @@ export async function POST(req: NextRequest, { params }: { params: { postId: str
 
     const checkout = await stripe.checkout.sessions.create({
       mode: 'payment',
+      // Card only — delayed-settlement methods (ACH/bank debit) would let
+      // checkout.session.completed fire BEFORE the money actually settles, so we
+      // could fulfill (transfer to the seller) on a payment that later fails.
+      payment_method_types: ['card'],
       line_items: [
         {
           price_data: {
