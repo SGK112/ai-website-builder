@@ -126,7 +126,7 @@ export function VideoMiniChip({ status, minimized, onReopen }: { status: VideoSt
       initial={{ scale: 0.8, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       onClick={onReopen}
-      className="fixed z-[110] bottom-28 right-4 flex items-center gap-2 pl-2.5 pr-4 py-2 rounded-full bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white text-sm font-semibold shadow-xl shadow-violet-500/30 active:scale-95"
+      className="fixed z-[110] bottom-28 left-1/2 -translate-x-1/2 flex items-center gap-2 pl-2.5 pr-4 py-2 rounded-full bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white text-sm font-semibold shadow-xl shadow-violet-500/30 active:scale-95"
       style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
