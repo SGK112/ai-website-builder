@@ -7,6 +7,7 @@ import {
   Bookmark, BookmarkCheck, Trash2, Pause, Share2, Tag, Mic, Square,
 } from 'lucide-react'
 import VideoDirectorChat from './VideoDirectorChat'
+import DirectorChat from './DirectorChat'
 import SellCreationModal from './SellCreationModal'
 import { STUDIO_MUSIC, trackById, trackSrc } from '@/lib/studio-music'
 import { useSpeechToText } from '@/hooks/useSpeechToText'
@@ -78,6 +79,7 @@ export default function VideoStudio() {
   // AI Director — "give the chef an order, she assembles the whole cut".
   const [directorOrder, setDirectorOrder] = useState('')
   const [directing, setDirecting] = useState(false)
+  const [directorChatOpen, setDirectorChatOpen] = useState(false)
   // Speak the order instead of typing it (mic → STT → fills the order box).
   const orderMic = useSpeechToText((t) => setDirectorOrder(prev => (prev.trim() ? prev.trim() + ' ' : '') + t))
   const [writingScript, setWritingScript] = useState(false)
@@ -395,8 +397,8 @@ export default function VideoStudio() {
   // script/voice/music. Leaves the assembled cut ready for the user to review and
   // hit Render (we don't auto-render, both to keep the user in control and to
   // avoid rendering stale state). This is "give the chef an order, she cooks".
-  async function runDirector() {
-    const order = directorOrder.trim()
+  async function runDirector(orderArg?: string) {
+    const order = (orderArg ?? directorOrder).trim()
     if (!order) { setError('Tell the director what to make — e.g. "a punchy 30s product ad".'); return }
     setDirecting(true); setError(null); setStitched(null); setShareUrl(null); setGenLabel('Director is planning the cut…')
     try {
@@ -765,9 +767,13 @@ export default function VideoStudio() {
                 )}
               </div>
               {orderMic.error && <p className="text-[10px] text-rose-300/80">{orderMic.error}</p>}
-              <button onClick={runDirector} disabled={busy || !directorOrder.trim()}
+              <button onClick={() => runDirector()} disabled={busy || !directorOrder.trim()}
                 className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 disabled:opacity-40 text-white text-xs font-semibold py-2">
                 {directing ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {genLabel || 'Directing…'}</> : <><Clapperboard className="w-3.5 h-3.5" /> Direct the whole cut ({doneClips.length})</>}
+              </button>
+              <button onClick={() => setDirectorChatOpen(true)} disabled={directing}
+                className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-violet-400/30 bg-white/5 hover:bg-white/10 disabled:opacity-40 text-violet-100 text-xs font-medium py-2">
+                <Mic className="w-3.5 h-3.5" /> Or talk it through with the director
               </button>
               <p className="text-[10px] text-violet-200/50">Sequences your {doneClips.length} clip{doneClips.length !== 1 ? 's' : ''}, adds B-roll, writes + voices a script, picks music. Review, then Render. Generates a few clips (credits).</p>
             </div>
@@ -1102,6 +1108,15 @@ export default function VideoStudio() {
         context={{ mode, model, modelLabel: selectedModel?.label, imageCount: uploadedImages.length, style, aspectRatio, duration, theme: theme.trim() || undefined, seriesPrompts }}
         onApply={(p) => setPrompt(p)}
         onClose={() => setDirectorOpen(false)}
+      />
+
+      {/* Conversational voice CHEF — talk to it, it assembles the whole cut. */}
+      <DirectorChat
+        open={directorChatOpen}
+        clips={doneClips.map(c => ({ id: c.id, prompt: c.prompt, kind: c.kind === 'image' ? 'image' : 'video', hasUrl: true }))}
+        assembling={directing}
+        onAssemble={(order) => { setDirectorOrder(order); setDirectorChatOpen(false); void runDirector(order) }}
+        onClose={() => setDirectorChatOpen(false)}
       />
     </div>
   )
