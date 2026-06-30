@@ -754,7 +754,7 @@ export default function VideoStudio() {
                 {orderMic.supported && (
                   <button onClick={orderMic.toggle} disabled={directing || orderMic.transcribing}
                     aria-label={orderMic.listening ? 'Stop and transcribe' : 'Speak your order'}
-                    className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-white disabled:opacity-40 ${orderMic.listening ? 'bg-rose-500 animate-pulse' : 'bg-white/10 hover:bg-white/20'}`}>
+                    className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-white disabled:opacity-40 ${orderMic.listening ? 'bg-rose-500 animate-pulse' : 'bg-white/10 hover:bg-white/20'}`}>
                     {orderMic.transcribing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : orderMic.listening ? <Square className="w-3.5 h-3.5 fill-current" /> : <Mic className="w-3.5 h-3.5" />}
                   </button>
                 )}
@@ -887,7 +887,7 @@ export default function VideoStudio() {
         </div>
 
         {/* PREVIEW */}
-        <div className="flex-1 flex flex-col items-center justify-center p-4 md:p-6 min-w-0 min-h-[42vh] md:min-h-0">
+        <div className="flex-1 flex flex-col items-center justify-center p-4 md:p-6 min-w-0 min-h-[30vh] md:min-h-0">
           {previewUrl ? (
             <div className="w-full max-w-2xl">
               {stitchedUrl && <div className="text-[11px] text-green-300 mb-1.5 flex items-center gap-1"><Film className="w-3.5 h-3.5" /> Full cut ({doneClips.length} clip{doneClips.length !== 1 ? 's' : ''}{script.trim() ? ' + voiceover' : ''})</div>}
@@ -1000,8 +1000,10 @@ export default function VideoStudio() {
             </div>
           )}
           <input ref={musicInputRef} type="file" accept="audio/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadMusic(f) }} />
+          {/* Primary action — full-width + its own row on mobile so it's never
+              lost in the wrap; tucks to the right inline on desktop. */}
           <button onClick={stitchAndExport} disabled={busy || doneClips.length < 1}
-            className="ml-auto flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-violet-600 hover:from-fuchsia-500 disabled:opacity-40 text-white text-sm font-semibold px-4 py-2.5">
+            className="w-full md:w-auto md:ml-auto mt-1 md:mt-0 flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-violet-600 hover:from-fuchsia-500 disabled:opacity-40 text-white text-sm font-semibold px-4 py-3 md:py-2.5">
             {stitching ? <><Loader2 className="w-4 h-4 animate-spin" /> {stitchStage}{stitchProgress > 0 ? ` ${stitchProgress}%` : ''}</> : <><Wand2 className="w-4 h-4" /> Render film {doneClips.length > 1 ? `(${doneClips.length} clips)` : ''}</>}
           </button>
         </div>
