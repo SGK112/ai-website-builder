@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Clapperboard, Sparkles, Loader2, X, ArrowLeft, ArrowRight, Plus,
   Film, Download, Link2, Wand2, ImageIcon, AlertCircle, Volume2, PenLine, Play, Music,
-  Bookmark, BookmarkCheck, Trash2, Pause, Share2, Tag,
+  Bookmark, BookmarkCheck, Trash2, Pause, Share2, Tag, Mic, Square,
 } from 'lucide-react'
 import VideoDirectorChat from './VideoDirectorChat'
 import SellCreationModal from './SellCreationModal'
 import { STUDIO_MUSIC, trackById, trackSrc, DEFAULT_TRACK_ID } from '@/lib/studio-music'
+import { useSpeechToText } from '@/hooks/useSpeechToText'
 
 // One unified workspace (YouTube-Studio style): generate clips on the left, see
 // them in the preview, line them up on the timeline at the bottom, add a
@@ -77,6 +78,8 @@ export default function VideoStudio() {
   // AI Director — "give the chef an order, she assembles the whole cut".
   const [directorOrder, setDirectorOrder] = useState('')
   const [directing, setDirecting] = useState(false)
+  // Speak the order instead of typing it (mic → STT → fills the order box).
+  const orderMic = useSpeechToText((t) => setDirectorOrder(prev => (prev.trim() ? prev.trim() + ' ' : '') + t))
   const [writingScript, setWritingScript] = useState(false)
 
   // Music track (continuous soundtrack under everything)
@@ -741,11 +744,22 @@ export default function VideoStudio() {
           {doneClips.length >= 1 && (
             <div className="space-y-1.5 rounded-xl border border-violet-500/40 bg-gradient-to-br from-violet-600/15 to-fuchsia-600/10 p-2.5">
               <div className="flex items-center gap-1.5 text-[11px] font-semibold text-violet-100"><Clapperboard className="w-3.5 h-3.5" /> AI Director — assemble the cut</div>
-              <input
-                value={directorOrder} onChange={e => setDirectorOrder(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !busy) runDirector() }}
-                placeholder='Your order — e.g. "punchy 30s product ad"'
-                className="w-full bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-400/60" />
+              <div className="flex items-center gap-1.5">
+                <input
+                  value={directorOrder} onChange={e => setDirectorOrder(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !busy) runDirector() }}
+                  placeholder={orderMic.listening ? 'Listening… speak your order' : orderMic.transcribing ? 'Transcribing…' : 'Your order — type or tap the mic'}
+                  disabled={orderMic.listening || orderMic.transcribing}
+                  className="flex-1 min-w-0 bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-400/60 disabled:opacity-70" />
+                {orderMic.supported && (
+                  <button onClick={orderMic.toggle} disabled={directing || orderMic.transcribing}
+                    aria-label={orderMic.listening ? 'Stop and transcribe' : 'Speak your order'}
+                    className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-white disabled:opacity-40 ${orderMic.listening ? 'bg-rose-500 animate-pulse' : 'bg-white/10 hover:bg-white/20'}`}>
+                    {orderMic.transcribing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : orderMic.listening ? <Square className="w-3.5 h-3.5 fill-current" /> : <Mic className="w-3.5 h-3.5" />}
+                  </button>
+                )}
+              </div>
+              {orderMic.error && <p className="text-[10px] text-rose-300/80">{orderMic.error}</p>}
               <button onClick={runDirector} disabled={busy || !directorOrder.trim()}
                 className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 disabled:opacity-40 text-white text-xs font-semibold py-2">
                 {directing ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {genLabel || 'Directing…'}</> : <><Clapperboard className="w-3.5 h-3.5" /> Direct the whole cut ({doneClips.length})</>}
