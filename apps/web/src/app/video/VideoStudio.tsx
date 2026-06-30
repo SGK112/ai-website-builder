@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import VideoDirectorChat from './VideoDirectorChat'
 import SellCreationModal from './SellCreationModal'
-import { STUDIO_MUSIC, trackById, trackSrc, DEFAULT_TRACK_ID } from '@/lib/studio-music'
+import { STUDIO_MUSIC, trackById, trackSrc } from '@/lib/studio-music'
 import { useSpeechToText } from '@/hooks/useSpeechToText'
 
 // One unified workspace (YouTube-Studio style): generate clips on the left, see
@@ -82,14 +82,15 @@ export default function VideoStudio() {
   const orderMic = useSpeechToText((t) => setDirectorOrder(prev => (prev.trim() ? prev.trim() + ' ' : '') + t))
   const [writingScript, setWritingScript] = useState(false)
 
-  // Music track (continuous soundtrack under everything)
+  // Music track (continuous soundtrack under everything). OFF by default — music
+  // is a deliberate choice ("control or none"), never forced. The user adds it
+  // (Browse music) or the AI Director picks it, and it's never layered over clips
+  // that already carry their own audio.
   const [musicUrl, setMusicUrl] = useState<string | null>(null)
-  // Default to an upbeat soundtrack so a render has music out of the box (the
-  // "no music / no pizazz" complaint). The user can change or clear it.
-  const [musicName, setMusicName] = useState<string>(trackById(DEFAULT_TRACK_ID)?.title || '')
+  const [musicName, setMusicName] = useState<string>('')
   const [musicVolume, setMusicVolume] = useState(0.3)
   const [theme, setTheme] = useState('') // established film look — keeps new clips consistent
-  const [musicTrackId, setMusicTrackId] = useState<string | null>(DEFAULT_TRACK_ID) // bundled library track
+  const [musicTrackId, setMusicTrackId] = useState<string | null>(null)
   const [showMusicPicker, setShowMusicPicker] = useState(false)
   const [previewingTrack, setPreviewingTrack] = useState<string | null>(null)
   const previewAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -414,7 +415,11 @@ export default function VideoStudio() {
       if (plan.theme) setTheme(effTheme)
       if (plan.script) setScript(String(plan.script))
       if (plan.voice && TTS_VOICES.includes(plan.voice)) setVoice(plan.voice)
-      const track = STUDIO_MUSIC.find(t => t.mood === plan.musicMood) || trackById(DEFAULT_TRACK_ID)
+      // Only add a soundtrack when the existing clips DON'T already carry their
+      // own audio — never layer music over dialogue/scene sound. The user can
+      // still add music manually if they want it on top.
+      const clipsCarryAudio = doneClips.length > 0 && doneClips.every(c => c.kind !== 'image' && c.audio === true)
+      const track = clipsCarryAudio ? null : STUDIO_MUSIC.find(t => t.mood === plan.musicMood)
       if (track) { setMusicTrackId(track.id); setMusicUrl(trackSrc(track)); setMusicName(track.title) }
 
       // Build the ordered timeline from the plan; B-roll steps become placeholders.
