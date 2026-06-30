@@ -182,6 +182,7 @@ import { useVoiceBuildQueue } from './hooks/useVoiceBuildQueue'
 import { useVoiceVideo } from './hooks/useVoiceVideo'
 import { useVoiceImage } from './hooks/useVoiceImage'
 import { useAutoRepublish } from './hooks/useAutoRepublish'
+import { useAutoProjectName } from './hooks/useAutoProjectName'
 import { VideoResultOverlay, VideoMiniChip } from './components/VideoResultOverlay'
 import { ImageResultOverlay, ImageMiniChip } from './components/ImageResultOverlay'
 import { MobileAccountMenu } from './components/MobileAccountMenu'
@@ -4413,6 +4414,17 @@ ${body}
     busy: isGenerating || isThinking || isPublishing,
     version: contentVersion,
     republish: autoRepublish,
+  })
+
+  // Once a build settles, replace a still-generic name (Untitled / a seed
+  // template label like "E-Commerce") with one derived from the rendered
+  // content — so a restaurant built over the E-Commerce template stops showing
+  // up as "E-Commerce" in the files tab. Never touches a user-chosen name.
+  useAutoProjectName({
+    html,
+    projectName,
+    busy: isGenerating || isThinking,
+    setProjectName,
   })
 
   const deployToGitHub = async () => {
