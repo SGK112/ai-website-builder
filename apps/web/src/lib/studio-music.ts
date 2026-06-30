@@ -40,6 +40,9 @@ export const STUDIO_MUSIC: StudioTrack[] = [
 ]
 
 export const MUSIC_PUBLIC_SUBDIR = 'music'
+// Default soundtrack so a render is never silent (the #1 "no pizazz" complaint).
+// Upbeat — reads as a product/tech ad. The user can swap or clear it.
+export const DEFAULT_TRACK_ID = 'momentum'
 export const trackById = (id: string): StudioTrack | null => STUDIO_MUSIC.find(t => t.id === id) || null
 // What the browser/render should load for a track: a bundled file wins; else the remote URL.
 export const trackSrc = (t: StudioTrack): string => (t.file ? `/${MUSIC_PUBLIC_SUBDIR}/${t.file}` : t.url)

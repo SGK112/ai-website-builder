@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import VideoDirectorChat from './VideoDirectorChat'
 import SellCreationModal from './SellCreationModal'
-import { STUDIO_MUSIC, trackById, trackSrc } from '@/lib/studio-music'
+import { STUDIO_MUSIC, trackById, trackSrc, DEFAULT_TRACK_ID } from '@/lib/studio-music'
 
 // One unified workspace (YouTube-Studio style): generate clips on the left, see
 // them in the preview, line them up on the timeline at the bottom, add a
@@ -78,10 +78,12 @@ export default function VideoStudio() {
 
   // Music track (continuous soundtrack under everything)
   const [musicUrl, setMusicUrl] = useState<string | null>(null)
-  const [musicName, setMusicName] = useState<string>('')
+  // Default to an upbeat soundtrack so a render has music out of the box (the
+  // "no music / no pizazz" complaint). The user can change or clear it.
+  const [musicName, setMusicName] = useState<string>(trackById(DEFAULT_TRACK_ID)?.title || '')
   const [musicVolume, setMusicVolume] = useState(0.3)
   const [theme, setTheme] = useState('') // established film look — keeps new clips consistent
-  const [musicTrackId, setMusicTrackId] = useState<string | null>(null) // bundled library track
+  const [musicTrackId, setMusicTrackId] = useState<string | null>(DEFAULT_TRACK_ID) // bundled library track
   const [showMusicPicker, setShowMusicPicker] = useState(false)
   const [previewingTrack, setPreviewingTrack] = useState<string | null>(null)
   const previewAudioRef = useRef<HTMLAudioElement | null>(null)

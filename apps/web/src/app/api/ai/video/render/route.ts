@@ -68,6 +68,40 @@ const DIMS: Record<string, [number, number]> = {
   '16:9': [1280, 720], '9:16': [720, 1280], '1:1': [720, 720], '4:5': [720, 900],
 }
 
+// ── The chef's seasoning ─────────────────────────────────────────────────────
+// Modern transition rotation (all validated against ffmpeg 6 xfade). A single
+// fade reads as a slideshow; a varied cut reads as an ad. Indexed from the 1st
+// crossfade (i starts at 1 in the xfade chain).
+const TRANSITIONS = ['slideleft', 'smoothup', 'circleopen', 'slideright', 'smoothdown', 'wipeleft', 'dissolve', 'fade']
+const transitionAt = (i: number) => TRANSITIONS[(((i - 1) % TRANSITIONS.length) + TRANSITIONS.length) % TRANSITIONS.length]
+
+// Per-clip video filter. Still images get a slow Ken Burns push/pull (zoompan)
+// so screenshots feel alive instead of static; real video clips are just
+// fit-padded (they already move). Images alternate zoom-IN / zoom-OUT (reveal)
+// by index for variety. With motion off, images are looped stills (plain norm)
+// — the input args must match (see inputArgsFor). Validated locally on ffmpeg 6.
+function clipVideoFilter(kind: 'image' | 'video', secs: number, W: number, H: number, i: number, motion: boolean): string {
+  const pad = `pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2`
+  if (kind === 'video' || !motion) {
+    return `scale=${W}:${H}:force_original_aspect_ratio=decrease,${pad},setsar=1,fps=24`
+  }
+  const frames = Math.max(1, Math.round(secs * 24))
+  const W2 = W * 2, H2 = H * 2 // upscale so the zoom always has source pixels (sharp)
+  const z = i % 2 === 0
+    ? `min(zoom+0.0012,1.18)`                        // slow push in
+    : `if(eq(on,1),1.18,max(zoom-0.0019,1.001))`     // pull back / reveal
+  return `scale=${W2}:${H2}:force_original_aspect_ratio=decrease,pad=${W2}:${H2}:(ow-iw)/2:(oh-ih)/2,setsar=1,` +
+    `zoompan=z='${z}':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=${W}x${H}:fps=24`
+}
+
+// ffmpeg input args for one clip. A Ken Burns image drives its own duration via
+// zoompan d=, so it's a single -i; a motionless image must be looped to fill its
+// hold time; videos are taken as-is.
+function inputArgsFor(p: { path: string; kind: 'image' | 'video'; secs: number }, motion: boolean): string[] {
+  if (p.kind === 'image' && !motion) return ['-loop', '1', '-t', p.secs.toFixed(3), '-i', p.path]
+  return ['-i', p.path]
+}
+
 // A timeline entry: a generated/uploaded VIDEO clip, or a still IMAGE that the
 // renderer turns into a held segment (the no-AI slideshow path — real pixels,
 // no model in the loop). `seconds` is how long an image is shown.
@@ -88,6 +122,10 @@ interface RenderRequest {
   musicVolume?: number
   aspectRatio?: string
   title?: string
+  // The chef's "seasoning": Ken Burns motion on stills + varied transitions.
+  // On by default — a render with no pizazz is just a slideshow. Set false for
+  // a plain hard slideshow (e.g. when the clips are already animated B-roll).
+  motion?: boolean
 }
 
 // Persist a finished render to the user's Saved Creations so it survives even
@@ -171,23 +209,19 @@ type Clip = { path: string; kind: 'image' | 'video'; secs: number }
 // audio (music/voice/scene) is mixed once in the final concat pass. Returns the
 // segment path + its crossfade-adjusted duration. Bounded input count = bounded
 // peak memory — this is what keeps long timelines off the OOM cliff.
-async function renderSegment(clips: Clip[], durs: number[], W: number, H: number, dir: string, idx: number): Promise<{ seg: string; outDur: number }> {
+async function renderSegment(clips: Clip[], durs: number[], W: number, H: number, dir: string, idx: number, motion: boolean, baseIdx: number): Promise<{ seg: string; outDur: number }> {
   const args: string[] = []
-  clips.forEach(p => {
-    if (p.kind === 'image') args.push('-loop', '1', '-t', p.secs.toFixed(3), '-i', p.path)
-    else args.push('-i', p.path)
-  })
+  clips.forEach(p => { args.push(...inputArgsFor(p, motion)) })
   const n = clips.length
   const XFADE = 0.4
   const canXfade = n >= 2 && durs.every(d => d > XFADE + 0.2)
-  const norm = `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=24`
-  const parts: string[] = [clips.map((_, i) => `[${i}:v]${norm}[v${i}]`).join(';')]
+  const parts: string[] = [clips.map((p, i) => `[${i}:v]${clipVideoFilter(p.kind, durs[i], W, H, baseIdx + i, motion)}[v${i}]`).join(';')]
   let outDur = durs.reduce((a, b) => a + b, 0)
   if (canXfade) {
     let prevV = '[v0]', acc = durs[0]
     for (let i = 1; i < n; i++) {
       const label = i === n - 1 ? '[outv]' : `[vx${i}]`
-      parts.push(`${prevV}[v${i}]xfade=transition=fade:duration=${XFADE}:offset=${(acc - XFADE).toFixed(3)}${label}`)
+      parts.push(`${prevV}[v${i}]xfade=transition=${transitionAt(baseIdx + i)}:duration=${XFADE}:offset=${(acc - XFADE).toFixed(3)}${label}`)
       prevV = label
       acc = acc + durs[i] - XFADE
     }
@@ -208,12 +242,13 @@ async function renderSegment(clips: Clip[], durs: number[], W: number, H: number
 // >SEGMENT_MAX timeline uses its music/voiceover bed for audio. Sub-batch
 // renders keep full scene audio via the single-pass path below.
 async function stitchBatched(body: RenderRequest, clipPaths: Clip[], durs: number[], W: number, H: number, dir: string, voicePath: string, musicPath: string): Promise<string> {
+  const motion = body.motion !== false
   const segs: string[] = []
   let total = 0
   for (let b = 0; b * SEGMENT_MAX < clipPaths.length; b++) {
     const cs = clipPaths.slice(b * SEGMENT_MAX, (b + 1) * SEGMENT_MAX)
     const ds = durs.slice(b * SEGMENT_MAX, (b + 1) * SEGMENT_MAX)
-    const { seg, outDur } = await renderSegment(cs, ds, W, H, dir, b)
+    const { seg, outDur } = await renderSegment(cs, ds, W, H, dir, b, motion, b * SEGMENT_MAX)
     segs.push(seg)
     total += outDur
   }
@@ -311,13 +346,11 @@ async function stitch(body: RenderRequest, sources: Required<RenderSource>[], W:
     }
 
     // 3. Build ffmpeg args (validated recipe)
+    const motion = body.motion !== false // the chef's seasoning: Ken Burns + varied cuts
     const args: string[] = []
-    // Image inputs are looped into a still video bounded to their hold time;
-    // video inputs are taken as-is. norm (below) gives images their 24fps.
-    clipPaths.forEach(p => {
-      if (p.kind === 'image') args.push('-loop', '1', '-t', p.secs.toFixed(3), '-i', p.path)
-      else args.push('-i', p.path)
-    })
+    // Inputs: Ken Burns images drive their own duration via zoompan (single -i);
+    // motionless images are looped to their hold time; videos taken as-is.
+    clipPaths.forEach(p => { args.push(...inputArgsFor(p, motion)) })
     let voiceIdx = -1, musicIdx = -1
     if (voicePath) { args.push('-i', voicePath); voiceIdx = clipPaths.length }
     if (musicPath) { args.push('-i', musicPath); musicIdx = clipPaths.length + (voiceIdx >= 0 ? 1 : 0) }
@@ -327,9 +360,8 @@ async function stitch(body: RenderRequest, sources: Required<RenderSource>[], W:
     // Crossfade only when there are ≥2 clips and each is comfortably longer than
     // the fade (otherwise xfade offsets go negative). Else a plain hard-cut concat.
     const canXfade = n >= 2 && durs.every(d => d > XFADE + 0.2)
-    const norm = `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=24`
 
-    const parts: string[] = [clipPaths.map((_, i) => `[${i}:v]${norm}[v${i}]`).join(';')]
+    const parts: string[] = [clipPaths.map((p, i) => `[${i}:v]${clipVideoFilter(p.kind, durs[i], W, H, i, motion)}[v${i}]`).join(';')]
     const aLabels: string[] = []
     let outDur = durs.reduce((a, b) => a + b, 0)
 
@@ -338,7 +370,7 @@ async function stitch(body: RenderRequest, sources: Required<RenderSource>[], W:
       let prevV = '[v0]', acc = durs[0]
       for (let i = 1; i < n; i++) {
         const label = i === n - 1 ? '[outv]' : `[vx${i}]`
-        parts.push(`${prevV}[v${i}]xfade=transition=fade:duration=${XFADE}:offset=${(acc - XFADE).toFixed(3)}${label}`)
+        parts.push(`${prevV}[v${i}]xfade=transition=${transitionAt(i)}:duration=${XFADE}:offset=${(acc - XFADE).toFixed(3)}${label}`)
         prevV = label
         acc = acc + durs[i] - XFADE
       }
