@@ -74,6 +74,9 @@ export default function VideoStudio() {
   const [narrationText, setNarrationText] = useState('')
   const [script, setScript] = useState('')
   const [voice, setVoice] = useState('onyx')
+  // AI Director — "give the chef an order, she assembles the whole cut".
+  const [directorOrder, setDirectorOrder] = useState('')
+  const [directing, setDirecting] = useState(false)
   const [writingScript, setWritingScript] = useState(false)
 
   // Music track (continuous soundtrack under everything)
@@ -119,7 +122,7 @@ export default function VideoStudio() {
   const timelineStills = clips.filter(c => c.status === 'done' && c.kind === 'image' && c.url)
   const selectedClip = clips.find(c => c.id === selectedId) || null
   const previewUrl = stitchedUrl || selectedClip?.url || null
-  const busy = generating || stitching || writingScript
+  const busy = generating || stitching || writingScript || directing
 
   // Persist finished clips so a refresh doesn't wipe your work (generating a
   // clip costs credits + time). We store only DONE clips; their URLs are remote
@@ -380,6 +383,75 @@ export default function VideoStudio() {
     }
     setGenerating(false); setGenLabel('')
     if (failures) setError(`${failures} of ${stills.length} B-roll clips failed — retry those or render what worked.`)
+  }
+
+  // The AI Director: take the user's ORDER + the clips already on the timeline,
+  // ask the orchestrator for a PLAN (sequence + B-roll + script + music + voice),
+  // then EXECUTE it — arrange the timeline, generate any B-roll, and stage the
+  // script/voice/music. Leaves the assembled cut ready for the user to review and
+  // hit Render (we don't auto-render, both to keep the user in control and to
+  // avoid rendering stale state). This is "give the chef an order, she cooks".
+  async function runDirector() {
+    const order = directorOrder.trim()
+    if (!order) { setError('Tell the director what to make — e.g. "a punchy 30s product ad".'); return }
+    setDirecting(true); setError(null); setStitched(null); setShareUrl(null); setGenLabel('Director is planning the cut…')
+    try {
+      const res = await fetch('/api/ai/video/orchestrate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order, aspectRatio,
+          clips: doneClips.map(c => ({ id: c.id, prompt: c.prompt, kind: c.kind === 'image' ? 'image' : 'video', hasUrl: true })),
+        }),
+      })
+      const plan = await res.json().catch(() => ({} as any))
+      if (!res.ok) throw new Error(plan.error || 'The director couldn\'t plan this cut.')
+
+      // Film-wide decisions from the plan.
+      const effTheme = String(plan.theme || theme || '').trim()
+      if (plan.theme) setTheme(effTheme)
+      if (plan.script) setScript(String(plan.script))
+      if (plan.voice && TTS_VOICES.includes(plan.voice)) setVoice(plan.voice)
+      const track = STUDIO_MUSIC.find(t => t.mood === plan.musicMood) || trackById(DEFAULT_TRACK_ID)
+      if (track) { setMusicTrackId(track.id); setMusicUrl(trackSrc(track)); setMusicName(track.title) }
+
+      // Build the ordered timeline from the plan; B-roll steps become placeholders.
+      const byId = new Map(clips.map(c => [c.id, c]))
+      const seenUse = new Set<string>()
+      const ordered: Clip[] = []
+      const jobs: { id: string; prompt: string; images: string[] }[] = []
+      for (const step of (Array.isArray(plan.steps) ? plan.steps : [])) {
+        if (typeof step?.use === 'string' && byId.has(step.use)) {
+          const src = byId.get(step.use)!
+          // A clip placed twice needs a distinct id so React keys stay unique.
+          ordered.push(seenUse.has(src.id) ? { ...src, id: newClipId() } : src)
+          seenUse.add(src.id)
+        } else if (step?.broll === 'from-still' && byId.get(step.ref)?.url) {
+          const id = newClipId()
+          ordered.push({ id, prompt: 'B-roll', status: 'generating', broll: true })
+          jobs.push({ id, prompt: withTheme(String(step.prompt || ''), effTheme), images: [byId.get(step.ref)!.url!] })
+        } else if (step?.broll === 'text' && step.prompt) {
+          const id = newClipId()
+          ordered.push({ id, prompt: 'B-roll', status: 'generating', broll: true, seconds: step.seconds })
+          jobs.push({ id, prompt: withTheme(String(step.prompt), effTheme), images: [] })
+        }
+      }
+      if (ordered.length === 0) throw new Error('The director returned an empty plan.')
+      setClips(ordered); setSelectedId(null)
+
+      // Generate the planned B-roll sequentially (backend meters credits + rate-limits).
+      let failures = 0
+      for (let k = 0; k < jobs.length; k++) {
+        const err = await runClipJob(jobs[k].id, jobs[k].prompt, jobs[k].images, s => setGenLabel(`Director · B-roll ${k + 1}/${jobs.length} · ${s}`))
+        if (err) failures++
+      }
+      setError(failures
+        ? `Cut assembled — but ${failures} B-roll clip(s) failed. Remove or retry them, then Render.`
+        : null)
+    } catch (e: any) {
+      setError(e?.message || 'The director failed.')
+    } finally {
+      setDirecting(false); setGenLabel('')
+    }
   }
 
   async function uploadMusic(file: File) {
@@ -662,6 +734,25 @@ export default function VideoStudio() {
             <button onClick={() => setMode('text')} className={`flex-1 rounded-lg py-1.5 text-xs font-medium ${mode === 'text' ? 'bg-violet-600 text-white' : 'bg-white/5 text-zinc-400'}`}>Text → Video</button>
             <button onClick={() => setMode('image')} className={`flex-1 rounded-lg py-1.5 text-xs font-medium ${mode === 'image' ? 'bg-violet-600 text-white' : 'bg-white/5 text-zinc-400'}`}>Image / Video</button>
           </div>
+
+          {/* AI Director — drop your clips, give one order, it assembles the whole
+              cut: sequences them, adds B-roll, writes a voiceover, picks music.
+              You review and hit Render. Shown once there are clips to direct. */}
+          {doneClips.length >= 1 && (
+            <div className="space-y-1.5 rounded-xl border border-violet-500/40 bg-gradient-to-br from-violet-600/15 to-fuchsia-600/10 p-2.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-violet-100"><Clapperboard className="w-3.5 h-3.5" /> AI Director — assemble the cut</div>
+              <input
+                value={directorOrder} onChange={e => setDirectorOrder(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !busy) runDirector() }}
+                placeholder='Your order — e.g. "punchy 30s product ad"'
+                className="w-full bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-400/60" />
+              <button onClick={runDirector} disabled={busy || !directorOrder.trim()}
+                className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 disabled:opacity-40 text-white text-xs font-semibold py-2">
+                {directing ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {genLabel || 'Directing…'}</> : <><Clapperboard className="w-3.5 h-3.5" /> Direct the whole cut ({doneClips.length})</>}
+              </button>
+              <p className="text-[10px] text-violet-200/50">Sequences your {doneClips.length} clip{doneClips.length !== 1 ? 's' : ''}, adds B-roll, writes + voices a script, picks music. Review, then Render. Generates a few clips (credits).</p>
+            </div>
+          )}
 
           {mode === 'image' && (
             <div
