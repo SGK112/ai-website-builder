@@ -241,7 +241,7 @@ async function renderSegment(clips: Clip[], durs: number[], W: number, H: number
 // NOTE: per-clip SCENE audio is not carried here (segments are video-only); a
 // >SEGMENT_MAX timeline uses its music/voiceover bed for audio. Sub-batch
 // renders keep full scene audio via the single-pass path below.
-async function stitchBatched(body: RenderRequest, clipPaths: Clip[], durs: number[], W: number, H: number, dir: string, voicePath: string, musicPath: string): Promise<string> {
+async function stitchBatched(body: RenderRequest, clipPaths: Clip[], durs: number[], W: number, H: number, dir: string, voicePath: string, musicPath: string, voiceDur: number): Promise<string> {
   const motion = body.motion !== false
   const segs: string[] = []
   let total = 0
@@ -260,20 +260,31 @@ async function stitchBatched(body: RenderRequest, clipPaths: Clip[], durs: numbe
   let idx = 1, musicIdx = -1, voiceIdx = -1
   if (musicPath) { fargs.push('-i', musicPath); musicIdx = idx++ }
   if (voicePath) { fargs.push('-i', voicePath); voiceIdx = idx++ }
-  fargs.push('-map', '0:v', '-c:v', 'copy')
   const fp: string[] = [], aLabels: string[] = []
+  // Cover a longer voiceover by freezing the last frame; only then do we have to
+  // re-encode the video (otherwise the concatenated segments copy through cheap).
+  const finalDur = Math.max(total, voiceDur)
+  let videoMap = '0:v'
+  const videoCodec = ['-c:v', 'copy']
+  if (finalDur - total > 0.05) {
+    fp.push(`[0:v]tpad=stop_mode=clone:stop_duration=${(finalDur - total).toFixed(3)}[outv]`)
+    videoMap = '[outv]'; videoCodec[1] = 'libx264'; videoCodec.push('-preset', 'veryfast', '-pix_fmt', 'yuv420p')
+  }
   if (musicIdx >= 0) {
     const vol = Math.max(0, Math.min(1, body.musicVolume ?? 0.3))
     fp.push(`[${musicIdx}:a]aloop=loop=-1:size=2147483647,volume=${vol}[mus]`); aLabels.push('[mus]')
   }
   if (voiceIdx >= 0) { fp.push(`[${voiceIdx}:a]apad[vo]`); aLabels.push('[vo]') }
+  let audioMap: string[] = []
   if (aLabels.length === 1) {
-    fargs.push('-filter_complex', fp.join(';'), '-map', aLabels[0], '-c:a', 'aac')
+    audioMap = ['-map', aLabels[0], '-c:a', 'aac']
   } else if (aLabels.length > 1) {
     fp.push(`${aLabels.join('')}amix=inputs=${aLabels.length}:duration=longest:dropout_transition=0:normalize=0[outa]`)
-    fargs.push('-filter_complex', fp.join(';'), '-map', '[outa]', '-c:a', 'aac')
+    audioMap = ['-map', '[outa]', '-c:a', 'aac']
   }
-  fargs.push('-t', total.toFixed(3), '-movflags', '+faststart', '-y', out)
+  if (fp.length) fargs.push('-filter_complex', fp.join(';'))
+  fargs.push('-map', videoMap, ...videoCodec, ...audioMap)
+  fargs.push('-t', finalDur.toFixed(3), '-movflags', '+faststart', '-y', out)
   await runFfmpeg(fargs)
   return await uploadToCloudinary(out)
 }
@@ -339,10 +350,16 @@ async function stitch(body: RenderRequest, sources: Required<RenderSource>[], W:
       musicPath = join(dir, 'music.mp3'); await downloadTo(body.musicUrl, musicPath)
     }
 
+    // Voiceover length drives the floor on output duration: if the narration is
+    // longer than the visuals, the video gets a frozen-frame tail to cover it
+    // (otherwise the render cut off mid-sentence). Music does NOT extend length —
+    // it just fills whatever the visuals/voice establish.
+    const voiceDur = voicePath ? await probeDuration(voicePath) : 0
+
     // Long timelines: batch so no single ffmpeg invocation opens more than
     // SEGMENT_MAX decoders at once (the >2GB OOM was one graph with ~10 inputs).
     if (clipPaths.length > SEGMENT_MAX) {
-      return await stitchBatched(body, clipPaths, durs, W, H, dir, voicePath, musicPath)
+      return await stitchBatched(body, clipPaths, durs, W, H, dir, voicePath, musicPath, voiceDur)
     }
 
     // 3. Build ffmpeg args (validated recipe)
@@ -369,7 +386,7 @@ async function stitch(body: RenderRequest, sources: Required<RenderSource>[], W:
       // VIDEO: chain xfade across clips. offset = running output length − fade.
       let prevV = '[v0]', acc = durs[0]
       for (let i = 1; i < n; i++) {
-        const label = i === n - 1 ? '[outv]' : `[vx${i}]`
+        const label = i === n - 1 ? '[vbase]' : `[vx${i}]`
         parts.push(`${prevV}[v${i}]xfade=transition=${transitionAt(i)}:duration=${XFADE}:offset=${(acc - XFADE).toFixed(3)}${label}`)
         prevV = label
         acc = acc + durs[i] - XFADE
@@ -386,11 +403,19 @@ async function stitch(body: RenderRequest, sources: Required<RenderSource>[], W:
         aLabels.push('[sa]')
       }
     } else {
-      parts.push(`${clipPaths.map((_, i) => `[v${i}]`).join('')}concat=n=${n}:v=1:a=0[outv]`)
+      parts.push(`${clipPaths.map((_, i) => `[v${i}]`).join('')}concat=n=${n}:v=1:a=0[vbase]`)
       if (clipsHaveAudio) {
         parts.push(`${clipPaths.map((_, i) => `[${i}:a]`).join('')}concat=n=${n}:v=0:a=1[sa]`)
         aLabels.push('[sa]')
       }
+    }
+    // If the voiceover runs longer than the visuals, freeze the last frame to
+    // cover it so narration never gets cut off mid-sentence. Music doesn't count.
+    const finalDur = Math.max(outDur, voiceDur)
+    let videoOut = '[vbase]'
+    if (finalDur - outDur > 0.05) {
+      parts.push(`[vbase]tpad=stop_mode=clone:stop_duration=${(finalDur - outDur).toFixed(3)}[outv]`)
+      videoOut = '[outv]'
     }
     if (musicIdx >= 0) {
       const vol = Math.max(0, Math.min(1, body.musicVolume ?? 0.3))
@@ -398,7 +423,7 @@ async function stitch(body: RenderRequest, sources: Required<RenderSource>[], W:
     }
     if (voiceIdx >= 0) { parts.push(`[${voiceIdx}:a]apad[vo]`); aLabels.push('[vo]') }
 
-    const mapArgs = ['-map', '[outv]']
+    const mapArgs = ['-map', videoOut]
     if (aLabels.length === 1) {
       mapArgs.push('-map', aLabels[0])
     } else if (aLabels.length > 1) {
@@ -409,9 +434,10 @@ async function stitch(body: RenderRequest, sources: Required<RenderSource>[], W:
     const out = join(dir, 'out.mp4')
     args.push('-filter_complex', parts.join(';'), ...mapArgs)
     if (aLabels.length) args.push('-c:a', 'aac')
-    // Hard duration cap = the (crossfade-adjusted) video length. Keeps looped
-    // music / padded voice from encoding forever (the -shortest approach ran away).
-    args.push('-t', outDur.toFixed(3))
+    // Hard duration cap = max(visuals, voiceover). Keeps looped music / padded
+    // voice from encoding forever (the -shortest approach ran away) while still
+    // giving the narration room to finish.
+    args.push('-t', finalDur.toFixed(3))
     args.push('-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-y', out)
 
     // 4. Render + upload
