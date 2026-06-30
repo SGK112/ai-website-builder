@@ -39,6 +39,14 @@ async function jobsCol() {
 }
 
 const MAX_CLIPS = 12
+// Memory guard #2: a single ffmpeg filtergraph opens EVERY clip's decoder at
+// once. ~10 clips in one xfade graph OOM-killed the 2GB box (confirmed in prod
+// logs 2026-06-30 — the whole service 502'd). So we never feed more than
+// SEGMENT_MAX clips to one ffmpeg invocation: longer timelines render in
+// batches → segments → a final concat-demuxer pass (near-zero RAM, -c copy).
+// Bounded inputs per invocation means peak memory is flat regardless of clip
+// count, AND a bug in the batched path degrades to "render failed", never OOM.
+const SEGMENT_MAX = Math.max(2, parseInt(process.env.RENDER_SEGMENT_MAX || '6', 10) || 6)
 // Memory guard: every render holds clip bytes + an ffmpeg child process in RAM.
 // On a single 2GB instance, TWO concurrent renders OOM-killed the whole service
 // (confirmed in prod logs — every user's session dropped). Cap in-flight renders
@@ -156,6 +164,85 @@ async function makeVoice(script: string, voice: string, path: string) {
   await writeFile(path, Buffer.from(await speech.arrayBuffer()))
 }
 
+type Clip = { path: string; kind: 'image' | 'video'; secs: number }
+
+// Render ONE batch of clips (≤ SEGMENT_MAX) into a normalized, video-only mp4
+// segment, with xfade between clips inside the batch. Video-only by design:
+// audio (music/voice/scene) is mixed once in the final concat pass. Returns the
+// segment path + its crossfade-adjusted duration. Bounded input count = bounded
+// peak memory — this is what keeps long timelines off the OOM cliff.
+async function renderSegment(clips: Clip[], durs: number[], W: number, H: number, dir: string, idx: number): Promise<{ seg: string; outDur: number }> {
+  const args: string[] = []
+  clips.forEach(p => {
+    if (p.kind === 'image') args.push('-loop', '1', '-t', p.secs.toFixed(3), '-i', p.path)
+    else args.push('-i', p.path)
+  })
+  const n = clips.length
+  const XFADE = 0.4
+  const canXfade = n >= 2 && durs.every(d => d > XFADE + 0.2)
+  const norm = `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=24`
+  const parts: string[] = [clips.map((_, i) => `[${i}:v]${norm}[v${i}]`).join(';')]
+  let outDur = durs.reduce((a, b) => a + b, 0)
+  if (canXfade) {
+    let prevV = '[v0]', acc = durs[0]
+    for (let i = 1; i < n; i++) {
+      const label = i === n - 1 ? '[outv]' : `[vx${i}]`
+      parts.push(`${prevV}[v${i}]xfade=transition=fade:duration=${XFADE}:offset=${(acc - XFADE).toFixed(3)}${label}`)
+      prevV = label
+      acc = acc + durs[i] - XFADE
+    }
+    outDur = acc
+  } else {
+    parts.push(`${clips.map((_, i) => `[v${i}]`).join('')}concat=n=${n}:v=1:a=0[outv]`)
+  }
+  const seg = join(dir, `seg${idx}.mp4`)
+  args.push('-filter_complex', parts.join(';'), '-map', '[outv]', '-an', '-t', outDur.toFixed(3))
+  args.push('-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-y', seg)
+  await runFfmpeg(args)
+  return { seg, outDur }
+}
+
+// Many-clip path: render in batches → concat the segments cheaply (demuxer,
+// -c copy for video) → mix music/voice over the whole thing in one final pass.
+// NOTE: per-clip SCENE audio is not carried here (segments are video-only); a
+// >SEGMENT_MAX timeline uses its music/voiceover bed for audio. Sub-batch
+// renders keep full scene audio via the single-pass path below.
+async function stitchBatched(body: RenderRequest, clipPaths: Clip[], durs: number[], W: number, H: number, dir: string, voicePath: string, musicPath: string): Promise<string> {
+  const segs: string[] = []
+  let total = 0
+  for (let b = 0; b * SEGMENT_MAX < clipPaths.length; b++) {
+    const cs = clipPaths.slice(b * SEGMENT_MAX, (b + 1) * SEGMENT_MAX)
+    const ds = durs.slice(b * SEGMENT_MAX, (b + 1) * SEGMENT_MAX)
+    const { seg, outDur } = await renderSegment(cs, ds, W, H, dir, b)
+    segs.push(seg)
+    total += outDur
+  }
+  const out = join(dir, 'out.mp4')
+  // concat demuxer list (segments share codec/W/H/fps, so video copies cleanly)
+  const listPath = join(dir, 'segs.txt')
+  await writeFile(listPath, segs.map(s => `file '${s.replace(/'/g, "'\\''")}'`).join('\n'))
+  const fargs = ['-f', 'concat', '-safe', '0', '-i', listPath]
+  let idx = 1, musicIdx = -1, voiceIdx = -1
+  if (musicPath) { fargs.push('-i', musicPath); musicIdx = idx++ }
+  if (voicePath) { fargs.push('-i', voicePath); voiceIdx = idx++ }
+  fargs.push('-map', '0:v', '-c:v', 'copy')
+  const fp: string[] = [], aLabels: string[] = []
+  if (musicIdx >= 0) {
+    const vol = Math.max(0, Math.min(1, body.musicVolume ?? 0.3))
+    fp.push(`[${musicIdx}:a]aloop=loop=-1:size=2147483647,volume=${vol}[mus]`); aLabels.push('[mus]')
+  }
+  if (voiceIdx >= 0) { fp.push(`[${voiceIdx}:a]apad[vo]`); aLabels.push('[vo]') }
+  if (aLabels.length === 1) {
+    fargs.push('-filter_complex', fp.join(';'), '-map', aLabels[0], '-c:a', 'aac')
+  } else if (aLabels.length > 1) {
+    fp.push(`${aLabels.join('')}amix=inputs=${aLabels.length}:duration=longest:dropout_transition=0:normalize=0[outa]`)
+    fargs.push('-filter_complex', fp.join(';'), '-map', '[outa]', '-c:a', 'aac')
+  }
+  fargs.push('-t', total.toFixed(3), '-movflags', '+faststart', '-y', out)
+  await runFfmpeg(fargs)
+  return await uploadToCloudinary(out)
+}
+
 // The heavy lifting: download → probe → (voice/music) → ffmpeg → Cloudinary.
 // Returns the finished video URL. Runs in the BACKGROUND (see runJob), so it is
 // free to take minutes — no request is waiting on it.
@@ -215,6 +302,12 @@ async function stitch(body: RenderRequest, sources: Required<RenderSource>[], W:
       }
     } else if (body.musicUrl) {
       musicPath = join(dir, 'music.mp3'); await downloadTo(body.musicUrl, musicPath)
+    }
+
+    // Long timelines: batch so no single ffmpeg invocation opens more than
+    // SEGMENT_MAX decoders at once (the >2GB OOM was one graph with ~10 inputs).
+    if (clipPaths.length > SEGMENT_MAX) {
+      return await stitchBatched(body, clipPaths, durs, W, H, dir, voicePath, musicPath)
     }
 
     // 3. Build ffmpeg args (validated recipe)

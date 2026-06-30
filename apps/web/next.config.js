@@ -131,6 +131,12 @@ module.exports = sentryEnabled
       // don't drop client error reports.
       tunnelRoute: '/monitoring',
       hideSourceMaps: true,
-      disableLogger: true,
+      // Tree-shake Sentry's debug logging out of the prod bundle. (Replaces the
+      // deprecated top-level `disableLogger` removed in a future @sentry/nextjs.)
+      webpack: {
+        treeshake: {
+          removeDebugLogging: true,
+        },
+      },
     })
   : nextConfig
