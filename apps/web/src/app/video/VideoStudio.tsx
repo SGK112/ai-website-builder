@@ -19,7 +19,7 @@ type Mode = 'text' | 'image'
 type ClipStatus = 'generating' | 'done' | 'error'
 // kind 'image' = a still shown for `seconds` (the no-AI slideshow path: real
 // pixels, no model). kind 'video' (default) = a generated/uploaded clip.
-interface Clip { id: string; prompt: string; status: ClipStatus; url?: string; error?: string; note?: string; audio?: boolean; kind?: 'image' | 'video'; seconds?: number }
+interface Clip { id: string; prompt: string; status: ClipStatus; url?: string; error?: string; note?: string; audio?: boolean; kind?: 'image' | 'video'; seconds?: number; broll?: boolean }
 
 const VIDEO_MODELS = [
   { id: 'seedance', label: 'Seedance', hint: 'Fast · Best', multi: false, maxImages: 1 },
@@ -115,6 +115,8 @@ export default function VideoStudio() {
   const isMultiImage = !!selectedModel?.multi
   const maxImages = selectedModel?.maxImages ?? 1
   const doneClips = clips.filter(c => c.status === 'done' && c.url)
+  // Stills on the timeline are the raw material for "Animate → B-roll".
+  const timelineStills = clips.filter(c => c.status === 'done' && c.kind === 'image' && c.url)
   const selectedClip = clips.find(c => c.id === selectedId) || null
   const previewUrl = stitchedUrl || selectedClip?.url || null
   const busy = generating || stitching || writingScript
@@ -343,6 +345,41 @@ export default function VideoStudio() {
     ])
     setUploadedImages([]) // they're on the timeline now; clear the staging tray
     setStitched(null); setShareUrl(null); setError(null)
+  }
+
+  // "Animate stills → B-roll": for each STILL on the timeline, generate an
+  // image-to-video motion clip and splice it in right AFTER its source still.
+  // We keep the still (screenshots can stylize under image-to-video, and the
+  // still stays crisp/readable) and add the motion clip beside it — B-roll in
+  // conjunction with your real shots. The whole batch shares the film's theme so
+  // it cuts together. Sequential: the backend meters credits + rate-limits.
+  async function animateStillsToBroll() {
+    const stills = timelineStills
+    if (stills.length === 0) { setError('Add screenshots/images to the timeline first — B-roll is generated from them.'); return }
+    const motion = prompt.trim() || 'Bring this still to life with a subtle, smooth cinematic camera push-in and gentle parallax depth. Keep any text and UI crisp, sharp, and readable. Do not add, remove, or warp elements.'
+    let effTheme = theme.trim()
+    if (!effTheme) { effTheme = (style ? `${motion.slice(0, 200)} · ${style} look` : motion.slice(0, 200)); setTheme(effTheme) }
+    setStitched(null); setShareUrl(null); setSelectedId(null)
+    setGenerating(true); setError(null)
+    let failures = 0
+    for (let k = 0; k < stills.length; k++) {
+      const src = stills[k]
+      const id = newClipId()
+      const genPrompt = withTheme(motion, effTheme)
+      // Insert the B-roll placeholder immediately after its source still.
+      setClips(prev => {
+        const idx = prev.findIndex(c => c.id === src.id)
+        const nc: Clip = { id, prompt: 'B-roll', status: 'generating', broll: true }
+        return idx === -1 ? [...prev, nc] : [...prev.slice(0, idx + 1), nc, ...prev.slice(idx + 1)]
+      })
+      setSelectedId(id)
+      // runClipJob falls back to an image-capable model (Seedance) if the picked
+      // one can't do image→video, and patches this row to done on success.
+      const err = await runClipJob(id, genPrompt, [src.url!], s => setGenLabel(`B-roll ${k + 1}/${stills.length} · ${s}`))
+      if (err) failures++
+    }
+    setGenerating(false); setGenLabel('')
+    if (failures) setError(`${failures} of ${stills.length} B-roll clips failed — retry those or render what worked.`)
   }
 
   async function uploadMusic(file: File) {
@@ -729,6 +766,18 @@ export default function VideoStudio() {
               <p className="text-[10px] text-emerald-200/50">Your exact pixels, stitched by us — not AI. Then add music + a voiceover and Render.</p>
             </div>
           )}
+          {/* Animate the real stills on the timeline into motion B-roll, spliced
+              in beside each one. The still stays for readability; the AI clip
+              adds life. Each is a real generation (credits + time). */}
+          {timelineStills.length >= 1 && (
+            <div className="space-y-1.5">
+              <button onClick={animateStillsToBroll} disabled={busy}
+                className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-cyan-500/40 bg-gradient-to-r from-cyan-600/15 to-blue-600/15 hover:from-cyan-600/25 disabled:opacity-40 text-cyan-100 text-sm font-semibold py-2.5">
+                <Sparkles className="w-4 h-4" /> Animate stills → B-roll ({timelineStills.length})
+              </button>
+              <p className="text-[10px] text-cyan-200/50">Turns each screenshot/photo on the timeline into a moving clip beside it. {timelineStills.length} generation{timelineStills.length !== 1 ? 's' : ''} · keeps your originals.</p>
+            </div>
+          )}
           {error && <div className="flex items-start gap-1.5 text-[11px] text-red-300 bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-1.5"><AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" /><span>{error}</span></div>}
         </div>
 
@@ -789,7 +838,7 @@ export default function VideoStudio() {
                 {c.status === 'done' && c.url ? (
                   c.kind === 'image'
                     ? <div className="relative"><img src={c.url} alt="" className="w-full h-16 object-cover bg-black" /><span className="absolute bottom-0.5 right-0.5 text-[8px] px-1 rounded bg-black/70 text-fuchsia-200">slide {c.seconds || 4}s</span></div>
-                    : <video src={c.url} muted className="w-full h-16 object-cover bg-black" />
+                    : <div className="relative"><video src={c.url} muted className="w-full h-16 object-cover bg-black" />{c.broll && <span className="absolute bottom-0.5 right-0.5 text-[8px] px-1 rounded bg-cyan-600/80 text-white">B-roll</span>}</div>
                 ) : (
                   <div className="w-full h-16 flex flex-col items-center justify-center gap-1 bg-zinc-900 text-[9px] text-zinc-400 px-1 text-center">
                     {c.status === 'generating'
