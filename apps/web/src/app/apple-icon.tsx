@@ -14,27 +14,26 @@ export default function AppleIcon() {
         style={{
           width: '100%',
           height: '100%',
-          background: 'linear-gradient(135deg, #a855f7 0%, #ec4899 100%)',
+          background: 'linear-gradient(135deg, #12121a 0%, #0a0a10 100%)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           borderRadius: 40,
         }}
       >
-        <svg width="120" height="120" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-          <g stroke="#ffffff" strokeWidth="1.6" strokeLinecap="round" fill="none" opacity="0.9">
-            <path d="M11 9 q-1.6 -2 0 -3.5 q1.6 -1.5 0 -3.2" />
-            <path d="M16 9 q-1.6 -2 0 -3.5 q1.6 -1.5 0 -3.2" />
-            <path d="M21 9 q-1.6 -2 0 -3.5 q1.6 -1.5 0 -3.2" />
+        <svg width="150" height="150" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+          <g stroke="#ffffff" strokeWidth="1.4" strokeLinecap="round" fill="none" opacity="0.9">
+            <path d="M11.4 15.6 q-1.75 -2.25 0 -4.5 q1.75 -2.25 0 -4.5" />
+            <path d="M16 15.6 q-1.75 -2.25 0 -4.5 q1.75 -2.25 0 -4.5" />
+            <path d="M20.6 15.6 q-1.75 -2.25 0 -4.5 q1.75 -2.25 0 -4.5" />
           </g>
-          <ellipse cx="16" cy="13.5" rx="9.5" ry="1.6" fill="#ffffff" />
-          <path d="M7 13.5 Q7.5 25 16 25 Q24.5 25 25 13.5 Z" fill="#ffffff" />
+          <path d="M4.9 18.5 Q4.9 28.75 16 28.75 Q27.1 28.75 27.1 18.5 Z" fill="#ffffff" />
+          <ellipse cx="16" cy="18.5" rx="11.1" ry="2.25" fill="#ffffff" />
           <path
-            d="M9.5 15.5 Q10 21.5 16 21.5 Q22 21.5 22.5 15.5"
-            stroke="#c026d3"
-            strokeWidth="0.5"
+            d="M9 21 Q16 25.1 23 21"
+            stroke="#eec6dd"
+            strokeWidth="0.8"
             fill="none"
-            opacity="0.35"
             strokeLinecap="round"
           />
         </svg>

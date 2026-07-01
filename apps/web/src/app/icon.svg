@@ -1,21 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Webstew">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#a855f7"/>
-      <stop offset="100%" stop-color="#ec4899"/>
+      <stop offset="0%" stop-color="#12121a"/>
+      <stop offset="100%" stop-color="#0a0a10"/>
     </linearGradient>
     <linearGradient id="bowl" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="100%" stop-color="#fde8f3"/>
+      <stop offset="100%" stop-color="#fbe6f2"/>
     </linearGradient>
   </defs>
   <rect width="32" height="32" rx="7" fill="url(#bg)"/>
-  <g stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" fill="none" opacity="0.85">
-    <path d="M11 9 q-1.6 -2 0 -3.5 q1.6 -1.5 0 -3.2"/>
-    <path d="M16 9 q-1.6 -2 0 -3.5 q1.6 -1.5 0 -3.2"/>
-    <path d="M21 9 q-1.6 -2 0 -3.5 q1.6 -1.5 0 -3.2"/>
+  <g stroke="#ffffff" stroke-width="1.4" stroke-linecap="round" fill="none" opacity="0.9">
+    <path d="M11.4 15.6 q-1.75 -2.25 0 -4.5 q1.75 -2.25 0 -4.5"/>
+    <path d="M16 15.6 q-1.75 -2.25 0 -4.5 q1.75 -2.25 0 -4.5"/>
+    <path d="M20.6 15.6 q-1.75 -2.25 0 -4.5 q1.75 -2.25 0 -4.5"/>
   </g>
-  <ellipse cx="16" cy="13.5" rx="9.5" ry="1.6" fill="url(#bowl)"/>
-  <path d="M7 13.5 Q7.5 25 16 25 Q24.5 25 25 13.5 Z" fill="url(#bowl)"/>
-  <path d="M9.5 15.5 Q10 21.5 16 21.5 Q22 21.5 22.5 15.5" stroke="#c026d3" stroke-width="0.5" fill="none" opacity="0.35" stroke-linecap="round"/>
+  <path d="M4.9 18.5 Q4.9 28.75 16 28.75 Q27.1 28.75 27.1 18.5 Z" fill="url(#bowl)"/>
+  <ellipse cx="16" cy="18.5" rx="11.1" ry="2.25" fill="#ffffff"/>
+  <path d="M9 21 Q16 25.1 23 21" stroke="#eec6dd" stroke-width="0.8" fill="none" stroke-linecap="round"/>
 </svg>
