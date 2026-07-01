@@ -490,7 +490,10 @@ export default function HomePage() {
                 glow. Border-b mirrors the footer. Mobile keeps one clean row
                 (logo + Start Building + theme); secondary links reveal at sm/md. */}
             <header className={cn(
-              "px-4 sm:px-6 py-4 border-b",
+              // pt clears the iPhone status bar when installed as a PWA
+              // (standalone mode paints behind it); no-op on the web where the
+              // safe-area inset is 0.
+              "px-4 sm:px-6 pb-4 pt-[calc(env(safe-area-inset-top)+1rem)] border-b",
               isDark ? "border-white/5" : "border-slate-200"
             )}>
               <div className="max-w-5xl mx-auto flex items-center justify-between gap-4 text-sm">
