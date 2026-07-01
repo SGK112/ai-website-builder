@@ -64,12 +64,11 @@ const renderQueue: QueuedRender[] = []
 const ALLOWED_HOSTS = ['x.ai', 'replicate.delivery', 'replicate.com', 'res.cloudinary.com', 'cloudinary.com', 'soundhelix.com', 'cdn.pixabay.com']
 const hostOk = (u: URL) => u.protocol === 'https:' && ALLOWED_HOSTS.some(h => u.hostname === h || u.hostname.endsWith(`.${h}`))
 
-// Output resolution per aspect ratio. 1080p-class — a big jump from the old
-// 720p, and safe on the 2GB box with the clip-batching in place. True 4K
-// (3840x2160) needs the dedicated render worker + AI upscaled sources; a plain
-// 4K encode here would OOM. Can be overridden per request via body.resolution.
+// Output resolution per aspect ratio. Back to 720p — 1080p (+ zoompan + per-clip
+// audio + overlays) overloaded the 2GB box and renders started timing out/OOMing.
+// Higher res needs the dedicated render worker; revisit there, not here.
 const DIMS: Record<string, [number, number]> = {
-  '16:9': [1920, 1080], '9:16': [1080, 1920], '1:1': [1080, 1080], '4:5': [1080, 1350],
+  '16:9': [1280, 720], '9:16': [720, 1280], '1:1': [720, 720], '4:5': [720, 900],
 }
 
 // ── The chef's seasoning ─────────────────────────────────────────────────────
