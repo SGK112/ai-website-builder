@@ -7,8 +7,9 @@
 // here it can put it all together. Talks to /api/ai/video/director-chat.
 
 import { useEffect, useRef, useState } from 'react'
-import { Clapperboard, Mic, Square, Send, X, Volume2, VolumeX, Loader2 } from 'lucide-react'
+import { Clapperboard, Mic, Square, Send, X, Volume2, VolumeX, Loader2, Radio } from 'lucide-react'
 import { useSpeechToText } from '@/hooks/useSpeechToText'
+import { useDirectorVoice } from './useDirectorVoice'
 
 interface Turn { role: 'user' | 'assistant'; content: string }
 interface ClipIn { id: string; prompt?: string; kind?: 'image' | 'video'; hasUrl?: boolean; url?: string }
@@ -39,6 +40,14 @@ export default function DirectorChat({ open, clips, busy, onGenerate, onAssemble
   const micRef = useRef(mic)
   micRef.current = mic
 
+  // Realtime voice — the SAME continuous voice as the workspace (not push-to-talk).
+  const voice = useDirectorVoice({
+    onGenerate, onAssemble, onRender,
+    getStatus: () => busy ? 'working on it right now' : clips.length ? `${clips.length} clip(s) on the timeline` : 'the timeline is empty',
+  })
+  const voiceRef = useRef(voice)
+  voiceRef.current = voice
+
   // Greet once when first opened.
   useEffect(() => {
     if (open && !greetedRef.current) {
@@ -56,7 +65,11 @@ export default function DirectorChat({ open, clips, busy, onGenerate, onAssemble
 
   // Stop audio + mic when the panel closes.
   useEffect(() => {
-    if (!open) { audioRef.current?.pause(); if (micRef.current.listening) micRef.current.stop() }
+    if (!open) {
+      audioRef.current?.pause()
+      if (micRef.current.listening) micRef.current.stop()
+      if (voiceRef.current.active) voiceRef.current.stop()
+    }
   }, [open])
 
   async function speakReply(text: string) {
@@ -123,12 +136,23 @@ export default function DirectorChat({ open, clips, busy, onGenerate, onAssemble
           {messages.map((m, i) => (
             <div key={i} className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${m.role === 'user' ? 'ml-auto bg-violet-600 text-white' : 'bg-white/5 text-zinc-200'}`}>{m.content}</div>
           ))}
+          {voice.transcript.map((t) => (
+            <div key={`v${t.id}`} className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${t.role === 'user' ? 'ml-auto bg-violet-600 text-white' : 'bg-white/5 text-zinc-200'}`}>{t.text}</div>
+          ))}
           {sending && <div className="bg-white/5 text-zinc-400 rounded-2xl px-3 py-2 w-14 flex justify-center"><Loader2 className="w-4 h-4 animate-spin" /></div>}
           {busy && <div className="bg-violet-500/15 text-violet-200 rounded-2xl px-3 py-2 text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> On it — working behind the scenes. Watch the timeline.</div>}
           {error && <div className="text-rose-300 text-xs px-1">{error}</div>}
         </div>
 
         <div className="p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] border-t border-white/10 shrink-0">
+          {/* Realtime voice — the same continuous, hands-free chat as the workspace. */}
+          <button onClick={voice.toggle} disabled={busy && !voice.active}
+            className={`w-full flex items-center justify-center gap-2 rounded-xl py-2.5 mb-2 text-sm font-semibold disabled:opacity-40 ${voice.active ? 'bg-rose-500 text-white' : 'bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white'}`}>
+            {voice.status === 'connecting' ? <><Loader2 className="w-4 h-4 animate-spin" /> Connecting…</>
+              : voice.active ? <><Radio className="w-4 h-4 animate-pulse" /> {voice.status === 'speaking' ? 'Chef is speaking… (tap to end)' : 'Listening… (tap to end)'}</>
+              : <><Mic className="w-4 h-4" /> Talk to the chef — voice</>}
+          </button>
+          {voice.error && <p className="text-[10px] text-rose-300/80 mb-1">{voice.error}</p>}
           {mic.error && <p className="text-[10px] text-rose-300/80 mb-1">{mic.error}</p>}
           <div className="flex items-center gap-1.5 w-full">
             <input

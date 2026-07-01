@@ -171,12 +171,53 @@ const LIST_FOR_SALE_TOOL = {
   },
 }
 
-export async function POST() {
+// ── Video Studio "chef" mode (same realtime voice, different job) ────────────
+const VIDEO_INSTRUCTIONS = `You are the CHEF of Webstew's Video Studio — a warm, sharp video director who makes videos WITH the user, hands-free, by talking it through. You BOTH game-plan together AND do the work: you can generate footage, assemble the cut, and render the final video.
+
+YOUR JOB: collaborate like a great creative director. When they're exploring ("what can we do with these?", "help me organize this for a documentary", "how would you set this up?"), give real, specific direction — order, pacing, vibe, what text/contact info to add — and offer to run with it. When they're ready, DO it.
+
+WHAT YOU CAN DO:
+- generate_clips: create 1–4 new AI video shots from vivid descriptions (each: subject + setting + one motion + camera move + look). Use when they need footage that doesn't exist yet.
+- assemble_cut: take everything on their timeline + a one-line brief and build the whole cut — sequence, B-roll, a voiceover, music, a color look, and any on-screen text/contact info. Use when they have clips and are ready to "put it together".
+- render_film: produce the final video file when the cut is staged and they say render/export/finish.
+
+FLOW: greet, ask what they're making. If the timeline is empty, generate_clips to get footage. If they have clips, discuss the vibe briefly then assemble_cut. When they're happy, render_film. Prefer doing over endless asking.
+
+STYLE:
+- ALWAYS speak ENGLISH. Spoken, warm, concise — under 15 words per turn (up to 25 when summarizing). One question at a time.
+- If you hear silence, noise, or your own echo, STAY SILENT. Never say "bye"/"thanks"/sign off on your own — only the user ends it.
+- Never read code or URLs aloud. Always say what you're about to do ("on it — cooking up three shots…").`
+
+const GENERATE_CLIPS_TOOL = {
+  type: 'function', name: 'generate_clips',
+  description: 'Generate 1–4 new AI video shots and add them to the timeline. Use when the user needs footage that does not exist yet.',
+  parameters: { type: 'object', properties: {
+    shots: { type: 'array', items: { type: 'string' }, description: '1–4 vivid shot prompts (subject + setting + motion + camera move + look), consistent style.' },
+  }, required: ['shots'] },
+}
+const ASSEMBLE_CUT_TOOL = {
+  type: 'function', name: 'assemble_cut',
+  description: 'Assemble the whole cut from the clips already on the timeline: sequence, B-roll, voiceover, music, look, and any on-screen text. Use when they have clips and are ready.',
+  parameters: { type: 'object', properties: {
+    order: { type: 'string', description: 'One-line brief capturing the vibe, length, and any contact info/text to display (e.g. "A punchy 20s upbeat ad with our phone number on screen").' },
+  }, required: ['order'] },
+}
+const RENDER_FILM_TOOL = {
+  type: 'function', name: 'render_film',
+  description: 'Render the final video file. Use when the cut is staged and the user wants the finished export.',
+  parameters: { type: 'object', properties: {} },
+}
+
+export async function POST(request: Request) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
     // Realtime voice burns paid tokens fast — signed-in only.
     return NextResponse.json({ error: 'Sign in to use voice building.', requireAuth: true }, { status: 401 })
   }
+  // Optional mode — 'video' swaps in the Video Studio chef; anything else (incl.
+  // no body, the workspace call) is the unchanged website-builder chef.
+  const mode = await request.json().then((b: any) => b?.mode).catch(() => undefined)
+  const isVideo = mode === 'video'
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey || apiKey.length < 20) {
     return NextResponse.json({ error: 'Voice is not configured on this server.' }, { status: 503 })
@@ -203,7 +244,7 @@ export async function POST() {
         session: {
           type: 'realtime',
           model: MODEL,
-          instructions: INSTRUCTIONS,
+          instructions: isVideo ? VIDEO_INSTRUCTIONS : INSTRUCTIONS,
           audio: {
             input: {
               // gpt-4o-mini-transcribe, NOT whisper-1: whisper hallucinates whole
@@ -220,7 +261,9 @@ export async function POST() {
             },
             output: { voice: VOICE },
           },
-          tools: [BUILD_SITE_TOOL, EDIT_SITE_TOOL, CHECK_STATUS_TOOL, MAKE_VIDEO_TOOL, MAKE_LOGO_TOOL, LIST_FOR_SALE_TOOL],
+          tools: isVideo
+            ? [GENERATE_CLIPS_TOOL, ASSEMBLE_CUT_TOOL, RENDER_FILM_TOOL]
+            : [BUILD_SITE_TOOL, EDIT_SITE_TOOL, CHECK_STATUS_TOOL, MAKE_VIDEO_TOOL, MAKE_LOGO_TOOL, LIST_FOR_SALE_TOOL],
           tool_choice: 'auto',
         },
       }),
