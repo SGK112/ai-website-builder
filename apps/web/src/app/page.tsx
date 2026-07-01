@@ -244,6 +244,17 @@ export default function HomePage() {
     setMounted(true)
   }, [])
 
+  // Installed as a PWA (home-screen app) → this IS the app, so open the
+  // workspace, not the marketing page. Belt-and-suspenders with the manifest
+  // start_url: iOS often pins a home-screen shortcut to the URL it was ADDED
+  // from ('/') rather than honoring start_url, so a stale shortcut lands here.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const standalone = window.matchMedia?.('(display-mode: standalone)').matches
+      || (window.navigator as any).standalone === true // iOS Safari legacy flag
+    if (standalone) router.replace('/workspace?source=pwa')
+  }, [router])
+
   const visibleTemplates = showAllTemplates ? templateGallery : templateGallery.slice(0, 8)
 
   // Headline word rotation — swaps every 2.5s. Skipped while user is typing
