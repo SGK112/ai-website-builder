@@ -11,7 +11,7 @@ import { Clapperboard, Mic, Square, Send, X, Volume2, VolumeX, Loader2 } from 'l
 import { useSpeechToText } from '@/hooks/useSpeechToText'
 
 interface Turn { role: 'user' | 'assistant'; content: string }
-interface ClipIn { id: string; prompt?: string; kind?: 'image' | 'video'; hasUrl?: boolean }
+interface ClipIn { id: string; prompt?: string; kind?: 'image' | 'video'; hasUrl?: boolean; url?: string }
 
 interface Props {
   open: boolean
@@ -84,9 +84,11 @@ export default function DirectorChat({ open, clips, busy, onGenerate, onAssemble
     const base = [...messages, { role: 'user' as const, content }]
     setMessages(base); setSending(true)
     try {
+      // Image URLs the chef can SEE (photos/stills on the timeline).
+      const mediaUrls = clips.filter(c => c.kind === 'image' && c.url).map(c => c.url as string).slice(0, 6)
       const res = await fetch('/api/ai/video/director-chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: content, history: messages.slice(-10), clips }),
+        body: JSON.stringify({ message: content, history: messages.slice(-10), clips, mediaUrls }),
       })
       const data = await res.json().catch(() => ({} as any))
       if (!res.ok) throw new Error(data.error || 'The director didn\'t respond.')

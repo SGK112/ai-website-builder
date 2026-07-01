@@ -23,6 +23,7 @@ interface DirectorChatRequest {
   message?: string
   history?: Turn[]
   clips?: ClipIn[]
+  mediaUrls?: string[]   // image URLs on the timeline — the chef can SEE these
 }
 interface DirectorChatResponse {
   reply: string
@@ -31,19 +32,22 @@ interface DirectorChatResponse {
   order: string | null   // for 'assemble' — the one-line brief
 }
 
-function systemPrompt(clipLines: string[]): string {
-  return `You are the CHEF — a friendly, decisive video director who DRIVES the whole studio for the user. They just TALK to you (messages may be voice transcripts); you do the work behind the scenes. Keep replies SHORT and warm — one or two sentences, conversational, and always say what you're about to do ("On it — cooking up 3 shots…"). No lists, no stage directions in the reply.
+function systemPrompt(clipLines: string[], hasVision: boolean): string {
+  return `You are the CHEF — a friendly video director and creative PARTNER who both game-plans WITH the user and drives the studio for them. They TALK to you (messages may be voice transcripts). Keep replies SHORT and warm — one or two conversational sentences. No lists or stage directions in the reply.
+
+You COLLABORATE like a good creative director: when they ask "what can we do with these?", "help me organize these for a documentary", "how would you set this up?", or "make an ad from these" — react to their ACTUAL material, suggest a concrete direction (order, pacing, vibe, what overlays/contact info to add), and offer to run with it. Advise first when they're exploring; act when they're ready.
+${hasVision ? 'You can SEE the photos/clips they have on the timeline (attached as images) — describe what you actually see and tailor your advice to it (subjects, mood, quality, best order).' : ''}
 
 Their timeline right now:
 ${clipLines.length ? clipLines.join('\n') : '(empty — nothing generated yet)'}
 
 Each turn, choose EXACTLY ONE action:
-- "generate": they want footage that doesn't exist yet (timeline empty, or they ask for more/different shots). Put 1–4 vivid shot prompts in "shots" (each: subject + setting + one motion + camera move + look; keep a consistent style across them). Never more than 4 at once — each is a real paid render.
-- "assemble": there ARE clips and they're ready (they say make it/go/put it together/that's it, or you have a clear vibe). Put the brief in "order" (e.g. "A punchy 20s upbeat product ad from these clips with a quick voiceover.").
+- "generate": they want footage that doesn't exist yet (timeline empty, or they ask for more/different shots). Put 1–4 vivid shot prompts in "shots" (each: subject + setting + one motion + camera move + look; consistent style). Never more than 4 at once — each is a real paid render.
+- "assemble": there ARE clips and they're ready (they say make it/go/put it together, or you've agreed on a direction). Put the brief in "order" (e.g. "A punchy 20s upbeat product ad from these clips with a quick voiceover.").
 - "render": the cut is already assembled/staged and they want the final file (render/export/finish/done).
-- "none": just chatting or asking ONE quick clarifying question.
+- "none": you're advising, game-planning, or asking ONE quick question — the collaborative part.
 
-Rules: never "assemble" or "render" an empty timeline — "generate" first. Prefer doing over asking; at most one clarifying question total. Don't repeat a big generate they already have.
+Rules: never "assemble" or "render" an empty timeline — "generate" first. When they're clearly exploring ("what can we do…", "how would you…"), use "none" and give real, specific creative direction. When they're ready, DO it. Don't over-ask; don't repeat a big generate they already have.
 
 Respond with ONLY a JSON object, no markdown fences:
 {"reply": string, "action": "none"|"generate"|"assemble"|"render", "shots": string[], "order": string|null}`
@@ -57,7 +61,31 @@ function parseJson(raw: string): Partial<DirectorChatResponse> | null {
   try { return JSON.parse(t.slice(s, e + 1)) } catch { return null }
 }
 
-async function callModel(system: string, turns: Turn[]): Promise<string> {
+async function callModel(system: string, turns: Turn[], imageUrls: string[]): Promise<string> {
+  // With images, use Grok (multimodal, OpenAI-compatible image_url) so the chef
+  // can actually SEE the user's photos/clips and advise on them. The images
+  // ride on the latest user turn.
+  if (imageUrls.length && process.env.XAI_API_KEY) {
+    const msgs: any[] = turns.map(m => ({ role: m.role, content: m.content }))
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === 'user') {
+        msgs[i] = {
+          role: 'user',
+          content: [
+            { type: 'text', text: String(msgs[i].content || '') },
+            ...imageUrls.map(url => ({ type: 'image_url', image_url: { url } })),
+          ],
+        }
+        break
+      }
+    }
+    const res = await xaiClient().chat.completions.create({
+      model: XAI_FLAGSHIP, max_tokens: 700,
+      messages: [{ role: 'system', content: system }, ...msgs],
+    } as any)
+    return res.choices[0]?.message?.content || ''
+  }
+  // Text-only: Claude primary (best at this), Grok fallback.
   if (process.env.ANTHROPIC_API_KEY) {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     const res = await client.messages.create({
@@ -103,12 +131,17 @@ export async function POST(request: NextRequest) {
     const clipLines = clips.map(c => `- ${c.kind || 'video'} :: ${(c.prompt || 'clip').slice(0, 120)}`)
     const hasClips = clips.length > 0
 
+    // Images the chef can actually see (capped so the vision call stays cheap/fast).
+    const mediaUrls = (Array.isArray(body.mediaUrls) ? body.mediaUrls : [])
+      .filter(u => typeof u === 'string' && /^https:\/\//.test(u))
+      .slice(0, 6)
+
     const history = Array.isArray(body.history) ? body.history.slice(-10).filter(t => t && (t.role === 'user' || t.role === 'assistant') && typeof t.content === 'string') : []
     const turns: Turn[] = [...history, { role: 'user', content: message }]
 
     let parsed: Partial<DirectorChatResponse> | null = null
     try {
-      parsed = parseJson(await callModel(systemPrompt(clipLines), turns))
+      parsed = parseJson(await callModel(systemPrompt(clipLines, mediaUrls.length > 0), turns, mediaUrls))
     } catch (e: any) {
       return NextResponse.json({ error: e?.message || 'Director model call failed' }, { status: 502 })
     }

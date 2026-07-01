@@ -1207,7 +1207,7 @@ export default function VideoStudio() {
           renders behind the scenes (the AI drives the boat). */}
       <DirectorChat
         open={directorChatOpen}
-        clips={doneClips.map(c => ({ id: c.id, prompt: c.prompt, kind: c.kind === 'image' ? 'image' : 'video', hasUrl: true }))}
+        clips={doneClips.map(c => ({ id: c.id, prompt: c.prompt, kind: c.kind === 'image' ? 'image' : 'video', hasUrl: true, url: c.url }))}
         busy={busy}
         onGenerate={(shots) => { void generateClipsFromChat(shots) }}
         onAssemble={(order) => { setDirectorOrder(order); void runDirector(order) }}
