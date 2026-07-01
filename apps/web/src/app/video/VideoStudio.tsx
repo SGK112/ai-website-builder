@@ -120,6 +120,7 @@ export default function VideoStudio() {
   const [saving, setSaving] = useState(false)
   const stitchedRef = useRef<string | null>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const mobileMediaInputRef = useRef<HTMLInputElement>(null)
 
   const selectedModel = VIDEO_MODELS.find(m => m.id === model)
   const isMultiImage = !!selectedModel?.multi
@@ -227,6 +228,32 @@ export default function VideoStudio() {
     if (imageInputRef.current) imageInputRef.current.value = '' // allow re-picking the same file
     if (mode !== 'image') setMode('image')
     void uploadSourceFiles(files)
+  }
+
+  // Mobile "Add media": images + videos go STRAIGHT onto the timeline (no hidden
+  // staging tray) so you can add your own footage without the manual panels.
+  async function handleMobileMedia(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || [])
+    if (mobileMediaInputRef.current) mobileMediaInputRef.current.value = ''
+    const images = files.filter(f => f.type.startsWith('image/'))
+    const videos = files.filter(f => f.type.startsWith('video/'))
+    if (!images.length && !videos.length) { if (files.length) setError('Add images or a video.'); return }
+    setError(null); setUploadingImage(true)
+    try {
+      for (const file of videos) {
+        const url = await uploadOne(file)
+        setClips(prev => [...prev, { id: newClipId(), prompt: file.name.replace(/\.[^.]+$/, '').trim() || 'Uploaded clip', status: 'done', url, audio: true }])
+      }
+      for (const file of images) {
+        const url = await uploadOne(file)
+        setClips(prev => [...prev, { id: newClipId(), prompt: 'Slide', status: 'done', url, kind: 'image', seconds: slideSeconds }])
+      }
+      setStitched(null); setShareUrl(null); setSelectedId(null)
+    } catch (e: any) {
+      setError(e?.message || 'Upload failed')
+    } finally {
+      setUploadingImage(false)
+    }
   }
 
   function handleImageDrop(e: React.DragEvent) {
@@ -774,9 +801,16 @@ export default function VideoStudio() {
               className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 text-white text-sm font-semibold py-3 shadow-lg shadow-violet-600/20">
               <Clapperboard className="w-4 h-4" /> Talk to the chef
             </button>
-            <button onClick={() => setShowManual(s => !s)} className="w-full text-[11px] text-zinc-500 hover:text-zinc-300 py-1">
-              {showManual ? 'Hide manual tools ▲' : 'Manual tools ▾'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => mobileMediaInputRef.current?.click()} disabled={uploadingImage}
+                className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 disabled:opacity-40 text-zinc-200 text-sm font-medium py-2.5">
+                {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Add your photos / video
+              </button>
+              <button onClick={() => setShowManual(s => !s)} className="shrink-0 rounded-xl border border-white/10 text-[11px] text-zinc-400 hover:text-white px-3 py-2.5">
+                {showManual ? 'Less ▲' : 'More ▾'}
+              </button>
+            </div>
+            <input ref={mobileMediaInputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleMobileMedia} />
           </div>
           <div className={`space-y-3 ${showManual ? '' : 'hidden'} md:block`}>
           <div className="flex gap-1.5">
@@ -1071,12 +1105,12 @@ export default function VideoStudio() {
       {showSaved && (
         <div className="fixed inset-0 z-40 flex justify-end" role="dialog" aria-modal="true" aria-label="Saved creations">
           <div className="flex-1 bg-black/50" onClick={() => setShowSaved(false)} />
-          <div className="w-full max-w-sm h-full bg-zinc-950 border-l border-white/10 flex flex-col">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+          <div className="w-full max-w-sm h-[100dvh] bg-zinc-950 border-l border-white/10 flex flex-col">
+            <div className="flex items-center justify-between px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] border-b border-white/10 shrink-0">
               <div className="flex items-center gap-2 text-sm font-semibold text-white"><Bookmark className="w-4 h-4 text-violet-300" /> Your creations{creations.length ? ` (${creations.length})` : ''}</div>
-              <button onClick={() => setShowSaved(false)} className="p-1 text-zinc-500 hover:text-white"><X className="w-4 h-4" /></button>
+              <button onClick={() => setShowSaved(false)} aria-label="Close" className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/5 text-zinc-300 hover:text-white hover:bg-white/10"><X className="w-6 h-6" /></button>
             </div>
-            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            <div className="flex-1 overflow-y-auto p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] space-y-3">
               {creations.length === 0 ? (
                 <div className="text-center text-zinc-600 pt-16 px-4">
                   <Bookmark className="w-10 h-10 mx-auto mb-3 opacity-40" />
@@ -1117,7 +1151,7 @@ export default function VideoStudio() {
           <div className="relative w-full max-w-lg max-h-[80vh] flex flex-col rounded-2xl bg-zinc-950 border border-white/10 shadow-2xl">
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
               <div className="flex items-center gap-2 text-sm font-semibold text-white"><Music className="w-4 h-4 text-fuchsia-300" /> Choose a soundtrack</div>
-              <button onClick={() => { stopPreview(); setShowMusicPicker(false) }} className="p-1 text-zinc-500 hover:text-white"><X className="w-4 h-4" /></button>
+              <button onClick={() => { stopPreview(); setShowMusicPicker(false) }} aria-label="Close" className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/5 text-zinc-300 hover:text-white hover:bg-white/10"><X className="w-5 h-5" /></button>
             </div>
             <div className="overflow-y-auto p-3 space-y-4">
               {Array.from(new Set(STUDIO_MUSIC.map(t => t.mood))).map(mood => (

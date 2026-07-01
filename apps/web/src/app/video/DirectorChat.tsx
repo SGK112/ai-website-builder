@@ -108,12 +108,12 @@ export default function DirectorChat({ open, clips, busy, onGenerate, onAssemble
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label="Talk to the director">
       <div className="flex-1 bg-black/50" onClick={onClose} />
-      <div className="w-full max-w-md h-full bg-zinc-950 border-l border-white/10 flex flex-col">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">
-          <div className="flex items-center gap-2 text-sm font-semibold text-white"><Clapperboard className="w-4 h-4 text-violet-300" /> Talk to the director</div>
+      <div className="w-full max-w-md h-[100dvh] bg-zinc-950 border-l border-white/10 flex flex-col">
+        <div className="flex items-center justify-between px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] border-b border-white/10 shrink-0">
+          <div className="flex items-center gap-2 text-sm font-semibold text-white"><Clapperboard className="w-4 h-4 text-violet-300" /> Talk to the chef</div>
           <div className="flex items-center gap-1">
-            <button onClick={() => setSpeak(s => !s)} title={speak ? 'Mute replies' : 'Hear replies'} className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5">{speak ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}</button>
-            <button onClick={onClose} aria-label="Close" className="p-1.5 rounded-lg text-zinc-500 hover:text-white"><X className="w-4 h-4" /></button>
+            <button onClick={() => setSpeak(s => !s)} title={speak ? 'Mute replies' : 'Hear replies'} className="w-10 h-10 rounded-xl flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/5">{speak ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}</button>
+            <button onClick={onClose} aria-label="Close" className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/5 text-zinc-300 hover:text-white hover:bg-white/10"><X className="w-6 h-6" /></button>
           </div>
         </div>
 
@@ -126,7 +126,7 @@ export default function DirectorChat({ open, clips, busy, onGenerate, onAssemble
           {error && <div className="text-rose-300 text-xs px-1">{error}</div>}
         </div>
 
-        <div className="p-3 border-t border-white/10 shrink-0">
+        <div className="p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] border-t border-white/10 shrink-0">
           {mic.error && <p className="text-[10px] text-rose-300/80 mb-1">{mic.error}</p>}
           <div className="flex items-center gap-1.5">
             <input
