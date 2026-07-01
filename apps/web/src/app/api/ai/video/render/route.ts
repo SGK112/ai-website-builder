@@ -152,15 +152,21 @@ async function downloadTo(url: string, path: string) {
 }
 
 // Parse a clip's duration from `ffmpeg -i` stderr (ffmpeg-static has no ffprobe).
-function probeDuration(path: string): Promise<number> {
+// Probe a clip for BOTH its duration and whether it carries an audio stream —
+// from the same `ffmpeg -i` stderr. Per-clip audio detection (server-side, not
+// trusting the client) is what lets us preserve each clip's own sound (dialogue,
+// music) instead of the old all-or-nothing strip.
+function probeClip(path: string): Promise<{ dur: number; hasAudio: boolean }> {
   return new Promise(resolve => {
     const proc = spawn(ffmpegPath as unknown as string, ['-i', path])
     let err = ''
     proc.stderr.on('data', d => { err += d.toString() })
-    proc.on('error', () => resolve(0))
+    proc.on('error', () => resolve({ dur: 0, hasAudio: false }))
     proc.on('close', () => {
       const m = err.match(/Duration:\s*(\d+):(\d+):(\d+\.\d+)/)
-      resolve(m ? (+m[1] * 3600 + +m[2] * 60 + parseFloat(m[3])) : 0)
+      const dur = m ? (+m[1] * 3600 + +m[2] * 60 + parseFloat(m[3])) : 0
+      const hasAudio = /Stream #\d+:\d+.*:\s*Audio:/.test(err)
+      resolve({ dur, hasAudio })
     })
   })
 }
@@ -202,7 +208,7 @@ async function makeVoice(script: string, voice: string, path: string) {
   await writeFile(path, Buffer.from(await speech.arrayBuffer()))
 }
 
-type Clip = { path: string; kind: 'image' | 'video'; secs: number }
+type Clip = { path: string; kind: 'image' | 'video'; secs: number; hasAudio: boolean }
 
 // Render ONE batch of clips (≤ SEGMENT_MAX) into a normalized, video-only mp4
 // segment, with xfade between clips inside the batch. Video-only by design:
@@ -229,18 +235,34 @@ async function renderSegment(clips: Clip[], durs: number[], W: number, H: number
   } else {
     parts.push(`${clips.map((_, i) => `[v${i}]`).join('')}concat=n=${n}:v=1:a=0[outv]`)
   }
+  // Every segment carries a scene-audio track (each clip's own sound, or matched
+  // silence) so segments concat uniformly AND dialogue survives into long cuts.
+  clips.forEach((c, i) => {
+    parts.push(c.hasAudio
+      ? `[${i}:a]aformat=sample_rates=44100:channel_layouts=stereo[sa${i}]`
+      : `anullsrc=r=44100:cl=stereo,atrim=0:${durs[i].toFixed(3)},aformat=sample_rates=44100:channel_layouts=stereo[sa${i}]`)
+  })
+  if (canXfade) {
+    let prevA = '[sa0]'
+    for (let i = 1; i < n; i++) {
+      const label = i === n - 1 ? '[outa]' : `[sax${i}]`
+      parts.push(`${prevA}[sa${i}]acrossfade=d=${XFADE}${label}`)
+      prevA = label
+    }
+  } else {
+    parts.push(`${clips.map((_, i) => `[sa${i}]`).join('')}concat=n=${n}:v=0:a=1[outa]`)
+  }
   const seg = join(dir, `seg${idx}.mp4`)
-  args.push('-filter_complex', parts.join(';'), '-map', '[outv]', '-an', '-t', outDur.toFixed(3))
-  args.push('-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-y', seg)
+  args.push('-filter_complex', parts.join(';'), '-map', '[outv]', '-map', '[outa]', '-t', outDur.toFixed(3))
+  args.push('-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-movflags', '+faststart', '-y', seg)
   await runFfmpeg(args)
   return { seg, outDur }
 }
 
-// Many-clip path: render in batches → concat the segments cheaply (demuxer,
-// -c copy for video) → mix music/voice over the whole thing in one final pass.
-// NOTE: per-clip SCENE audio is not carried here (segments are video-only); a
-// >SEGMENT_MAX timeline uses its music/voiceover bed for audio. Sub-batch
-// renders keep full scene audio via the single-pass path below.
+// Many-clip path: render in batches → concat the segments cheaply (demuxer) →
+// mix music/voice over the whole thing in one final pass. Segments carry their
+// own scene audio (stream 0:a after concat), so clip dialogue/sound survives
+// into long cuts too — voiceover + music mix ON TOP, never replacing it.
 async function stitchBatched(body: RenderRequest, clipPaths: Clip[], durs: number[], W: number, H: number, dir: string, voicePath: string, musicPath: string, voiceDur: number): Promise<string> {
   const motion = body.motion !== false
   const segs: string[] = []
@@ -260,7 +282,7 @@ async function stitchBatched(body: RenderRequest, clipPaths: Clip[], durs: numbe
   let idx = 1, musicIdx = -1, voiceIdx = -1
   if (musicPath) { fargs.push('-i', musicPath); musicIdx = idx++ }
   if (voicePath) { fargs.push('-i', voicePath); voiceIdx = idx++ }
-  const fp: string[] = [], aLabels: string[] = []
+  const fp: string[] = []
   // Cover a longer voiceover by freezing the last frame; only then do we have to
   // re-encode the video (otherwise the concatenated segments copy through cheap).
   const finalDur = Math.max(total, voiceDur)
@@ -270,16 +292,19 @@ async function stitchBatched(body: RenderRequest, clipPaths: Clip[], durs: numbe
     fp.push(`[0:v]tpad=stop_mode=clone:stop_duration=${(finalDur - total).toFixed(3)}[outv]`)
     videoMap = '[outv]'; videoCodec[1] = 'libx264'; videoCodec.push('-preset', 'veryfast', '-pix_fmt', 'yuv420p')
   }
+  // The clips' own sound is stream 0:a (from the concatenated segments). Mix any
+  // music + voiceover ON TOP; if there's neither, just copy the scene audio.
+  const extras: string[] = []
   if (musicIdx >= 0) {
     const vol = Math.max(0, Math.min(1, body.musicVolume ?? 0.3))
-    fp.push(`[${musicIdx}:a]aloop=loop=-1:size=2147483647,volume=${vol}[mus]`); aLabels.push('[mus]')
+    fp.push(`[${musicIdx}:a]aloop=loop=-1:size=2147483647,volume=${vol}[mus]`); extras.push('[mus]')
   }
-  if (voiceIdx >= 0) { fp.push(`[${voiceIdx}:a]apad[vo]`); aLabels.push('[vo]') }
+  if (voiceIdx >= 0) { fp.push(`[${voiceIdx}:a]apad[vo]`); extras.push('[vo]') }
   let audioMap: string[] = []
-  if (aLabels.length === 1) {
-    audioMap = ['-map', aLabels[0], '-c:a', 'aac']
-  } else if (aLabels.length > 1) {
-    fp.push(`${aLabels.join('')}amix=inputs=${aLabels.length}:duration=longest:dropout_transition=0:normalize=0[outa]`)
+  if (extras.length === 0) {
+    audioMap = ['-map', '0:a', '-c:a', 'copy']
+  } else {
+    fp.push(`[0:a]${extras.join('')}amix=inputs=${1 + extras.length}:duration=longest:dropout_transition=0:normalize=0[outa]`)
     audioMap = ['-map', '[outa]', '-c:a', 'aac']
   }
   if (fp.length) fargs.push('-filter_complex', fp.join(';'))
@@ -297,28 +322,29 @@ async function stitch(body: RenderRequest, sources: Required<RenderSource>[], W:
   try {
     // 1. Download each source. Videos keep their real duration (probed);
     //    images are held for `seconds` and looped into a still video segment.
-    const clipPaths: { path: string; kind: 'image' | 'video'; secs: number }[] = []
+    const clipPaths: Clip[] = []
     const durs: number[] = []
     for (let i = 0; i < sources.length; i++) {
       const s = sources[i]
       if (s.kind === 'image') {
         const p = join(dir, `s${i}.img`) // ffmpeg sniffs the format from bytes, not the ext
         await downloadTo(s.url, p)
-        clipPaths.push({ path: p, kind: 'image', secs: s.seconds })
+        clipPaths.push({ path: p, kind: 'image', secs: s.seconds, hasAudio: false })
         durs.push(s.seconds)
       } else {
         const p = join(dir, `c${i}.mp4`)
         await downloadTo(s.url, p)
-        const d = await probeDuration(p)
-        const secs = d > 0 ? d : 8 // fall back to a nominal length if unprobeable
-        clipPaths.push({ path: p, kind: 'video', secs })
+        // Probe BOTH duration and audio presence — each clip keeps its own sound.
+        const { dur, hasAudio } = await probeClip(p)
+        const secs = dur > 0 ? dur : 8 // fall back to a nominal length if unprobeable
+        clipPaths.push({ path: p, kind: 'video', secs, hasAudio })
         durs.push(secs)
       }
     }
-    // Scene audio only exists when EVERY source is a video clip that carries it —
-    // a still image contributes no audio stream to reference.
-    const allVideo = clipPaths.every(c => c.kind === 'video')
-    const clipsHaveAudio = !!body.clipsHaveAudio && allVideo
+    // Per-clip audio: build a scene track only if AT LEAST one clip carries sound.
+    // Silent clips (images, audio-less videos) contribute silence so the audio
+    // stays aligned with the video — nobody's dialogue gets stripped.
+    const anyClipAudio = clipPaths.some(c => c.hasAudio)
     // 2. Optional voice + music
     let voicePath = ''
     if (body.script?.trim()) {
@@ -354,7 +380,7 @@ async function stitch(body: RenderRequest, sources: Required<RenderSource>[], W:
     // longer than the visuals, the video gets a frozen-frame tail to cover it
     // (otherwise the render cut off mid-sentence). Music does NOT extend length —
     // it just fills whatever the visuals/voice establish.
-    const voiceDur = voicePath ? await probeDuration(voicePath) : 0
+    const voiceDur = voicePath ? (await probeClip(voicePath)).dur : 0
 
     // Long timelines: batch so no single ffmpeg invocation opens more than
     // SEGMENT_MAX decoders at once (the >2GB OOM was one graph with ~10 inputs).
@@ -392,22 +418,32 @@ async function stitch(body: RenderRequest, sources: Required<RenderSource>[], W:
         acc = acc + durs[i] - XFADE
       }
       outDur = acc // each crossfade overlaps clips by XFADE, shrinking total
-      // SCENE AUDIO: matching acrossfade chain so it stays aligned with the video.
-      if (clipsHaveAudio) {
-        let prevA = '[0:a]'
-        for (let i = 1; i < n; i++) {
-          const label = i === n - 1 ? '[sa]' : `[ax${i}]`
-          parts.push(`${prevA}[${i}:a]acrossfade=d=${XFADE}${label}`)
-          prevA = label
-        }
-        aLabels.push('[sa]')
-      }
     } else {
       parts.push(`${clipPaths.map((_, i) => `[v${i}]`).join('')}concat=n=${n}:v=1:a=0[vbase]`)
-      if (clipsHaveAudio) {
-        parts.push(`${clipPaths.map((_, i) => `[${i}:a]`).join('')}concat=n=${n}:v=0:a=1[sa]`)
-        aLabels.push('[sa]')
+    }
+
+    // PER-CLIP SCENE AUDIO — each clip keeps its OWN sound (dialogue, music,
+    // effects). Silent clips (images, audio-less videos) contribute matched
+    // silence so the track stays aligned to the video. Crossfaded like the video
+    // (or hard-concatenated). Voiceover + music mix ON TOP — nothing gets
+    // stripped just because one sibling clip was silent.
+    if (anyClipAudio) {
+      clipPaths.forEach((c, i) => {
+        parts.push(c.hasAudio
+          ? `[${i}:a]aformat=sample_rates=44100:channel_layouts=stereo[sa${i}]`
+          : `anullsrc=r=44100:cl=stereo,atrim=0:${durs[i].toFixed(3)},aformat=sample_rates=44100:channel_layouts=stereo[sa${i}]`)
+      })
+      if (canXfade) {
+        let prevA = '[sa0]'
+        for (let i = 1; i < n; i++) {
+          const label = i === n - 1 ? '[scene]' : `[sax${i}]`
+          parts.push(`${prevA}[sa${i}]acrossfade=d=${XFADE}${label}`)
+          prevA = label
+        }
+      } else {
+        parts.push(`${clipPaths.map((_, i) => `[sa${i}]`).join('')}concat=n=${n}:v=0:a=1[scene]`)
       }
+      aLabels.push('[scene]')
     }
     // If the voiceover runs longer than the visuals, freeze the last frame to
     // cover it so narration never gets cut off mid-sentence. Music doesn't count.
