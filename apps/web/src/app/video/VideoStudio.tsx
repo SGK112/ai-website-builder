@@ -1005,12 +1005,14 @@ export default function VideoStudio() {
                 <div className="flex items-center justify-between px-1 py-0.5 bg-black/50">
                   <span className="text-[9px] text-zinc-400">Clip {i + 1}</span>
                   <div className="flex items-center gap-0.5">
+                    {/* Save + reorder are power controls — desktop only. Mobile
+                        keeps just delete; the chef handles sequencing. */}
                     {c.status === 'done' && c.url && c.kind !== 'image' && (
-                      <button onClick={e => { e.stopPropagation(); saveCreation('clip', c.url!, c.prompt.slice(0, 80)) }} disabled={!!savingIds[c.url] || isSaved(c.url)} title={isSaved(c.url) ? 'Saved to your creations' : 'Save clip to your creations'} className="p-0.5 text-zinc-500 hover:text-violet-300 disabled:opacity-60">{savingIds[c.url] ? <Loader2 className="w-3 h-3 animate-spin" /> : isSaved(c.url) ? <BookmarkCheck className="w-3 h-3 text-violet-300" /> : <Bookmark className="w-3 h-3" />}</button>
+                      <button onClick={e => { e.stopPropagation(); saveCreation('clip', c.url!, c.prompt.slice(0, 80)) }} disabled={!!savingIds[c.url] || isSaved(c.url)} title={isSaved(c.url) ? 'Saved to your creations' : 'Save clip to your creations'} className="hidden md:block p-0.5 text-zinc-500 hover:text-violet-300 disabled:opacity-60">{savingIds[c.url] ? <Loader2 className="w-3 h-3 animate-spin" /> : isSaved(c.url) ? <BookmarkCheck className="w-3 h-3 text-violet-300" /> : <Bookmark className="w-3 h-3" />}</button>
                     )}
-                    <button onClick={e => { e.stopPropagation(); move(i, -1) }} disabled={i === 0 || busy} className="p-0.5 text-zinc-500 hover:text-white disabled:opacity-30"><ArrowLeft className="w-3 h-3" /></button>
-                    <button onClick={e => { e.stopPropagation(); move(i, 1) }} disabled={i === clips.length - 1 || busy} className="p-0.5 text-zinc-500 hover:text-white disabled:opacity-30"><ArrowRight className="w-3 h-3" /></button>
-                    <button onClick={e => { e.stopPropagation(); setClips(prev => prev.filter(x => x.id !== c.id)) }} disabled={busy} className="p-0.5 text-zinc-500 hover:text-red-400 disabled:opacity-30"><X className="w-3 h-3" /></button>
+                    <button onClick={e => { e.stopPropagation(); move(i, -1) }} disabled={i === 0 || busy} className="hidden md:block p-0.5 text-zinc-500 hover:text-white disabled:opacity-30"><ArrowLeft className="w-3 h-3" /></button>
+                    <button onClick={e => { e.stopPropagation(); move(i, 1) }} disabled={i === clips.length - 1 || busy} className="hidden md:block p-0.5 text-zinc-500 hover:text-white disabled:opacity-30"><ArrowRight className="w-3 h-3" /></button>
+                    <button onClick={e => { e.stopPropagation(); setClips(prev => prev.filter(x => x.id !== c.id)) }} disabled={busy} className="p-1 md:p-0.5 text-zinc-500 hover:text-red-400 disabled:opacity-30"><X className="w-3.5 h-3.5 md:w-3 md:h-3" /></button>
                   </div>
                 </div>
                 {c.status === 'error' && <button onClick={e => { e.stopPropagation(); patch(c.id, { status: 'generating' }); /* retry via regenerate not wired in v1 */ }} className="hidden" />}
