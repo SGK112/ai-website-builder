@@ -79,6 +79,10 @@ export default function VideoStudio() {
   const [script, setScript] = useState('')
   const [voice, setVoice] = useState('onyx')
   const [look, setLook] = useState('none') // color-grade filter applied to the whole cut
+  // Text overlays (title cards, contact-info lower-thirds) burned into the cut.
+  type Overlay = { text: string; position?: 'top' | 'center' | 'bottom'; size?: 'small' | 'medium' | 'large'; box?: boolean; start?: number; end?: number }
+  const [overlays, setOverlays] = useState<Overlay[]>([])
+  const [overlayText, setOverlayText] = useState('') // manual "on-screen text" input
   // AI Director — "give the chef an order, she assembles the whole cut".
   const [directorOrder, setDirectorOrder] = useState('')
   const [directing, setDirecting] = useState(false)
@@ -449,6 +453,7 @@ export default function VideoStudio() {
       if (plan.script) setScript(String(plan.script))
       if (plan.voice && TTS_VOICES.includes(plan.voice)) setVoice(plan.voice)
       if (plan.look && LOOKS.includes(plan.look)) setLook(plan.look)
+      if (Array.isArray(plan.overlays)) setOverlays(plan.overlays.filter((o: any) => o && typeof o.text === 'string' && o.text.trim()).slice(0, 4))
       // Only add a soundtrack when the existing clips DON'T already carry their
       // own audio — never layer music over dialogue/scene sound. The user can
       // still add music manually if they want it on top.
@@ -606,6 +611,7 @@ export default function VideoStudio() {
           musicVolume,
           aspectRatio,
           filter: look !== 'none' ? look : undefined,
+          overlays: overlays.length ? overlays : undefined,
           title: prompt.trim() || script.trim().slice(0, 80) || 'Untitled film',
         }),
       })
@@ -1101,6 +1107,17 @@ export default function VideoStudio() {
               <button key={l} onClick={() => setLook(l)} className={`shrink-0 rounded-lg px-2.5 py-1.5 text-xs capitalize border ${look === l ? 'border-amber-400 bg-amber-500/15 text-amber-100' : 'border-white/10 text-zinc-400 hover:text-white'}`}>{l === 'none' ? 'None' : l}</button>
             ))}
           </div>
+        </div>
+
+        {/* TEXT — on-screen overlay (contact info, title bar); manual. The AI
+            Director also sets overlays from your order (e.g. "add our number"). */}
+        <div className={`${showManual ? 'flex' : 'hidden'} md:flex flex-wrap items-center gap-2 md:gap-3`}>
+          <span className="w-16 shrink-0 text-[11px] font-semibold text-emerald-300 flex items-center gap-1"><PenLine className="w-3.5 h-3.5" /> Text</span>
+          <input value={overlayText}
+            onChange={e => { setOverlayText(e.target.value); const t = e.target.value.trim(); setOverlays(t ? [{ text: t, position: 'bottom', size: 'small', box: true }] : []) }}
+            placeholder="On-screen text — contact info, title (optional)"
+            className="flex-1 min-w-0 bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50" />
+          {overlays.length > 0 && !overlayText && <span className="text-[10px] text-emerald-300/70">{overlays.length} set by chef</span>}
         </div>
 
         {/* Primary output action — always visible (even when the manual rows are

@@ -133,6 +133,48 @@ interface RenderRequest {
   motion?: boolean
   // Color grade / look applied to the whole cut — see COLOR_FILTERS keys.
   filter?: string
+  // Text overlays — title cards, lower-thirds, contact info. Burned into the cut.
+  overlays?: Overlay[]
+}
+
+interface Overlay {
+  text: string
+  position?: 'top' | 'center' | 'bottom'
+  size?: 'small' | 'medium' | 'large'
+  box?: boolean          // semi-transparent background bar (for contact info)
+  start?: number         // show from this second…
+  end?: number           // …until this second (both omitted = whole cut)
+}
+
+// Bundled font so drawtext works on the Linux render box WITHOUT fontconfig
+// (which ffmpeg-static lacks). Overlays are skipped if it's somehow missing.
+const OVERLAY_FONT = join(process.cwd(), 'public', 'fonts', 'Inter.ttf')
+
+// Build a comma-chained drawtext filter for the overlays. Uses textfile= (not
+// text=) so we never have to escape ffmpeg's delimiter hell — the user's text
+// goes to a temp file verbatim. Returns '' when there's nothing to draw.
+async function buildOverlayChain(overlays: Overlay[] | undefined, W: number, H: number, dir: string): Promise<string> {
+  if (!Array.isArray(overlays) || !overlays.length || !existsSync(OVERLAY_FONT)) return ''
+  const parts: string[] = []
+  for (let i = 0; i < Math.min(overlays.length, 4); i++) {
+    const ov = overlays[i]
+    const text = String(ov?.text || '').replace(/[\x00-\x1f]/g, ' ').trim().slice(0, 200)
+    if (!text) continue
+    const p = join(dir, `ov${i}.txt`)
+    await writeFile(p, text)
+    const factor = ov.size === 'large' ? 0.085 : ov.size === 'small' ? 0.038 : 0.052
+    const fs = Math.round(H * factor)
+    const pad = Math.round(H * 0.06)
+    const y = ov.position === 'top' ? `${pad}` : ov.position === 'center' ? '(h-th)/2' : `h-th-${pad}`
+    const style = ov.box
+      ? `:box=1:boxcolor=black@0.5:boxborderw=${Math.round(fs * 0.5)}`
+      : `:shadowcolor=black@0.6:shadowx=2:shadowy=2`
+    const enable = (typeof ov.start === 'number' && typeof ov.end === 'number' && ov.end > ov.start)
+      ? `:enable='between(t,${ov.start.toFixed(2)},${ov.end.toFixed(2)})'`
+      : ''
+    parts.push(`drawtext=fontfile='${OVERLAY_FONT}':textfile='${p}':fontcolor=white:fontsize=${fs}:x=(w-tw)/2:y=${y}${style}${enable}`)
+  }
+  return parts.join(',')
 }
 
 // Cinematic color-grade presets → ffmpeg video filter strings (all validated on
@@ -311,10 +353,17 @@ async function stitchBatched(body: RenderRequest, clipPaths: Clip[], durs: numbe
   // Cover a longer voiceover by freezing the last frame; only then do we have to
   // re-encode the video (otherwise the concatenated segments copy through cheap).
   const finalDur = Math.max(total, voiceDur)
+  const overlayChain = await buildOverlayChain(body.overlays, W, H, dir)
+  const vpad = finalDur - total
   let videoMap = '0:v'
   const videoCodec = ['-c:v', 'copy']
-  if (finalDur - total > 0.05) {
-    fp.push(`[0:v]tpad=stop_mode=clone:stop_duration=${(finalDur - total).toFixed(3)}[outv]`)
+  // Re-encode the concatenated video only if we must (freeze tail and/or text
+  // overlays); otherwise the segments copy through untouched.
+  const vfilters: string[] = []
+  if (vpad > 0.05) vfilters.push(`tpad=stop_mode=clone:stop_duration=${vpad.toFixed(3)}`)
+  if (overlayChain) vfilters.push(overlayChain)
+  if (vfilters.length) {
+    fp.push(`[0:v]${vfilters.join(',')}[outv]`)
     videoMap = '[outv]'; videoCodec[1] = 'libx264'; videoCodec.push('-preset', 'veryfast', '-pix_fmt', 'yuv420p')
   }
   // The clips' own sound is stream 0:a (from the concatenated segments). Mix any
@@ -481,6 +530,9 @@ async function stitch(body: RenderRequest, sources: Required<RenderSource>[], W:
     // Color grade over the whole cut so it shares one look.
     const colorFilter = colorFilterFor(body.filter)
     if (colorFilter) { parts.push(`${videoOut}${colorFilter}[graded]`); videoOut = '[graded]' }
+    // Text overlays (titles / lower-thirds / contact info) burned on top.
+    const overlayChain = await buildOverlayChain(body.overlays, W, H, dir)
+    if (overlayChain) { parts.push(`${videoOut}${overlayChain}[titled]`); videoOut = '[titled]' }
     if (musicIdx >= 0) {
       const vol = Math.max(0, Math.min(1, body.musicVolume ?? 0.3))
       parts.push(`[${musicIdx}:a]aloop=loop=-1:size=2147483647,volume=${vol}[mus]`); aLabels.push('[mus]')

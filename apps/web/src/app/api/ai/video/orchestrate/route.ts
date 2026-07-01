@@ -32,6 +32,7 @@ type Step =
   | { use: string }
   | { broll: 'from-still'; ref: string; prompt: string }
   | { broll: 'text'; prompt: string; seconds?: number }
+interface Overlay { text: string; position?: 'top' | 'center' | 'bottom'; size?: 'small' | 'medium' | 'large'; box?: boolean }
 interface Plan {
   title: string
   theme: string
@@ -40,8 +41,11 @@ interface Plan {
   look: string
   script: string
   steps: Step[]
+  overlays: Overlay[]
 }
 const LOOKS = ['none', 'cinematic', 'vibrant', 'warm', 'cool', 'noir', 'vintage', 'dramatic']
+const POSITIONS = ['top', 'center', 'bottom']
+const SIZES = ['small', 'medium', 'large']
 
 function systemPrompt(ids: string[], stillIds: string[]): string {
   return `You are a commercial video DIRECTOR assembling a finished cut from clips the user ALREADY has on their timeline, plus their one-line order. Your job: sequence those clips into a coherent ad/short, decide where B-roll improves the flow, write a voiceover, and choose the soundtrack mood + narrator voice.
@@ -60,9 +64,10 @@ Rules:
 - Bridge/B-roll prompts MUST match the established look so they cut together (same palette, lighting, lens, mood).
 - Write a voiceover "script" timed to roughly the whole cut — punchy, ad-style, no stage directions.
 - "theme": one line describing the shared look. "musicMood": one of [${MOODS.join(', ')}]. "voice": one of [${VOICES.join(', ')}]. "look": a color grade — one of [${LOOKS.join(', ')}] that fits the vibe (e.g. cinematic for a premium ad, vibrant for social, noir for moody).
+- "overlays": on-screen TEXT to burn in — ONLY when the order calls for it (a title card, a brand name, or CONTACT INFO like phone/website/address for an ad). Each: {"text": string, "position": "top"|"center"|"bottom", "size": "small"|"medium"|"large", "box": boolean}. A brand/title card → position "center", size "large", box false. Contact info → position "bottom", size "small", box true. Empty array [] when no on-screen text is wanted. Never invent contact details the user didn't give.
 
 Respond with ONLY a JSON object, no markdown fences:
-{"title":string,"theme":string,"musicMood":string,"voice":string,"look":string,"script":string,"steps":Step[]}`
+{"title":string,"theme":string,"musicMood":string,"voice":string,"look":string,"script":string,"steps":Step[],"overlays":Overlay[]}`
 }
 
 function parseJson(raw: string): any | null {
@@ -175,6 +180,15 @@ export async function POST(request: NextRequest) {
       look: LOOKS.includes(parsed.look) ? parsed.look : 'none',
       script: String(parsed.script || '').slice(0, 2000),
       steps,
+      overlays: (Array.isArray(parsed.overlays) ? parsed.overlays : [])
+        .filter((o: any) => o && typeof o.text === 'string' && o.text.trim())
+        .slice(0, 4)
+        .map((o: any) => ({
+          text: String(o.text).trim().slice(0, 200),
+          position: POSITIONS.includes(o.position) ? o.position : 'bottom',
+          size: SIZES.includes(o.size) ? o.size : 'medium',
+          box: !!o.box,
+        })),
     }
     return NextResponse.json(plan)
   } catch (error: any) {
