@@ -26,23 +26,27 @@ interface DirectorChatRequest {
 }
 interface DirectorChatResponse {
   reply: string
-  assemble: boolean
-  order: string | null
+  action: 'none' | 'generate' | 'assemble' | 'render'
+  shots: string[]        // for 'generate' — 1..4 vivid text-to-video shot prompts
+  order: string | null   // for 'assemble' — the one-line brief
 }
 
 function systemPrompt(clipLines: string[]): string {
-  return `You are a friendly, decisive video DIRECTOR — the "chef" of a video studio. The user TALKS to you (their messages may be voice transcripts) about the short video they want to make from the clips already on their timeline. Keep replies SHORT and warm — one or two sentences, like a real conversation, no lists or stage directions.
+  return `You are the CHEF — a friendly, decisive video director who DRIVES the whole studio for the user. They just TALK to you (messages may be voice transcripts); you do the work behind the scenes. Keep replies SHORT and warm — one or two sentences, conversational, and always say what you're about to do ("On it — cooking up 3 shots…"). No lists, no stage directions in the reply.
 
-Their timeline clips:
-${clipLines.length ? clipLines.join('\n') : '(none yet — encourage them to add a clip or two first)'}
+Their timeline right now:
+${clipLines.length ? clipLines.join('\n') : '(empty — nothing generated yet)'}
 
-Your job each turn:
-- If you have a clear sense of what they want (a vibe + rough length, or they say "make it"/"go"/"assemble"/"do it"/"build it"/"that's it"), set "assemble": true and write a single clear "order" line capturing the brief (e.g. "A punchy 20s upbeat product ad from these clips, with a quick voiceover."). Default to assembling rather than over-asking — one good clarifying question max across the whole chat.
-- Otherwise set "assemble": false, "order": null, and reply conversationally — react to what they said, optionally ask ONE quick question (length? mood? for social or a website?).
-- Never invent clips that aren't on the timeline. If the timeline is empty, don't assemble — tell them to add a clip first.
+Each turn, choose EXACTLY ONE action:
+- "generate": they want footage that doesn't exist yet (timeline empty, or they ask for more/different shots). Put 1–4 vivid shot prompts in "shots" (each: subject + setting + one motion + camera move + look; keep a consistent style across them). Never more than 4 at once — each is a real paid render.
+- "assemble": there ARE clips and they're ready (they say make it/go/put it together/that's it, or you have a clear vibe). Put the brief in "order" (e.g. "A punchy 20s upbeat product ad from these clips with a quick voiceover.").
+- "render": the cut is already assembled/staged and they want the final file (render/export/finish/done).
+- "none": just chatting or asking ONE quick clarifying question.
+
+Rules: never "assemble" or "render" an empty timeline — "generate" first. Prefer doing over asking; at most one clarifying question total. Don't repeat a big generate they already have.
 
 Respond with ONLY a JSON object, no markdown fences:
-{"reply": string, "assemble": boolean, "order": string|null}`
+{"reply": string, "action": "none"|"generate"|"assemble"|"render", "shots": string[], "order": string|null}`
 }
 
 function parseJson(raw: string): Partial<DirectorChatResponse> | null {
@@ -112,12 +116,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'The director returned an unreadable response.' }, { status: 502 })
     }
 
-    // Never assemble with an empty timeline, regardless of what the model said.
-    const assemble = !!parsed.assemble && hasClips && !!(parsed.order && parsed.order.trim())
+    // Validate the action. assemble/render require clips; generate caps at 4.
+    let action: DirectorChatResponse['action'] = ['none', 'generate', 'assemble', 'render'].includes(parsed.action as string) ? parsed.action as DirectorChatResponse['action'] : 'none'
+    const shots = Array.isArray(parsed.shots) ? parsed.shots.filter(s => typeof s === 'string' && s.trim()).map(s => String(s).trim().slice(0, 500)).slice(0, 4) : []
+    const order = parsed.order && String(parsed.order).trim() ? String(parsed.order).trim().slice(0, 500) : null
+
+    if (action === 'generate' && shots.length === 0) action = 'none'
+    if ((action === 'assemble' || action === 'render') && !hasClips) action = 'none'
+    if (action === 'assemble' && !order) action = 'none'
+
     const response: DirectorChatResponse = {
       reply: parsed.reply.slice(0, 1000),
-      assemble,
-      order: assemble ? String(parsed.order).trim().slice(0, 500) : null,
+      action,
+      shots: action === 'generate' ? shots : [],
+      order: action === 'assemble' ? order : null,
     }
     return NextResponse.json(response)
   } catch (error: any) {

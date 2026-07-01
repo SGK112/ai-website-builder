@@ -16,12 +16,14 @@ interface ClipIn { id: string; prompt?: string; kind?: 'image' | 'video'; hasUrl
 interface Props {
   open: boolean
   clips: ClipIn[]
-  assembling: boolean              // the Studio is executing an assemble (runDirector)
+  busy: boolean                    // the Studio is generating / assembling / rendering
+  onGenerate: (shots: string[]) => void
   onAssemble: (order: string) => void
+  onRender: () => void
   onClose: () => void
 }
 
-export default function DirectorChat({ open, clips, assembling, onAssemble, onClose }: Props) {
+export default function DirectorChat({ open, clips, busy, onGenerate, onAssemble, onRender, onClose }: Props) {
   const [messages, setMessages] = useState<Turn[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -45,12 +47,12 @@ export default function DirectorChat({ open, clips, assembling, onAssemble, onCl
         role: 'assistant',
         content: clips.length
           ? `Got ${clips.length} clip${clips.length !== 1 ? 's' : ''} on your timeline. What are we making? Tell me the vibe and I'll cut it together.`
-          : 'Add a clip or two to the timeline first, then tell me what to make.',
+          : `Tell me what you want and I'll cook it up — I can generate the footage, add B-roll, write a voiceover, and put the whole cut together. What are we making?`,
       }])
     }
   }, [open, clips.length])
 
-  useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }) }, [messages, sending, assembling])
+  useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }) }, [messages, sending, busy])
 
   // Stop audio + mic when the panel closes.
   useEffect(() => {
@@ -77,7 +79,7 @@ export default function DirectorChat({ open, clips, assembling, onAssemble, onCl
 
   async function send() {
     const content = input.trim()
-    if (!content || sending || assembling) return
+    if (!content || sending || busy) return
     setInput(''); setError(null)
     const base = [...messages, { role: 'user' as const, content }]
     setMessages(base); setSending(true)
@@ -91,7 +93,10 @@ export default function DirectorChat({ open, clips, assembling, onAssemble, onCl
       const reply = String(data.reply || '')
       setMessages(m => [...m, { role: 'assistant', content: reply }])
       void speakReply(reply)
-      if (data.assemble && data.order) onAssemble(String(data.order))
+      // The chef drives: run whichever action she chose behind the scenes.
+      if (data.action === 'generate' && Array.isArray(data.shots) && data.shots.length) onGenerate(data.shots)
+      else if (data.action === 'assemble' && data.order) onAssemble(String(data.order))
+      else if (data.action === 'render') onRender()
     } catch (e: any) {
       setError(e?.message || 'Director chat failed')
     } finally {
@@ -117,7 +122,7 @@ export default function DirectorChat({ open, clips, assembling, onAssemble, onCl
             <div key={i} className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${m.role === 'user' ? 'ml-auto bg-violet-600 text-white' : 'bg-white/5 text-zinc-200'}`}>{m.content}</div>
           ))}
           {sending && <div className="bg-white/5 text-zinc-400 rounded-2xl px-3 py-2 w-14 flex justify-center"><Loader2 className="w-4 h-4 animate-spin" /></div>}
-          {assembling && <div className="bg-violet-500/15 text-violet-200 rounded-2xl px-3 py-2 text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Assembling your cut — close this and watch the timeline.</div>}
+          {busy && <div className="bg-violet-500/15 text-violet-200 rounded-2xl px-3 py-2 text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> On it — working behind the scenes. Watch the timeline.</div>}
           {error && <div className="text-rose-300 text-xs px-1">{error}</div>}
         </div>
 
@@ -127,15 +132,15 @@ export default function DirectorChat({ open, clips, assembling, onAssemble, onCl
             <input
               value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') send() }}
               placeholder={mic.listening ? 'Listening…' : mic.transcribing ? 'Transcribing…' : 'Tell the director what to make…'}
-              disabled={mic.listening || mic.transcribing || assembling}
+              disabled={mic.listening || mic.transcribing || busy}
               className="flex-1 min-w-0 bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50 disabled:opacity-70" />
             {mic.supported && (
-              <button onClick={mic.toggle} disabled={sending || assembling || mic.transcribing} aria-label={mic.listening ? 'Stop' : 'Speak'}
+              <button onClick={mic.toggle} disabled={sending || busy || mic.transcribing} aria-label={mic.listening ? 'Stop' : 'Speak'}
                 className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-white disabled:opacity-40 ${mic.listening ? 'bg-rose-500 animate-pulse' : 'bg-white/10 hover:bg-white/20'}`}>
                 {mic.transcribing ? <Loader2 className="w-4 h-4 animate-spin" /> : mic.listening ? <Square className="w-4 h-4 fill-current" /> : <Mic className="w-5 h-5" />}
               </button>
             )}
-            <button onClick={send} disabled={!input.trim() || sending || assembling} aria-label="Send"
+            <button onClick={send} disabled={!input.trim() || sending || busy} aria-label="Send"
               className="shrink-0 w-11 h-11 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white flex items-center justify-center"><Send className="w-5 h-5" /></button>
           </div>
         </div>

@@ -80,6 +80,7 @@ export default function VideoStudio() {
   const [directorOrder, setDirectorOrder] = useState('')
   const [directing, setDirecting] = useState(false)
   const [directorChatOpen, setDirectorChatOpen] = useState(false)
+  const [showManual, setShowManual] = useState(false) // mobile: manual tools are opt-in behind chat-first
   // Speak the order instead of typing it (mic → STT → fills the order box).
   const orderMic = useSpeechToText((t) => setDirectorOrder(prev => (prev.trim() ? prev.trim() + ' ' : '') + t))
   const [writingScript, setWritingScript] = useState(false)
@@ -464,6 +465,30 @@ export default function VideoStudio() {
     }
   }
 
+  // The chef drives clip creation too: generate a small batch of text-to-video
+  // shots (from the chat) and append them to the timeline, sharing one theme so
+  // they cut together. Sequential (backend meters credits + rate-limits).
+  async function generateClipsFromChat(shots: string[]) {
+    const list = shots.filter(s => s && s.trim()).slice(0, 4)
+    if (!list.length) return
+    setStitched(null); setShareUrl(null)
+    setGenerating(true); setError(null)
+    const hadTheme = !!theme.trim()
+    let effTheme = theme.trim()
+    if (!effTheme) { effTheme = (style ? `${list[0].slice(0, 200)} · ${style} look` : list[0].slice(0, 200)); setTheme(effTheme) }
+    let failures = 0
+    for (let k = 0; k < list.length; k++) {
+      const id = newClipId()
+      const genPrompt = (k === 0 && !hadTheme) ? list[0] : withTheme(list[k], effTheme)
+      setClips(prev => [...prev, { id, prompt: list[k], status: 'generating' }])
+      setSelectedId(id)
+      const err = await runClipJob(id, genPrompt, [], s => setGenLabel(`Chef · shot ${k + 1}/${list.length} · ${s}`))
+      if (err) failures++
+    }
+    setGenerating(false); setGenLabel('')
+    if (failures) setError(`${failures} of ${list.length} shots failed — ask me to retry, or render what worked.`)
+  }
+
   async function uploadMusic(file: File) {
     setUploadingMusic(true); setError(null)
     try {
@@ -740,6 +765,19 @@ export default function VideoStudio() {
       <div className="flex-1 flex flex-col md:flex-row min-h-0">
         {/* CREATE rail */}
         <div className="w-full md:w-72 shrink-0 border-b md:border-r border-white/10 md:overflow-y-auto p-3 space-y-3">
+          {/* Mobile is chat-first: the chef drives everything (generate, B-roll,
+              assemble, render). Manual tools are opt-in behind a toggle; on
+              desktop they're always shown. */}
+          <div className="md:hidden space-y-2">
+            <button onClick={() => setDirectorChatOpen(true)}
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 text-white text-sm font-semibold py-3 shadow-lg shadow-violet-600/20">
+              <Clapperboard className="w-4 h-4" /> Talk to the chef
+            </button>
+            <button onClick={() => setShowManual(s => !s)} className="w-full text-[11px] text-zinc-500 hover:text-zinc-300 py-1">
+              {showManual ? 'Hide manual tools ▲' : 'Manual tools ▾'}
+            </button>
+          </div>
+          <div className={`space-y-3 ${showManual ? '' : 'hidden'} md:block`}>
           <div className="flex gap-1.5">
             <button onClick={() => setMode('text')} className={`flex-1 rounded-lg py-1.5 text-xs font-medium ${mode === 'text' ? 'bg-violet-600 text-white' : 'bg-white/5 text-zinc-400'}`}>Text → Video</button>
             <button onClick={() => setMode('image')} className={`flex-1 rounded-lg py-1.5 text-xs font-medium ${mode === 'image' ? 'bg-violet-600 text-white' : 'bg-white/5 text-zinc-400'}`}>Image / Video</button>
@@ -895,6 +933,7 @@ export default function VideoStudio() {
             </div>
           )}
           {error && <div className="flex items-start gap-1.5 text-[11px] text-red-300 bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-1.5"><AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" /><span>{error}</span></div>}
+          </div>
         </div>
 
         {/* PREVIEW */}
@@ -1110,12 +1149,15 @@ export default function VideoStudio() {
         onClose={() => setDirectorOpen(false)}
       />
 
-      {/* Conversational voice CHEF — talk to it, it assembles the whole cut. */}
+      {/* Conversational voice CHEF — talk to it; it generates, assembles, and
+          renders behind the scenes (the AI drives the boat). */}
       <DirectorChat
         open={directorChatOpen}
         clips={doneClips.map(c => ({ id: c.id, prompt: c.prompt, kind: c.kind === 'image' ? 'image' : 'video', hasUrl: true }))}
-        assembling={directing}
-        onAssemble={(order) => { setDirectorOrder(order); setDirectorChatOpen(false); void runDirector(order) }}
+        busy={busy}
+        onGenerate={(shots) => { void generateClipsFromChat(shots) }}
+        onAssemble={(order) => { setDirectorOrder(order); void runDirector(order) }}
+        onRender={() => { void stitchAndExport() }}
         onClose={() => setDirectorChatOpen(false)}
       />
     </div>
