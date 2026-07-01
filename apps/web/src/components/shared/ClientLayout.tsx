@@ -16,8 +16,11 @@ export function ClientLayout({ children }: ClientLayoutProps) {
   // WorkspaceNav on top of them. Everything else gets ONE consistent nav:
   // WorkspaceNav. (/templates + /profile used to render a second, different
   // nav — WebStewNav — which is why the app had two top-navs. Removed.)
-  const ownNavPrefixes = ['/auth/', '/workspace', '/create/']
-  const hideNavExact = ['/', '/login', '/signup', '/auth', '/workspace', '/create']
+  // /video is the Video Studio — it has its OWN header (title + New/Saved/
+  // Workspace), so the global nav on top of it was a redundant second bar that
+  // also collided with the iPhone status bar. Hide it there too.
+  const ownNavPrefixes = ['/auth/', '/workspace', '/create/', '/video']
+  const hideNavExact = ['/', '/login', '/signup', '/auth', '/workspace', '/create', '/video']
   const shouldHideNav =
     hideNavExact.includes(pathname) || ownNavPrefixes.some((p) => pathname.startsWith(p))
 

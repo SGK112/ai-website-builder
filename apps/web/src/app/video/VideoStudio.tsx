@@ -744,9 +744,10 @@ export default function VideoStudio() {
   // layout's pt-16). h-screen here overflowed by 64px and pushed the timeline +
   // voice tracks off the bottom of the viewport.
   return (
-    <div className="min-h-[calc(100vh-4rem)] md:h-[calc(100vh-4rem)] flex flex-col bg-zinc-950 text-zinc-200 md:overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10 shrink-0">
+    <div className="min-h-[100dvh] md:h-[100dvh] flex flex-col bg-zinc-950 text-zinc-200 md:overflow-hidden">
+      {/* Header — pad the top by the iPhone safe-area inset so it clears the
+          status bar / Dynamic Island (the page paints behind the notch). */}
+      <div className="flex items-center justify-between px-4 pb-2.5 pt-[calc(env(safe-area-inset-top)+0.625rem)] border-b border-white/10 shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-violet-500/20 flex items-center justify-center"><Clapperboard className="w-4 h-4 text-violet-300" /></div>
           <div>
@@ -993,7 +994,7 @@ export default function VideoStudio() {
                 {c.status === 'done' && c.url ? (
                   c.kind === 'image'
                     ? <div className="relative"><img src={c.url} alt="" className="w-full h-16 object-cover bg-black" /><span className="absolute bottom-0.5 right-0.5 text-[8px] px-1 rounded bg-black/70 text-fuchsia-200">slide {c.seconds || 4}s</span></div>
-                    : <div className="relative"><video src={c.url} muted className="w-full h-16 object-cover bg-black" />{c.broll && <span className="absolute bottom-0.5 right-0.5 text-[8px] px-1 rounded bg-cyan-600/80 text-white">B-roll</span>}</div>
+                    : <div className="relative"><video src={`${c.url}#t=0.1`} muted playsInline preload="metadata" className="w-full h-16 object-cover bg-black" />{c.broll && <span className="absolute bottom-0.5 right-0.5 text-[8px] px-1 rounded bg-cyan-600/80 text-white">B-roll</span>}</div>
                 ) : (
                   <div className="w-full h-16 flex flex-col items-center justify-center gap-1 bg-zinc-900 text-[9px] text-zinc-400 px-1 text-center">
                     {c.status === 'generating'
@@ -1018,8 +1019,8 @@ export default function VideoStudio() {
           </div>
         </div>
 
-        {/* VOICE track */}
-        <div className="flex flex-wrap items-center gap-2 md:gap-3">
+        {/* VOICE track — manual; hidden on mobile (the chef sets it), shown on desktop or via Manual tools */}
+        <div className={`${showManual ? 'flex' : 'hidden'} md:flex flex-wrap items-center gap-2 md:gap-3`}>
           <span className="w-16 shrink-0 text-[11px] font-semibold text-violet-300 flex items-center gap-1"><Volume2 className="w-3.5 h-3.5" /> Voice</span>
           <input value={script || narrationText} onChange={e => (script ? setScript(e.target.value) : setNarrationText(e.target.value))}
             placeholder="Voiceover line / notes (optional)"
@@ -1028,8 +1029,8 @@ export default function VideoStudio() {
           <select value={voice} onChange={e => setVoice(e.target.value)} className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white capitalize">{TTS_VOICES.map(v => <option key={v} value={v}>{v}</option>)}</select>
         </div>
 
-        {/* MUSIC track */}
-        <div className="flex flex-wrap items-center gap-2 md:gap-3">
+        {/* MUSIC track — manual; hidden on mobile (the chef picks it), shown on desktop or via Manual tools */}
+        <div className={`${showManual ? 'flex' : 'hidden'} md:flex flex-wrap items-center gap-2 md:gap-3`}>
           <span className="w-16 shrink-0 text-[11px] font-semibold text-fuchsia-300 flex items-center gap-1"><Music className="w-3.5 h-3.5" /> Music</span>
           {hasMusic ? (
             <>
@@ -1050,10 +1051,13 @@ export default function VideoStudio() {
             </div>
           )}
           <input ref={musicInputRef} type="file" accept="audio/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadMusic(f) }} />
-          {/* Primary action — full-width + its own row on mobile so it's never
-              lost in the wrap; tucks to the right inline on desktop. */}
+        </div>
+
+        {/* Primary output action — always visible (even when the manual rows are
+            collapsed on mobile). Full-width on mobile; right-aligned on desktop. */}
+        <div className="flex">
           <button onClick={stitchAndExport} disabled={busy || doneClips.length < 1}
-            className="w-full md:w-auto md:ml-auto mt-1 md:mt-0 flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-violet-600 hover:from-fuchsia-500 disabled:opacity-40 text-white text-sm font-semibold px-4 py-3 md:py-2.5">
+            className="w-full md:w-auto md:ml-auto flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-fuchsia-600 to-violet-600 hover:from-fuchsia-500 disabled:opacity-40 text-white text-sm font-semibold px-4 py-3 md:py-2.5">
             {stitching ? <><Loader2 className="w-4 h-4 animate-spin" /> {stitchStage}{stitchProgress > 0 ? ` ${stitchProgress}%` : ''}</> : <><Wand2 className="w-4 h-4" /> Render film {doneClips.length > 1 ? `(${doneClips.length} clips)` : ''}</>}
           </button>
         </div>
