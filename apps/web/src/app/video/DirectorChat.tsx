@@ -108,7 +108,7 @@ export default function DirectorChat({ open, clips, busy, onGenerate, onAssemble
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label="Talk to the director">
       <div className="flex-1 bg-black/50" onClick={onClose} />
-      <div className="w-full max-w-md h-[100dvh] bg-zinc-950 border-l border-white/10 flex flex-col">
+      <div className="w-full max-w-md h-[100dvh] bg-zinc-950 border-l border-white/10 flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] border-b border-white/10 shrink-0">
           <div className="flex items-center gap-2 text-sm font-semibold text-white"><Clapperboard className="w-4 h-4 text-violet-300" /> Talk to the chef</div>
           <div className="flex items-center gap-1">
@@ -128,20 +128,20 @@ export default function DirectorChat({ open, clips, busy, onGenerate, onAssemble
 
         <div className="p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] border-t border-white/10 shrink-0">
           {mic.error && <p className="text-[10px] text-rose-300/80 mb-1">{mic.error}</p>}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 w-full">
             <input
               value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') send() }}
-              placeholder={mic.listening ? 'Listening…' : mic.transcribing ? 'Transcribing…' : 'Tell the director what to make…'}
+              placeholder={mic.listening ? 'Listening…' : mic.transcribing ? 'Transcribing…' : 'Tell the director…'}
               disabled={mic.listening || mic.transcribing || busy}
               className="flex-1 min-w-0 bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50 disabled:opacity-70" />
             {mic.supported && (
               <button onClick={mic.toggle} disabled={sending || busy || mic.transcribing} aria-label={mic.listening ? 'Stop' : 'Speak'}
-                className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-white disabled:opacity-40 ${mic.listening ? 'bg-rose-500 animate-pulse' : 'bg-white/10 hover:bg-white/20'}`}>
+                className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-white disabled:opacity-40 ${mic.listening ? 'bg-rose-500 animate-pulse' : 'bg-white/10 hover:bg-white/20'}`}>
                 {mic.transcribing ? <Loader2 className="w-4 h-4 animate-spin" /> : mic.listening ? <Square className="w-4 h-4 fill-current" /> : <Mic className="w-5 h-5" />}
               </button>
             )}
             <button onClick={send} disabled={!input.trim() || sending || busy} aria-label="Send"
-              className="shrink-0 w-11 h-11 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white flex items-center justify-center"><Send className="w-5 h-5" /></button>
+              className="shrink-0 w-10 h-10 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white flex items-center justify-center"><Send className="w-5 h-5" /></button>
           </div>
         </div>
       </div>
