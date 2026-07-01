@@ -11,6 +11,8 @@ import DirectorChat from './DirectorChat'
 import SellCreationModal from './SellCreationModal'
 import { STUDIO_MUSIC, trackById, trackSrc } from '@/lib/studio-music'
 import { useSpeechToText } from '@/hooks/useSpeechToText'
+import { InlineUpgradeModal } from '@/components/builder/InlineUpgradeModal'
+import { useRouter } from 'next/navigation'
 
 // One unified workspace (YouTube-Studio style): generate clips on the left, see
 // them in the preview, line them up on the timeline at the bottom, add a
@@ -73,6 +75,16 @@ export default function VideoStudio() {
   const [generating, setGenerating] = useState(false)
   const [genLabel, setGenLabel] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [upgradeOpen, setUpgradeOpen] = useState(false)
+  const router = useRouter()
+  // Turn a paid-op response into the right wall: out-of-credits → upgrade modal,
+  // not-signed-in → the sign-in funnel. Returns true if it WAS a wall (so the
+  // caller stops quietly instead of showing a raw error). Same UX as the builder.
+  function maybeShowWall(res: Response, data: any): boolean {
+    if (res.status === 401 || data?.requireAuth) { router.push('/login?next=%2Fvideo'); return true }
+    if (res.status === 402 || data?.requireCredits || data?.reason === 'insufficient_credits') { setUpgradeOpen(true); return true }
+    return false
+  }
 
   // Voice track (narration)
   const [narrationText, setNarrationText] = useState('')
@@ -296,7 +308,10 @@ export default function VideoStudio() {
       label('Sending to ' + modelLabel + '…')
       const res = await fetch('/api/ai/video', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const data = await res.json().catch(() => ({} as any))
-      if (!res.ok || !data.id) throw new Error(data.error || `Couldn't start generation (HTTP ${res.status}).`)
+      if (!res.ok || !data.id) {
+        if (maybeShowWall(res, data)) throw new Error(res.status === 401 ? 'Sign in to keep creating.' : 'Out of credits — add more to keep generating.')
+        throw new Error(data.error || `Couldn't start generation (HTTP ${res.status}).`)
+      }
       label('Rendering your clip…')
       const startedAt = Date.now()
       for (let i = 0; i < 80; i++) {
@@ -616,7 +631,10 @@ export default function VideoStudio() {
         }),
       })
       const data = await res.json().catch(() => ({} as any))
-      if (!res.ok || !data.jobId) throw new Error(data.error || `Couldn't start the render (HTTP ${res.status}).`)
+      if (!res.ok || !data.jobId) {
+        if (maybeShowWall(res, data)) throw new Error(res.status === 401 ? 'Sign in to render.' : 'Out of credits — add more to render.')
+        throw new Error(data.error || `Couldn't start the render (HTTP ${res.status}).`)
+      }
 
       // Initial state may be 'queued' (another render is running — only 1 runs
       // at a time so they can't OOM the server) or 'processing'.
@@ -1231,6 +1249,9 @@ export default function VideoStudio() {
         onRender={() => { void stitchAndExport() }}
         onClose={() => setDirectorChatOpen(false)}
       />
+
+      {/* Out-of-credits wall — same upgrade UX as the builder (not a raw error). */}
+      <InlineUpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} trigger="out_of_credits" />
     </div>
   )
 }
