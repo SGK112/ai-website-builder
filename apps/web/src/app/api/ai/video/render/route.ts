@@ -64,8 +64,12 @@ const renderQueue: QueuedRender[] = []
 const ALLOWED_HOSTS = ['x.ai', 'replicate.delivery', 'replicate.com', 'res.cloudinary.com', 'cloudinary.com', 'soundhelix.com', 'cdn.pixabay.com']
 const hostOk = (u: URL) => u.protocol === 'https:' && ALLOWED_HOSTS.some(h => u.hostname === h || u.hostname.endsWith(`.${h}`))
 
+// Output resolution per aspect ratio. 1080p-class — a big jump from the old
+// 720p, and safe on the 2GB box with the clip-batching in place. True 4K
+// (3840x2160) needs the dedicated render worker + AI upscaled sources; a plain
+// 4K encode here would OOM. Can be overridden per request via body.resolution.
 const DIMS: Record<string, [number, number]> = {
-  '16:9': [1280, 720], '9:16': [720, 1280], '1:1': [720, 720], '4:5': [720, 900],
+  '16:9': [1920, 1080], '9:16': [1080, 1920], '1:1': [1080, 1080], '4:5': [1080, 1350],
 }
 
 // ── The chef's seasoning ─────────────────────────────────────────────────────
@@ -86,7 +90,9 @@ function clipVideoFilter(kind: 'image' | 'video', secs: number, W: number, H: nu
     return `scale=${W}:${H}:force_original_aspect_ratio=decrease,${pad},setsar=1,fps=24`
   }
   const frames = Math.max(1, Math.round(secs * 24))
-  const W2 = W * 2, H2 = H * 2 // upscale so the zoom always has source pixels (sharp)
+  // Upscale the still ~1.5x before the zoom so it stays sharp (max zoom is 1.18)
+  // WITHOUT a 2x (=4K at 1080p) intermediate that would strain the 2GB box.
+  const W2 = Math.round(W * 1.5), H2 = Math.round(H * 1.5)
   const z = i % 2 === 0
     ? `min(zoom+0.0012,1.18)`                        // slow push in
     : `if(eq(on,1),1.18,max(zoom-0.0019,1.001))`     // pull back / reveal
@@ -114,7 +120,6 @@ interface RenderSource {
 interface RenderRequest {
   sources?: RenderSource[]   // ordered timeline (videos + images); preferred
   clipUrls?: string[]        // legacy: video-only timeline (still accepted)
-  clipsHaveAudio?: boolean
   script?: string
   voice?: string
   musicUrl?: string | null
@@ -126,7 +131,23 @@ interface RenderRequest {
   // On by default — a render with no pizazz is just a slideshow. Set false for
   // a plain hard slideshow (e.g. when the clips are already animated B-roll).
   motion?: boolean
+  // Color grade / look applied to the whole cut — see COLOR_FILTERS keys.
+  filter?: string
 }
+
+// Cinematic color-grade presets → ffmpeg video filter strings (all validated on
+// ffmpeg 6). Applied once over the finished cut so the whole thing shares a look.
+const COLOR_FILTERS: Record<string, string> = {
+  none: '',
+  cinematic: 'curves=preset=medium_contrast,eq=saturation=1.12:gamma=0.97,colorbalance=rs=-0.04:bs=0.05',
+  vibrant: 'eq=saturation=1.4:contrast=1.08',
+  warm: 'colorbalance=rs=0.10:gs=0.02:bs=-0.08,eq=saturation=1.08',
+  cool: 'colorbalance=rs=-0.08:bs=0.10,eq=saturation=1.04',
+  noir: 'hue=s=0,eq=contrast=1.35:brightness=-0.02',
+  vintage: 'curves=preset=vintage,eq=saturation=0.85',
+  dramatic: 'eq=contrast=1.28:saturation=1.12:gamma=0.9',
+}
+const colorFilterFor = (key?: string): string => COLOR_FILTERS[(key || 'none').toLowerCase()] || ''
 
 // Persist a finished render to the user's Saved Creations so it survives even
 // if the browser gave up polling. De-duped by URL; mirrors the creations route.
@@ -215,7 +236,7 @@ type Clip = { path: string; kind: 'image' | 'video'; secs: number; hasAudio: boo
 // audio (music/voice/scene) is mixed once in the final concat pass. Returns the
 // segment path + its crossfade-adjusted duration. Bounded input count = bounded
 // peak memory — this is what keeps long timelines off the OOM cliff.
-async function renderSegment(clips: Clip[], durs: number[], W: number, H: number, dir: string, idx: number, motion: boolean, baseIdx: number): Promise<{ seg: string; outDur: number }> {
+async function renderSegment(clips: Clip[], durs: number[], W: number, H: number, dir: string, idx: number, motion: boolean, baseIdx: number, colorFilter: string): Promise<{ seg: string; outDur: number }> {
   const args: string[] = []
   clips.forEach(p => { args.push(...inputArgsFor(p, motion)) })
   const n = clips.length
@@ -252,8 +273,11 @@ async function renderSegment(clips: Clip[], durs: number[], W: number, H: number
   } else {
     parts.push(`${clips.map((_, i) => `[sa${i}]`).join('')}concat=n=${n}:v=0:a=1[outa]`)
   }
+  // Apply the color grade per segment (they already re-encode, so it's free).
+  let vOut = '[outv]'
+  if (colorFilter) { parts.push(`[outv]${colorFilter}[outvf]`); vOut = '[outvf]' }
   const seg = join(dir, `seg${idx}.mp4`)
-  args.push('-filter_complex', parts.join(';'), '-map', '[outv]', '-map', '[outa]', '-t', outDur.toFixed(3))
+  args.push('-filter_complex', parts.join(';'), '-map', vOut, '-map', '[outa]', '-t', outDur.toFixed(3))
   args.push('-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-movflags', '+faststart', '-y', seg)
   await runFfmpeg(args)
   return { seg, outDur }
@@ -265,12 +289,13 @@ async function renderSegment(clips: Clip[], durs: number[], W: number, H: number
 // into long cuts too — voiceover + music mix ON TOP, never replacing it.
 async function stitchBatched(body: RenderRequest, clipPaths: Clip[], durs: number[], W: number, H: number, dir: string, voicePath: string, musicPath: string, voiceDur: number): Promise<string> {
   const motion = body.motion !== false
+  const colorFilter = colorFilterFor(body.filter)
   const segs: string[] = []
   let total = 0
   for (let b = 0; b * SEGMENT_MAX < clipPaths.length; b++) {
     const cs = clipPaths.slice(b * SEGMENT_MAX, (b + 1) * SEGMENT_MAX)
     const ds = durs.slice(b * SEGMENT_MAX, (b + 1) * SEGMENT_MAX)
-    const { seg, outDur } = await renderSegment(cs, ds, W, H, dir, b, motion, b * SEGMENT_MAX)
+    const { seg, outDur } = await renderSegment(cs, ds, W, H, dir, b, motion, b * SEGMENT_MAX, colorFilter)
     segs.push(seg)
     total += outDur
   }
@@ -453,6 +478,9 @@ async function stitch(body: RenderRequest, sources: Required<RenderSource>[], W:
       parts.push(`[vbase]tpad=stop_mode=clone:stop_duration=${(finalDur - outDur).toFixed(3)}[outv]`)
       videoOut = '[outv]'
     }
+    // Color grade over the whole cut so it shares one look.
+    const colorFilter = colorFilterFor(body.filter)
+    if (colorFilter) { parts.push(`${videoOut}${colorFilter}[graded]`); videoOut = '[graded]' }
     if (musicIdx >= 0) {
       const vol = Math.max(0, Math.min(1, body.musicVolume ?? 0.3))
       parts.push(`[${musicIdx}:a]aloop=loop=-1:size=2147483647,volume=${vol}[mus]`); aLabels.push('[mus]')

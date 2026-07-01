@@ -32,6 +32,8 @@ const VIDEO_MODELS = [
 const ASPECTS = ['16:9', '9:16', '1:1', '4:5']
 const STYLES = ['Cinematic', 'Realistic', 'Anime', '3D Render', 'Documentary', 'Slow Motion']
 const TTS_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
+// Color-grade looks (must match COLOR_FILTERS keys in the render route).
+const LOOKS = ['none', 'cinematic', 'vibrant', 'warm', 'cool', 'noir', 'vintage', 'dramatic']
 
 // How many source images you can stage at once (each becomes its own clip in
 // "Make ad" mode). Independent of a model's per-clip reference-image cap.
@@ -76,6 +78,7 @@ export default function VideoStudio() {
   const [narrationText, setNarrationText] = useState('')
   const [script, setScript] = useState('')
   const [voice, setVoice] = useState('onyx')
+  const [look, setLook] = useState('none') // color-grade filter applied to the whole cut
   // AI Director — "give the chef an order, she assembles the whole cut".
   const [directorOrder, setDirectorOrder] = useState('')
   const [directing, setDirecting] = useState(false)
@@ -445,6 +448,7 @@ export default function VideoStudio() {
       if (plan.theme) setTheme(effTheme)
       if (plan.script) setScript(String(plan.script))
       if (plan.voice && TTS_VOICES.includes(plan.voice)) setVoice(plan.voice)
+      if (plan.look && LOOKS.includes(plan.look)) setLook(plan.look)
       // Only add a soundtrack when the existing clips DON'T already carry their
       // own audio — never layer music over dialogue/scene sound. The user can
       // still add music manually if they want it on top.
@@ -591,8 +595,7 @@ export default function VideoStudio() {
           // no AI). Legacy clipUrls kept so an older server still works.
           sources: doneClips.map(c => ({ url: c.url, kind: c.kind === 'image' ? 'image' : 'video', seconds: c.seconds })),
           clipUrls: doneClips.map(c => c.url),
-          // Scene audio only when EVERY clip is a video that carries it — slides have none.
-          clipsHaveAudio: doneClips.length > 0 && doneClips.every(c => c.kind !== 'image' && c.audio === true),
+          // (Scene audio is now detected per-clip on the server — no client flag.)
           // Speak whatever's in the Voice box — the polished "Write" output if
           // there is one, else the user's raw typed line. (Previously a line
           // typed without clicking Write was silently dropped from the render.)
@@ -602,6 +605,7 @@ export default function VideoStudio() {
           musicTrackId: musicTrackId || undefined,
           musicVolume,
           aspectRatio,
+          filter: look !== 'none' ? look : undefined,
           title: prompt.trim() || script.trim().slice(0, 80) || 'Untitled film',
         }),
       })
@@ -1087,6 +1091,16 @@ export default function VideoStudio() {
             </div>
           )}
           <input ref={musicInputRef} type="file" accept="audio/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadMusic(f) }} />
+        </div>
+
+        {/* LOOK — color grade over the whole cut; manual, collapsed on mobile */}
+        <div className={`${showManual ? 'flex' : 'hidden'} md:flex flex-wrap items-center gap-2 md:gap-3`}>
+          <span className="w-16 shrink-0 text-[11px] font-semibold text-amber-300 flex items-center gap-1"><Sparkles className="w-3.5 h-3.5" /> Look</span>
+          <div className="flex-1 flex gap-1.5 overflow-x-auto pb-1">
+            {LOOKS.map(l => (
+              <button key={l} onClick={() => setLook(l)} className={`shrink-0 rounded-lg px-2.5 py-1.5 text-xs capitalize border ${look === l ? 'border-amber-400 bg-amber-500/15 text-amber-100' : 'border-white/10 text-zinc-400 hover:text-white'}`}>{l === 'none' ? 'None' : l}</button>
+            ))}
+          </div>
         </div>
 
         {/* Primary output action — always visible (even when the manual rows are

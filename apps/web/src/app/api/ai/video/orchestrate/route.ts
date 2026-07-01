@@ -37,9 +37,11 @@ interface Plan {
   theme: string
   musicMood: string
   voice: string
+  look: string
   script: string
   steps: Step[]
 }
+const LOOKS = ['none', 'cinematic', 'vibrant', 'warm', 'cool', 'noir', 'vintage', 'dramatic']
 
 function systemPrompt(ids: string[], stillIds: string[]): string {
   return `You are a commercial video DIRECTOR assembling a finished cut from clips the user ALREADY has on their timeline, plus their one-line order. Your job: sequence those clips into a coherent ad/short, decide where B-roll improves the flow, write a voiceover, and choose the soundtrack mood + narrator voice.
@@ -57,10 +59,10 @@ Rules:
 - Be economical with B-roll (each is a real, paid generation): at most ${Math.max(2, ids.length)} B-roll steps total. Prefer "from-still" (reuses the user's real content) over "text" when stills exist.
 - Bridge/B-roll prompts MUST match the established look so they cut together (same palette, lighting, lens, mood).
 - Write a voiceover "script" timed to roughly the whole cut — punchy, ad-style, no stage directions.
-- "theme": one line describing the shared look. "musicMood": one of [${MOODS.join(', ')}]. "voice": one of [${VOICES.join(', ')}].
+- "theme": one line describing the shared look. "musicMood": one of [${MOODS.join(', ')}]. "voice": one of [${VOICES.join(', ')}]. "look": a color grade — one of [${LOOKS.join(', ')}] that fits the vibe (e.g. cinematic for a premium ad, vibrant for social, noir for moody).
 
 Respond with ONLY a JSON object, no markdown fences:
-{"title":string,"theme":string,"musicMood":string,"voice":string,"script":string,"steps":Step[]}`
+{"title":string,"theme":string,"musicMood":string,"voice":string,"look":string,"script":string,"steps":Step[]}`
 }
 
 function parseJson(raw: string): any | null {
@@ -170,6 +172,7 @@ export async function POST(request: NextRequest) {
       theme: String(parsed.theme || '').slice(0, 400),
       musicMood: MOODS.includes(parsed.musicMood) ? parsed.musicMood : 'Upbeat',
       voice: VOICES.includes(parsed.voice) ? parsed.voice : 'onyx',
+      look: LOOKS.includes(parsed.look) ? parsed.look : 'none',
       script: String(parsed.script || '').slice(0, 2000),
       steps,
     }

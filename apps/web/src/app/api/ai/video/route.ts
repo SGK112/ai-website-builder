@@ -287,7 +287,7 @@ function buildTextToVideoInput(body: VideoRequest, model: typeof MODELS[ModelKey
       prompt,
       duration,
       aspect_ratio: aspectRatio,
-      resolution: body.resolution ?? '480p',
+      resolution: body.resolution ?? '1080p',
       fps: body.fps ?? 24,
       camera_fixed: false,
     }
@@ -326,7 +326,7 @@ function buildImageToVideoInput(body: VideoRequest, model: typeof MODELS[ModelKe
       prompt: body.prompt ? enhancePrompt(body.prompt) : 'Smooth natural motion',
       duration,
       aspect_ratio: body.aspectRatio ?? '16:9',
-      resolution: body.resolution ?? '480p',
+      resolution: body.resolution ?? '1080p',
       fps: body.fps ?? 24,
       camera_fixed: false,
     }
