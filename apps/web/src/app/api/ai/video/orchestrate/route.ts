@@ -60,7 +60,12 @@ Output a PLAN as ordered "steps". Each step is exactly one of:
 
 Rules:
 - Include EVERY existing clip at least once, in a sensible order (hook → build → payoff). You may interleave B-roll between them.
-- Be economical with B-roll (each is a real, paid generation): at most ${Math.max(2, ids.length)} B-roll steps total. Prefer "from-still" (reuses the user's real content) over "text" when stills exist.
+- Be economical with B-roll (each is a real, paid generation): at most ${Math.max(2, ids.length)} B-roll steps total.
+
+AVOIDING AI SLOP — CRITICAL. Today's AI video models CANNOT render realistic human action. A person installing a countertop, hands assembling/lifting/manipulating objects, anyone performing a physical task → comes out fake, floppy, dreamlike ("slop"). NEVER write a B-roll prompt with a person doing a complex physical action. Instead:
+- STRONGLY prefer "from-still" — animate the user's OWN photos with a SUBTLE slow camera move (gentle push-in, slow pan, rack focus). Real photos never look like slop. If stills exist, lean on them heavily.
+- For "text" B-roll, generate ONLY shots the models do beautifully: slow cinematic camera moves over a STATIC subject (push-in, pan, aerial, dolly, orbit), product/detail BEAUTY shots (a polished granite slab catching light, a close-up of a finished edge, a finished kitchen at golden hour), atmospheric/establishing shots (a showroom, materials, textures), light and reflections. NO people performing tasks. Keep motion simple and physical — one slow move, no action.
+- When in doubt, use the real footage/stills the user gave, not a generated action shot.
 - Bridge/B-roll prompts MUST match the established look so they cut together (same palette, lighting, lens, mood).
 - Write a voiceover "script" timed to roughly the whole cut — punchy, ad-style, no stage directions.
 - "theme": one line describing the shared look. "musicMood": one of [${MOODS.join(', ')}]. "voice": one of [${VOICES.join(', ')}]. "look": a color grade — one of [${LOOKS.join(', ')}] that fits the vibe (e.g. cinematic for a premium ad, vibrant for social, noir for moody).
