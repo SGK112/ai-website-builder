@@ -137,6 +137,117 @@ export const COMPETITORS: Record<string, Competitor> = {
       { q: 'Which has less lock-in?', a: 'Webstew — because you own and deploy the code yourself. Framer keeps your site on its hosted platform.' },
     ],
   },
+
+  lovable: {
+    slug: 'lovable',
+    name: 'Lovable',
+    metaTitle: 'Webstew vs Lovable: AI App Builder Comparison (2026)',
+    metaDescription:
+      'Webstew vs Lovable — compare prompt-to-app generation, real websites vs. apps, native mobile output, publishing, and pricing. A fair look for founders in 2026.',
+    tagline: 'A prompt-to-site builder vs. a prompt-to-React-app tool',
+    intro:
+      'Lovable is a popular AI tool for generating full-stack React apps from a prompt. Webstew overlaps on the “describe it and it builds” magic, but aims wider: real marketing sites and stores that publish instantly, PLUS apps and native mobile — not just a React project. Here is an honest comparison.',
+    rows: [
+      { label: 'One prompt → full result', webstew: 'Site, store, or app', them: 'React app', webstewWins: true },
+      { label: 'Instant published site (your-name.webstew.net)', webstew: 'Yes — one click', them: 'Deploy a React app', webstewWins: true },
+      { label: 'Native mobile output', webstew: 'Yes — Expo / React Native', them: 'Web app', webstewWins: true },
+      { label: 'Talk-to-build voice', webstew: 'Yes — realtime voice', them: 'Text prompt', webstewWins: true },
+      { label: 'Own & export the code', webstew: 'Yes', them: 'Yes', },
+      { label: 'Built-in AI video / media studio', webstew: 'Yes', them: 'No', webstewWins: true },
+      { label: 'Full-stack app depth', webstew: 'Good', them: 'Strong', webstewWins: false },
+      { label: 'Free to start', webstew: 'Yes', them: 'Yes (limited)' },
+    ],
+    webstewWins: [
+      'Publishes a real live site in one click — no deploy step for a simple site',
+      'Ships web AND native mobile (Expo), plus an AI video/media studio',
+      'Build hands-free by talking to it (realtime voice)',
+      'One tool for a marketing site, a store, AND an app',
+    ],
+    themWins: [
+      'Deep, focused full-stack React app generation',
+      'Strong developer-oriented iteration loop',
+      'Large, active community around app building',
+    ],
+    faqs: [
+      { q: 'Is Webstew a Lovable alternative?', a: 'Yes — if you want to describe an app or site and have AI build it. Webstew goes wider: it also publishes marketing sites and stores instantly and outputs native mobile, not just a React app.' },
+      { q: 'Can Webstew build a real app, not just a website?', a: 'Yes — React, Next.js, and native mobile via Expo, with real auth and a database. It also does one-click marketing sites and stores, which app-only tools don’t focus on.' },
+      { q: 'Which should I pick?', a: 'Pick Lovable for a deep, code-heavy full-stack app. Pick Webstew if you want one tool that ships a live site today and can grow into an app + mobile, and prefer building by talking.' },
+    ],
+  },
+
+  bolt: {
+    slug: 'bolt',
+    name: 'Bolt.new',
+    metaTitle: 'Webstew vs Bolt.new: AI Builder Comparison (2026)',
+    metaDescription:
+      'Webstew vs Bolt.new — prompt-to-app generation, in-browser dev, instant publishing, native mobile, and who each is for. An honest 2026 comparison for builders.',
+    tagline: 'An in-browser AI dev sandbox vs. a ship-it builder',
+    intro:
+      'Bolt.new lets you prompt a full-stack app into existence in an in-browser dev environment (WebContainers). Webstew shares that instant-generation feel but is built to SHIP: one-click published sites, stores, and native mobile, with a talk-to-build voice. Here is how they line up.',
+    rows: [
+      { label: 'One prompt → full result', webstew: 'Site, store, or app', them: 'Web app', webstewWins: true },
+      { label: 'One-click live published site', webstew: 'Yes', them: 'Deploy from the sandbox', webstewWins: true },
+      { label: 'Native mobile output', webstew: 'Yes — Expo', them: 'Web app', webstewWins: true },
+      { label: 'Talk-to-build voice', webstew: 'Yes', them: 'Text prompt', webstewWins: true },
+      { label: 'In-browser dev sandbox', webstew: 'Yes (WebContainer for apps)', them: 'Yes', },
+      { label: 'AI video / media studio', webstew: 'Yes', them: 'No', webstewWins: true },
+      { label: 'Raw coding control', webstew: 'Good', them: 'Strong', webstewWins: false },
+      { label: 'Free to start', webstew: 'Yes', them: 'Yes (token-limited)' },
+    ],
+    webstewWins: [
+      'Built to publish — a live site in one click, not just a dev sandbox',
+      'Marketing sites and stores, not only apps',
+      'Native mobile (Expo) + an AI video/media studio',
+      'Hands-free building by voice',
+    ],
+    themWins: [
+      'Powerful in-browser full-stack dev loop',
+      'Fine-grained control for developers who want to code alongside AI',
+      'Fast iteration on complex app logic',
+    ],
+    faqs: [
+      { q: 'Is Webstew a Bolt.new alternative?', a: 'Yes, if your goal is to ship. Bolt is a strong in-browser dev sandbox; Webstew focuses on publishing a real live site or store instantly and can also output apps and native mobile.' },
+      { q: 'Do I need to know how to code?', a: 'No. With Webstew you describe it (or talk to it) and get a live result. Bolt leans more developer-oriented with a code sandbox.' },
+      { q: 'Which is better for a business site?', a: 'Webstew — it publishes a real marketing site or store in one click with built-in SEO. Bolt is aimed more at web apps.' },
+    ],
+  },
+
+  v0: {
+    slug: 'v0',
+    name: 'v0',
+    metaTitle: 'Webstew vs v0 (Vercel): AI Builder Comparison (2026)',
+    metaDescription:
+      'Webstew vs v0 by Vercel — compare UI generation vs. full site/app building, instant publishing, native mobile, voice, and pricing. An honest 2026 comparison.',
+    tagline: 'A UI/component generator vs. a full ship-it builder',
+    intro:
+      'v0 by Vercel is excellent at generating React/Tailwind UI and components from a prompt. Webstew overlaps on generation but goes end-to-end: a complete, published site or store (or an app + native mobile), not just UI you then wire up yourself. Here is a fair comparison.',
+    rows: [
+      { label: 'One prompt → full result', webstew: 'Whole site, store, or app', them: 'UI / components', webstewWins: true },
+      { label: 'One-click live published site', webstew: 'Yes', them: 'Copy code, then deploy', webstewWins: true },
+      { label: 'Native mobile output', webstew: 'Yes — Expo', them: 'No', webstewWins: true },
+      { label: 'Talk-to-build voice', webstew: 'Yes', them: 'No', webstewWins: true },
+      { label: 'Real code you own', webstew: 'Yes', them: 'Yes (React/Tailwind)', },
+      { label: 'AI video / media studio', webstew: 'Yes', them: 'No', webstewWins: true },
+      { label: 'Component/UI polish', webstew: 'Good', them: 'Excellent', webstewWins: false },
+      { label: 'Free to start', webstew: 'Yes', them: 'Yes (credit-limited)' },
+    ],
+    webstewWins: [
+      'Generates and PUBLISHES a whole site/store, not just UI to assemble',
+      'Native mobile (Expo) + AI video/media studio',
+      'Build hands-free by talking to it',
+      'One click to a live URL — no separate deploy',
+    ],
+    themWins: [
+      'Best-in-class React/Tailwind UI + component generation',
+      'Tight fit with the Vercel/Next.js ecosystem',
+      'Great for designers/devs iterating on polished UI pieces',
+    ],
+    faqs: [
+      { q: 'Is Webstew a v0 alternative?', a: 'Yes, if you want a finished, published site or app rather than UI code to wire up. v0 is superb for generating components; Webstew builds and ships the whole thing.' },
+      { q: 'Does Webstew give me real React code?', a: 'Yes — it can output React, Next.js, and Astro you own, and also publishes a live site in one click. It adds native mobile and a media studio on top.' },
+      { q: 'Which should I use?', a: 'Use v0 to generate beautiful UI pieces inside a Next.js project. Use Webstew to describe (or speak) a whole site/app and get a live, shippable result.' },
+    ],
+  },
 }
 
 export const COMPETITOR_SLUGS = Object.keys(COMPETITORS)
