@@ -533,15 +533,25 @@ export async function POST(req: NextRequest) {
   }
   // Attach any images the user shared as vision blocks before the prompt, so
   // "make this purple / match this screenshot" works. Capped + URL-validated.
-  const imageBlocks = (Array.isArray(body.images) ? body.images : [])
+  const attachedImageUrls = (Array.isArray(body.images) ? body.images : [])
     .filter((u): u is string => typeof u === 'string' && /^https?:\/\//i.test(u))
     .slice(0, 4)
-    .map((url) => ({ type: 'image' as const, source: { type: 'url' as const, url } }))
+  const imageBlocks = attachedImageUrls.map((url) => ({ type: 'image' as const, source: { type: 'url' as const, url } }))
+  // The vision blocks let the model SEE the image, but a model can't read a URL
+  // string off of pixels — so when the user says "use/place/swap in this image"
+  // it has no src to write, then hallucinates a dead URL or (worse) tells the
+  // user to go re-host on imgbb/Drive. These URLs are ALREADY permanent (the
+  // client uploaded them to Cloudinary via /api/upload), so hand them over as
+  // text and tell the model to use them verbatim — no upload_image, no re-host.
+  const imageUrlNote = attachedImageUrls.length
+    ? `\n\n[The user attached ${attachedImageUrls.length === 1 ? 'this image' : 'these images'}, already hosted permanently. When they ask to use, place, or swap in the attached image, use the EXACT URL${attachedImageUrls.length === 1 ? '' : 's'} below verbatim as the src. Do NOT call upload_image on ${attachedImageUrls.length === 1 ? 'it' : 'them'}, do NOT invent a different URL, and do NOT ask the user to re-host — the URL${attachedImageUrls.length === 1 ? ' is' : 's are'} live and ready:\n${attachedImageUrls.map((u, i) => `${i + 1}. ${u}`).join('\n')}]`
+    : ''
+  const promptWithImages = prompt + imageUrlNote
   messages.push({
     role: 'user',
     content: imageBlocks.length
-      ? [...imageBlocks, { type: 'text' as const, text: prompt }]
-      : prompt,
+      ? [...imageBlocks, { type: 'text' as const, text: promptWithImages }]
+      : promptWithImages,
   })
 
   // Developer Mode wants to see Claude's reasoning; default modes want terse.
