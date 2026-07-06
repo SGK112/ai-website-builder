@@ -27,7 +27,9 @@ const MODELS = {
 }
 
 interface GenerateRequest {
-  action: 'generate' | 'upscale' | 'remove-bg' | 'restore' | 'caption'
+  // 'enhance' is a UI alias (the Images-panel "Enhance" button) normalized to
+  // 'upscale' below — the underlying ops are the closed set that follows.
+  action: 'generate' | 'upscale' | 'remove-bg' | 'restore' | 'caption' | 'enhance'
   prompt?: string
   imageUrl?: string
   style?: string
@@ -53,7 +55,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const body: GenerateRequest = await request.json()
-    const { action, prompt, imageUrl, style, aspectRatio = '16:9' } = body
+    const { prompt, imageUrl, style, aspectRatio = '16:9' } = body
+    // "Enhance" (Images panel) is a friendly alias for the upscale op
+    // (Real-ESRGAN 4x + face enhance). Without this every Enhance click 400s
+    // with "Invalid action" because 'enhance' isn't a real op below.
+    const action = body.action === 'enhance' ? 'upscale' : body.action
 
     // Map action → credit cost, then validate inputs BEFORE charging so a
     // missing-input 400 never bills the user.

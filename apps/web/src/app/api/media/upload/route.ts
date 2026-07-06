@@ -7,31 +7,51 @@ const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET
 
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData()
-    const file = formData.get('file') as File
-
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+    // Fail loudly if storage isn't configured. Previously this returned a
+    // random picsum.photos URL as a 200 "success" — silently replacing the
+    // user's asset with an unrelated stock photo that looked like it worked.
+    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+      return NextResponse.json(
+        { error: 'Image hosting is not configured on this instance (Cloudinary missing).' },
+        { status: 503 }
+      )
     }
 
-    // Check if Cloudinary is configured
-    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
-      // Return a mock response for development
-      const mockUrl = `https://picsum.photos/seed/${Date.now()}/800/600`
+    // Accept EITHER a multipart file upload OR a JSON { sourceUrl } to re-host
+    // an existing image URL. The MCP bridge upload_image tool (the chef's "use
+    // this image" over the local bridge) posts { sourceUrl } — it used to hit
+    // the file-only path and always 400 with "No file provided".
+    const contentType = req.headers.get('content-type') || ''
+    let buffer: Buffer
+    let mimeType: string
 
-      return NextResponse.json({
-        secure_url: mockUrl,
-        public_id: `dev-${Date.now()}`,
-        resource_type: file.type.startsWith('video/') ? 'video' : 'image',
-        message: 'Cloudinary not configured - using placeholder',
-      })
+    if (contentType.includes('application/json')) {
+      const body = (await req.json().catch(() => ({}))) as { sourceUrl?: string }
+      if (!body.sourceUrl) {
+        return NextResponse.json({ error: 'sourceUrl required' }, { status: 400 })
+      }
+      const srcRes = await fetch(body.sourceUrl)
+      if (!srcRes.ok) {
+        return NextResponse.json(
+          { error: `Could not fetch sourceUrl (HTTP ${srcRes.status})` },
+          { status: 400 }
+        )
+      }
+      buffer = Buffer.from(await srcRes.arrayBuffer())
+      mimeType = srcRes.headers.get('content-type') || 'image/jpeg'
+    } else {
+      const formData = await req.formData()
+      const file = formData.get('file') as File | null
+      if (!file) {
+        return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+      }
+      buffer = Buffer.from(await file.arrayBuffer())
+      mimeType = file.type || 'image/jpeg'
     }
 
     // Upload to Cloudinary
-    const bytes = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
     const base64 = buffer.toString('base64')
-    const dataURI = `data:${file.type};base64,${base64}`
+    const dataURI = `data:${mimeType};base64,${base64}`
 
     const timestamp = Math.round(Date.now() / 1000)
     const signature = await generateSignature(timestamp)
@@ -43,7 +63,7 @@ export async function POST(req: NextRequest) {
     cloudinaryFormData.append('signature', signature)
     cloudinaryFormData.append('folder', 'webstew')
 
-    const resourceType = file.type.startsWith('video/') ? 'video' : 'image'
+    const resourceType = mimeType.startsWith('video/') ? 'video' : 'image'
 
     const response = await fetch(
       `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`,
@@ -61,6 +81,9 @@ export async function POST(req: NextRequest) {
     const data = await response.json()
 
     return NextResponse.json({
+      // `url` is the canonical field (the MCP proxy reads out.url); keep
+      // secure_url for any legacy caller.
+      url: data.secure_url,
       secure_url: data.secure_url,
       public_id: data.public_id,
       resource_type: data.resource_type,

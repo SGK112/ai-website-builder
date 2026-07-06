@@ -7961,6 +7961,24 @@ npx eas build --platform all
     })
   }
 
+  // Upload a data: URL (from the local file picker) to Cloudinary and return
+  // the permanent https URL, or null on failure. AI image/video ops need a
+  // PUBLIC url — the video route drops non-http URLs and Replicate calls bloat
+  // on giant data URIs — so a locally-picked file must be hosted first.
+  const hostDataUrl = async (dataUrl: string, name?: string): Promise<string | null> => {
+    try {
+      const blob = await (await fetch(dataUrl)).blob()
+      const fd = new FormData()
+      fd.append('file', new File([blob], name || 'image.png', { type: blob.type || 'image/png' }))
+      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      const data = await res.json().catch(() => ({} as any))
+      if (!res.ok || !data?.url) return null
+      return data.url as string
+    } catch {
+      return null
+    }
+  }
+
   const processImage = async (imageId: string, operation: 'remove-bg' | 'to-video' | 'enhance') => {
     setImageEdits(prev => prev.map(img =>
       img.id === imageId ? { ...img, operation, status: 'processing' } : img
@@ -7973,6 +7991,18 @@ npx eas build --platform all
       const image = imageEdits.find(img => img.id === imageId)
       if (!image) return
 
+      // Resolve a PUBLIC url before calling any AI op. A file picked locally is
+      // a data: URL — the video route filters those out (→ "no valid image")
+      // and Replicate chokes on huge data URIs. Host it once, cache it back.
+      let sourceUrl = image.url
+      if (/^data:/i.test(sourceUrl)) {
+        addTerminalLine('info', 'Hosting image for processing…')
+        const hosted = await hostDataUrl(sourceUrl, image.name)
+        if (!hosted) throw new Error('Could not host the image for processing — sign in and try again.')
+        sourceUrl = hosted
+        setImageEdits(prev => prev.map(img => img.id === imageId ? { ...img, url: hosted } : img))
+      }
+
       let response
       let result
 
@@ -7984,7 +8014,7 @@ npx eas build --platform all
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action: 'image-to-video',
-            imageUrl: image.url,
+            imageUrl: sourceUrl,
           })
         })
 
@@ -8006,7 +8036,7 @@ npx eas build --platform all
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action: operation,
-            imageUrl: image.url,
+            imageUrl: sourceUrl,
           })
         })
 
