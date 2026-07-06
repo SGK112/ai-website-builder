@@ -81,22 +81,6 @@ describeE2E('Workspace E2E Tests', () => {
     }, 30000)
   })
 
-  describe('AI Free API', () => {
-    it('POST /api/ai/free generates content', async () => {
-      const res = await fetch(`${BASE_URL}/api/ai/free`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [{ role: 'user', content: 'say hello in one word' }],
-          provider: 'huggingface',
-          model: 'llama-3.2-3b'
-        })
-      })
-
-      // May return 200 or 400 depending on API state
-      expect([200, 400].includes(res.status)).toBe(true)
-    }, 30000)
-  })
 
   describe('Media APIs', () => {
     it('GET /api/media/pixabay searches images', async () => {

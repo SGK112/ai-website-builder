@@ -31,7 +31,7 @@ Builder uses **stock photos**, not AI generation: `fetchStockImagesForPrompt` (P
 
 ## Voice
 - **`/api/ai/voice`** (`lib/voice.ts`): TTS + STT, providers OpenAI (`tts-1`/`whisper-1`) and Deepgram (Aura/Nova). The shared voice layer.
-- **Talk to the builder** ("the chef"): `app/workspace/hooks/useVoiceChat.ts` + `components/VoiceControls.tsx` — mic in chat → STT → send; speaker toggle reads replies; voice picker. We did NOT port Aria — Aria is welded to VoiceNow; the build agent already exists, it just needed a voice.
+- **Talk to the builder** ("the chef"): `app/workspace/hooks/useRealtimeVoice.ts` (+ `useVoiceBuildQueue.ts`, `useVoiceImage.ts`, `useVoiceVideo.ts`) and `components/VoiceBubble.tsx` + `VoiceBuildOverlay.tsx` — mic in chat → realtime STT → build/edit. We did NOT port Aria — Aria is welded to VoiceNow; the build agent already exists, it just needed a voice. (History: an earlier `useVoiceChat.ts`/`VoiceControls.tsx` pair was replaced by the realtime layer above.)
 - **Voice IN builds**: generated apps use the browser-native Web Speech API (no keys, works on the published site).
 
 ## Phone preview

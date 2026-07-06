@@ -22,7 +22,6 @@ const GATED_API_PREFIXES = [
   '/api/ai/image',
   '/api/ai/video',
   '/api/ai/chat',
-  '/api/ai/free',
   // Tool endpoints — scraping. /api/tools/grade is intentionally open
   // (anon-accessible) so it can power the landing-page lead-gen widget.
   // The route handler enforces its own IP rate limit.
@@ -61,8 +60,6 @@ const GATED_API_PREFIXES = [
   '/api/media/pexels',   // server-side PEXELS_API_KEY
   '/api/media/pixabay',  // server-side PIXABAY_API_KEY
   '/api/media/upload',   // server-side Cloudinary secret
-  // Closes additional holes found in a gates audit (2026-05-14):
-  '/api/ai/runpod',      // expensive GPU endpoints + RUNPOD_API_KEY
   // NOTE: /api/community intentionally NOT gated. The GET endpoints serve
   // public approved posts to anonymous visitors (the /community page lands
   // them on the showcase before signup). Each handler does inline auth on
