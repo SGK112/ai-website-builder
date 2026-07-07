@@ -12,6 +12,13 @@ const WebContainerPreview = dynamic(
   () => import('@/components/WebContainerPreview').then(m => m.WebContainerPreview),
   { ssr: false, loading: () => <div className="w-full h-full flex items-center justify-center text-zinc-500 text-sm">Booting preview…</div> }
 )
+// The full Video Studio, mounted as an in-workspace overlay (Batch 2). Lazy so
+// the 1200-line canvas-heavy studio only loads when the user opens it — the
+// workspace bundle stays lean for everyone who never touches video.
+const VideoStudioOverlay = dynamic(
+  () => import('@/app/video/VideoStudio'),
+  { ssr: false, loading: () => <div className="fixed inset-0 z-[60] flex items-center justify-center bg-zinc-950 text-zinc-500 text-sm">Loading video studio…</div> }
+)
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Terminal,
@@ -1432,6 +1439,9 @@ function WorkspaceContent() {
   const [deviceMode, setDeviceMode] = useState<DeviceMode>('desktop')
   const [viewMode, setViewMode] = useState<ViewMode>('preview')
   const [activePanel, setActivePanel] = useState<Panel>('build')
+  // Full Video Studio overlay (Batch 2) — opened from the Video panel, mounted
+  // in-place so the user never leaves the workspace.
+  const [videoStudioOpen, setVideoStudioOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   // Spotlight-style AI chat overlay (⌘J). When sidebar is open the side
   // panel chat is primary; bubble + spotlight are for collapsed-sidebar
@@ -9424,7 +9434,14 @@ npx eas build --platform all
                 generatedVideoUrl={generatedVideoUrl}
                 onInsert={insertVideoIntoWebsite}
                 onCopyUrl={(url) => { void navigator.clipboard.writeText(url); addTerminalLine('info', 'Video URL copied.') }}
+                onOpenStudio={() => setVideoStudioOpen(true)}
               />
+            )}
+
+            {/* Full Video Studio — in-workspace overlay (Batch 2). Fixed inset-0,
+                so it covers the workspace regardless of the active panel. */}
+            {videoStudioOpen && (
+              <VideoStudioOverlay embedded onClose={() => setVideoStudioOpen(false)} />
             )}
 
             {/* Bridge Panel */}

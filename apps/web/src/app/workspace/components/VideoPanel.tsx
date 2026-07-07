@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   Film,
-  ExternalLink,
   Image as ImageIcon,
   X,
   Loader2,
@@ -45,6 +44,9 @@ interface VideoPanelProps {
   generatedVideoUrl: string | null
   onInsert: () => void
   onCopyUrl: (url: string) => void
+  // Open the full Video Studio in-place (overlay inside the workspace) instead
+  // of navigating away to /video in a new tab.
+  onOpenStudio?: () => void
 }
 
 export function VideoPanel({
@@ -65,6 +67,7 @@ export function VideoPanel({
   generatedVideoUrl,
   onInsert,
   onCopyUrl,
+  onOpenStudio,
 }: VideoPanelProps) {
   const [videoLoadError, setVideoLoadError] = useState(false)
   const [directorOpen, setDirectorOpen] = useState(false)
@@ -77,12 +80,11 @@ export function VideoPanel({
       exit={{ opacity: 0 }}
       className="flex-1 overflow-y-auto p-3 space-y-4"
     >
-      <a
-        href="/video"
-        target="_blank"
-        rel="noreferrer"
+      <button
+        type="button"
+        onClick={onOpenStudio}
         className={cn(
-          'flex items-center justify-between p-3 rounded-xl border text-xs font-medium transition-colors',
+          'w-full flex items-center justify-between p-3 rounded-xl border text-xs font-medium transition-colors',
           isDark
             ? 'border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20'
             : 'border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100'
@@ -90,10 +92,10 @@ export function VideoPanel({
       >
         <span className="flex items-center gap-2">
           <Film className="w-3.5 h-3.5" />
-          Open Video Studio — Create, Edit, Export ↗
+          Open full Video Studio — Create, Edit, Export
         </span>
-        <ExternalLink className="w-3 h-3 opacity-60" />
-      </a>
+        <Sparkles className="w-3 h-3 opacity-60" />
+      </button>
 
       <div className="flex items-center gap-2 text-xs text-purple-400">
         <Film className="w-4 h-4" />
