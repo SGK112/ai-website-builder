@@ -55,10 +55,7 @@ function toDownloadUrl(url: string): string {
 
 interface Creation { id: string; kind: 'clip' | 'video'; url: string; title: string }
 
-// `embedded` mounts the studio as a full-screen overlay INSIDE the workspace
-// (no navigation away) instead of as its own /video page. `onClose` dismisses
-// the overlay. Defaults keep the standalone /video page behaviour unchanged.
-export default function VideoStudio({ embedded = false, onClose }: { embedded?: boolean; onClose?: () => void } = {}) {
+export default function VideoStudio() {
   // Create controls
   const [mode, setMode] = useState<Mode>('text')
   const [prompt, setPrompt] = useState('')
@@ -802,9 +799,7 @@ export default function VideoStudio({ embedded = false, onClose }: { embedded?: 
   // layout's pt-16). h-screen here overflowed by 64px and pushed the timeline +
   // voice tracks off the bottom of the viewport.
   return (
-    <div className={embedded
-      ? 'fixed inset-0 z-[60] flex flex-col bg-zinc-950 text-zinc-200 overflow-hidden'
-      : 'min-h-[100dvh] md:h-[100dvh] flex flex-col bg-zinc-950 text-zinc-200 md:overflow-hidden'}>
+    <div className="min-h-[100dvh] md:h-[100dvh] flex flex-col bg-zinc-950 text-zinc-200 md:overflow-hidden">
       {/* Header — pad the top by the iPhone safe-area inset so it clears the
           status bar / Dynamic Island (the page paints behind the notch). */}
       <div className="flex items-center justify-between px-4 pb-2.5 pt-[calc(env(safe-area-inset-top)+0.625rem)] border-b border-white/10 shrink-0">
@@ -818,11 +813,7 @@ export default function VideoStudio({ embedded = false, onClose }: { embedded?: 
         <div className="flex items-center gap-2">
           <button onClick={startNew} disabled={busy} className="flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-zinc-300 hover:text-white hover:border-white/25 disabled:opacity-40"><Plus className="w-3.5 h-3.5" /> New</button>
           <button onClick={() => setShowSaved(s => !s)} className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs ${showSaved ? 'border-violet-500 text-violet-200 bg-violet-500/10' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/25'}`}><Bookmark className="w-3.5 h-3.5" /> Saved{creations.length ? ` (${creations.length})` : ''}</button>
-          {embedded ? (
-            <button onClick={onClose} className="flex items-center gap-1 text-xs text-zinc-400 hover:text-white"><X className="w-3.5 h-3.5" /> Close</button>
-          ) : (
-            <a href="/workspace" className="flex items-center gap-1 text-xs text-zinc-400 hover:text-white"><ArrowLeft className="w-3.5 h-3.5" /> Workspace</a>
-          )}
+          <a href="/workspace" className="flex items-center gap-1 text-xs text-zinc-400 hover:text-white"><ArrowLeft className="w-3.5 h-3.5" /> Workspace</a>
         </div>
       </div>
 
