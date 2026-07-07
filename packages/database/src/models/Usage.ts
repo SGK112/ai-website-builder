@@ -152,7 +152,15 @@ export async function trackUsage(
   // (truncated build, BYOK, free providers at 0) → skipped.
   if (data.creditsUsed > 0) {
     try {
-      await User.updateOne({ _id: uid }, { $inc: { credits: -data.creditsUsed } })
+      // Atomic floor at 0. This is a POST-pay charge (metered on real tokens
+      // after the build), so the actual cost can exceed the pre-gate estimate,
+      // and concurrent builds can race — a plain $inc: -cost would drive the
+      // balance NEGATIVE. The aggregation-pipeline update clamps to
+      // max(0, credits - cost) in a single atomic op.
+      await User.updateOne(
+        { _id: uid },
+        [{ $set: { credits: { $max: [0, { $subtract: [{ $ifNull: ['$credits', 0] }, data.creditsUsed] }] } } }],
+      )
     } catch (e: any) {
       console.warn('[trackUsage] credit balance decrement failed:', e?.message || e)
     }

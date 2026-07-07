@@ -3172,6 +3172,14 @@ Rules:
             if (chunk.choices[0]?.finish_reason) grokFinishReason = chunk.choices[0].finish_reason
           }
 
+          // Judge completeness on the RAW stream, BEFORE ensureCompleteHtml()
+          // pads a fragment into a full <!DOCTYPE>…</html> skeleton — otherwise
+          // a truncated build or a one-line refusal reads as "complete" and gets
+          // billed. (Bug: grokComplete used to run on the padded finalHtml,
+          // AFTER the charge.) Mirrors the Claude branch's quality gate.
+          const grokRawComplete = fullHtml.toLowerCase().includes('</body>') && fullHtml.toLowerCase().includes('</html>')
+          const grokTruncated = grokFinishReason === 'length' || !grokRawComplete
+
           // Final processing
           let finalHtml = ensureCompleteHtml(fullHtml)
 
@@ -3228,12 +3236,17 @@ Rules:
           // Track usage for OpenAI generation
           const duration = Date.now() - startTime
           const tokensUsed = Math.ceil(finalHtml.length / 4) // Approximate
-          const creditsUsed = selectedModel.includes('gpt-4o') ? 5 :
-                              selectedModel.includes('gpt-4-turbo') ? 8 :
-                              selectedModel.includes('gpt-4') ? 10 :
-                              selectedModel.includes('gpt-3.5') ? 1 : 3
+          // QUALITY-GATED billing (mirrors the Claude branch): a truncated or
+          // incomplete build is a bad build — do NOT charge for it. The client
+          // shows truncated:true + "not charged".
+          const creditsUsed = grokTruncated ? 0 : (
+            selectedModel.includes('gpt-4o') ? 5 :
+            selectedModel.includes('gpt-4-turbo') ? 8 :
+            selectedModel.includes('gpt-4') ? 10 :
+            selectedModel.includes('gpt-3.5') ? 1 : 3
+          )
 
-          if (userId) {
+          if (userId && !grokTruncated) {
             try {
               await trackUsage(userId, {
                 type: 'generation',
@@ -3252,10 +3265,10 @@ Rules:
             } catch (trackError) {
               console.warn('[Generate] Failed to track OpenAI usage:', trackError)
             }
+          } else if (grokTruncated) {
+            console.log(`[Generate] Build truncated (OpenAI/Grok) — NOT charging user ${userId || '(anon)'}`)
           }
 
-          const grokComplete = finalHtml.toLowerCase().includes('</body>') && finalHtml.toLowerCase().includes('</html>')
-          const grokTruncated = grokFinishReason === 'length' || !grokComplete
           safeEnqueue(encoder.encode(`data: ${JSON.stringify({
             html: finalHtml,
             complete: true,

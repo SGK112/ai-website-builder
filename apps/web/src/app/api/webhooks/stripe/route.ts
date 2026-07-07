@@ -702,6 +702,50 @@ export async function POST(req: NextRequest) {
         break
       }
 
+      case 'charge.dispute.created': {
+        // A cardholder disputed a charge (chargeback). Stripe pulls the funds;
+        // there is NO charge.refunded for a chargeback, so without this a
+        // subscriber keeps premium + the credit grant for free — repeatable
+        // revenue loss. Mirror the subscription-refund clawback: downgrade +
+        // claw back the grant, webstew-scoped (invoiceIsForeign) so a VoiceNow
+        // dispute on the shared account can never touch a webstew user.
+        // Self-idempotent: after the first downgrade the plan is 'free', so a
+        // retried event computes grant=0 and claws back nothing more.
+        const dispute: any = event.data.object
+        try {
+          const chargeId = typeof dispute.charge === 'string' ? dispute.charge : dispute.charge?.id
+          if (!chargeId) { console.log('[billing] dispute.created: no charge id, ignoring'); break }
+          const charge: any = await stripe.charges.retrieve(chargeId)
+          const invoiceId = typeof charge.invoice === 'string' ? charge.invoice : charge.invoice?.id
+          if (!invoiceId || !charge.customer) {
+            // Not a subscription charge (e.g. a marketplace one-off). The
+            // marketplace refund path covers those; nothing to do here.
+            console.log('[billing] dispute.created: non-subscription charge, ignoring')
+            break
+          }
+          const invoice = await stripe.invoices.retrieve(invoiceId)
+          if (invoiceIsForeign(invoice)) break
+          const customerId = typeof charge.customer === 'string' ? charge.customer : charge.customer.id
+          const subUser = await User.findOne({ stripeCustomerId: customerId })
+          if (subUser) {
+            const grant = getPlanCredits(subUser.plan)
+            await User.updateOne(
+              { _id: subUser._id },
+              [{ $set: {
+                plan: 'free',
+                subscriptionStatus: 'canceled',
+                updatedAt: new Date(),
+                credits: { $max: [{ $subtract: [{ $ifNull: ['$credits', 0] }, grant] }, 0] },
+              } }],
+            )
+            console.log(`[billing] chargeback → downgraded user ${subUser._id} to free (−${grant} credits)`)
+          }
+        } catch (e: any) {
+          console.error('[billing] charge.dispute.created handler:', e?.message || e)
+        }
+        break
+      }
+
       // ────────── Stripe Connect (marketplace) events ──────────
       // These fire on Connect platform events. `event.account` is set when
       // the event is on a connected account (Express seller). For platform-
