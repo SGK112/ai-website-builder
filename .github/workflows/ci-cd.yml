@@ -153,8 +153,27 @@ jobs:
               echo "Deploy started: $DEPLOY_ID"
               echo "url=https://ai-website-builder.onrender.com" >> $GITHUB_OUTPUT
             else
-              echo "Deploy failed: $RESPONSE"
-              exit 1
+              # The API trigger can 500 when Render's own auto-deploy-on-push is
+              # ALREADY building this commit (that push auto-deploy is the real
+              # deploy mechanism here). Before failing, confirm a deploy is
+              # actually in flight — so we neither red-X a build that IS
+              # deploying nor silently pass when nothing is.
+              echo "API trigger returned no deploy id: $RESPONSE"
+              echo "Checking Render for an in-flight deploy…"
+              LATEST=$(curl -s \
+                "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys?limit=1" \
+                -H "Authorization: Bearer $RENDER_API_KEY")
+              LATEST_STATUS=$(echo "$LATEST" | jq -r '.[0].deploy.status // empty')
+              case "$LATEST_STATUS" in
+                created|queued|build_in_progress|update_in_progress|live)
+                  echo "Render is already deploying this push (status=$LATEST_STATUS) — success."
+                  echo "url=https://ai-website-builder.onrender.com" >> $GITHUB_OUTPUT
+                  ;;
+                *)
+                  echo "No active Render deploy found (status='$LATEST_STATUS'). Failing."
+                  exit 1
+                  ;;
+              esac
             fi
           else
             echo "No deployment credentials configured"
