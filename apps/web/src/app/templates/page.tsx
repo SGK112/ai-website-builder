@@ -92,55 +92,6 @@ const BUILTIN_TEMPLATES: Template[] = [
     price_credits: 0,
   },
   {
-    id: 'restaurant-modern',
-    name: 'Modern Restaurant',
-    description: 'Elegant restaurant template with menu sections — coming soon',
-    category: 'restaurant',
-    thumbnail_url: 'https://www.webstew.net/api/media?q=restaurant&w=800&h=600',
-    // No real HTML in lib/templates yet — kept off the paid list. Buyer
-    // would land on "Template not found" otherwise. When the HTML ships,
-    // flip is_premium back to true + re-add to TEMPLATE_USD_CENTS in the
-    // checkout route.
-    is_premium: false,
-    price_credits: 0,
-  },
-  {
-    id: 'photography-portfolio',
-    name: 'Photography Portfolio',
-    description: 'Minimal photography portfolio with gallery grid',
-    category: 'portfolio',
-    thumbnail_url: 'https://www.webstew.net/api/media?q=photography&w=800&h=600',
-    is_premium: false,
-    price_credits: 0,
-  },
-  {
-    id: 'tech-blog',
-    name: 'Tech Blog',
-    description: 'Clean tech blog template with article layouts — coming soon',
-    category: 'blog',
-    thumbnail_url: 'https://www.webstew.net/api/media?q=techblog&w=800&h=600',
-    is_premium: false,
-    price_credits: 0,
-  },
-  {
-    id: 'startup-landing',
-    name: 'Startup Landing',
-    description: 'Bold startup landing page with pricing tables',
-    category: 'landing',
-    thumbnail_url: 'https://www.webstew.net/api/media?q=startup&w=800&h=600',
-    is_premium: false,
-    price_credits: 0,
-  },
-  {
-    id: 'fitness-gym',
-    name: 'Fitness Gym',
-    description: 'Energy-filled gym and fitness template — coming soon',
-    category: 'landing',
-    thumbnail_url: 'https://www.webstew.net/api/media?q=fitness&w=800&h=600',
-    is_premium: false,
-    price_credits: 0,
-  },
-  {
     id: 'fashion-store',
     name: 'Fashion Store',
     description: 'Bold modern fashion store with dynamic layouts and shopping cart',
@@ -270,7 +221,16 @@ export default function TemplatesPage() {
       if (res.ok) {
         const data = await res.json()
         if (data.templates && data.templates.length > 0) {
-          setTemplates([...BUILTIN_TEMPLATES, ...data.templates])
+          // The API also returns the same registry templates as `local-<id>`
+          // tiles. Drop any that duplicate a curated BUILTIN (matched by
+          // registry id) so we don't show two tiles for the same template —
+          // and so the premium saas-multipage keeps its BUILTIN pricing rather
+          // than the API's free copy. Keeps app templates + real Supabase rows.
+          const builtinIds = new Set(BUILTIN_TEMPLATES.map((t) => t.id))
+          const remote = (data.templates as Template[]).filter(
+            (t) => !builtinIds.has(String(t.id).replace(/^local-/, '')),
+          )
+          setTemplates([...BUILTIN_TEMPLATES, ...remote])
         }
       }
     } catch (error) {
