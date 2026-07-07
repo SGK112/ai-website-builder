@@ -120,7 +120,10 @@ async function createGitHubRepo(
   const refData = await refRes.json()
   const baseSha = refData.object.sha
 
-  // Create blobs for each file
+  // Create blobs for each file. Check every response — an unchecked GitHub
+  // failure (rate limit / scope) leaves blob.sha undefined, the tree/commit
+  // 422 silently, and the repo stays README-only while we'd still report
+  // "Repository created successfully". Throw so the push fails honestly.
   const blobs = await Promise.all(
     files.map(async (file) => {
       const blobRes = await fetch(
@@ -138,7 +141,12 @@ async function createGitHubRepo(
           }),
         }
       )
+      if (!blobRes.ok) {
+        const err = await blobRes.text().catch(() => '')
+        throw new Error(`Failed to upload ${file.path} (GitHub ${blobRes.status}): ${err.slice(0, 200)}`)
+      }
       const blob = await blobRes.json()
+      if (!blob.sha) throw new Error(`GitHub returned no blob sha for ${file.path}`)
       return {
         path: file.path,
         mode: '100644' as const,
@@ -164,8 +172,12 @@ async function createGitHubRepo(
       }),
     }
   )
-
+  if (!treeRes.ok) {
+    const err = await treeRes.text().catch(() => '')
+    throw new Error(`Failed to create git tree (GitHub ${treeRes.status}): ${err.slice(0, 200)}`)
+  }
   const tree = await treeRes.json()
+  if (!tree.sha) throw new Error('GitHub returned no tree sha')
 
   // Create commit
   const commitRes = await fetch(
@@ -184,11 +196,15 @@ async function createGitHubRepo(
       }),
     }
   )
-
+  if (!commitRes.ok) {
+    const err = await commitRes.text().catch(() => '')
+    throw new Error(`Failed to create commit (GitHub ${commitRes.status}): ${err.slice(0, 200)}`)
+  }
   const commit = await commitRes.json()
+  if (!commit.sha) throw new Error('GitHub returned no commit sha')
 
-  // Update ref
-  await fetch(
+  // Update ref — makes the pushed files the repo HEAD.
+  const refUpdateRes = await fetch(
     `https://api.github.com/repos/${repoFullName}/git/refs/heads/main`,
     {
       method: 'PATCH',
@@ -202,6 +218,10 @@ async function createGitHubRepo(
       }),
     }
   )
+  if (!refUpdateRes.ok) {
+    const err = await refUpdateRes.text().catch(() => '')
+    throw new Error(`Failed to update repo HEAD (GitHub ${refUpdateRes.status}): ${err.slice(0, 200)}`)
+  }
 
   return repo.html_url
 }

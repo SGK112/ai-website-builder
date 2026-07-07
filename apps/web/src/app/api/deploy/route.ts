@@ -75,7 +75,12 @@ export async function POST(req: NextRequest) {
     const githubToken = (await getUserCredential(session.user.id, 'github')) || ENV_GITHUB_TOKEN
     // Platform hosts in the cloud on Render by default (that's the product) —
     // BYO key just lets a user deploy into their own Render account instead.
-    const renderKey = (await getUserCredential(session.user.id, 'render')) || ENV_RENDER_API_KEY
+    const userRenderKey = await getUserCredential(session.user.id, 'render')
+    const renderKey = userRenderKey || ENV_RENDER_API_KEY
+    // True when we're about to deploy onto the PLATFORM's own Render account
+    // (user has no BYO key). Used below to refuse code-executing deploys on
+    // shared prod infra unless explicitly allowed.
+    const usingPlatformRender = !userRenderKey && !!ENV_RENDER_API_KEY
     if (!githubToken) {
       return NextResponse.json({
         error: 'No GitHub token. Add one in Profile → Deploy credentials, or set GITHUB_ACCESS_TOKEN in the environment.',
@@ -135,6 +140,23 @@ export async function POST(req: NextRequest) {
 
     const shape = detectDeployShape(finalFiles)
 
+    // SECURITY: a web_service — or any static build with a buildCommand — runs
+    // `npm install` (postinstall hooks) + a build/start script, i.e. ARBITRARY
+    // user code, on whatever Render account owns the service. When that's the
+    // PLATFORM account (no BYO key), any signed-up user could run code on the
+    // same Render account that hosts webstew prod. Refuse it: require the user
+    // to bring their own Render key for code-executing deploys. Plain static
+    // HTML (no build step) is safe and still deploys on the platform.
+    // Escape hatch (DEPLOY_ALLOW_PLATFORM_CODE=1) restores managed app hosting
+    // once user web services run on an ISOLATED Render account, not prod.
+    const executesUserCode = shape.kind === 'web' || !!(shape as { buildCommand?: string }).buildCommand
+    if (usingPlatformRender && executesUserCode && process.env.DEPLOY_ALLOW_PLATFORM_CODE !== '1') {
+      return NextResponse.json({
+        error: 'Deploying an app that runs a build or start step requires your own Render API key (Profile → Deploy credentials). Plain HTML sites deploy on the platform for free.',
+        needsCredential: 'render',
+      }, { status: 400 })
+    }
+
     // Never push secret-bearing dotfiles (.env*) into the repo.
     finalFiles = finalFiles.filter(f => !/(^|\/)\.env(\.|$)/i.test(String(f?.path || '')))
 
@@ -172,7 +194,11 @@ export async function POST(req: NextRequest) {
                   deployedAt: new Date(),
                 },
                 liveUrl: renderResult.url,
-                status: 'deployed',
+                // The Render service is CREATED but its build hasn't finished —
+                // marking 'deployed' here is a false success if the build then
+                // fails. Stamp 'building'; /api/deploy/status promotes it to
+                // 'deployed' or 'deploy_failed' once the build resolves.
+                status: 'building',
                 updatedAt: new Date(),
               },
             },
@@ -251,7 +277,11 @@ async function createGitHubRepo(name: string, files: ProjectFile[], token: strin
   const refData = await refRes.json()
   const baseSha = refData.object.sha
 
-  // Create blobs for each file
+  // Create blobs for each file. Each response MUST be checked: GitHub's
+  // secondary/abuse rate limit (403) or a token-scope issue makes blob.sha
+  // undefined, every downstream call then 422s, and the repo silently stays
+  // at its auto_init README-only state — while the caller still returns a
+  // live-looking URL. Throw so the deploy fails honestly instead.
   const blobs = await Promise.all(
     files.map(async (file) => {
       const blobRes = await fetch(
@@ -269,7 +299,12 @@ async function createGitHubRepo(name: string, files: ProjectFile[], token: strin
           }),
         }
       )
+      if (!blobRes.ok) {
+        const err = await blobRes.text().catch(() => '')
+        throw new Error(`Failed to upload ${file.path} (GitHub ${blobRes.status}): ${err.slice(0, 200)}`)
+      }
       const blob = await blobRes.json()
+      if (!blob.sha) throw new Error(`GitHub returned no blob sha for ${file.path}`)
       return {
         path: file.path,
         mode: '100644' as const,
@@ -295,8 +330,12 @@ async function createGitHubRepo(name: string, files: ProjectFile[], token: strin
       }),
     }
   )
-
+  if (!treeRes.ok) {
+    const err = await treeRes.text().catch(() => '')
+    throw new Error(`Failed to create git tree (GitHub ${treeRes.status}): ${err.slice(0, 200)}`)
+  }
   const tree = await treeRes.json()
+  if (!tree.sha) throw new Error('GitHub returned no tree sha')
 
   // Create commit
   const commitRes = await fetch(
@@ -315,11 +354,15 @@ async function createGitHubRepo(name: string, files: ProjectFile[], token: strin
       }),
     }
   )
-
+  if (!commitRes.ok) {
+    const err = await commitRes.text().catch(() => '')
+    throw new Error(`Failed to create commit (GitHub ${commitRes.status}): ${err.slice(0, 200)}`)
+  }
   const commit = await commitRes.json()
+  if (!commit.sha) throw new Error('GitHub returned no commit sha')
 
-  // Update ref
-  await fetch(
+  // Update ref — the final step that makes the pushed files the repo HEAD.
+  const refUpdateRes = await fetch(
     `https://api.github.com/repos/${repoFullName}/git/refs/heads/main`,
     {
       method: 'PATCH',
@@ -333,6 +376,10 @@ async function createGitHubRepo(name: string, files: ProjectFile[], token: strin
       }),
     }
   )
+  if (!refUpdateRes.ok) {
+    const err = await refUpdateRes.text().catch(() => '')
+    throw new Error(`Failed to update repo HEAD (GitHub ${refUpdateRes.status}): ${err.slice(0, 200)}`)
+  }
 
   return repo.html_url
 }

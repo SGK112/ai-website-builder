@@ -73,8 +73,30 @@ export async function GET(req: NextRequest) {
     const list = await res.json().catch(() => [])
     const latest = Array.isArray(list) ? list[0]?.deploy : null
     const renderStatus = String(latest?.status || 'unknown')
+    const mapped = mapStatus(renderStatus)
+
+    // Persist the terminal outcome back to the owned project. /api/deploy stamps
+    // status:'building' at service-creation; this is where it resolves to
+    // 'deployed' (live) or 'deploy_failed' — otherwise a failed build stays
+    // marked 'building' forever and a false 'deployed' never gets corrected.
+    // Owner-scoped ($or on userId) so this can never touch another user's doc.
+    if (mapped === 'live' || mapped === 'failed' || mapped === 'canceled') {
+      try {
+        const mongoose = await connectDB()
+        const db = mongoose.connection.db
+        if (db) {
+          const ownerOr: any[] = [{ userId: session.user.id }]
+          if (ObjectId.isValid(session.user.id)) ownerOr.push({ userId: new ObjectId(session.user.id) })
+          await db.collection('projects').updateOne(
+            { 'deployment.renderServiceId': serviceId, $or: ownerOr },
+            { $set: { status: mapped === 'live' ? 'deployed' : 'deploy_failed', updatedAt: new Date() } },
+          )
+        }
+      } catch { /* best-effort — status polling must still return even if the write fails */ }
+    }
+
     return NextResponse.json({
-      status: mapStatus(renderStatus),
+      status: mapped,
       renderStatus,
       finishedAt: latest?.finishedAt || null,
       commitId: latest?.commit?.id || null,
