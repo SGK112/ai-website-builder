@@ -65,9 +65,21 @@ export async function GET(
       updatedAt: page.updatedAt,
     }))
 
+    // Only the OWNER gets the full document. Editors/viewers (and anyone on a
+    // published/public project — the ObjectId is exposed in site markup and
+    // form payloads) must not receive the owner's contact email, the deploy
+    // infra IDs (the leaked renderServiceId is exactly what the deploy/status
+    // IDOR guard protects), stored credential refs, or the other collaborators'
+    // emails. Strip those for every non-owner role.
+    let safeProject: any = project
+    if (role !== 'owner') {
+      const { notificationEmail, credentialIds, deployment, collaborators, serviceCredentials, ...rest } = project as any
+      safeProject = rest
+    }
+
     return NextResponse.json({
       project: {
-        ...project,
+        ...safeProject,
         pages: formattedPages,
       },
       role,

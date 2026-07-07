@@ -15,11 +15,16 @@ const TTL_MS = 60 * 60 * 1000 // 1 hour
 
 // Inline — Next.js route files only allow GET/POST/etc. exports plus the
 // `dynamic` / `runtime` config consts. Non-handler exports break the build.
-function makeResetToken(email: string): string {
+function makeResetToken(email: string, passwordHash: string): string {
   const secret = process.env.NEXTAUTH_SECRET || ''
   const exp = Date.now() + TTL_MS
+  // Bind the token to the account's CURRENT password hash. The moment the
+  // password changes (i.e. this very reset succeeds, or any other change), the
+  // signature stops matching — making the link single-use and un-replayable
+  // after use. The fragment is derived server-side and never put in the token.
+  const pwfrag = createHmac('sha256', secret).update('pw:' + String(passwordHash || '')).digest('hex').slice(0, 16)
   const body = `${email.toLowerCase()}:${exp}`
-  const sig = createHmac('sha256', secret).update(body).digest('hex')
+  const sig = createHmac('sha256', secret).update(`${body}:${pwfrag}`).digest('hex')
   return Buffer.from(`${body}:${sig}`).toString('base64url')
 }
 
@@ -40,9 +45,9 @@ export async function POST(req: NextRequest) {
 
   try {
     await connectDB()
-    const user = await User.findOne({ email }).select('_id email').lean()
+    const user = await User.findOne({ email }).select('_id email +password').lean()
     if (user) {
-      const token = makeResetToken(email)
+      const token = makeResetToken(email, String((user as any).password || ''))
       // NEVER use the request Origin/Host here — it's attacker-controlled, so a
       // crafted Origin would email the VICTIM a real reset link (with a valid
       // token) pointing at the attacker's domain → token capture → takeover.

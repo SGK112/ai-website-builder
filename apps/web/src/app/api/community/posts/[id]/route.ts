@@ -3,6 +3,7 @@ import { guardAnonAbuse } from '@/lib/abuse-guard'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import clientPromise from '@/lib/mongodb'
+import { isAdminEmail } from '@ai-website-builder/database'
 import { ObjectId } from 'mongodb'
 
 export const dynamic = 'force-dynamic'
@@ -13,6 +14,11 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Guard a malformed id — `new ObjectId(bad)` throws → 500 otherwise.
+    if (!ObjectId.isValid(params.id)) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 })
+    }
+
     const client = await clientPromise
     const db = client.db('ai-website-builder')
     const collection = db.collection('community_posts')
@@ -20,6 +26,20 @@ export async function GET(
     const post = await collection.findOne({ _id: new ObjectId(params.id) })
 
     if (!post) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 })
+    }
+
+    // Moderation gate (mirrors the list route): a pending/rejected listing is
+    // visible only to its author or an admin. Without this, anyone could read
+    // an unreviewed or admin-removed post — including a free listing's full
+    // html — just by knowing its ObjectId, bypassing the feed's filter.
+    const session = await getServerSession(authOptions).catch(() => null)
+    const uid = session?.user?.id
+    const viewerEmail = session?.user?.email || ''
+    const viewerIsAdmin = !!viewerEmail && isAdminEmail(viewerEmail)
+    const isAuthor = !!uid && String(post.author?.id || '') === String(uid)
+    const hidden = post.status === 'pending' || post.status === 'rejected'
+    if (hidden && !isAuthor && !viewerIsAdmin) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 })
     }
 
@@ -35,8 +55,6 @@ export async function GET(
     const isPremium = !!post.isPremium && (Number(post.price_credits) || 0) > 0
     let owned = false
     if (isPremium) {
-      const session = await getServerSession(authOptions)
-      const uid = session?.user?.id
       if (uid) {
         if (String(post.author?.id || '') === String(uid)) {
           owned = true

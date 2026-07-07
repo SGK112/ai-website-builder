@@ -9,7 +9,12 @@ import { User } from '@ai-website-builder/database'
 
 export const dynamic = 'force-dynamic'
 
-function verifyResetToken(token: string): { ok: true; email: string } | { ok: false; reason: string } {
+// Parse + expiry-check only. The signature is verified in POST against the
+// account's CURRENT password hash (see below), which the token is bound to —
+// so it can't be done statelessly here.
+function parseResetToken(token: string):
+  | { ok: true; email: string; exp: number; sig: string }
+  | { ok: false; reason: string } {
   const secret = process.env.NEXTAUTH_SECRET || ''
   if (!secret) return { ok: false, reason: 'server_unconfigured' }
   let decoded: string
@@ -18,20 +23,9 @@ function verifyResetToken(token: string): { ok: true; email: string } | { ok: fa
   const parts = decoded.split(':')
   if (parts.length !== 3) return { ok: false, reason: 'malformed' }
   const [email, expStr, sig] = parts
-  const body = `${email}:${expStr}`
-  const expected = createHmac('sha256', secret).update(body).digest('hex')
-  // Constant-time compare to defeat timing oracles.
-  if (sig.length !== expected.length) return { ok: false, reason: 'invalid_signature' }
-  try {
-    if (!timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'))) {
-      return { ok: false, reason: 'invalid_signature' }
-    }
-  } catch { return { ok: false, reason: 'invalid_signature' } }
   const exp = Number(expStr)
-  if (!Number.isFinite(exp) || Date.now() > exp) {
-    return { ok: false, reason: 'expired' }
-  }
-  return { ok: true, email }
+  if (!Number.isFinite(exp) || Date.now() > exp) return { ok: false, reason: 'expired' }
+  return { ok: true, email, exp, sig }
 }
 
 export async function POST(req: NextRequest) {
@@ -46,9 +40,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
   }
 
-  const verified = verifyResetToken(token)
-  if (!verified.ok) {
-    const msg = verified.reason === 'expired'
+  const parsed = parseResetToken(token)
+  if (!parsed.ok) {
+    const msg = parsed.reason === 'expired'
       ? 'This reset link expired. Request a new one.'
       : 'This reset link is invalid. Request a new one.'
     return NextResponse.json({ error: msg }, { status: 400 })
@@ -56,9 +50,23 @@ export async function POST(req: NextRequest) {
 
   try {
     await connectDB()
-    const user = await User.findOne({ email: verified.email }).select('+password')
+    const user = await User.findOne({ email: parsed.email }).select('+password')
     if (!user) {
-      return NextResponse.json({ error: 'Account not found' }, { status: 400 })
+      return NextResponse.json({ error: 'This reset link is invalid. Request a new one.' }, { status: 400 })
+    }
+    // Verify the signature against the account's CURRENT password hash. forgot
+    // signs over `email:exp:pwfrag(currentHash)`; once THIS reset changes the
+    // hash, the same token no longer matches — so it's single-use and can't be
+    // replayed from a leaked link after the legitimate reset. pwfrag never
+    // leaves the server (not in the token), so it's not a hash oracle.
+    const secret = process.env.NEXTAUTH_SECRET || ''
+    const pwfrag = createHmac('sha256', secret).update('pw:' + String((user as any).password || '')).digest('hex').slice(0, 16)
+    const expected = createHmac('sha256', secret).update(`${parsed.email}:${parsed.exp}:${pwfrag}`).digest('hex')
+    const sigBuf = Buffer.from(parsed.sig, 'hex')
+    const expBuf = Buffer.from(expected, 'hex')
+    const sigOk = sigBuf.length === expBuf.length && timingSafeEqual(sigBuf, expBuf)
+    if (!sigOk) {
+      return NextResponse.json({ error: 'This reset link is invalid. Request a new one.' }, { status: 400 })
     }
     user.password = password // pre-save hook hashes via bcrypt
     await user.save()
