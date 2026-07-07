@@ -2784,6 +2784,13 @@ Rules:
       const encoder = new TextEncoder()
       let fullHtml = ''
 
+      // Cancelled build → don't bill (and stop the token burn). The browser
+      // dropping the fetch aborts req.signal, which is passed to every provider
+      // pass below so the Anthropic stream stops; `aborted` also gates the
+      // trackUsage charge so a user is never billed for a build they cancelled.
+      let aborted = false
+      if (req.signal) req.signal.addEventListener('abort', () => { aborted = true })
+
       const readable = new ReadableStream({
         async start(controller) {
           let closed = false
@@ -2823,7 +2830,7 @@ Rules:
               max_tokens: maxTokens,
               system: claudeSystemPrompt,
               messages,
-            })
+            }, { signal: req.signal })
 
             pass.on('text', (text) => {
               fullHtml += text
@@ -2962,7 +2969,7 @@ Rules:
               ? 0
               : creditsForUsage(claudeModel, claudeUsage.inputTokens, claudeUsage.outputTokens)
 
-            if (userId && !truncated) {
+            if (userId && !truncated && !aborted) {
               try {
                 await trackUsage(userId, {
                   type: 'generation',
@@ -2981,6 +2988,8 @@ Rules:
               } catch (trackError) {
                 console.warn('[Generate] Failed to track Claude usage:', trackError)
               }
+            } else if (aborted) {
+              console.log(`[Generate] Build cancelled — NOT charging user ${userId || '(anon)'}`)
             } else if (truncated) {
               console.log(`[Generate] Build truncated — NOT charging user ${userId || '(anon)'}`)
             }
@@ -3124,10 +3133,16 @@ Rules:
       stream: true,
       max_tokens: maxTokens,
       temperature: 0.7
-    })
+    }, { signal: req.signal })
 
     const encoder = new TextEncoder()
     let fullHtml = ''
+
+    // Cancelled build → don't bill (and stop the burn). req.signal is passed to
+    // the OpenAI stream above, so a client disconnect aborts it; `aborted` also
+    // gates the trackUsage charge below.
+    let aborted = false
+    if (req.signal) req.signal.addEventListener('abort', () => { aborted = true })
 
     const readable = new ReadableStream({
       async start(controller) {
@@ -3246,7 +3261,7 @@ Rules:
             selectedModel.includes('gpt-3.5') ? 1 : 3
           )
 
-          if (userId && !grokTruncated) {
+          if (userId && !grokTruncated && !aborted) {
             try {
               await trackUsage(userId, {
                 type: 'generation',
@@ -3265,6 +3280,8 @@ Rules:
             } catch (trackError) {
               console.warn('[Generate] Failed to track OpenAI usage:', trackError)
             }
+          } else if (aborted) {
+            console.log(`[Generate] Build cancelled — NOT charging user ${userId || '(anon)'}`)
           } else if (grokTruncated) {
             console.log(`[Generate] Build truncated (OpenAI/Grok) — NOT charging user ${userId || '(anon)'}`)
           }
