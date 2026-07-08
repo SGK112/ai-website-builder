@@ -63,23 +63,11 @@ export function StartDashboard({
   )
 
   return (
-    <div className={cn('h-full flex flex-col relative overflow-hidden', isDark ? 'bg-zinc-950' : 'bg-[#FBF9F6]')}>
-      {/* soft warm→violet wash confined to the top */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-[58%]"
-        style={{
-          background:
-            'radial-gradient(120% 90% at 72% -18%, color-mix(in srgb, #7C3AED 18%, transparent), transparent 60%), radial-gradient(90% 70% at 22% -12%, color-mix(in srgb, #F59E0B 12%, transparent), transparent 62%)',
-          WebkitMaskImage: 'linear-gradient(to bottom, #000 0%, #000 34%, transparent 100%)',
-          maskImage: 'linear-gradient(to bottom, #000 0%, #000 34%, transparent 100%)',
-        }}
-      />
-
+    <div className={cn('h-full flex flex-col relative overflow-hidden', isDark ? 'bg-zinc-950' : 'bg-[#FBFAF8]')}>
       {/* ── top bar ── */}
       <div className="relative z-20 flex items-center justify-between px-4 h-14 shrink-0">
         <a href="/" className="flex items-center gap-2">
-          <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 grid place-items-center text-base shadow-sm">🍲</span>
+          <span className="text-[22px] leading-none select-none">🍲</span>
           <span className={cn('text-[15px] font-semibold tracking-tight', isDark ? 'text-white' : 'text-slate-900')}>webstew</span>
         </a>
         <div className="flex items-center gap-1.5">
@@ -101,7 +89,7 @@ export function StartDashboard({
               <button
                 onClick={() => setMenuOpen((o) => !o)}
                 aria-label="Account"
-                className="w-9 h-9 rounded-full grid place-items-center text-white text-xs font-semibold bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-sm"
+                className={cn('w-9 h-9 rounded-full grid place-items-center text-xs font-semibold border', isDark ? 'bg-zinc-800 text-zinc-200 border-white/10' : 'bg-slate-100 text-slate-700 border-slate-200')}
               >
                 {initials}
               </button>
