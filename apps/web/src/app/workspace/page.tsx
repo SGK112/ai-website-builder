@@ -9950,8 +9950,8 @@ npx eas build --platform all
             returning user can still open the Files/Projects tab (no trap). The
             SkillPicker (z-200) fires ON TOP of this. Unmounts the moment a build
             exists, revealing the two-pane workspace. */}
-        {!html && Object.keys(vfsFiles).length === 0 && !isGenerating && !plannerActive && !isMobile && (
-          <div className="absolute inset-0 z-[55] flex flex-col">
+        {!html && Object.keys(vfsFiles).length === 0 && !isGenerating && !plannerActive && !isMobile && activePanel === 'build' && (
+          <div className="fixed inset-0 z-[90] flex flex-col">
             <StartDashboard
               isDark={isDark}
               userName={session?.user?.name || undefined}
@@ -9962,6 +9962,8 @@ npx eas build --platform all
               recipes={quickStartTemplates.map((t) => ({ id: t.id, label: t.label, icon: t.icon, isPremade: t.isPremade }))}
               onPickRecipe={runQuickStartTemplate}
               onOpenConnectors={() => setActivePanel('integrations')}
+              onToggleTheme={toggleTheme}
+              onViewProjects={() => setActivePanel('projects')}
               busy={isGenerating}
             />
           </div>
