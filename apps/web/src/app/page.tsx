@@ -605,8 +605,8 @@ export default function HomePage() {
                       className={cn(
                         'w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all',
                         prompt.trim()
-                          ? 'bg-gradient-to-br from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white shadow-lg shadow-emerald-500/30 hover:scale-105'
-                          : isDark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-50 text-emerald-500'
+                          ? 'bg-violet-600 hover:bg-violet-700 text-white shadow-lg shadow-violet-600/30 hover:scale-105'
+                          : isDark ? 'bg-violet-500/15 text-violet-400' : 'bg-violet-50 text-violet-500'
                       )}
                     >
                       {isTransitioning ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4" />}
