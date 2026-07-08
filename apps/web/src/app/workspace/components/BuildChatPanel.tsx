@@ -493,20 +493,21 @@ export function BuildChatPanel({
                       key={template.id}
                       onClick={() => onLoadInlineTemplate(template.id)}
                       className={cn(
-                        "group relative p-3 rounded-xl transition-all text-left overflow-hidden border",
+                        "group relative p-3 rounded-xl transition-colors text-left overflow-hidden border",
                         isDark
-                          ? "bg-gradient-to-br from-white/[0.03] to-transparent border-white/[0.05] hover:border-white/[0.15]"
+                          ? "bg-white/[0.03] border-white/[0.06] hover:border-violet-400/40 hover:bg-violet-500/[0.06]"
                           : "bg-white border-slate-200 hover:border-violet-300 hover:shadow-md"
                       )}
                     >
-                      <div className={`absolute inset-0 bg-gradient-to-br ${template.gradient} opacity-0 group-hover:opacity-10 transition-opacity`} />
                       {template.isPremade && (
-                        <span className="absolute top-2 right-2 px-1.5 py-0.5 text-[8px] font-bold tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded">
+                        <span className="absolute top-2 right-2 px-1.5 py-0.5 text-[8px] font-bold tracking-wider bg-violet-100 text-violet-700 border border-violet-200 dark:bg-violet-500/20 dark:text-violet-300 dark:border-violet-500/30 rounded">
                           INSTANT
                         </span>
                       )}
-                      <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${template.gradient} flex items-center justify-center mb-2`}>
-                        <Icon className="w-4 h-4 text-white" />
+                      {/* One accent — the tiles used to each carry a different
+                          gradient (violet/blue/emerald…), five accents in a 2×2. */}
+                      <div className="w-8 h-8 rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300 flex items-center justify-center mb-2">
+                        <Icon className="w-4 h-4" />
                       </div>
                       <span className={cn("text-xs font-medium", isDark ? "text-white" : "text-slate-800")}>{template.label}</span>
                     </button>
