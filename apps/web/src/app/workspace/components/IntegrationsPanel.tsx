@@ -22,6 +22,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { BrandIcon, hasBrandIcon } from '@/lib/brand-icons'
 import type { BusinessIntegration, EnvVar } from '../types'
 
 const CATEGORIES = [
@@ -141,17 +142,24 @@ export function IntegrationsPanel({
               <div className="flex items-center justify-between p-3">
                 <div className="flex items-center gap-2.5">
                   <div className={cn(
-                    'w-8 h-8 rounded-lg flex items-center justify-center',
-                    integration.enabled
-                      ? 'bg-violet-200 dark:bg-violet-500/20'
-                      : 'bg-slate-100 dark:bg-white/[0.05]'
+                    'w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden',
+                    hasBrandIcon(integration.name)
+                      // Real brand marks read best on a neutral tile, not tinted.
+                      ? 'bg-white dark:bg-white/[0.06] border border-slate-200/70 dark:border-white/10 p-1.5'
+                      : integration.enabled
+                        ? 'bg-violet-200 dark:bg-violet-500/20'
+                        : 'bg-slate-100 dark:bg-white/[0.05]'
                   )}>
-                    <integration.icon className={cn(
-                      'w-4 h-4',
-                      integration.enabled
-                        ? 'text-violet-700 dark:text-violet-400'
-                        : 'text-slate-500 dark:text-zinc-500'
-                    )} />
+                    {hasBrandIcon(integration.name) ? (
+                      <BrandIcon name={integration.name} className="w-full h-full" />
+                    ) : (
+                      <integration.icon className={cn(
+                        'w-4 h-4',
+                        integration.enabled
+                          ? 'text-violet-700 dark:text-violet-400'
+                          : 'text-slate-500 dark:text-zinc-500'
+                      )} />
+                    )}
                   </div>
                   <div>
                     <h4 className={cn(
