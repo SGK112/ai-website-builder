@@ -197,6 +197,7 @@ import { ImagesPanel } from './components/ImagesPanel'
 import { VideoPanel } from './components/VideoPanel'
 import { TemplatesPanel } from './components/TemplatesPanel'
 import { BuildChatPanel } from './components/BuildChatPanel'
+import { StartDashboard } from './components/StartDashboard'
 import { PhonePreview } from './components/PhonePreview'
 import { levelCopy, defaultBuildTargetForLevel } from './constants'
 import { PublishToCommunityModal } from '@/components/builder/PublishToCommunityModal'
@@ -9944,6 +9945,27 @@ npx eas build --platform all
 
       {/* Main Content */}
       <main className="flex-1 min-w-0 flex flex-col overflow-hidden relative">
+        {/* No-project empty state — one centered build dashboard replaces the
+            blank preview pane (Lovable-style). The sidebar stays mounted so a
+            returning user can still open the Files/Projects tab (no trap). The
+            SkillPicker (z-200) fires ON TOP of this. Unmounts the moment a build
+            exists, revealing the two-pane workspace. */}
+        {!html && Object.keys(vfsFiles).length === 0 && !isGenerating && !plannerActive && !isMobile && (
+          <div className="absolute inset-0 z-[55] flex flex-col">
+            <StartDashboard
+              isDark={isDark}
+              userName={session?.user?.name || undefined}
+              value={commandInput}
+              onChange={setCommandInput}
+              onSubmit={handleCommandSubmit}
+              onSeedPrompt={(t) => setCommandInput(t)}
+              recipes={quickStartTemplates.map((t) => ({ id: t.id, label: t.label, icon: t.icon, isPremade: t.isPremade }))}
+              onPickRecipe={runQuickStartTemplate}
+              onOpenConnectors={() => setActivePanel('integrations')}
+              busy={isGenerating}
+            />
+          </div>
+        )}
         {/* Focus Mode Indicator */}
         <AnimatePresence>
           {focusMode && (
