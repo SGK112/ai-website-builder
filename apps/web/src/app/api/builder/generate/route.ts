@@ -2796,10 +2796,12 @@ Rules:
       const encoder = new TextEncoder()
       let fullHtml = ''
 
-      // Cancelled build → don't bill (and stop the token burn). The browser
-      // dropping the fetch aborts req.signal, which is passed to every provider
-      // pass below so the Anthropic stream stops; `aborted` also gates the
-      // trackUsage charge so a user is never billed for a build they cancelled.
+      // Cancelled build → don't BILL. We deliberately do NOT abort the provider
+      // stream on req.signal: a transient Cloudflare/proxy disconnect on a long
+      // build would then truncate the site ("half-cooked"). The stream runs to
+      // completion server-side (and is persisted for retrieval); `aborted` only
+      // gates the trackUsage charge so a user isn't billed for a build they
+      // actually cancelled.
       let aborted = false
       if (req.signal) req.signal.addEventListener('abort', () => { aborted = true })
 
@@ -2842,7 +2844,7 @@ Rules:
               max_tokens: maxTokens,
               system: claudeSystemPrompt,
               messages,
-            }, { signal: req.signal })
+            })
 
             pass.on('text', (text) => {
               fullHtml += text
@@ -3145,14 +3147,14 @@ Rules:
       stream: true,
       max_tokens: maxTokens,
       temperature: 0.7
-    }, { signal: req.signal })
+    })
 
     const encoder = new TextEncoder()
     let fullHtml = ''
 
-    // Cancelled build → don't bill (and stop the burn). req.signal is passed to
-    // the OpenAI stream above, so a client disconnect aborts it; `aborted` also
-    // gates the trackUsage charge below.
+    // Cancelled build → don't BILL. We do NOT abort the OpenAI stream on
+    // req.signal — a transient disconnect on a long build would truncate the
+    // site. The stream finishes server-side; `aborted` only gates trackUsage.
     let aborted = false
     if (req.signal) req.signal.addEventListener('abort', () => { aborted = true })
 
