@@ -400,7 +400,7 @@ export function SiteGraderWidget({ isDark }: Props) {
                   prompt pre-fired. */}
               <div className={cn(
                 "p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4",
-                isDark ? "bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10" : "bg-gradient-to-r from-violet-50 to-fuchsia-50"
+                isDark ? "bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10" : "bg-violet-50"
               )}>
                 <div className="flex-1">
                   <p className={cn("font-semibold text-base", isDark ? "text-white" : "text-slate-900")}>
@@ -414,7 +414,7 @@ export function SiteGraderWidget({ isDark }: Props) {
                 </div>
                 <button
                   onClick={handleRebuildCta}
-                  className="shrink-0 inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white font-semibold transition shadow-lg shadow-violet-500/30"
+                  className="shrink-0 inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold transition shadow-lg shadow-violet-500/30"
                 >
                   <Sparkles className="w-4 h-4" />
                   {sessionStatus === 'authenticated' ? 'Rebuild now' : 'Sign up & rebuild'}

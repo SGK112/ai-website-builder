@@ -780,7 +780,7 @@ export default function TemplatesPage() {
                   </button>
                   <button
                     onClick={() => router.push('/upgrade')}
-                    className="flex-1 px-4 py-2.5 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white text-sm font-bold transition flex items-center justify-center gap-1.5"
+                    className="flex-1 px-4 py-2.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold transition flex items-center justify-center gap-1.5"
                   >
                     <Crown className="w-3.5 h-3.5" /> Upgrade
                   </button>

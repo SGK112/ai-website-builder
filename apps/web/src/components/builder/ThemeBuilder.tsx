@@ -1286,7 +1286,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
         </div>
         <button
           onClick={applyTheme}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-400 hover:to-fuchsia-400 text-white font-medium transition-colors"
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-violet-500 hover:bg-violet-700 text-white font-medium transition-colors"
         >
           <Wand2 className="w-4 h-4" />
           Apply Theme

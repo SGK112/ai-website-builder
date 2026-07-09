@@ -826,7 +826,7 @@ export default function VideoStudio() {
               desktop they're always shown. */}
           <div className="md:hidden space-y-2">
             <button onClick={() => setDirectorChatOpen(true)}
-              className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 text-white text-sm font-semibold py-3 shadow-lg shadow-violet-600/20">
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-violet-600 text-white text-sm font-semibold py-3 shadow-lg shadow-violet-600/20">
               <Clapperboard className="w-4 h-4" /> Talk to the chef
             </button>
             <div className="flex items-center gap-2">
@@ -869,7 +869,7 @@ export default function VideoStudio() {
               </div>
               {orderMic.error && <p className="text-[10px] text-rose-300/80">{orderMic.error}</p>}
               <button onClick={() => runDirector()} disabled={busy || !directorOrder.trim()}
-                className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 disabled:opacity-40 text-white text-xs font-semibold py-2">
+                className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white text-xs font-semibold py-2">
                 {directing ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {genLabel || 'Directing…'}</> : <><Clapperboard className="w-3.5 h-3.5" /> Direct the whole cut ({doneClips.length})</>}
               </button>
               <button onClick={() => setDirectorChatOpen(true)} disabled={directing}
@@ -911,7 +911,7 @@ export default function VideoStudio() {
           <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={3}
             placeholder={mode === 'text' ? 'Describe this clip…' : 'Optional motion (e.g. slow push-in)…'}
             className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50 resize-none" />
-          <button onClick={() => setDirectorOpen(true)} className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-violet-500/40 bg-gradient-to-r from-violet-600/15 to-fuchsia-600/15 hover:from-violet-600/25 text-violet-200 text-xs font-medium py-2">
+          <button onClick={() => setDirectorOpen(true)} className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-violet-500/40 bg-gradient-to-r from-violet-600/15 to-fuchsia-600/15/25 text-violet-200 text-xs font-medium py-2">
             <Sparkles className="w-3.5 h-3.5" /> AI Director — craft this prompt
           </button>
 
@@ -956,7 +956,7 @@ export default function VideoStudio() {
           </div>
 
           <button onClick={generateClip} disabled={busy || uploadingImage}
-            className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 disabled:opacity-40 text-white text-sm font-semibold py-2.5">
+            className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white text-sm font-semibold py-2.5">
             {generating ? <><Loader2 className="w-4 h-4 animate-spin" /> {genLabel || 'Generating…'}</> : <><Plus className="w-4 h-4" /> Generate clip → timeline</>}
           </button>
           {/* Batch: one clip per staged image → a multi-shot ad on the timeline. */}

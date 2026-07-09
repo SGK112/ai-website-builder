@@ -184,7 +184,7 @@ export function FeedbackBoard({ isDark = true }: { isDark?: boolean }) {
           }
           setComposeOpen(true)
         }}
-        className="w-full mb-6 px-5 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-lg shadow-violet-500/20"
+        className="w-full mb-6 px-5 py-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-lg shadow-violet-500/20"
       >
         <Sparkles className="w-4 h-4" /> Post your feedback
       </button>
@@ -508,7 +508,7 @@ function Thread({
           className={cn(
             'p-2 rounded-lg shrink-0 transition-colors',
             draft.trim() && sessionUser && !sending
-              ? 'bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white'
+              ? 'bg-violet-600 text-white'
               : isDark ? 'bg-white/5 text-zinc-500' : 'bg-zinc-100 text-zinc-400'
           )}
           aria-label="Send reply"
@@ -634,7 +634,7 @@ function ComposeModal({
           <button
             onClick={submit}
             disabled={submitting || title.length < 3 || body.length < 5}
-            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white font-semibold text-sm disabled:opacity-50"
+            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-violet-600 text-white font-semibold text-sm disabled:opacity-50"
           >
             {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
             Post feedback

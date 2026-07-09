@@ -167,7 +167,7 @@ export function VideoPanel({
 
         <button
           onClick={() => setDirectorOpen(true)}
-          className="mb-3 w-full flex items-center justify-center gap-1.5 rounded-lg border border-violet-500/40 bg-gradient-to-r from-violet-600/15 to-fuchsia-600/15 hover:from-violet-600/25 hover:to-fuchsia-600/25 text-violet-200 text-xs font-medium py-2 transition-colors"
+          className="mb-3 w-full flex items-center justify-center gap-1.5 rounded-lg border border-violet-500/40 bg-gradient-to-r from-violet-600/15 to-fuchsia-600/15/25/25 text-violet-200 text-xs font-medium py-2 transition-colors"
         >
           <Sparkles className="w-3.5 h-3.5" />
           AI Director — help me craft this prompt

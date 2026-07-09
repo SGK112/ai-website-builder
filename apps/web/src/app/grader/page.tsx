@@ -245,7 +245,7 @@ function GraderInner() {
             </p>
             <Link
               href="/"
-              className="inline-flex items-center justify-center mt-6 px-6 py-3 rounded-full font-semibold bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:opacity-90 transition-opacity"
+              className="inline-flex items-center justify-center mt-6 px-6 py-3 rounded-full font-semibold bg-violet-600 text-white hover:opacity-90 transition-opacity"
             >
               Build my website free
             </Link>

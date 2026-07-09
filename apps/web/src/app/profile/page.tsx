@@ -437,7 +437,7 @@ export default function ProfilePage() {
                 <div className={cn(
                   'w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold mb-4',
                   isDark
-                    ? 'bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white'
+                    ? 'bg-violet-500 text-white'
                     : 'bg-gradient-to-br from-orange-400 to-pink-500 text-white'
                 )}>
                   {user.name.charAt(0)}
@@ -501,7 +501,7 @@ export default function ProfilePage() {
                   className={cn(
                     'block w-full py-2 rounded-lg text-xs font-medium text-center transition-all',
                     isDark
-                      ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:shadow-lg hover:shadow-violet-500/25'
+                      ? 'bg-violet-500 text-white hover:shadow-lg hover:shadow-violet-500/25'
                       : 'bg-gradient-to-r from-orange-400 to-pink-500 text-white hover:shadow-lg hover:shadow-orange-500/25'
                   )}
                 >
@@ -734,7 +734,7 @@ export default function ProfilePage() {
                         className={cn(
                           'inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition',
                           isDark
-                            ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:shadow-lg hover:shadow-violet-500/25'
+                            ? 'bg-violet-500 text-white hover:shadow-lg hover:shadow-violet-500/25'
                             : 'bg-gradient-to-r from-orange-400 to-pink-500 text-white hover:shadow-lg hover:shadow-orange-500/25'
                         )}
                       >

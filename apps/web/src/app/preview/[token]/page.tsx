@@ -103,7 +103,7 @@ function WebstewBadge() {
     >
       <span
         aria-hidden
-        className="w-5 h-5 rounded-md bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-[10px] font-bold text-white"
+        className="w-5 h-5 rounded-md bg-violet-500 flex items-center justify-center text-[10px] font-bold text-white"
       >
         W
       </span>

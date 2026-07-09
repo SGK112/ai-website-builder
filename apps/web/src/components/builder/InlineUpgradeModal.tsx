@@ -71,7 +71,7 @@ export function InlineUpgradeModal({ open, onClose, isDark = true, currentPlan, 
           isDark ? 'border-white/[0.06]' : 'border-slate-100'
         )}>
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-violet-500 flex items-center justify-center">
               <Sparkles className="w-3.5 h-3.5 text-white" />
             </div>
             <div>
@@ -176,7 +176,7 @@ export function InlineUpgradeModal({ open, onClose, isDark = true, currentPlan, 
                     )}
                   >
                     {plan.popular && !isCurrent && (
-                      <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white text-[10px] font-bold whitespace-nowrap">
+                      <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-violet-600 text-white text-[10px] font-bold whitespace-nowrap">
                         Most popular
                       </div>
                     )}
@@ -214,7 +214,7 @@ export function InlineUpgradeModal({ open, onClose, isDark = true, currentPlan, 
                         isCurrent
                           ? isDark ? 'bg-emerald-500/20 text-emerald-400 cursor-default' : 'bg-emerald-100 text-emerald-700 cursor-default'
                           : plan.popular
-                          ? 'bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white shadow-sm'
+                          ? 'bg-violet-600 hover:bg-violet-700 text-white shadow-sm'
                           : isDark
                           ? 'bg-white/10 hover:bg-white/20 text-white'
                           : 'bg-slate-800 hover:bg-slate-700 text-white',
@@ -261,7 +261,7 @@ export function InlineUpgradeModal({ open, onClose, isDark = true, currentPlan, 
                     )}
                   >
                     {pack.popular && (
-                      <span className="absolute -top-2 left-3 px-2 py-0.5 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white text-[9px] font-bold">
+                      <span className="absolute -top-2 left-3 px-2 py-0.5 rounded-full bg-violet-600 text-white text-[9px] font-bold">
                         Best value
                       </span>
                     )}

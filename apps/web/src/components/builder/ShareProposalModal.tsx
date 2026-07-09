@@ -169,7 +169,7 @@ export function ShareProposalModal({ open, onClose, html, projectName, isDark = 
               <button
                 onClick={generate}
                 disabled={loading}
-                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white text-sm font-medium flex items-center justify-center gap-2 shadow-sm transition-all"
+                className="w-full py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium flex items-center justify-center gap-2 shadow-sm transition-all"
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
                 {loading ? 'Creating link…' : `Generate ${shareType === 'proposal' ? 'Proposal' : 'Preview'} Link`}

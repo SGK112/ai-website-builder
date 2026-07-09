@@ -191,7 +191,7 @@ export function PayoutsCard({ isDark }: Props) {
           disabled={linking}
           className={cn(
             'inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition',
-            'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:shadow-lg hover:shadow-violet-500/25 disabled:opacity-60'
+            'bg-violet-500 text-white hover:shadow-lg hover:shadow-violet-500/25 disabled:opacity-60'
           )}
         >
           {linking ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}

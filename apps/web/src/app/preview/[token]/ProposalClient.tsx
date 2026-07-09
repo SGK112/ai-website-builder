@@ -108,7 +108,7 @@ export function ProposalClient({ token, type, proposalName, alreadyAccepted }: P
             <button
               onClick={handleAccept}
               disabled={loading || !name.trim()}
-              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition-all hover:from-violet-500 hover:to-fuchsia-500"
+              className="w-full py-2.5 rounded-xl bg-violet-600 text-white text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition-all hover:bg-violet-700"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
               {loading ? 'Sending…' : 'Accept Proposal'}

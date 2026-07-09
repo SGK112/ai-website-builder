@@ -929,7 +929,7 @@ function PhonePreviewModal(props: PhonePreviewModalProps) {
             className="relative group shrink-0"
             title="Change app icon"
           >
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-3xl shadow-lg shadow-violet-900/40 group-hover:scale-105 transition">
+            <div className="w-12 h-12 rounded-2xl bg-violet-500 flex items-center justify-center text-3xl shadow-lg shadow-violet-900/40 group-hover:scale-105 transition">
               {iconUploading ? <Loader2 className="w-5 h-5 animate-spin text-white" /> : iconEmoji}
             </div>
             <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-violet-600 border-2 border-zinc-900 flex items-center justify-center text-[9px] text-white transition">
@@ -1109,7 +1109,7 @@ function PhonePreviewModal(props: PhonePreviewModalProps) {
 
             {snackPhase === 'upgrade' && (
               <div className="w-full text-center">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-2xl mx-auto mb-3 shadow-lg shadow-violet-900/40">
+                <div className="w-12 h-12 rounded-2xl bg-violet-500 flex items-center justify-center text-2xl mx-auto mb-3 shadow-lg shadow-violet-900/40">
                   ✨
                 </div>
                 <h3 className="text-white font-semibold mb-1">Pro feature</h3>
@@ -1140,7 +1140,7 @@ function PhoneFrame({ iconEmoji, name }: { iconEmoji: string; name: string }) {
       {/* Bezel */}
       <div className="absolute inset-0 rounded-[44px] bg-zinc-800 border-2 border-zinc-700 shadow-2xl shadow-black/60" />
       {/* Screen */}
-      <div className="absolute inset-[6px] rounded-[38px] overflow-hidden bg-gradient-to-b from-violet-900 via-fuchsia-900 to-zinc-950 flex flex-col">
+      <div className="absolute inset-[6px] rounded-[38px] overflow-hidden bg-gradient-to-b from-violet-900 to-zinc-950 flex flex-col">
         {/* Dynamic island */}
         <div className="flex justify-center pt-3 pb-2 shrink-0">
           <div className="w-20 h-5 rounded-full bg-black" />
@@ -1152,7 +1152,7 @@ function PhoneFrame({ iconEmoji, name }: { iconEmoji: string; name: string }) {
         </div>
         {/* App icon stage */}
         <div className="flex-1 flex flex-col items-center justify-center gap-3 px-4">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-5xl shadow-2xl shadow-violet-900/50">
+          <div className="w-20 h-20 rounded-2xl bg-violet-500 flex items-center justify-center text-5xl shadow-2xl shadow-violet-900/50">
             {iconEmoji}
           </div>
           <div className="text-white text-sm font-semibold text-center truncate max-w-full">{name}</div>

@@ -71,7 +71,7 @@ export function MobileChatRail({ isDark, messages, streaming }: Props) {
                   <span className="inline-flex items-center gap-1.5 text-violet-300">
                     <span className="flex gap-1">
                       {[0, 150, 300].map((d) => (
-                        <span key={d} className="w-1 h-1 rounded-full bg-gradient-to-br from-violet-400 to-fuchsia-400 animate-bounce" style={{ animationDelay: `${d}ms` }} />
+                        <span key={d} className="w-1 h-1 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: `${d}ms` }} />
                       ))}
                     </span>
                     cooking…

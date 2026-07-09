@@ -306,7 +306,7 @@ export function SiteGraderModal({ open, onClose, html, deployedUrl, isDark = tru
             </div>
             <button
               onClick={() => result && void startFixLoop(result)}
-              className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white text-xs font-medium flex items-center gap-1.5 shadow-sm whitespace-nowrap"
+              className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium flex items-center gap-1.5 shadow-sm whitespace-nowrap"
             >
               <Wand2 className="w-3.5 h-3.5" />
               Fix &amp; iterate

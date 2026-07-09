@@ -44,8 +44,8 @@ export function ImageResultOverlay({ isDark, status, imageUrl, error, prompt, sa
           {status === 'generating' && (
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex flex-col items-center text-center max-w-sm">
               <div className="relative w-20 h-20 mb-6">
-                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 blur-xl opacity-60 animate-pulse" />
-                <div className="relative w-full h-full rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-2xl">
+                <div className="absolute inset-0 rounded-2xl bg-violet-500 blur-xl opacity-60 animate-pulse" />
+                <div className="relative w-full h-full rounded-2xl bg-violet-500 flex items-center justify-center shadow-2xl">
                   <ImageIcon className="w-9 h-9 text-white" />
                 </div>
               </div>
@@ -68,7 +68,7 @@ export function ImageResultOverlay({ isDark, status, imageUrl, error, prompt, sa
                 {saved ? <><Check className="w-3.5 h-3.5" /> Saved to your creations</> : <><Loader2 className="w-3 h-3 animate-spin" /> Saving…</>}
               </p>
               <div className="mt-4 flex items-center gap-3">
-                <a href={imageUrl} download target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white text-sm font-semibold shadow-lg shadow-violet-500/30 active:scale-95 transition">
+                <a href={imageUrl} download target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-500 text-white text-sm font-semibold shadow-lg shadow-violet-500/30 active:scale-95 transition">
                   <Download className="w-4 h-4" /> Download
                 </a>
                 <button onClick={onRetry} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition">
@@ -86,7 +86,7 @@ export function ImageResultOverlay({ isDark, status, imageUrl, error, prompt, sa
               <p className="text-white font-semibold">Couldn’t create the image</p>
               <p className="mt-2 text-sm text-white/60">{error || 'Something went wrong.'}</p>
               <div className="mt-5 flex items-center gap-3">
-                <button onClick={onRetry} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white text-sm font-semibold shadow-lg active:scale-95 transition">
+                <button onClick={onRetry} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-500 text-white text-sm font-semibold shadow-lg active:scale-95 transition">
                   <RefreshCw className="w-4 h-4" /> Try again
                 </button>
                 <button onClick={onClose} className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition">Close</button>
@@ -106,7 +106,7 @@ export function ImageMiniChip({ status, minimized, onReopen }: { status: ImageSt
     <motion.button
       initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
       onClick={onReopen}
-      className="fixed z-[110] bottom-40 left-1/2 -translate-x-1/2 flex items-center gap-2 pl-2.5 pr-4 py-2 rounded-full bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white text-sm font-semibold shadow-xl shadow-violet-500/30 active:scale-95"
+      className="fixed z-[110] bottom-40 left-1/2 -translate-x-1/2 flex items-center gap-2 pl-2.5 pr-4 py-2 rounded-full bg-violet-600 text-white text-sm font-semibold shadow-xl shadow-violet-500/30 active:scale-95"
       style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">

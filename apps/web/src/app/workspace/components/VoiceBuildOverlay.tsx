@@ -70,7 +70,7 @@ export function VoiceBuildOverlay({ status, error, transcript, onClose, onRetry,
               />
               <div
                 className={cn(
-                  'relative w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all bg-gradient-to-br from-violet-500 to-fuchsia-600 shadow-violet-500/40',
+                  'relative w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all bg-violet-500 shadow-violet-500/40',
                   status === 'speaking' && 'scale-110',
                 )}
               >
@@ -93,7 +93,7 @@ export function VoiceBuildOverlay({ status, error, transcript, onClose, onRetry,
                   className={cn(
                     'max-w-[82%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed shadow-lg',
                     t.role === 'user'
-                      ? 'bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white rounded-br-md shadow-violet-500/25'
+                      ? 'bg-violet-500 text-white rounded-br-md shadow-violet-500/25'
                       : 'bg-white/10 text-zinc-100 rounded-bl-md border border-white/10',
                   )}
                 >

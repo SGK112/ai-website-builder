@@ -344,12 +344,12 @@ export function OnboardingTour({ isOpen, onClose, onComplete, skillLevel = 'no-c
                 'px-5 py-4 flex items-start gap-4',
                 current.highlight && (isDark
                   ? 'bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10'
-                  : 'bg-gradient-to-r from-violet-50 to-fuchsia-50')
+                  : 'bg-violet-50')
               )}>
                 <div className={cn(
                   'w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0',
                   current.highlight
-                    ? 'bg-gradient-to-br from-violet-500 to-fuchsia-500'
+                    ? 'bg-violet-500'
                     : isDark ? 'bg-violet-500/20' : 'bg-violet-100'
                 )}>
                   <Icon className={cn(
@@ -430,7 +430,7 @@ export function OnboardingTour({ isOpen, onClose, onComplete, skillLevel = 'no-c
                     className={cn(
                       'flex items-center gap-1 px-4 py-1.5 rounded-lg text-sm font-medium transition-all',
                       isLastStep
-                        ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:opacity-90'
+                        ? 'bg-violet-500 text-white hover:opacity-90'
                         : 'bg-violet-500 text-white hover:bg-violet-400'
                     )}
                   >

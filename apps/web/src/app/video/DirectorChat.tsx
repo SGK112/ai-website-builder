@@ -147,7 +147,7 @@ export default function DirectorChat({ open, clips, busy, onGenerate, onAssemble
         <div className="p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] border-t border-white/10 shrink-0">
           {/* Realtime voice — the same continuous, hands-free chat as the workspace. */}
           <button onClick={voice.toggle} disabled={busy && !voice.active}
-            className={`w-full flex items-center justify-center gap-2 rounded-xl py-2.5 mb-2 text-sm font-semibold disabled:opacity-40 ${voice.active ? 'bg-rose-500 text-white' : 'bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white'}`}>
+            className={`w-full flex items-center justify-center gap-2 rounded-xl py-2.5 mb-2 text-sm font-semibold disabled:opacity-40 ${voice.active ? 'bg-rose-500 text-white' : 'bg-violet-600 text-white'}`}>
             {voice.status === 'connecting' ? <><Loader2 className="w-4 h-4 animate-spin" /> Connecting…</>
               : voice.active ? <><Radio className="w-4 h-4 animate-pulse" /> {voice.status === 'speaking' ? 'Chef is speaking… (tap to end)' : 'Listening… (tap to end)'}</>
               : <><Mic className="w-4 h-4" /> Talk to the chef — voice</>}

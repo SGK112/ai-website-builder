@@ -50,7 +50,7 @@ export function VoiceBubble({ isDark, status, userText, assistantText, onExpand,
               status === 'speaking' ? 'w-11 h-11 animate-ping' : status === 'listening' ? 'w-10 h-10 animate-pulse' : 'w-9 h-9',
             )}
           />
-          <span className="relative w-9 h-9 rounded-full flex items-center justify-center bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white shadow-lg shadow-violet-500/30">
+          <span className="relative w-9 h-9 rounded-full flex items-center justify-center bg-violet-500 text-white shadow-lg shadow-violet-500/30">
             {status === 'connecting'
               ? <Loader2 className="w-[18px] h-[18px] animate-spin" />
               : status === 'speaking'

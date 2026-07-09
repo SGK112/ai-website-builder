@@ -170,7 +170,7 @@ export default function CreationsPage() {
               : <img src={lightbox.mediaUrl} alt={lightbox.title} className="w-full rounded-2xl border border-white/10 bg-white object-contain max-h-[70vh]" />}
             <div className="mt-3 flex items-center justify-between gap-3">
               <p className="text-sm text-zinc-300 truncate">{lightbox.title}</p>
-              <a href={lightbox.mediaUrl} download target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white text-sm font-semibold"><Download className="w-4 h-4" /> Download</a>
+              <a href={lightbox.mediaUrl} download target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-violet-500 text-white text-sm font-semibold"><Download className="w-4 h-4" /> Download</a>
             </div>
           </div>
         </div>

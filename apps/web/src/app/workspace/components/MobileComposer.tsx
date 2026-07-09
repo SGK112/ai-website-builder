@@ -54,7 +54,7 @@ export function MobileComposer({ isDark, value, onChange, onSubmit, onVoice, isL
             'w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-white shadow-lg active:scale-95 transition disabled:opacity-60',
             isListening
               ? 'bg-gradient-to-br from-rose-500 to-fuchsia-600 shadow-rose-500/40 animate-pulse'
-              : 'bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-violet-600/30'
+              : 'bg-violet-600 shadow-violet-600/30'
           )}
         >
           {isListening ? <Square className="w-4 h-4 fill-current" /> : showSend ? <ArrowUp className="w-5 h-5" /> : <Mic className="w-5 h-5" />}

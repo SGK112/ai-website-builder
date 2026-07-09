@@ -85,7 +85,7 @@ export default function ShowcasePage({ params }: PageProps) {
             </div>
             <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">{d.label}</h1>
             <Link href="/u/webstew" className="mt-3 inline-flex items-center gap-2 group">
-              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-xs font-bold border border-white/10">
+              <div className="w-7 h-7 rounded-full bg-violet-500 flex items-center justify-center text-xs font-bold border border-white/10">
                 W
               </div>
               <span className="text-sm text-zinc-300 group-hover:text-white">

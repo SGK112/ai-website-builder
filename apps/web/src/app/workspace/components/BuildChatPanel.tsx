@@ -109,7 +109,7 @@ function CookingIndicator({ isDark }: { isDark: boolean }) {
       </AnimatePresence>
       <span className="flex gap-1">
         {[0, 150, 300].map(d => (
-          <span key={d} className="w-1 h-1 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 animate-bounce" style={{ animationDelay: `${d}ms` }} />
+          <span key={d} className="w-1 h-1 rounded-full bg-violet-500 animate-bounce" style={{ animationDelay: `${d}ms` }} />
         ))}
       </span>
     </div>
@@ -147,7 +147,7 @@ function ChatMessageBubble({
     >
       {msg.role === 'assistant' && (
         <div className={cn(
-          'w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-md shadow-violet-500/30',
+          'w-7 h-7 rounded-full bg-violet-500 flex items-center justify-center flex-shrink-0 shadow-md shadow-violet-500/30',
           isStreaming && 'ring-2 ring-violet-400/50'
         )}>
           {isStreaming
@@ -161,7 +161,7 @@ function ChatMessageBubble({
       <div className={cn(
         'max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm shadow-lg',
         msg.role === 'user'
-          ? 'bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white rounded-br-md shadow-violet-500/30'
+          ? 'bg-violet-500 text-white rounded-br-md shadow-violet-500/30'
           : isDark
             ? 'bg-zinc-800/70 text-zinc-100 rounded-bl-md border border-white/10 shadow-black/30 backdrop-blur-sm'
             : 'bg-white/90 text-slate-800 rounded-bl-md border border-slate-200/80 shadow-slate-300/60 backdrop-blur-sm'
@@ -394,7 +394,7 @@ export function BuildChatPanel({
             shown only while we await the assistant's first bubble. */}
         {isThinking && !isGenerating && awaitingReply && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex gap-2">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 via-fuchsia-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-sm shadow-violet-500/30">
+            <div className="w-7 h-7 rounded-full bg-violet-500 flex items-center justify-center flex-shrink-0 shadow-sm shadow-violet-500/30">
               <motion.span animate={{ scale: [1, 1.18, 1], opacity: [0.85, 1, 0.85] }} transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}>
                 <Sparkles className="w-3.5 h-3.5 text-white" />
               </motion.span>
@@ -403,12 +403,12 @@ export function BuildChatPanel({
               "rounded-2xl rounded-bl-md px-3.5 py-2 flex items-center gap-2 border shadow-lg backdrop-blur-sm",
               isDark
                 ? "bg-gradient-to-r from-violet-500/15 to-fuchsia-500/10 border-violet-400/20 shadow-violet-500/10"
-                : "bg-gradient-to-r from-violet-50 to-fuchsia-50 border-violet-200 shadow-violet-200/50"
+                : "bg-violet-50 border-violet-200 shadow-violet-200/50"
             )}>
               <span className="flex gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-bounce" style={{ animationDelay: '300ms' }} />
               </span>
               <span className={cn(
                 "text-sm font-medium bg-gradient-to-r bg-clip-text text-transparent",
@@ -423,7 +423,7 @@ export function BuildChatPanel({
         {/* Generation progress */}
         {isGenerating && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex gap-2">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-md shadow-violet-500/30">
+            <div className="w-7 h-7 rounded-full bg-violet-500 flex items-center justify-center flex-shrink-0 shadow-md shadow-violet-500/30">
               <Loader2 className="w-4 h-4 text-white animate-spin" />
             </div>
             <div className={cn(

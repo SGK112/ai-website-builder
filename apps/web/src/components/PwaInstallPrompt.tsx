@@ -124,7 +124,7 @@ export function PwaInstallPrompt() {
           ? 'bg-zinc-900/95 border-white/15 shadow-black/50'
           : 'bg-white/95 border-slate-200 shadow-slate-900/15'
       )}>
-        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-xl shrink-0 shadow-md shadow-violet-900/30">
+        <div className="w-11 h-11 rounded-xl bg-violet-500 flex items-center justify-center text-xl shrink-0 shadow-md shadow-violet-900/30">
           🍲
         </div>
         <div className="flex-1 min-w-0">

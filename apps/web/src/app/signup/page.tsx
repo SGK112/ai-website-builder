@@ -301,7 +301,7 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={isLoading !== null || !name || !email || !password || !confirmPassword}
-              className="w-full py-3 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white font-medium rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-3 bg-violet-600 hover:bg-violet-700 text-white font-medium rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading === 'credentials' ? (
                 <Loader2 className="w-5 h-5 animate-spin mx-auto" />

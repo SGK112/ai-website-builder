@@ -222,7 +222,7 @@ export function ConversionScopeModal({
               <button
                 onClick={() => onConvert({ screens, contentMode, contactAction })}
                 disabled={sections.length > 0 && screens.length === 0}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white text-xs font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Smartphone className="w-3.5 h-3.5" />
                 {sections.length > 0 ? `Convert ${screens.length} screen${screens.length === 1 ? '' : 's'}` : 'Convert to app'}

@@ -408,7 +408,7 @@ export default function HomePage() {
               page. Constant feedback that the story has more to come. */}
           <motion.div
             style={{ scaleX: pageProgressSmooth }}
-            className="fixed top-0 left-0 right-0 h-[3px] z-[60] origin-left bg-gradient-to-r from-violet-500 to-fuchsia-500 pointer-events-none"
+            className="fixed top-0 left-0 right-0 h-[3px] z-[60] origin-left bg-violet-500 pointer-events-none"
             aria-hidden
           />
 

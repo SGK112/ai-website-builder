@@ -275,7 +275,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
                 className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border border-white/10"
               />
             ) : (
-              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 flex items-center justify-center text-3xl font-bold">
+              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-violet-600 flex items-center justify-center text-3xl font-bold">
                 {initials || '?'}
               </div>
             )}

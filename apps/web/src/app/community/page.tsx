@@ -415,7 +415,7 @@ export default function CommunityPage() {
               <span className={cn(
                 'bg-clip-text text-transparent',
                 isDark
-                  ? 'bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400'
+                  ? 'bg-gradient-to-r from-violet-400 to-pink-400'
                   : 'bg-gradient-to-r from-orange-500 via-pink-500 to-rose-500'
               )}>
                 Community Showcase
@@ -562,7 +562,7 @@ export default function CommunityPage() {
             {tab === 'projects' && (
               <span className={cn(
                 'absolute left-3 right-3 -bottom-px h-0.5 rounded',
-                isDark ? 'bg-gradient-to-r from-violet-400 to-fuchsia-400' : 'bg-gradient-to-r from-orange-400 to-pink-500'
+                isDark ? 'bg-violet-400' : 'bg-gradient-to-r from-orange-400 to-pink-500'
               )} />
             )}
           </button>
@@ -580,7 +580,7 @@ export default function CommunityPage() {
             {tab === 'feedback' && (
               <span className={cn(
                 'absolute left-3 right-3 -bottom-px h-0.5 rounded',
-                isDark ? 'bg-gradient-to-r from-violet-400 to-fuchsia-400' : 'bg-gradient-to-r from-orange-400 to-pink-500'
+                isDark ? 'bg-violet-400' : 'bg-gradient-to-r from-orange-400 to-pink-500'
               )} />
             )}
           </button>
@@ -1025,7 +1025,7 @@ export default function CommunityPage() {
             className={cn(
               'inline-flex items-center gap-2 px-8 py-4 rounded-2xl text-lg font-semibold transition-all',
               isDark
-                ? 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:shadow-lg hover:shadow-violet-500/25'
+                ? 'bg-violet-500 text-white hover:shadow-lg hover:shadow-violet-500/25'
                 : 'bg-gradient-to-r from-orange-400 to-pink-500 text-white hover:shadow-lg hover:shadow-orange-500/25'
             )}
           >

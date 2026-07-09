@@ -341,7 +341,7 @@ export default function AdminPage() {
                         <div className="flex items-center gap-2">
                           {u.image
                             ? <img src={u.image} alt="" className="w-7 h-7 rounded-full" />
-                            : <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-[10px] font-bold text-white">{(u.email[0] || '?').toUpperCase()}</div>}
+                            : <div className="w-7 h-7 rounded-full bg-violet-500 flex items-center justify-center text-[10px] font-bold text-white">{(u.email[0] || '?').toUpperCase()}</div>}
                           <div className="min-w-0">
                             <div className="font-medium truncate max-w-[260px]">{u.email}</div>
                             {u.name && <div className="text-[11px] text-muted-foreground truncate max-w-[260px]">{u.name}</div>}

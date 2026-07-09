@@ -189,7 +189,7 @@ export function SectionChat({
             }}
             className={cn(
               'fixed right-4 z-40 flex items-center gap-2 rounded-full px-4 py-3 shadow-2xl',
-              'bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white font-semibold text-sm',
+              'bg-violet-600 text-white font-semibold text-sm',
               'shadow-violet-500/40 hover:shadow-violet-500/60 transition-shadow',
               hideFabOnDesktop && 'lg:hidden'
             )}
@@ -368,7 +368,7 @@ export function SectionChat({
                     className={cn(
                       'p-2 rounded-lg shrink-0 transition-all',
                       input.trim() && !isThinking
-                        ? 'bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-md shadow-violet-500/30'
+                        ? 'bg-violet-600 text-white shadow-md shadow-violet-500/30'
                         : 'bg-white/5 text-zinc-500'
                     )}
                     aria-label="Send"

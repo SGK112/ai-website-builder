@@ -570,7 +570,7 @@ export function ShipPanel(props: ShipPanelProps) {
             "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left shadow-md",
             isDeploying || (!html.trim() && !hasVfsFiles)
               ? isDark ? "bg-white/[0.04] text-zinc-500 opacity-70 cursor-not-allowed" : "bg-slate-200 text-slate-400 opacity-70 cursor-not-allowed"
-              : "bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white"
+              : "bg-violet-600 hover:bg-violet-700 text-white"
           )}
         >
           {isDeploying && deployStatus === 'render' ? (

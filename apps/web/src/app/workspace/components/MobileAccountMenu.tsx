@@ -56,7 +56,7 @@ export function MobileAccountMenu({ isDark, user }: Props) {
         onClick={() => setOpen(v => !v)}
         aria-label="Account"
         aria-expanded={open}
-        className="w-9 h-9 rounded-full p-[2px] bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-lg shadow-violet-500/30 drop-shadow-[0_1px_3px_rgba(0,0,0,0.5)]"
+        className="w-9 h-9 rounded-full p-[2px] bg-violet-500 shadow-lg shadow-violet-500/30 drop-shadow-[0_1px_3px_rgba(0,0,0,0.5)]"
       >
         {user?.image ? (
           // eslint-disable-next-line @next/next/no-img-element
