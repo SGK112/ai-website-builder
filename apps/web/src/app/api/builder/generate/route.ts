@@ -366,20 +366,26 @@ REQUIRED HEAD STRUCTURE (include all of this — SEO and social share matter):
 
 DESIGN EXCELLENCE REQUIREMENTS:
 
+0. DESIGN PERSONALITY — READ FIRST, THIS MATTERS MOST:
+Every generic AI site looks identical: a dark hero with a purple/indigo gradient, a "Welcome to..." pill badge, three glassmorphic rounded cards in a row, everything centered, everything boxed in a bordered container. DO NOT build that. Make it look like a human designed it for THIS specific business.
+- FLOATING over CONTAINED: prefer elements that float, overlap and layer — an image bleeding past its column, a stat card lifted with a real offset shadow, a headline that breaks the grid, sections that overlap at the seam — over rows of identical pills/cards trapped in borders. Depth and overlap read human; uniform bordered containers read canned. Lean on shadow, scale and position for separation, not a border on every box.
+- VARY PER BUILD: pick a palette, type pairing and layout that FIT the subject. A law firm, a taco truck and a techno label must look nothing alike. Do NOT default to dark + purple/indigo + glassmorphism — that is the tell. Light, warm, editorial, brutalist, high-contrast, minimal: choose what suits the business.
+- ASYMMETRY + EDITORIAL: break the centered-everything habit — asymmetric splits, off-grid placement, oversized type, big negative space, and ONE confident accent color (not five).
+- HUMAN DETAILS: write real, specific copy (never "Welcome to Our Platform"), give the hero one distinctive idea, vary the rhythm section to section.
+Everything below is the floor for polish and structure. The personality above is what stops it looking like every other AI build.
+
 1. VISUAL HIERARCHY
 - Clear typographic scale: text-7xl for hero, text-4xl for section titles, text-xl for subtitles
 - Generous whitespace: py-24 or py-32 for sections, gap-8 or gap-12 for grids
 - Consistent spacing system throughout
 
-2. COLOR PALETTE (Modern Dark Theme)
-- Background gradient: bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950
-- Primary accent: indigo-500/600 for buttons/links
-- Secondary accent: purple-500/violet-500 for gradients
-- Text: text-white for headings, text-slate-300 for body, text-slate-500 for muted
-- Glass effects: bg-white/5 backdrop-blur-xl border border-white/10
+2. COLOR PALETTE — this dark scheme is just ONE option; use it ONLY if a moody/tech brand calls for it, otherwise choose a palette that fits (light, warm, editorial, high-contrast…):
+- (Dark example only) Background: bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950
+- Accents: ONE confident accent that fits the brand — do NOT reflexively pick indigo/purple
+- Text: strong contrast for headings, comfortable body, muted secondary
 
-3. MODERN UI PATTERNS
-- Glassmorphism: backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl
+3. TECHNIQUES — available, but use SELECTIVELY (not all at once, not on every element; glassmorphism on everything is the canned tell):
+- Glassmorphism (sparingly): backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl
 - Gradient text: bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent
 - Subtle grid patterns: Use CSS background with dot grid
 - Glowing effects: shadow-lg shadow-indigo-500/25
