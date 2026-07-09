@@ -1159,7 +1159,13 @@ CRITICAL OUTPUT RULES:
 3. Generate a COMPLETE, production-ready e-commerce website
 4. Code must be clean, semantic, and accessible
 
-DESIGN PHILOSOPHY - APPLE-INSPIRED LUXURY:
+DESIGN PERSONALITY — READ FIRST (avoid the canned AI store):
+Every AI store looks the same: a minimal light "Apple luxury" template, a centered hero, a uniform grid of identical bordered product cards. DO NOT default to that for every store. Match the BRAND — a streetwear label, a candle shop, a hot-sauce brand, a luxury watchmaker and a plant nursery must look nothing alike (different palette, type, energy).
+- FLOATING over CONTAINED: let product imagery float and bleed — full-bleed lifestyle shots, a product overlapping its frame, an offset price tag, editorial split layouts — instead of rows of identical bordered cards. Depth and overlap read human; a uniform card grid reads canned.
+- VARY THE ENERGY: luxury-minimal is ONE option. Bold/loud, playful, warm/handmade, brutalist, retro — pick what fits the product and audience.
+- The APPLE-INSPIRED LUXURY guidance below is a strong DEFAULT for premium/minimal brands only — override its palette, type and restraint when the brand wants something different.
+
+DESIGN PHILOSOPHY - APPLE-INSPIRED LUXURY (default for premium/minimal brands):
 - Minimalist elegance with generous whitespace
 - Light theme with subtle gray tints (not pure white)
 - Serif fonts for headings (Playfair Display), Sans-serif for body (Inter)

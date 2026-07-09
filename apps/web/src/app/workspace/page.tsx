@@ -6207,6 +6207,8 @@ ${html}
     // Navigation
     { id: 'nav-build', label: 'Go to Build', category: 'navigation', icon: Wand2, action: () => setActivePanel('build') },
     { id: 'nav-templates', label: 'Go to Templates', category: 'navigation', icon: Layout, action: () => setActivePanel('templates') },
+    { id: 'nav-stew', label: 'Go to Stew', category: 'navigation', icon: ChefHat, action: () => setActivePanel('webstew') },
+    { id: 'nav-content', label: 'Go to CMS', category: 'navigation', icon: FileText, action: () => setActivePanel('content') },
     { id: 'nav-files', label: 'Go to Files', category: 'navigation', icon: FolderOpen, action: () => setActivePanel('projects') },
     { id: 'nav-images', label: 'Go to Images', category: 'navigation', icon: ImageIcon, action: () => setActivePanel('images') },
     { id: 'nav-video', label: 'Go to Video', category: 'navigation', icon: Film, action: () => setActivePanel('video') },
@@ -9360,7 +9362,7 @@ npx eas build --platform all
                 videoError={videoError}
                 generatedVideoUrl={generatedVideoUrl}
                 onInsert={insertVideoIntoWebsite}
-                onCopyUrl={(url) => { void navigator.clipboard.writeText(url); addTerminalLine('info', 'Video URL copied.') }}
+                onCopyUrl={(url) => { void navigator.clipboard.writeText(url); addToast('success', 'Video URL copied.') }}
               />
             )}
 
