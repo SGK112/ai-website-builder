@@ -9064,7 +9064,7 @@ npx eas build --platform all
                 className={cn(
                   "p-2 rounded-lg transition-colors",
                   html
-                    ? isDark ? "hover:bg-white/5 text-zinc-500 hover:text-emerald-400" : "hover:bg-slate-100 text-slate-500 hover:text-emerald-600"
+                    ? isDark ? "hover:bg-white/5 text-zinc-500 hover:text-violet-400" : "hover:bg-slate-100 text-slate-500 hover:text-violet-500"
                     : isDark ? "text-zinc-700" : "text-slate-300"
                 )}
               >
@@ -9162,55 +9162,21 @@ npx eas build --platform all
                 { id: 'deploy' as Panel, icon: Rocket, label: 'Ship', tour: 'deploy', color: 'red', levels: ['no-code','low-code','full-stack'] },
               ] as { id: Panel; icon: React.ElementType; label: string; tour?: string; color: string; levels: string[] }[])
                 .filter(p => (p.levels as string[]).includes(skillLevel))
-                .map(({ id, icon: Icon, label, tour, color }) => (
+                .map(({ id, icon: Icon, label, tour }) => (
                 <button
                   key={id}
                   onClick={() => setActivePanel(id)}
                   data-tour={tour}
                   className={cn(
-                    'flex-shrink-0 px-3.5 py-2.5 sm:px-3 sm:py-1.5 text-[12px] sm:text-[11px] font-medium transition-all flex items-center gap-1.5 rounded-md whitespace-nowrap',
+                    // One accent for the active tab — the rail used to paint each
+                    // tab a different colour (10 hues + a 35-line inline map).
+                    'flex-shrink-0 px-3.5 py-2.5 sm:px-3 sm:py-1.5 text-[12px] sm:text-[11px] font-medium transition-colors flex items-center gap-1.5 rounded-md whitespace-nowrap',
                     activePanel === id
-                      ? `text-${color}-400 bg-${color}-500/15 ring-1 ring-${color}-500/30`
+                      ? 'text-violet-700 bg-violet-100 dark:text-violet-300 dark:bg-violet-500/15'
                       : isDark
                         ? 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
                         : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'
                   )}
-                  style={activePanel === id ? {
-                    // Light mode uses the -700 variants (≥4.5:1 contrast on
-                    // white bg, WCAG AA). Dark mode keeps the -400 variants
-                    // which read fine against the dark panel.
-                    color: isDark
-                      ? (color === 'violet' ? '#a78bfa' :
-                         color === 'blue' ? '#60a5fa' :
-                         color === 'orange' ? '#fb923c' :
-                         color === 'emerald' ? '#34d399' :
-                         color === 'cyan' ? '#22d3ee' :
-                         color === 'pink' ? '#f472b6' :
-                         color === 'purple' ? '#c084fc' :
-                         color === 'yellow' ? '#facc15' :
-                         color === 'green' ? '#4ade80' :
-                         color === 'red' ? '#f87171' : '#a78bfa')
-                      : (color === 'violet' ? '#6d28d9' :
-                         color === 'blue' ? '#1d4ed8' :
-                         color === 'orange' ? '#c2410c' :
-                         color === 'emerald' ? '#047857' :
-                         color === 'cyan' ? '#0e7490' :
-                         color === 'pink' ? '#be185d' :
-                         color === 'purple' ? '#7e22ce' :
-                         color === 'yellow' ? '#a16207' :
-                         color === 'green' ? '#15803d' :
-                         color === 'red' ? '#b91c1c' : '#6d28d9'),
-                    backgroundColor: color === 'violet' ? 'rgba(139, 92, 246, 0.15)' :
-                                     color === 'blue' ? 'rgba(59, 130, 246, 0.15)' :
-                                     color === 'orange' ? 'rgba(249, 115, 22, 0.15)' :
-                                     color === 'emerald' ? 'rgba(16, 185, 129, 0.15)' :
-                                     color === 'cyan' ? 'rgba(6, 182, 212, 0.15)' :
-                                     color === 'pink' ? 'rgba(236, 72, 153, 0.15)' :
-                                     color === 'purple' ? 'rgba(168, 85, 247, 0.15)' :
-                                     color === 'yellow' ? 'rgba(234, 179, 8, 0.15)' :
-                                     color === 'green' ? 'rgba(34, 197, 94, 0.15)' :
-                                     color === 'red' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(139, 92, 246, 0.15)',
-                  } : {}}
                 >
                   <Icon className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                   {label}
@@ -10471,7 +10437,7 @@ npx eas build --platform all
             <div className="relative">
               <button
                 onClick={() => { setShowBlocksPanel(v => !v); setShowHistoryPanel(false) }}
-                className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-zinc-600 hover:text-emerald-400 hover:shadow-lg hover:shadow-emerald-500/20 transition-all duration-200"
+                className="p-1.5 rounded-lg text-zinc-600 hover:text-violet-500 hover:bg-violet-500/10 transition-colors"
                 title={`My saved blocks (${savedBlocks.length})`}
               >
                 <Package className="w-4 h-4" />
@@ -10591,7 +10557,7 @@ npx eas build --platform all
             {session?.user && (
               <Link
                 href="/seller"
-                className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-zinc-600 hover:text-emerald-400 hover:shadow-lg hover:shadow-emerald-500/20 transition-all duration-200"
+                className="p-1.5 rounded-lg text-zinc-600 hover:text-violet-500 hover:bg-violet-500/10 transition-colors"
                 title="Earnings & payouts"
               >
                 <DollarSign className="w-4 h-4" />
@@ -10658,7 +10624,7 @@ npx eas build --platform all
             <button
               onClick={saveProject}
               disabled={!html}
-              className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-zinc-600 hover:text-emerald-400 hover:shadow-lg hover:shadow-emerald-500/20 disabled:opacity-30 disabled:hover:shadow-none disabled:hover:bg-transparent disabled:hover:text-zinc-600 transition-all duration-200"
+              className="p-1.5 rounded-lg hover:bg-violet-500/10 text-zinc-600 hover:text-violet-400 hover:shadow-lg hover:shadow-violet-500/20 disabled:opacity-30 disabled:hover:shadow-none disabled:hover:bg-transparent disabled:hover:text-zinc-600 transition-all duration-200"
               title="Save Project"
             >
               <Save className="w-4 h-4" />
@@ -10987,7 +10953,7 @@ npx eas build --platform all
                 onClick={syncNavAcrossPages}
                 className={cn(
                   "px-3 py-2 text-xs flex items-center gap-1 transition-colors ml-auto",
-                  isDark ? "text-zinc-500 hover:text-emerald-400 hover:bg-white/5" : "text-slate-500 hover:text-emerald-600 hover:bg-white"
+                  isDark ? "text-zinc-500 hover:text-violet-400 hover:bg-white/5" : "text-slate-500 hover:text-violet-500 hover:bg-white"
                 )}
                 title="Rewrite each page's nav so all sibling pages link to each other"
               >
