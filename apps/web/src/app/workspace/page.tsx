@@ -6202,7 +6202,7 @@ ${html}
     { id: 'nav-files', label: 'Go to Files', category: 'navigation', icon: FolderOpen, action: () => setActivePanel('projects') },
     { id: 'nav-images', label: 'Go to Images', category: 'navigation', icon: ImageIcon, action: () => setActivePanel('images') },
     { id: 'nav-video', label: 'Go to Video', category: 'navigation', icon: Film, action: () => setActivePanel('video') },
-    { id: 'nav-integrations', label: 'Go to Plugins', category: 'navigation', icon: Link2, action: () => setActivePanel('integrations') },
+    { id: 'nav-integrations', label: 'Go to Connectors', category: 'navigation', icon: Link2, action: () => setActivePanel('integrations') },
     { id: 'nav-bridge', label: 'Go to Bridge', category: 'navigation', icon: ChefHat, action: () => setActivePanel('bridge') },
     { id: 'nav-env', label: 'Go to Env Variables', category: 'navigation', icon: Variable, action: () => setActivePanel('env') },
     { id: 'nav-console', label: 'Go to Console', category: 'navigation', icon: Terminal, action: () => setActivePanel('console') },
@@ -9147,7 +9147,7 @@ npx eas build --platform all
                 { id: 'images' as Panel, icon: ImageIcon, label: 'Media', color: 'pink', levels: ['no-code','low-code','full-stack'] },
                 { id: 'video' as Panel, icon: Film, label: 'Video', color: 'purple', levels: ['no-code','low-code','full-stack'] },
                 { id: 'content' as Panel, icon: FileText, label: 'CMS', color: 'pink', levels: ['low-code','full-stack'] },
-                { id: 'integrations' as Panel, icon: Link2, label: 'Plugins', color: 'cyan', levels: ['low-code','full-stack'] },
+                { id: 'integrations' as Panel, icon: Link2, label: 'Connect', color: 'cyan', levels: ['no-code','low-code','full-stack'] },
                 { id: 'env' as Panel, icon: Variable, label: 'Env', color: 'yellow', levels: ['low-code','full-stack'] },
                 { id: 'console' as Panel, icon: Terminal, label: 'Log', color: 'green', levels: ['full-stack'] },
                 { id: 'bridge' as Panel, icon: ChefHat, label: 'Bridge', color: 'orange', levels: ['low-code','full-stack'] },
@@ -9333,47 +9333,9 @@ npx eas build --platform all
               </motion.div>
             )}
 
-            {/* Integrations Panel */}
+            {/* Connectors Panel — one-click Composio connections */}
             {!sidebarCollapsed && activePanel === 'integrations' && (
-              <IntegrationsPanel
-                isDark={isDark}
-                integrations={integrations}
-                integrationFilter={integrationFilter}
-                onFilterChange={setIntegrationFilter}
-                envVars={envVars}
-                hasHtml={!!html}
-                onInsertSnippet={(integration) => {
-                  const snippet = integration.codeSnippet!
-                  const injected = html.includes('</body>')
-                    ? html.replace('</body>', `\n${snippet}\n</body>`)
-                    : html + '\n' + snippet
-                  setHtml(injected)
-                  addToast('success', `${integration.name} inserted into page`)
-                  addConsoleLog('info', `Plugin inserted: ${integration.name}`)
-                }}
-                onToggle={(integration) => {
-                  setIntegrations(prev => prev.map(int =>
-                    int.id === integration.id ? { ...int, enabled: !int.enabled } : int
-                  ))
-                  if (!integration.enabled) {
-                    integration.envKeys.forEach(envKey => {
-                      if (!envVars.find(e => e.key === envKey.key)) {
-                        setEnvVars(prev => [...prev, { key: envKey.key, value: '', isSecret: envKey.isSecret }])
-                      }
-                    })
-                    addConsoleLog('info', `Enabled: ${integration.name}`)
-                  }
-                }}
-                onEnvValueChange={(key, value) => {
-                  setEnvVars(prev => prev.map(env => env.key === key ? { ...env, value } : env))
-                }}
-                onAddToWebsite={(integration) => {
-                  const snippet = integration.codeSnippet
-                  setCommandInput(`Add ${integration.name} integration to my website. Use this code: ${snippet.slice(0, 200)}...`)
-                  inputRef.current?.focus()
-                  setActivePanel('build')
-                }}
-              />
+              <IntegrationsPanel isDark={isDark} />
             )}
 
             {/* Images Panel */}
@@ -12423,7 +12385,7 @@ npx eas build --platform all
                 {[
                   { id: 'ai', label: 'AI Models', icon: Brain },
                   { id: 'services', label: 'Databases', icon: Database },
-                  { id: 'integrations', label: 'Integrations', icon: Plug },
+                  { id: 'integrations', label: 'Connectors', icon: Plug },
                 ].map((tab) => (
                   <button
                     key={tab.id}

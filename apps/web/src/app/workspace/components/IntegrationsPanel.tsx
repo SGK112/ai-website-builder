@@ -1,279 +1,175 @@
 'use client'
 
-import { motion, AnimatePresence } from 'framer-motion'
-import {
-  Plug,
-  ExternalLink,
-  Globe,
-  Building2,
-  Image as ImageIcon,
-  CreditCard,
-  Store,
-  MessageSquare,
-  Workflow,
-  Sparkles,
-  Clock,
-  Lock,
-  MapPin,
-  BarChart3,
-  Plus,
-  ToggleRight,
-  ToggleLeft,
-  Zap,
-} from 'lucide-react'
+// Connectors panel — ONE 1-click connect experience, powered by Composio.
+// Replaces the old paste-your-API-keys "integrations" catalog (Stripe/Supabase
+// with envKeys + code snippets), which duplicated the same services with a
+// clunkier flow. Now: fetch the Composio toolkit list (+ per-user connection
+// status) and connect/disconnect in one click via OAuth. Same source as the
+// /integrations page — one system, one name.
+
+import { useEffect, useState } from 'react'
+import { motion } from 'framer-motion'
+import { Plug, Loader2, Check, ExternalLink, AlertCircle, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BrandIcon, hasBrandIcon } from '@/lib/brand-icons'
-import type { BusinessIntegration, EnvVar } from '../types'
 
-const CATEGORIES = [
-  { id: 'all', label: 'All', icon: Globe },
-  { id: 'database', label: 'DB', icon: Building2 },
-  { id: 'media', label: 'Media', icon: ImageIcon },
-  { id: 'payments', label: 'Pay', icon: CreditCard },
-  { id: 'ecommerce', label: 'Shop', icon: Store },
-  { id: 'communication', label: 'Msg', icon: MessageSquare },
-  { id: 'automation', label: 'Auto', icon: Workflow },
-  { id: 'ai', label: 'AI', icon: Sparkles },
-  { id: 'scheduling', label: 'Cal', icon: Clock },
-  { id: 'auth', label: 'Auth', icon: Lock },
-  { id: 'maps', label: 'Maps', icon: MapPin },
-  { id: 'analytics', label: 'Stats', icon: BarChart3 },
-] as const
+interface Connector {
+  slug: string
+  label: string
+  description: string
+  category: string
+  connected: boolean
+  connectionId?: string
+  status?: string
+}
 
 interface IntegrationsPanelProps {
   isDark: boolean
-  integrations: BusinessIntegration[]
-  integrationFilter: string
-  onFilterChange: (id: string) => void
-  envVars: EnvVar[]
-  // Insert button shows only when there's page HTML to inject into.
-  hasHtml: boolean
-  onInsertSnippet: (integration: BusinessIntegration) => void
-  onToggle: (integration: BusinessIntegration) => void
-  onEnvValueChange: (key: string, value: string) => void
-  onAddToWebsite: (integration: BusinessIntegration) => void
 }
 
-export function IntegrationsPanel({
-  isDark,
-  integrations,
-  integrationFilter,
-  onFilterChange,
-  envVars,
-  hasHtml,
-  onInsertSnippet,
-  onToggle,
-  onEnvValueChange,
-  onAddToWebsite,
-}: IntegrationsPanelProps) {
-  const visibleIntegrations = integrations.filter(
-    int => integrationFilter === 'all' || int.category === integrationFilter
-  )
+export function IntegrationsPanel({ isDark }: IntegrationsPanelProps) {
+  const [items, setItems] = useState<Connector[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+
+  const load = async () => {
+    try {
+      const res = await fetch('/api/integrations', { cache: 'no-store' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`)
+      setItems(Array.isArray(data.items) ? data.items : [])
+      setErr(data?.warning || null)
+    } catch (e: any) {
+      setErr(e?.message || 'Could not load connectors')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { void load() }, [])
+
+  const connect = async (slug: string) => {
+    setBusy(slug); setErr(null)
+    try {
+      const res = await fetch('/api/integrations/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toolkit: slug }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data?.url) throw new Error(data?.error || 'Could not start the connection')
+      // Hand off to the provider's OAuth consent screen; we return to the
+      // workspace via the Composio callback.
+      window.location.href = data.url
+    } catch (e: any) {
+      setErr(e?.message || 'Failed to start connection')
+      setBusy(null)
+    }
+  }
+
+  const disconnect = async (slug: string, id: string) => {
+    setBusy(slug); setErr(null)
+    try {
+      const res = await fetch(`/api/integrations/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d?.error || 'Failed to disconnect') }
+      await load()
+    } catch (e: any) {
+      setErr(e?.message || 'Failed to disconnect')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const connectedCount = items.filter((i) => i.connected).length
+
   return (
     <motion.div
       key="integrations"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="flex-1 overflow-y-auto"
+      className="flex-1 min-h-0 flex flex-col overflow-hidden"
     >
-      {/* Composio AI tools link */}
-      <a
-        href="/integrations"
-        target="_blank"
-        rel="noreferrer"
-        className={cn(
-          'flex items-center justify-between px-3 py-2.5 border-b text-xs font-medium transition-colors',
-          isDark
-            ? 'border-white/[0.05] text-violet-300 hover:bg-white/[0.04]'
-            : 'border-slate-200 text-violet-700 hover:bg-violet-50'
-        )}
-      >
-        <span className="flex items-center gap-2">
-          <Plug className="w-3.5 h-3.5" />
-          Connect AI tools — Gmail, Slack, HubSpot…
-        </span>
-        <ExternalLink className="w-3 h-3 opacity-60" />
-      </a>
-
-      {/* Category Filter */}
-      <div className="p-2 border-b border-white/[0.05]">
-        <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide">
-          {CATEGORIES.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => onFilterChange(cat.id)}
-              className={cn(
-                'flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-medium whitespace-nowrap transition-all',
-                integrationFilter === cat.id
-                  ? 'bg-violet-100 text-violet-700 border border-violet-300 dark:bg-violet-500/20 dark:text-violet-400 dark:border-violet-500/30'
-                  : 'bg-slate-100 text-slate-600 hover:text-slate-900 border border-transparent dark:bg-white/[0.03] dark:text-zinc-500 dark:hover:text-white'
-              )}
-            >
-              <cat.icon className="w-3 h-3" />
-              {cat.label}
-            </button>
-          ))}
+      {/* Header */}
+      <div className={cn('px-3 py-2.5 border-b flex items-center justify-between', isDark ? 'border-white/[0.06]' : 'border-slate-200')}>
+        <div>
+          <h3 className={cn('text-xs font-semibold', isDark ? 'text-white' : 'text-slate-900')}>Connectors</h3>
+          <p className={cn('text-[10px]', isDark ? 'text-zinc-500' : 'text-slate-500')}>
+            {loading ? 'Loading…' : connectedCount === 0 ? 'One click to connect your tools' : `${connectedCount} connected`}
+          </p>
         </div>
+        <button onClick={() => { setLoading(true); void load() }} className={cn('w-7 h-7 rounded-lg grid place-items-center', isDark ? 'text-zinc-500 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100')} aria-label="Refresh">
+          <RefreshCw className="w-3.5 h-3.5" />
+        </button>
       </div>
 
-      {/* Integrations List */}
-      <div className="p-2 space-y-2">
-        {visibleIntegrations.length === 0 ? (
-          <div className={cn(
-            'flex flex-col items-center justify-center text-center gap-1.5 py-10 px-4',
-            isDark ? 'text-zinc-600' : 'text-slate-400',
-          )}>
-            <Plug className="w-6 h-6 opacity-50" />
-            <p className="text-xs font-medium">No integrations in this category yet</p>
-            <p className="text-[10px] opacity-80">Try a different category or check back later.</p>
+      {err && (
+        <div className={cn('mx-2 mt-2 p-2 rounded-lg border text-[11px] flex items-start gap-1.5', 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300')}>
+          <AlertCircle className="w-3.5 h-3.5 mt-px shrink-0" />
+          <span>{err}</span>
+        </div>
+      )}
+
+      <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-2">
+        {loading ? (
+          <div className={cn('flex items-center justify-center py-16 text-xs', isDark ? 'text-zinc-500' : 'text-slate-400')}>
+            <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading connectors…
           </div>
-        ) : visibleIntegrations.map(integration => (
+        ) : items.length === 0 ? (
+          <div className={cn('flex flex-col items-center text-center gap-1.5 py-14 px-4', isDark ? 'text-zinc-600' : 'text-slate-400')}>
+            <Plug className="w-6 h-6 opacity-50" />
+            <p className="text-xs font-medium">No connectors available yet</p>
+          </div>
+        ) : (
+          items.map((it) => (
             <div
-              key={integration.id}
+              key={it.slug}
               className={cn(
-                'rounded-xl border transition-all',
-                integration.enabled
-                  ? 'bg-violet-100 border-violet-300 dark:bg-violet-500/10 dark:border-violet-500/30'
-                  : 'bg-white border-slate-200 hover:border-slate-300 dark:bg-white/[0.02] dark:border-white/[0.05] dark:hover:border-white/10'
+                'flex items-center gap-2.5 p-2.5 rounded-xl border',
+                isDark ? 'bg-white/[0.02] border-white/[0.06]' : 'bg-white border-slate-200'
               )}
             >
-              {/* Header */}
-              <div className="flex items-center justify-between p-3">
-                <div className="flex items-center gap-2.5">
-                  <div className={cn(
-                    'w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden',
-                    hasBrandIcon(integration.name)
-                      // Real brand marks read best on a neutral tile, not tinted.
-                      ? 'bg-white dark:bg-white/[0.06] border border-slate-200/70 dark:border-white/10 p-1.5'
-                      : integration.enabled
-                        ? 'bg-violet-200 dark:bg-violet-500/20'
-                        : 'bg-slate-100 dark:bg-white/[0.05]'
-                  )}>
-                    {hasBrandIcon(integration.name) ? (
-                      <BrandIcon name={integration.name} className="w-full h-full" />
-                    ) : (
-                      <integration.icon className={cn(
-                        'w-4 h-4',
-                        integration.enabled
-                          ? 'text-violet-700 dark:text-violet-400'
-                          : 'text-slate-500 dark:text-zinc-500'
-                      )} />
-                    )}
-                  </div>
-                  <div>
-                    <h4 className={cn(
-                      "text-xs font-medium",
-                      integration.enabled
-                        ? 'text-violet-900 dark:text-white'
-                        : 'text-slate-900 dark:text-white'
-                    )}>{integration.name}</h4>
-                    <p className={cn(
-                      "text-[10px] line-clamp-1",
-                      integration.enabled
-                        ? 'text-violet-700/80 dark:text-zinc-500'
-                        : 'text-slate-500 dark:text-zinc-500'
-                    )}>{integration.description}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  {/* Insert snippet directly into the page HTML */}
-                  {integration.codeSnippet && hasHtml && (
-                    <button
-                      onClick={() => onInsertSnippet(integration)}
-                      title="Insert into page"
-                      className={cn(
-                        'flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-all border',
-                        isDark
-                          ? 'border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20'
-                          : 'border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100'
-                      )}
-                    >
-                      <Plus className="w-3 h-3" /> Insert
-                    </button>
-                  )}
-                  <button
-                    onClick={() => onToggle(integration)}
-                    role="switch"
-                    aria-checked={integration.enabled}
-                    aria-label={`${integration.enabled ? 'Disable' : 'Enable'} ${integration.name} integration`}
-                    title={`${integration.enabled ? 'Disable' : 'Enable'} ${integration.name}`}
-                    className="p-1.5 flex items-center justify-center min-w-[44px] min-h-[44px]"
-                  >
-                    {integration.enabled ? (
-                      <ToggleRight className="w-6 h-6 text-violet-400" />
-                    ) : (
-                      <ToggleLeft className="w-6 h-6 text-zinc-600" />
-                    )}
-                  </button>
-                </div>
+              {/* brand mark (real logo where we have it, else a neutral initial tile) */}
+              <div className={cn('w-8 h-8 rounded-lg grid place-items-center shrink-0 overflow-hidden',
+                hasBrandIcon(it.label)
+                  ? 'bg-white dark:bg-white/[0.06] border border-slate-200/70 dark:border-white/10 p-1.5'
+                  : isDark ? 'bg-white/[0.06] text-zinc-300' : 'bg-slate-100 text-slate-600')}>
+                {hasBrandIcon(it.label)
+                  ? <BrandIcon name={it.label} className="w-full h-full" />
+                  : <span className="text-xs font-semibold">{it.label.slice(0, 2)}</span>}
               </div>
-
-              {/* Expanded Config when enabled */}
-              <AnimatePresence>
-                {integration.enabled && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden"
-                  >
-                    <div className={cn(
-                      "px-3 pb-3 space-y-2 pt-2 border-t",
-                      isDark ? "border-white/[0.05]" : "border-violet-200"
-                    )}>
-                      {integration.envKeys.map(envKey => {
-                        const envVar = envVars.find(e => e.key === envKey.key)
-                        return (
-                          <div key={envKey.key}>
-                            <label className={cn(
-                              "block text-[10px] mb-1 font-medium",
-                              isDark ? "text-zinc-400" : "text-violet-800"
-                            )}>
-                              {envKey.label}
-                            </label>
-                            <input
-                              type={envKey.isSecret ? 'password' : 'text'}
-                              value={envVar?.value || ''}
-                              onChange={(e) => onEnvValueChange(envKey.key, e.target.value)}
-                              placeholder={envKey.placeholder}
-                              className={cn(
-                                "w-full px-2.5 py-1.5 rounded-lg text-[11px] font-mono focus:outline-none transition",
-                                isDark
-                                  ? "bg-black/30 border border-white/[0.08] text-white placeholder:text-zinc-600 focus:border-violet-500/50"
-                                  : "bg-white border border-violet-300 text-slate-900 placeholder:text-slate-400 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 shadow-sm"
-                              )}
-                            />
-                          </div>
-                        )
-                      })}
-
-                      {/* Add to Website button */}
-                      <button
-                        onClick={() => onAddToWebsite(integration)}
-                        className={cn(
-                          "w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium transition-colors",
-                          isDark
-                            ? "bg-violet-500/20 hover:bg-violet-500/30 text-violet-400"
-                            : "bg-violet-600 hover:bg-violet-700 text-white"
-                        )}
-                      >
-                        <Zap className="w-3 h-3" />
-                        Add to Website
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className={cn('text-xs font-medium truncate', isDark ? 'text-white' : 'text-slate-900')}>{it.label}</span>
+                  {it.connected && (
+                    <span className="text-[9px] font-semibold uppercase tracking-wide px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 shrink-0">
+                      <Check className="w-2.5 h-2.5 inline -mt-px" />
+                    </span>
+                  )}
+                </div>
+                <p className={cn('text-[10px] leading-snug line-clamp-1', isDark ? 'text-zinc-500' : 'text-slate-500')}>{it.description}</p>
+              </div>
+              {it.connected && it.connectionId ? (
+                <button
+                  onClick={() => disconnect(it.slug, it.connectionId!)}
+                  disabled={busy === it.slug}
+                  className={cn('text-[11px] shrink-0 px-2 py-1 rounded-lg transition-colors', isDark ? 'text-zinc-400 hover:text-red-300 hover:bg-white/5' : 'text-slate-400 hover:text-red-500 hover:bg-slate-100')}
+                >
+                  {busy === it.slug ? '…' : 'Disconnect'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => connect(it.slug)}
+                  disabled={busy === it.slug}
+                  className="text-[11px] font-medium shrink-0 px-2.5 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white flex items-center gap-1"
+                >
+                  {busy === it.slug ? <Loader2 className="w-3 h-3 animate-spin" /> : <>Connect <ExternalLink className="w-2.5 h-2.5" /></>}
+                </button>
+              )}
             </div>
-          ))}
-      </div>
-
-      {/* Quick Add Suggestion */}
-      <div className="p-3 border-t border-white/[0.05]">
-        <p className="text-[10px] text-zinc-600 text-center">
-          Enable integrations and click "Add to Website" to bake them into your site
-        </p>
+          ))
+        )}
       </div>
     </motion.div>
   )
