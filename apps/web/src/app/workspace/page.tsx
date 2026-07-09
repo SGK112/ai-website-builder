@@ -1433,6 +1433,11 @@ function WorkspaceContent() {
   const [deviceMode, setDeviceMode] = useState<DeviceMode>('desktop')
   const [viewMode, setViewMode] = useState<ViewMode>('preview')
   const [activePanel, setActivePanel] = useState<Panel>('build')
+  // The StartDashboard is the SINGLE empty-state screen — shown whenever the
+  // workspace has no content (no more separate "fresh" vs "working" screens at
+  // the same URL). `dashOpen` lets "Projects" step off it to the saved-projects
+  // list, and "+ New" step back onto it.
+  const [dashOpen, setDashOpen] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   // Spotlight-style AI chat overlay (⌘J). When sidebar is open the side
   // panel chat is primary; bubble + spotlight are for collapsed-sidebar
@@ -4071,6 +4076,9 @@ function WorkspaceContent() {
     // preview and "+New" looked dead. Clear EVERYTHING back to a fresh draft.
     setCurrentProject(null)
     setProjectName('Untitled Project')
+    // Back to the fresh StartDashboard (the single empty-state screen).
+    setDashOpen(true)
+    setActivePanel('build')
     setHtml('')
     setPreviewHtml('')
     setPages([{ id: 'home', name: 'Home', slug: 'index', html: '', isHome: true }])
@@ -9912,7 +9920,7 @@ npx eas build --platform all
             returning user can still open the Files/Projects tab (no trap). The
             SkillPicker (z-200) fires ON TOP of this. Unmounts the moment a build
             exists, revealing the two-pane workspace. */}
-        {!html && Object.keys(vfsFiles).length === 0 && !isGenerating && !plannerActive && !isMobile && activePanel === 'build' && (
+        {!html && Object.keys(vfsFiles).length === 0 && !isGenerating && !plannerActive && !isMobile && dashOpen && (
           <div className="fixed inset-0 z-[90] flex flex-col">
             <StartDashboard
               isDark={isDark}
@@ -9923,9 +9931,9 @@ npx eas build --platform all
               onSeedPrompt={(t) => setCommandInput(t)}
               recipes={quickStartTemplates.map((t) => ({ id: t.id, label: t.label, icon: t.icon, isPremade: t.isPremade }))}
               onPickRecipe={runQuickStartTemplate}
-              onOpenConnectors={() => setActivePanel('integrations')}
+              onOpenConnectors={() => { setDashOpen(false); setActivePanel('integrations') }}
               onToggleTheme={toggleTheme}
-              onViewProjects={() => setActivePanel('projects')}
+              onViewProjects={() => { setDashOpen(false); setActivePanel('projects') }}
               busy={isGenerating}
             />
           </div>
@@ -11275,21 +11283,16 @@ npx eas build --platform all
                         </>
                       ) : (
                         <>
-                          <p className="text-zinc-500 font-medium text-sm">{levelCopy[skillLevel].previewEmptyTitle}</p>
-                          <p className="text-zinc-400 text-xs mt-1">{levelCopy[skillLevel].previewEmptyBody}</p>
-                          {/* Voice = a live, hands-free conversation with the
-                              builder (Aria-style realtime) — talk and it builds. */}
+                          <p className="text-zinc-500 font-medium text-sm">Your site preview appears here</p>
+                          <p className="text-zinc-400 text-xs mt-1">Pick a project on the left, or start a new one.</p>
+                          {/* One build entry: route back to the single start
+                              dashboard rather than being a second "build" screen. */}
                           <button
-                            onClick={voiceActive ? closeVoice : openVoice}
-                            className={cn(
-                              "mt-5 inline-flex items-center gap-2.5 rounded-2xl px-5 py-3 text-white text-sm font-semibold shadow-lg transition hover:scale-[1.02]",
-                              "bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-violet-500/30 hover:shadow-violet-500/40",
-                              voiceActive && "animate-pulse"
-                            )}
+                            onClick={newProject}
+                            className="mt-5 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-white text-sm font-semibold shadow-lg transition hover:scale-[1.02] bg-violet-600 hover:bg-violet-700 shadow-violet-600/30"
                           >
-                            <Mic className="w-[18px] h-[18px]" /> {voiceActive ? 'Listening… tap to end' : 'Talk and I’ll build it'}
+                            <Plus className="w-[18px] h-[18px]" /> Start a new build
                           </button>
-                          <p className="text-zinc-600 text-[11px] mt-2.5">or describe it in the chat →</p>
                         </>
                       )}
                     </div>
