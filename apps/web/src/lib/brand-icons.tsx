@@ -104,6 +104,47 @@ const ICONS: Record<string, React.ReactNode> = {
   googleanalytics: (
     <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true"><rect x="15" y="4" width="4.5" height="16" rx="2.2" fill="#F9AB00"/><rect x="9.5" y="9" width="4.5" height="11" rx="2.2" fill="#E37400"/><circle cx="6.2" cy="17.3" r="2.6" fill="#E37400"/></svg>
   ),
+
+  // ── productivity / comms (Composio connector toolkits) ──
+  gmail: (
+    <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true"><rect x="2.5" y="5.5" width="19" height="13" rx="2" fill="#fff" stroke="#DADCE0"/><path d="M5 16.5V8.5l7 5 7-5v8" fill="none" stroke="#EA4335" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  ),
+  slack: (
+    <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true"><rect x="7.2" y="2.5" width="3" height="19" rx="1.5" fill="#36C5F0"/><rect x="13.8" y="2.5" width="3" height="19" rx="1.5" fill="#2EB67D"/><rect x="2.5" y="7.2" width="19" height="3" rx="1.5" fill="#ECB22E"/><rect x="2.5" y="13.8" width="19" height="3" rx="1.5" fill="#E01E5A"/></svg>
+  ),
+  github: (
+    <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true"><path fill="#181717" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+  ),
+  linkedin: (
+    <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true"><rect width="24" height="24" rx="5" fill="#0A66C2"/><path fill="#fff" d="M8.3 18.5H5.7V9.8h2.6zM7 8.6a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm11.5 9.9h-2.6v-4.5c0-1.1-.4-1.8-1.4-1.8-.75 0-1.15.5-1.35 1-.07.18-.09.43-.09.68v4.6h-2.6s.03-7.9 0-8.7h2.6v1.2c.35-.53.96-1.3 2.35-1.3 1.7 0 3 1.1 3 3.5z"/></svg>
+  ),
+  facebook: (
+    <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true"><rect width="24" height="24" rx="5" fill="#1877F2"/><path fill="#fff" d="M15.5 12.5l.4-2.7h-2.6V8c0-.74.36-1.47 1.53-1.47h1.17V4.23s-1.06-.18-2.08-.18c-2.12 0-3.5 1.28-3.5 3.6v2.15H8v2.7h2.4v6.5h2.9v-6.5z"/></svg>
+  ),
+  hubspot: (
+    <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true"><rect width="24" height="24" rx="5" fill="#FF7A59"/><circle cx="17" cy="7.5" r="1.8" fill="#fff"/><circle cx="11" cy="14.5" r="3.3" fill="none" stroke="#fff" stroke-width="1.6"/><path d="M11 11.2V8.6M13.7 12.6l2-3.5" stroke="#fff" stroke-width="1.6" fill="none"/></svg>
+  ),
+  salesforce: (
+    <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true"><rect width="24" height="24" rx="5" fill="#00A1E0"/><path fill="#fff" d="M15.6 10.2a2.9 2.9 0 00-5.5-1.1A2.4 2.4 0 006 11.4 2.2 2.2 0 007 15.6h8.1a2.5 2.5 0 00.5-5z"/></svg>
+  ),
+  jira: (
+    <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true"><rect width="24" height="24" rx="5" fill="#2684FF"/><path fill="#fff" d="M12 4.5l4.8 4.8a1 1 0 010 1.4L12 15.5l-2.4-2.4 2.5-2.5-2.5-2.5z"/><path fill="#fff" opacity=".7" d="M12 8.5l-2.4 2.4L7.2 8.5a1 1 0 010-1.4L9.6 4.7z"/></svg>
+  ),
+  monday: (
+    <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true"><rect width="24" height="24" rx="5" fill="#fff" stroke="#E6E1DA"/><rect x="4.5" y="8" width="4" height="8" rx="2" fill="#F65F7C"/><rect x="10" y="8" width="4" height="8" rx="2" fill="#FDAB3D"/><rect x="15.5" y="8" width="4" height="8" rx="2" fill="#00CA72"/></svg>
+  ),
+  zendesk: (
+    <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true"><rect width="24" height="24" rx="5" fill="#03363D"/><path fill="#fff" d="M7 8h10l-5 8z"/></svg>
+  ),
+  intercom: (
+    <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true"><rect width="24" height="24" rx="5" fill="#1F8DED"/><rect x="6" y="6" width="12" height="12" rx="3" fill="#fff"/><g stroke="#1F8DED" stroke-width="1.5" stroke-linecap="round"><path d="M9 9.5v3M12 9v4.5M15 9.5v3"/></g></svg>
+  ),
+  teams: (
+    <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true"><rect width="24" height="24" rx="5" fill="#5059C9"/><circle cx="16.5" cy="8" r="2.1" fill="#fff" opacity=".85"/><path fill="#fff" d="M7 8.5h7v1.7h-2.6V16h-1.8v-5.8H7z"/></svg>
+  ),
+  quickbooks: (
+    <svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="#2CA01C"/><path fill="none" stroke="#fff" stroke-width="1.9" d="M13.2 7.2a5 5 0 00-1.2 9.6"/><path fill="none" stroke="#fff" stroke-width="1.9" d="M10.8 16.8a5 5 0 001.2-9.6"/><path stroke="#fff" stroke-width="1.9" d="M12 7v6.5M12 16.5v-2"/></svg>
+  ),
 }
 
 // Normalise a catalog name ("Stripe Payments", "OpenAI / ChatGPT",
@@ -132,6 +173,19 @@ function slugFor(name: string): string {
   if (n.includes('auth0')) return 'auth0'
   if (n.includes('clerk')) return 'clerk'
   if (n.includes('cloudinary')) return 'cloudinary'
+  if (n.includes('gmail')) return 'gmail'
+  if (n.includes('slack')) return 'slack'
+  if (n.includes('github')) return 'github'
+  if (n.includes('linkedin')) return 'linkedin'
+  if (n.includes('facebook')) return 'facebook'
+  if (n.includes('hubspot')) return 'hubspot'
+  if (n.includes('salesforce')) return 'salesforce'
+  if (n.includes('jira')) return 'jira'
+  if (n.includes('monday')) return 'monday'
+  if (n.includes('zendesk')) return 'zendesk'
+  if (n.includes('intercom')) return 'intercom'
+  if (n.includes('teams')) return 'teams'
+  if (n.includes('quickbook')) return 'quickbooks'
   if (n.includes('google maps')) return 'googlemaps'
   if (n.includes('google analytics')) return 'googleanalytics'
   if (n.includes('google')) return 'google'
