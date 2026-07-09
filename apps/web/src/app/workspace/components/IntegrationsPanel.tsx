@@ -58,10 +58,12 @@ export function IntegrationsPanel({ isDark }: IntegrationsPanelProps) {
         body: JSON.stringify({ toolkit: slug }),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok || !data?.url) throw new Error(data?.error || 'Could not start the connection')
+      // The route returns { redirectUrl } (Composio's OAuth URL).
+      const url = data?.redirectUrl || data?.url
+      if (!res.ok || !url) throw new Error(data?.error || 'Could not start the connection')
       // Hand off to the provider's OAuth consent screen; we return to the
       // workspace via the Composio callback.
-      window.location.href = data.url
+      window.location.href = url
     } catch (e: any) {
       setErr(e?.message || 'Failed to start connection')
       setBusy(null)
