@@ -2861,10 +2861,22 @@ Rules:
               safeEnqueue(encoder.encode(`data: ${JSON.stringify({ delta: text, streaming: true })}\n\n`))
             })
 
-            const finalMsg = await pass.finalMessage()
-            claudeUsage.inputTokens += finalMsg.usage?.input_tokens || 0
-            claudeUsage.outputTokens += finalMsg.usage?.output_tokens || 0
-            return finalMsg.stop_reason || 'end_turn'
+            try {
+              const finalMsg = await pass.finalMessage()
+              claudeUsage.inputTokens += finalMsg.usage?.input_tokens || 0
+              claudeUsage.outputTokens += finalMsg.usage?.output_tokens || 0
+              return finalMsg.stop_reason || 'end_turn'
+            } catch (streamErr: any) {
+              // A mid-stream socket drop ("terminated"/ECONNRESET) throws here.
+              // fullHtml still holds everything streamed before the drop, so we
+              // do NOT fail the build — return a sentinel and let the caller's
+              // continuation loop resume from the partial (prefill). Only a
+              // content-filter block should abort, so re-throw those.
+              const msg = String(streamErr?.message || streamErr || '')
+              if (/content[\s_-]?filter|content[\s_-]?policy|output blocked/i.test(msg)) throw streamErr
+              console.warn(`[Generate] pass stream dropped (${msg.slice(0, 120)}) — will resume from partial`)
+              return 'error'
+            }
           }
 
           try {
@@ -2883,7 +2895,11 @@ Rules:
               const h = fullHtml.toLowerCase()
               return h.includes('</body>') && h.includes('</html>')
             }
-            const MAX_CONTINUATIONS = 2
+            // Was 2. Bumped to 4 because a dropped-and-resumed pass (stop
+            // reason 'error') now consumes a slot too — we don't want a single
+            // socket drop to eat the whole continuation budget for a genuinely
+            // long build. Each pass resumes from prefill, so there's no wasted work.
+            const MAX_CONTINUATIONS = 4
             let continuations = 0
             while ((stopReason === 'max_tokens' || !htmlComplete()) && continuations < MAX_CONTINUATIONS) {
               continuations++

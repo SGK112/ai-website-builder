@@ -5689,7 +5689,7 @@ ${html}
   }
 
   // Layered generation with phases
-  const handleGenerate = async (promptText: string | undefined, ingredients?: StewIngredient[], opts?: { fresh?: boolean; forceModel?: string }) => {
+  const handleGenerate = async (promptText: string | undefined, ingredients?: StewIngredient[], opts?: { fresh?: boolean; forceModel?: string; _retriedIncomplete?: boolean }) => {
     if (!promptText?.trim() && (!ingredients || ingredients.length === 0)) {
       addTerminalLine('error', 'No prompt yet — describe what you want to build.')
       return
@@ -5851,6 +5851,11 @@ ${html}
       let codeWarnings: string[] = []
       let serverError: string | null = null
       let contentFiltered = false
+      // The server marks a finished build with a `complete` frame. If the stream
+      // ends without one, the server was cut off mid-build (deploy restart,
+      // socket drop, OOM) and the streamed HTML is a partial — never a finished
+      // site. We track this so we don't present half-baked output as "ready".
+      let sawComplete = false
 
       if (reader) {
         // Proper SSE buffering — chunks from the network can split mid-frame,
@@ -5911,6 +5916,7 @@ ${html}
               addTerminalLine('success', '│ ✓ CSS styles applied')
               addTerminalLine('info', '│ ○ Adding JavaScript')
             }
+            if (parsed.complete) sawComplete = true
             if (parsed.complete && parsed.truncated) {
               wasTruncated = true
             }
@@ -5940,6 +5946,21 @@ ${html}
         // Stream finished — if the server emitted an error event at any
         // point, throw now so the outer catch shows the toast.
         if (serverError) throw new Error(serverError)
+      }
+
+      // No `complete` frame = the server was cut off mid-build (deploy restart,
+      // socket drop, OOM). Whatever streamed is a PARTIAL, not a finished site —
+      // and the server never persisted it either. Don't present it as ready:
+      // auto-retry once (a redeploy cutover is over by the time we re-run), then
+      // fall back to an honest truncation notice rather than a fake success.
+      const htmlClosed = /<\/body>/i.test(generatedHtml) && /<\/html>/i.test(generatedHtml)
+      if (!sawComplete && !htmlClosed && !contentFiltered) {
+        if (!opts?._retriedIncomplete) {
+          addTerminalLine('info', '│ The build was cut off before it finished — retrying…')
+          addConsoleLog('warn', 'Stream ended with no complete frame; auto-retrying once')
+          return await handleGenerate(promptText, ingredients, { ...opts, fresh: true, _retriedIncomplete: true })
+        }
+        wasTruncated = true
       }
 
       // Guard against silent generation failure (empty stream = blank page)
