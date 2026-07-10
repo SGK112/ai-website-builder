@@ -384,16 +384,17 @@ Everything below is the floor for polish and structure. The personality above is
 - Accents: ONE confident accent that fits the brand — do NOT reflexively pick indigo/purple
 - Text: strong contrast for headings, comfortable body, muted secondary
 
-3. TECHNIQUES — available, but use SELECTIVELY (not all at once, not on every element; glassmorphism on everything is the canned tell):
+3. TECHNIQUES — available, but use SELECTIVELY (not all at once, not on every element; glassmorphism on everything is the canned tell). In the snippets below, indigo/slate are PLACEHOLDERS — swap in your chosen accent; do NOT ship indigo/purple unless the brand truly is that:
 - Glassmorphism (sparingly): backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl
-- Gradient text: bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent
+- Gradient text (use your accent, not indigo→purple): bg-gradient-to-r from-[accent]-400 to-[accent]-600 bg-clip-text text-transparent
 - Subtle grid patterns: Use CSS background with dot grid
-- Glowing effects: shadow-lg shadow-indigo-500/25
+- Glowing effects (your accent): shadow-lg shadow-[accent]-500/25
 - Smooth hover states: hover:scale-105 transition-all duration-300
 
 4. PROFESSIONAL COMPONENTS
+⚠️ The snippets below are STRUCTURAL SKELETONS, not the intended look. Every one is written in dark + indigo + white/5 glass for brevity — shipping them verbatim gives you the exact canned AI site section 0 forbids. COPY THE STRUCTURE (layout, spacing, responsive behavior, data-/aria- attributes); REPLACE the palette — backgrounds, text colors, accent, glass-vs-solid, border-vs-shadow — with the one you chose for THIS business. A light editorial brand should end up with almost no class in common with these examples.
 
-Navigation (with dropdown menu + mobile hamburger — REQUIRED PATTERN):
+Navigation (with dropdown menu + mobile hamburger). REQUIRED = the STRUCTURE and behavior: fixed nav, the data-dropdown-trigger/data-dropdown-menu pairing, data-mobile-toggle/data-mobile-menu, and the aria-* attributes. The colors below (slate-950/indigo/glass) are a PLACEHOLDER — recolor EVERY class to your chosen palette. Do not ship this exact dark+indigo+blur chrome unless the brand is genuinely moody/tech; a light or warm brand gets a light, opaque nav:
 <nav class="fixed top-0 left-0 right-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-white/5">
   <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
     <a href="#" class="text-xl font-bold text-white">Brand</a>
