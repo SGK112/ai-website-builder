@@ -302,13 +302,15 @@ const aiModels: AIModel[] = [
   { id: 'cf-mistral-7b', name: 'Mistral 7B', provider: 'cloudflare', description: 'FREE 10K/day - Fast edge', contextWindow: '8K', speed: 'fast', quality: 'good', free: true },
 
   // PAID MODELS
-  // Anthropic Claude — claude-sonnet-4 retires 2026-06-15 per Anthropic
-  // deprecation notice; bumped to 4.6/4.7. Same price, higher quality.
-  // Fable 5 (released 2026-06-09) is the new flagship above Opus 4.8 —
-  // research/multi-day-task grade, 1M context, ~$10/$50 per Mtok.
+  // Anthropic Claude. Opus 5 / Sonnet 5 replaced Opus 4.8 / Sonnet 4.6 at the
+  // SAME price ($5/$25 and $3/$15) with materially better coding — see the
+  // matching swap in api/builder/generate's pickBestModel. Fable 5 stays the
+  // flagship above Opus (~$10/$50, research / long-horizon grade). The old
+  // 4.8 / 4.6 ids are still served by Anthropic, so anyone who saved one as a
+  // project preference keeps working; they're just no longer offered here.
   { id: 'claude-fable-5', name: 'Claude Fable 5', provider: 'anthropic', description: 'Most capable — research & long-horizon tasks', contextWindow: '1M', speed: 'medium', quality: 'best' },
-  { id: 'claude-opus-4-8', name: 'Claude Opus 4.8', provider: 'anthropic', description: 'Highly capable, complex projects & coding', contextWindow: '1M', speed: 'medium', quality: 'best' },
-  { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', provider: 'anthropic', description: 'Balanced speed and quality', contextWindow: '200K', speed: 'fast', quality: 'great' },
+  { id: 'claude-opus-5', name: 'Claude Opus 5', provider: 'anthropic', description: 'Highly capable, complex projects & coding', contextWindow: '1M', speed: 'medium', quality: 'best' },
+  { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', provider: 'anthropic', description: 'Balanced speed and quality — near-Opus coding', contextWindow: '1M', speed: 'fast', quality: 'great' },
   { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', provider: 'anthropic', description: 'Fastest responses', contextWindow: '200K', speed: 'fast', quality: 'good' },
   // OpenAI
   { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai', description: 'Latest GPT-4 Omni model', contextWindow: '128K', speed: 'fast', quality: 'best' },
@@ -2494,12 +2496,17 @@ function WorkspaceContent() {
   // per-project via localStorage so a user who shipped 5 sites doesn't
   // see the same coach 5 times. The check runs against the project ID
   // (or 'unsaved' bucket for not-yet-saved local builds).
-  const [whatsNextDismissed, setWhatsNextDismissed] = useState<boolean>(false)
+  // Dismissal is STAGE-aware: '1' = hidden pre-deploy (the strip still comes
+  // back once, with the live URL, after you ship); 'live' = hidden for good.
+  // A plain boolean made the X a no-op on a shipped project — the post-deploy
+  // OR re-showed the strip the instant it was dismissed.
+  const [whatsNextDismissed, setWhatsNextDismissed] = useState<'' | '1' | 'live'>('')
   useEffect(() => {
     try {
       const key = `webstew-whatsnext-${currentProject?.id || 'unsaved'}`
-      setWhatsNextDismissed(localStorage.getItem(key) === '1')
-    } catch { setWhatsNextDismissed(false) }
+      const stored = localStorage.getItem(key)
+      setWhatsNextDismissed(stored === 'live' ? 'live' : stored === '1' ? '1' : '')
+    } catch { setWhatsNextDismissed('') }
   }, [currentProject?.id])
   // Recipe-tips popover — opened from a ChefHat button next to the chat
   // input. Shows the 6 prompt patterns pros use, in stew-themed voice.
@@ -6349,6 +6356,11 @@ ${html}
         } else if (showCommandPalette) {
           setShowCommandPalette(false)
           setCommandSearch('')
+        } else {
+          // Escape also leaves focus mode — a second, conventional way out so
+          // the full-screen preview is never a one-button trap. Functional
+          // update: this effect doesn't re-subscribe on focusMode changes.
+          setFocusMode(prev => (prev ? false : prev))
         }
       }
 
@@ -8449,6 +8461,20 @@ npx eas build --platform all
 
   const currentSuggestions = promptSuggestions[skillLevel]
 
+  // Top chrome above the preview (page tabs + What's-next coach). Focus mode on
+  // mobile means a PURE full-screen preview — these strips used to survive it,
+  // stealing the top of the screen and swallowing taps meant for the exit
+  // control. When they DO show on a phone they need to clear the floating
+  // brand/account header, which is absolutely positioned over the top of <main>.
+  const showPageTabs = !(isMobile && focusMode) && (pages.length > 1 || !!html)
+  const whatsNextIsLive = deployStatus === 'success' && !!deployUrl
+  const showWhatsNext =
+    !(isMobile && focusMode) &&
+    (whatsNextIsLive ? whatsNextDismissed !== 'live' : !whatsNextDismissed) &&
+    !isGenerating && !isThinking &&
+    (html.length > 100 || Object.keys(vfsFiles).length > 0)
+  const mobileTopChromeInset = isMobile && !focusMode && (showPageTabs || showWhatsNext || !!selectedElement)
+
   return (
     <div
       className={cn(
@@ -9927,22 +9953,49 @@ npx eas build --platform all
             />
           </div>
         )}
-        {/* Focus Mode Indicator */}
+        {/* Focus Mode exit.
+            Mobile: the ONLY way out (header, composer and tool bar are all
+            hidden), so it has to be unmissable and actually tappable — it sits
+            below the notch/status bar via safe-area inset, top-RIGHT under the
+            thumb, at a 44px target, above everything else. It used to be a
+            top-4/left-4 badge with a "press F" hint: on a phone that lands
+            under the iOS status bar and behind the page-tab strip, so taps
+            never reached it and focus mode became a trap.
+            Desktop: unchanged badge with the keyboard hint. */}
         <AnimatePresence>
           {focusMode && (
             <motion.div
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="absolute top-4 left-4 z-[80] flex items-center gap-2"
+              className={cn(
+                'absolute z-[95] flex items-center gap-2',
+                isMobile ? 'top-0 right-3' : 'top-4 left-4'
+              )}
+              style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 10px)' } : undefined}
             >
               <button
                 onClick={() => setFocusMode(false)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-100 border border-violet-300 text-violet-700 dark:bg-violet-500/20 dark:border-violet-500/30 dark:text-violet-300 text-xs hover:bg-violet-200 dark:hover:bg-violet-500/30 transition-colors backdrop-blur-sm"
+                aria-label="Exit full-screen preview"
+                className={cn(
+                  'flex items-center gap-2 transition-colors backdrop-blur-sm',
+                  isMobile
+                    ? 'h-11 pl-3.5 pr-4 rounded-full bg-black/70 text-white text-[13px] font-semibold shadow-xl shadow-black/40 ring-1 ring-white/20 active:scale-95'
+                    : 'px-3 py-1.5 rounded-lg bg-violet-100 border border-violet-300 text-violet-700 dark:bg-violet-500/20 dark:border-violet-500/30 dark:text-violet-300 text-xs hover:bg-violet-200 dark:hover:bg-violet-500/30'
+                )}
               >
-                <Maximize className="w-3.5 h-3.5" />
-                <span>Focus Mode</span>
-                <kbd className="px-1.5 py-0.5 rounded bg-black/30 text-[10px]">F</kbd>
+                {isMobile ? (
+                  <>
+                    <X className="w-[18px] h-[18px]" />
+                    <span>Done</span>
+                  </>
+                ) : (
+                  <>
+                    <Maximize className="w-3.5 h-3.5" />
+                    <span>Focus Mode</span>
+                    <kbd className="px-1.5 py-0.5 rounded bg-black/30 text-[10px]">F</kbd>
+                  </>
+                )}
               </button>
             </motion.div>
           )}
@@ -10683,6 +10736,15 @@ npx eas build --platform all
           </div>
         </header>}
 
+        {/* Top chrome above the preview: selected-element bar, page tabs,
+            What's-next. On mobile the floating brand/account header is
+            absolutely positioned over the top of <main>, so without this inset
+            it sits ON TOP of these strips and eats the taps meant for the
+            first tab / first CTA. */}
+        <div
+          className="shrink-0"
+          style={mobileTopChromeInset ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 56px)' } : undefined}
+        >
         {/* Selected Element Action Bar — quick edits without typing in chat */}
         <AnimatePresence>
           {selectedElement && (
@@ -10895,7 +10957,7 @@ npx eas build --platform all
 
         {/* Page tabs — only show once we have content or more than one page.
             Hidden by default so single-page generations stay clutter-free. */}
-        {(pages.length > 1 || html) && (
+        {showPageTabs && (
           <div className={cn(
             "flex items-stretch gap-0 px-3 border-b overflow-x-auto",
             isDark ? "bg-zinc-950/80 border-white/5" : "bg-slate-50 border-slate-200"
@@ -10938,16 +11000,19 @@ npx eas build --platform all
                   <span className={cn("text-[10px] font-mono", isDark ? "text-zinc-600" : "text-slate-400")}>/{page.slug}</span>
                   {!page.isHome && (
                     <>
+                      {/* Visible by default, hover-revealed only from md up:
+                          a phone has no hover, so these controls were simply
+                          unreachable there. Bigger tap target on touch too. */}
                       <button
                         onClick={(e) => { e.stopPropagation(); setHomePage(page.id) }}
-                        className="ml-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-violet-500/20 text-zinc-500 hover:text-violet-400 transition"
+                        className="ml-0.5 p-1.5 md:p-0.5 rounded opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:bg-violet-500/20 text-zinc-500 hover:text-violet-400 transition"
                         title={`Make "${page.name}" the home page`}
                       >
                         <Home className="w-3 h-3" />
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); deletePage(page.id) }}
-                        className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition"
+                        className="p-1.5 md:p-0.5 rounded opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition"
                         title={`Delete ${page.name}`}
                       >
                         <X className="w-3 h-3" />
@@ -10992,7 +11057,7 @@ npx eas build --platform all
             • Post-deploy: ✓ Live at URL · Copy · Share · Connect domain · Sell
             Closes the Create→Ship→Sell loop with a single strip that
             reacts to the user's actual progress instead of a static CTA. */}
-        {(!whatsNextDismissed || (deployStatus === 'success' && deployUrl)) && !isGenerating && !isThinking && (html.length > 100 || Object.keys(vfsFiles).length > 0) && (
+        {showWhatsNext && (
           <WhatsNextCoach
             isDark={isDark}
             skillLevel={skillLevel}
@@ -11012,17 +11077,19 @@ npx eas build --platform all
             }}
             onSell={() => setShowPublishModal(true)}
             onDismiss={() => {
+              const stage = whatsNextIsLive ? 'live' : '1'
               try {
                 const key = `webstew-whatsnext-${currentProject?.id || 'unsaved'}`
-                localStorage.setItem(key, '1')
+                localStorage.setItem(key, stage)
               } catch (e) {
                 console.warn('whatsnext dismiss persist failed', e)
               }
-              setWhatsNextDismissed(true)
+              setWhatsNextDismissed(stage)
             }}
             addToast={addToast}
           />
         )}
+        </div>
 
         {/* Preview Area - z-0 to stay below header dropdowns */}
         <div className="flex-1 flex overflow-hidden relative z-0">
@@ -11304,6 +11371,10 @@ npx eas build --platform all
                     onVoice={voiceActive ? closeVoice : openVoice}
                     isListening={voiceActive}
                     isGenerating={isGenerating}
+                    // The bottom tool bar (which carries the safe-area padding)
+                    // is hidden while an element is selected — then the
+                    // composer is the last row and owns that inset.
+                    clearsHomeIndicator={!!selectedElement}
                   />
                 </>
               )}

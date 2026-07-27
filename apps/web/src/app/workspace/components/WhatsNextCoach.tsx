@@ -80,10 +80,15 @@ export function WhatsNextCoach({
   }
 
   return (
+    // The CTAs scroll horizontally; the dismiss button does NOT live inside
+    // that scroller. It used to (after a flex-1 spacer), which on a phone
+    // parked it past the right edge — half-clipped and unreachable, so the
+    // strip couldn't be closed. Now it's a pinned sibling, always on screen.
     <div className={cn(
-      'border-b px-3 sm:px-5 py-3 flex items-center gap-2 sm:gap-3 overflow-x-auto scrollbar-hide',
+      'border-b flex items-center',
       isDark ? 'border-white/[0.06] bg-gradient-to-r from-violet-950/20 to-fuchsia-950/10' : 'border-slate-200 bg-gradient-to-r from-violet-50 to-pink-50'
     )}>
+      <div className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3 overflow-x-auto scrollbar-hide px-3 sm:px-5 py-3">
       {isLive ? (
         <>
           {/* Live-deployed badge + the URL itself — clicking opens it.
@@ -194,17 +199,17 @@ export function WhatsNextCoach({
           </button>
         </>
       )}
-      <div className="flex-1" />
+      </div>
       <button
         onClick={onDismiss}
         title="Hide"
         aria-label="Hide"
         className={cn(
-          'shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-colors',
-          isDark ? 'text-zinc-500 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+          'shrink-0 mr-2 sm:mr-3 w-10 h-10 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-colors',
+          isDark ? 'text-zinc-400 hover:text-white hover:bg-white/5 active:bg-white/10' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100 active:bg-slate-200'
         )}
       >
-        <X className="w-3.5 h-3.5" />
+        <X className="w-4 h-4" />
       </button>
     </div>
   )

@@ -18,14 +18,21 @@ interface Props {
   onVoice: () => void
   isListening?: boolean
   isGenerating: boolean
+  // True when nothing sits below the canvas (the bottom tool bar is hidden,
+  // e.g. while an element is selected) — then the pill is the last thing on
+  // screen and has to clear the home indicator itself.
+  clearsHomeIndicator?: boolean
 }
 
-export function MobileComposer({ isDark, value, onChange, onSubmit, onVoice, isListening, isGenerating }: Props) {
+export function MobileComposer({ isDark, value, onChange, onSubmit, onVoice, isListening, isGenerating, clearsHomeIndicator }: Props) {
   const hasText = value.trim().length > 0
   const showSend = hasText && !isListening
   const onTap = isListening ? onVoice : showSend ? onSubmit : onVoice
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 px-3 pb-3 pt-10 bg-gradient-to-t from-black/40 via-black/10 to-transparent">
+    <div
+      className="pointer-events-none absolute inset-x-0 bottom-0 z-40 px-3 pb-3 pt-10 bg-gradient-to-t from-black/40 via-black/10 to-transparent"
+      style={clearsHomeIndicator ? { paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' } : undefined}
+    >
       <div
         className={cn(
           'pointer-events-auto flex items-center gap-1.5 rounded-full border pl-4 pr-1.5 py-1.5 shadow-xl backdrop-blur-xl transition',
