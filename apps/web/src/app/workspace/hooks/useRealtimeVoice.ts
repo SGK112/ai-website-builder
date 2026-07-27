@@ -203,23 +203,31 @@ export function useRealtimeVoice(opts: {
           : 'Voice input isn’t supported on this browser.')
         return
       }
+      // Acquire the mic PERMISSIVELY, then tune it.
+      //
+      // The mic is grabbed before the peer connection exists, so anything that
+      // makes getUserMedia reject kills the whole session — no data channel, no
+      // greeting, nothing. Passing noise hints as *constraints* did exactly
+      // that: Safari rejects `channelCount` (and has been unreliable on
+      // `autoGainControl`) instead of treating them as advisory the way the
+      // spec says, so asking for them up front took voice out entirely on
+      // iPhone. Never gate mic access on an optional hint.
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          // AGC OFF on purpose. Auto gain normalises loudness, which means
-          // that in the gaps where nobody is talking it RAISES the room —
-          // a TV, a conversation across the shop — until it's loud enough to
-          // clear the VAD and get transcribed. That's the "picks up every
-          // distraction" symptom. With it off, quiet background stays quiet
-          // and only someone actually speaking into the phone gets through.
-          autoGainControl: false,
-          // Mono: stereo doubles the data for no benefit and some stacks feed
-          // the far channel (more room, less mouth) into the mix.
-          channelCount: 1,
-        },
+        audio: { echoCancellation: true, noiseSuppression: true },
       })
       streamRef.current = stream
+      // Now the mic is ours, apply the anti-room-noise tuning as a best effort.
+      // AGC is the one that matters: auto gain normalises loudness, so in the
+      // gaps where nobody is talking it RAISES the room — a TV, a conversation
+      // across the shop — until it clears the VAD and gets transcribed. If a
+      // browser won't take it we keep a working mic and lose only the tuning.
+      for (const track of stream.getAudioTracks()) {
+        try {
+          await track.applyConstraints({ autoGainControl: false, channelCount: 1 })
+        } catch {
+          try { await track.applyConstraints({ autoGainControl: false }) } catch { /* keep the mic */ }
+        }
+      }
 
       // 3) peer connection + remote audio playback
       const pc = new RTCPeerConnection()

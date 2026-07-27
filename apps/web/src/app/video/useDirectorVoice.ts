@@ -112,12 +112,24 @@ export function useDirectorVoice(opts: {
         setError(typeof window !== 'undefined' && !window.isSecureContext ? 'Voice needs a secure (https) connection.' : 'Voice input isn’t supported on this browser.')
         return
       }
+      // Anti-room-noise capture, same shape as the builder chef: acquire
+      // permissively, then tune. The Studio is used with music and other
+      // people around, so AGC off matters here too.
       const stream = await navigator.mediaDevices.getUserMedia({
-        // Same anti-room-noise capture as the builder chef: AGC off so quiet
-        // background isn't boosted into the VAD during pauses. The Studio is
-        // used with music and other people around.
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false, channelCount: 1 },
+        audio: { echoCancellation: true, noiseSuppression: true },
       })
+      // Tune AFTER acquisition, never as a constraint: Safari rejects
+      // channelCount (and is unreliable on autoGainControl) rather than
+      // treating them as advisory, which would fail the whole getUserMedia
+      // call and take voice out entirely on iPhone.
+      for (const track of stream.getAudioTracks()) {
+        try {
+          await track.applyConstraints({ autoGainControl: false, channelCount: 1 })
+        } catch {
+          try { await track.applyConstraints({ autoGainControl: false }) } catch { /* keep the mic */ }
+        }
+      }
+
       streamRef.current = stream
       const pc = new RTCPeerConnection()
       pcRef.current = pc

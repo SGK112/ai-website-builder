@@ -42,12 +42,25 @@ export function useSpeechToText(onResult: (text: string) => void) {
       return
     }
     try {
+      // `audio: true` takes UA defaults, which on most stacks means auto gain
+      // ON — it lifts room noise in the gaps and lands as transcribed junk.
+      // Ask for the clean capture, but only as a post-acquisition tune (see
+      // useRealtimeVoice) so an unsupported hint can't cost us the mic.
       const stream = await navigator.mediaDevices.getUserMedia({
-        // `audio: true` takes the UA defaults, which on most stacks means auto
-        // gain ON — it lifts room noise in the gaps and lands as transcribed
-        // junk. Ask for the same clean capture the realtime chef uses.
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false, channelCount: 1 },
+        audio: { echoCancellation: true, noiseSuppression: true },
       })
+      // Tune AFTER acquisition, never as a constraint: Safari rejects
+      // channelCount (and is unreliable on autoGainControl) rather than
+      // treating them as advisory, which would fail the whole getUserMedia
+      // call and take voice out entirely on iPhone.
+      for (const track of stream.getAudioTracks()) {
+        try {
+          await track.applyConstraints({ autoGainControl: false, channelCount: 1 })
+        } catch {
+          try { await track.applyConstraints({ autoGainControl: false }) } catch { /* keep the mic */ }
+        }
+      }
+
       streamRef.current = stream
       const rec = new MediaRecorder(stream)
       chunksRef.current = []
