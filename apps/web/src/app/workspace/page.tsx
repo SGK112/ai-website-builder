@@ -8953,6 +8953,11 @@ npx eas build --platform all
           isDark ? "border-white/[0.08] bg-zinc-900/95 backdrop-blur-xl" : "border-slate-200 bg-white",
           focusMode && !isMobile && "opacity-0 pointer-events-none"
         )}
+        // The sheet is anchored to bottom:0, so its last row sits under the
+        // iPhone home indicator — the send button in Build, the final item in
+        // Files, the deploy button in Ship. Every panel inherits this, so the
+        // inset belongs on the sheet, not in each panel.
+        style={isMobile ? { paddingBottom: 'env(safe-area-inset-bottom, 0px)' } : undefined}
       >
         {/* Mobile sheet drag-handle — tap to dismiss; visual affordance that
             this is a pull-down sheet, not a fixed panel. */}
@@ -9089,12 +9094,16 @@ npx eas build --platform all
                               {(!project.role || project.role === 'owner') && (
                                 <button
                                   onClick={() => deleteProject(project.id)}
+                                  aria-label={`Delete ${project.name}`}
                                   className={cn(
-                                    "p-1.5 rounded hover:bg-red-500/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all",
+                                    // Hover-only meant a phone user could not
+                                    // delete a project at all. Visible + 36px
+                                    // on touch, hover-reveal from md up.
+                                    "p-2.5 md:p-1.5 rounded hover:bg-red-500/20 hover:text-red-400 transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100",
                                     isDark ? "text-zinc-600" : "text-slate-400"
                                   )}
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <Trash2 className="w-4 h-4 md:w-3.5 md:h-3.5" />
                                 </button>
                               )}
                             </div>
@@ -9572,11 +9581,15 @@ npx eas build --platform all
                     <button
                       type="button"
                       onClick={() => setPendingChatImages(prev => prev.filter((_, idx) => idx !== i))}
-                      className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                      // The comment above promises "one-tap remove" — but this
+                      // was a 16px target hidden behind :hover, so on a phone
+                      // there was no way to remove an attached image at all.
+                      // Visible and 22px on touch; hover-reveal from md up.
+                      className="absolute top-0.5 right-0.5 w-[22px] h-[22px] md:w-4 md:h-4 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition"
                       title="Remove"
                       aria-label="Remove attached image"
                     >
-                      <X className="w-2.5 h-2.5" />
+                      <X className="w-3.5 h-3.5 md:w-2.5 md:h-2.5" />
                     </button>
                   </div>
                 ))}
@@ -10568,10 +10581,12 @@ npx eas build --platform all
                                 e.stopPropagation()
                                 if (confirm(`Delete saved block "${block.name}"?`)) deleteSavedBlock(block.id)
                               }}
-                              className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition"
+                              // Same hover-only trap: unreachable on touch.
+                              className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-2 md:p-0.5 rounded hover:bg-red-500/20 text-zinc-500 hover:text-red-400 transition"
                               title="Delete"
+                              aria-label={`Delete saved block ${block.name}`}
                             >
-                              <X className="w-3 h-3" />
+                              <X className="w-4 h-4 md:w-3 md:h-3" />
                             </button>
                           </div>
                         ))
@@ -10756,10 +10771,16 @@ npx eas build --platform all
             >
               <div className="px-4 py-2 flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-3 min-w-0">
-                  <code className="text-sm text-violet-300 font-mono font-bold shrink-0">
+                  {/* These were dark-theme-only (violet-300 / zinc-400) on a
+                      pale violet tint — near-invisible in light mode, which is
+                      the default on mobile. */}
+                  <code className={cn(
+                    'text-sm font-mono font-bold shrink-0',
+                    isDark ? 'text-violet-300' : 'text-violet-700'
+                  )}>
                     &lt;{selectedElement.tagName?.toLowerCase()}&gt;
                   </code>
-                  <span className="text-xs text-zinc-400 truncate">
+                  <span className={cn('text-xs truncate', isDark ? 'text-zinc-400' : 'text-slate-600')}>
                     {selectedElement.textContent?.slice(0, 60) || 'selected'}
                   </span>
                 </div>
@@ -10825,7 +10846,7 @@ npx eas build --platform all
                     onClick={() => { if (moveSection(selectedElement, 'up')) setSelectedElement(null) }}
                     title="Move section up"
                     aria-label="Move section up"
-                    className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white transition-colors"
+                    className="p-2.5 md:p-1.5 rounded-lg bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-slate-700 dark:text-zinc-300 hover:text-black dark:hover:text-white transition-colors"
                   >
                     <ChevronUp className="w-3.5 h-3.5" />
                   </button>
@@ -10833,7 +10854,7 @@ npx eas build --platform all
                     onClick={() => { if (moveSection(selectedElement, 'down')) setSelectedElement(null) }}
                     title="Move section down"
                     aria-label="Move section down"
-                    className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white transition-colors"
+                    className="p-2.5 md:p-1.5 rounded-lg bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-slate-700 dark:text-zinc-300 hover:text-black dark:hover:text-white transition-colors"
                   >
                     <ChevronDown className="w-3.5 h-3.5" />
                   </button>
@@ -10856,7 +10877,7 @@ npx eas build --platform all
                       setSelectMode(false)
                       setShowStylePanel(false)
                     }}
-                    className="px-2 py-1.5 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-white text-xs transition-colors"
+                    className="px-3 py-2.5 md:px-2 md:py-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 text-slate-600 dark:text-zinc-400 hover:text-black dark:hover:text-white text-xs transition-colors"
                   >
                     Done
                   </button>
@@ -10868,7 +10889,7 @@ npx eas build --platform all
                 <div className="px-4 py-2 border-t border-violet-500/30 bg-violet-500/5 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
                   {/* Text color swatches */}
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] uppercase tracking-wider text-zinc-500 mr-1">Text</span>
+                    <span className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-zinc-500 mr-1">Text</span>
                     {[
                       { cls: 'text-white', color: '#ffffff' },
                       { cls: 'text-slate-300', color: '#cbd5e1' },
@@ -10883,7 +10904,7 @@ npx eas build --platform all
                         key={cls}
                         onClick={() => applyPropertyChange(selectedElement, 'textColor', cls, setSelectedElement)}
                         title={cls}
-                        className="w-5 h-5 rounded border border-white/20 hover:scale-110 hover:ring-2 hover:ring-violet-400 transition"
+                        className="w-8 h-8 md:w-5 md:h-5 rounded border border-black/20 dark:border-white/20 hover:scale-110 hover:ring-2 hover:ring-violet-400 transition"
                         style={{ backgroundColor: color }}
                       />
                     ))}
@@ -10891,7 +10912,7 @@ npx eas build --platform all
 
                   {/* Background color swatches */}
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] uppercase tracking-wider text-zinc-500 mr-1">BG</span>
+                    <span className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-zinc-500 mr-1">BG</span>
                     {[
                       { cls: 'bg-transparent', color: 'transparent', label: '∅' },
                       { cls: 'bg-slate-900', color: '#0f172a' },
@@ -10916,13 +10937,13 @@ npx eas build --platform all
 
                   {/* Padding */}
                   <div className="flex items-center gap-1">
-                    <span className="text-[10px] uppercase tracking-wider text-zinc-500 mr-1">Padding</span>
+                    <span className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-zinc-500 mr-1">Padding</span>
                     {['p-2', 'p-4', 'p-6', 'p-8', 'p-12'].map(cls => (
                       <button
                         key={cls}
                         onClick={() => applyPropertyChange(selectedElement, 'padding', cls, setSelectedElement)}
                         title={cls}
-                        className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-[10px] font-mono transition-colors"
+                        className="px-3 py-2 md:px-2 md:py-1 rounded bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-slate-700 dark:text-zinc-300 hover:text-black dark:hover:text-white text-[11px] md:text-[10px] font-mono transition-colors"
                       >
                         {cls.slice(2)}
                       </button>
@@ -10931,7 +10952,7 @@ npx eas build --platform all
 
                   {/* Border radius */}
                   <div className="flex items-center gap-1">
-                    <span className="text-[10px] uppercase tracking-wider text-zinc-500 mr-1">Radius</span>
+                    <span className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-zinc-500 mr-1">Radius</span>
                     {[
                       { cls: 'rounded-none', label: '0' },
                       { cls: 'rounded', label: 'sm' },
@@ -10943,7 +10964,7 @@ npx eas build --platform all
                         key={cls}
                         onClick={() => applyPropertyChange(selectedElement, 'radius', cls, setSelectedElement)}
                         title={cls}
-                        className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-[10px] font-mono transition-colors"
+                        className="px-3 py-2 md:px-2 md:py-1 rounded bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-slate-700 dark:text-zinc-300 hover:text-black dark:hover:text-white text-[11px] md:text-[10px] font-mono transition-colors"
                       >
                         {label}
                       </button>

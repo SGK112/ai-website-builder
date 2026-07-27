@@ -1050,6 +1050,26 @@
    full height without ever exceeding the visible area. */
 .h-sheet { height: 88vh; height: 88dvh; }
 
+/* iOS Safari ZOOMS THE WHOLE PAGE when you focus a form control whose
+   font-size is under 16px, and it does not zoom back out — the user is left
+   on a horizontally-scrolled layout until they pinch. The workspace has ~80
+   inputs at text-sm (14px) / text-[15px], so this fired on nearly every field
+   on a phone: the chat composer, every deploy/env/domain form, the Stew
+   Planner answers.
+
+   The usual "fix" is maximum-scale=1 in the viewport meta, but that also
+   disables legitimate pinch-zoom and is an accessibility failure. Setting a
+   16px floor on small viewports keeps zoom available and removes the trigger.
+   Scoped to <768px so desktop keeps its denser type; !important because it
+   has to beat Tailwind's utility classes. */
+@media (max-width: 767px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 /* Min-height variants — useful for bottom-anchored bars that already have
    their own padding; the constant + env() keeps the visual padding while
    adding the safe-area floor. */

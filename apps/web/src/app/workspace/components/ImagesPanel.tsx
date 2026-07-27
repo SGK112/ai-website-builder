@@ -310,9 +310,11 @@ export function ImagesPanel({
               <button
                 onClick={onClearGenerated}
                 aria-label="Discard generated image"
-                className="absolute top-2 right-2 w-6 h-6 rounded-full bg-red-500/80 hover:bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+                // Images is a bottom-tool-bar destination on mobile, so this
+                // has to work on touch — hover-reveal hid it completely.
+                className="absolute top-2 right-2 w-8 h-8 md:w-6 md:h-6 rounded-full bg-red-500/80 hover:bg-red-500 text-white flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all"
               >
-                <X className="w-3 h-3" />
+                <X className="w-4 h-4 md:w-3 md:h-3" />
               </button>
             </div>
             <div className="flex gap-1.5">
