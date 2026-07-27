@@ -61,7 +61,7 @@ export function InlineUpgradeModal({ open, onClose, isDark = true, currentPlan, 
         aria-labelledby="inline-upgrade-title"
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          'w-full max-w-xl rounded-2xl border shadow-2xl flex flex-col overflow-hidden',
+          'w-full max-w-xl max-h-[85dvh] rounded-2xl border shadow-2xl flex flex-col overflow-y-auto',
           isDark ? 'bg-zinc-950 border-white/10' : 'bg-white border-slate-200'
         )}
       >

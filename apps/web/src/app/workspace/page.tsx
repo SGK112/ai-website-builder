@@ -13454,7 +13454,10 @@ npx eas build --platform all
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
-            className="fixed bottom-4 right-4 z-[300] max-w-sm bg-zinc-900 border border-violet-500/40 rounded-xl shadow-2xl shadow-violet-500/20 p-4 flex flex-col gap-3"
+            // On a phone this covered the bottom tool bar (and sat partly
+            // under the home indicator). Full-width above the tool bar there,
+            // unchanged floating card from md up.
+            className="fixed left-3 right-3 bottom-[calc(var(--bottom-nav-h,0px)+12px)] md:left-auto md:right-4 md:bottom-4 z-[300] md:max-w-sm bg-zinc-900 border border-violet-500/40 rounded-xl shadow-2xl shadow-violet-500/20 p-4 flex flex-col gap-3"
           >
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-lg bg-violet-500/20 flex items-center justify-center shrink-0">
@@ -13877,7 +13880,9 @@ npx eas build --platform all
             }}
             exit={{ x: 420, opacity: 0, scale: 0.9 }}
             transition={{ type: 'spring', stiffness: 240, damping: 18, mass: 0.7 }}
-            className="fixed bottom-6 right-6 z-[150] max-w-sm"
+            // Same treatment as the resume-build card: clear the mobile tool
+            // bar and the home indicator instead of covering them.
+            className="fixed left-3 right-3 bottom-[calc(var(--bottom-nav-h,0px)+12px)] md:left-auto md:right-6 md:bottom-6 z-[150] md:max-w-sm"
             style={{
               filter: creditNudge.remaining === 0
                 ? 'drop-shadow(0 0 28px rgba(244,63,94,0.45))'

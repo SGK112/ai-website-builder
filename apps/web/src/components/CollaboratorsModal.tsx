@@ -72,7 +72,7 @@ export function CollaboratorsModal({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="collaborators-title" onClick={(e) => e.stopPropagation()} className={`w-full max-w-md rounded-2xl border shadow-2xl ${card}`}>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="collaborators-title" onClick={(e) => e.stopPropagation()} className={`w-full max-w-md max-h-[85dvh] overflow-y-auto rounded-2xl border shadow-2xl ${card}`}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
           <div className="flex items-center gap-2">
             <UserPlus className="w-4 h-4 text-violet-400" />

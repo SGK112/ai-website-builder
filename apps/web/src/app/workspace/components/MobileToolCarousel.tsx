@@ -53,7 +53,30 @@ export function MobileToolCarousel({
   ]
 
   const scrollerRef = useRef<HTMLDivElement | null>(null)
+  const barRef = useRef<HTMLDivElement | null>(null)
   const [edges, setEdges] = useState({ left: false, right: false })
+
+  // Publish this bar's height as --bottom-nav-h, the same contract
+  // MobileBottomNav uses. The global tab nav is deliberately NOT shown on
+  // /workspace, so the var stayed 0 here and everything that offsets by it —
+  // toasts, FinishedBuildBanner, SectionChat's input — anchored to the very
+  // bottom of the screen and landed ON TOP of this bar. Measured rather than
+  // hardcoded so it stays right if the row's padding or type size changes.
+  useEffect(() => {
+    const root = document.documentElement
+    const publish = () => {
+      const h = barRef.current?.offsetHeight
+      // offsetHeight already includes the safe-area padding on the element.
+      root.style.setProperty('--bottom-nav-h', h ? `${h}px` : '0px')
+    }
+    publish()
+    const ro = new ResizeObserver(publish)
+    if (barRef.current) ro.observe(barRef.current)
+    return () => {
+      ro.disconnect()
+      root.style.setProperty('--bottom-nav-h', '0px')
+    }
+  }, [])
 
   useEffect(() => {
     const el = scrollerRef.current
@@ -77,6 +100,7 @@ export function MobileToolCarousel({
 
   return (
     <div
+      ref={barRef}
       className={cn(
         'md:hidden shrink-0 border-t relative',
         isDark ? 'bg-gradient-to-b from-zinc-900 to-zinc-950 border-violet-500/10' : 'bg-white border-slate-200'

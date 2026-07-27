@@ -99,7 +99,7 @@ export function ShareProposalModal({ open, onClose, html, projectName, isDark = 
         aria-modal="true"
         aria-labelledby="share-proposal-title"
         onClick={(e) => e.stopPropagation()}
-        className={`w-full max-w-md rounded-2xl border shadow-2xl flex flex-col overflow-hidden ${
+        className={`w-full max-w-md max-h-[85dvh] rounded-2xl border shadow-2xl flex flex-col overflow-y-auto ${
           isDark ? 'bg-zinc-900 border-white/10' : 'bg-white border-slate-200'
         }`}
       >

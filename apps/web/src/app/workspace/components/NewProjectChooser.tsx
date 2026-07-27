@@ -89,7 +89,7 @@ export function NewProjectChooser({ isDark, open, onClose, onStartNew, onImporte
             aria-modal="true"
             aria-labelledby="new-project-title"
             className={cn(
-              'w-full max-w-md rounded-2xl border shadow-2xl p-5',
+              'w-full max-w-md max-h-[85dvh] overflow-y-auto rounded-2xl border shadow-2xl p-5',
               isDark ? 'bg-zinc-900 border-white/10 text-white' : 'bg-white border-slate-200 text-slate-900',
             )}
             initial={{ opacity: 0, y: 12, scale: 0.98 }}

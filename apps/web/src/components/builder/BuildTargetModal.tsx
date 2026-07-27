@@ -63,7 +63,7 @@ export function BuildTargetModal({ open, isDark, onClose, onPick }: BuildTargetM
             transition={{ type: 'spring', stiffness: 320, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className={
-              'w-full max-w-lg rounded-2xl border shadow-2xl overflow-hidden ' +
+              'w-full max-w-lg max-h-[85dvh] overflow-y-auto rounded-2xl border shadow-2xl ' +
               (isDark ? 'bg-zinc-900 border-white/10' : 'bg-white border-slate-200')
             }
           >

@@ -72,7 +72,7 @@ export function StewPlannerModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: 8 }}
             onClick={(e) => e.stopPropagation()}
-            className={'w-full max-w-lg rounded-2xl border shadow-2xl overflow-hidden ' + card}
+            className={'w-full max-w-lg max-h-[85dvh] overflow-y-auto rounded-2xl border shadow-2xl ' + card}
           >
             {/* Header */}
             <div className={'flex items-center gap-3 px-5 py-4 border-b ' + (isDark ? 'border-white/10' : 'border-slate-200')}>

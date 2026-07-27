@@ -57,7 +57,7 @@ export default function SellCreationModal({ target, onClose }: { target: SellTar
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Sell in community">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-2xl bg-zinc-950 border border-white/10 shadow-2xl">
+      <div className="relative w-full max-w-md max-h-[85dvh] overflow-y-auto rounded-2xl bg-zinc-950 border border-white/10 shadow-2xl">
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
           <div className="flex items-center gap-2 text-sm font-semibold text-white"><Tag className="w-4 h-4 text-emerald-300" /> Sell in the community</div>
           <button onClick={onClose} className="p-1 text-zinc-500 hover:text-white"><X className="w-4 h-4" /></button>
