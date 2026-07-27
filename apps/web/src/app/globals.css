@@ -1063,7 +1063,10 @@
    Scoped to <768px so desktop keeps its denser type; !important because it
    has to beat Tailwind's utility classes. */
 @media (max-width: 767px) {
-  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  /* Excluded: controls whose box is drawn by the UA rather than by text —
+     forcing a font-size on them changes their rendered size for no benefit
+     (Safari sizes the colour swatch off font-size). */
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
   textarea,
   select {
     font-size: 16px !important;
