@@ -4,13 +4,20 @@
 // voice IN generated builds (a site/app that speaks — e.g. a run-buddy), the
 // Video Studio voice-over, and (future) talking to Aria to drive the builder.
 //
-// Two providers, both live in prod:
+// Providers:
 //   - openai   — tts-1 (TTS) + whisper-1 (STT). Proven; the Studio uses it.
 //   - deepgram — Aura (TTS) + Nova (STT). Lower latency, the better fit for a
 //                realtime back-and-forth with Aria. DEEPGRAM_API_KEY in prod.
+//   - cartesia — Sonic (TTS ONLY). The provider VoiceNow/Aria moved to, so a
+//                spoken reply here can match the voice customers hear on the
+//                phone. Mirrors voiceNow-crm/backend/services/ttsStream.js.
+//
+// Cartesia needs TWO things, not one: CARTESIA_API_KEY *and* a voice — its
+// voices are cloned UUIDs, not named presets, so there's no safe default to
+// fall back on (a wrong id is a 400). Half-configured = treated as absent.
 import OpenAI from 'openai'
 
-export type VoiceProvider = 'openai' | 'deepgram'
+export type VoiceProvider = 'openai' | 'deepgram' | 'cartesia'
 
 // OpenAI tts-1 voices (also what the Studio voice-over exposes).
 export const OPENAI_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'] as const
@@ -21,24 +28,48 @@ export const DEEPGRAM_VOICES = [
   'aura-angus-en', 'aura-orpheus-en', 'aura-helios-en', 'aura-zeus-en',
 ] as const
 
+// A Cartesia voice is a cloned-voice UUID (same shape VoiceNow matches on).
+const CARTESIA_VOICE_RX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const cartesiaVoiceId = () => (process.env.CARTESIA_VOICE_ID || '').trim()
+// Both halves required — see the header note.
+const hasCartesia = () => !!process.env.CARTESIA_API_KEY && CARTESIA_VOICE_RX.test(cartesiaVoiceId())
+
 export function voiceCapabilities() {
   const openai = !!process.env.OPENAI_API_KEY
   const deepgram = !!process.env.DEEPGRAM_API_KEY
+  const cartesia = hasCartesia()
   return {
-    tts: { openai, deepgram, available: openai || deepgram },
+    // Cartesia is TTS-only here. Its STT (Ink) isn't wired — speech-in stays on
+    // whisper/nova, which are already proven on this path.
+    tts: { openai, deepgram, cartesia, available: openai || deepgram || cartesia },
     stt: { openai, deepgram, available: openai || deepgram },
-    voices: { openai: OPENAI_VOICES, deepgram: DEEPGRAM_VOICES },
+    voices: { openai: OPENAI_VOICES, deepgram: DEEPGRAM_VOICES, cartesia: cartesia ? [cartesiaVoiceId()] : [] },
   }
 }
 
-// Pick a provider: honor the requested one if its key is set, else fall back to
-// whatever IS configured (prefer the requested family's sibling, then openai).
-function resolveProvider(requested: VoiceProvider | undefined): VoiceProvider {
-  const has = { openai: !!process.env.OPENAI_API_KEY, deepgram: !!process.env.DEEPGRAM_API_KEY }
+// Pick a provider: honor the request if that provider is usable, else fall back
+// to whatever IS configured.
+//
+// `kind` matters because the provider sets differ — asking for Cartesia on an
+// STT call must fall through rather than 500. For TTS, Cartesia wins when it's
+// fully configured: it's the voice Aria uses on the phone, so a spoken reply
+// here sounds like the same product. Nothing changes until the key + voice id
+// are actually set, which keeps this inert on any env that hasn't switched.
+function resolveProvider(requested: VoiceProvider | undefined, kind: 'tts' | 'stt'): VoiceProvider {
+  const has: Record<VoiceProvider, boolean> = {
+    openai: !!process.env.OPENAI_API_KEY,
+    deepgram: !!process.env.DEEPGRAM_API_KEY,
+    cartesia: kind === 'tts' && hasCartesia(),
+  }
   if (requested && has[requested]) return requested
+  if (kind === 'tts' && has.cartesia) return 'cartesia'
   if (has.openai) return 'openai'
   if (has.deepgram) return 'deepgram'
-  throw new Error('No voice provider configured (set OPENAI_API_KEY or DEEPGRAM_API_KEY)')
+  throw new Error(
+    kind === 'tts'
+      ? 'No TTS provider configured (set CARTESIA_API_KEY + CARTESIA_VOICE_ID, OPENAI_API_KEY, or DEEPGRAM_API_KEY)'
+      : 'No STT provider configured (set OPENAI_API_KEY or DEEPGRAM_API_KEY)',
+  )
 }
 
 export interface SpeechResult { audio: Buffer; contentType: string; provider: VoiceProvider; voice: string }
@@ -52,7 +83,35 @@ export async function synthesizeSpeech(opts: {
   const text = (opts.text || '').trim()
   if (!text) throw new Error('text is required')
   if (text.length > 5000) throw new Error('text too long (max 5000 chars)')
-  const provider = resolveProvider(opts.provider)
+  const provider = resolveProvider(opts.provider, 'tts')
+
+  if (provider === 'cartesia') {
+    // Accept a per-request voice only if it's a real Cartesia UUID; anything
+    // else (e.g. a leftover 'alloy' from an OpenAI-era caller) falls back to
+    // the configured voice rather than 400ing at Cartesia.
+    const voice = opts.voice && CARTESIA_VOICE_RX.test(opts.voice) ? opts.voice : cartesiaVoiceId()
+    const res = await fetch('https://api.cartesia.ai/tts/bytes', {
+      method: 'POST',
+      headers: {
+        'X-API-Key': process.env.CARTESIA_API_KEY as string,
+        'Cartesia-Version': process.env.CARTESIA_VERSION || '2026-03-01',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model_id: process.env.CARTESIA_MODEL || 'sonic-3.5',
+        transcript: text,
+        voice: { mode: 'id', id: voice },
+        language: 'en',
+        // WAV, not the raw PCM VoiceNow uses: this audio goes straight into an
+        // <audio> element, so it needs a self-describing container. Same
+        // encoding/sample_rate fields as the proven phone path — only the
+        // container differs.
+        output_format: { container: 'wav', encoding: 'pcm_s16le', sample_rate: 44100 },
+      }),
+    })
+    if (!res.ok) throw new Error(`Cartesia TTS ${res.status}: ${(await res.text()).slice(0, 200)}`)
+    return { audio: Buffer.from(await res.arrayBuffer()), contentType: 'audio/wav', provider, voice }
+  }
 
   if (provider === 'deepgram') {
     const voice = (opts.voice && (DEEPGRAM_VOICES as readonly string[]).includes(opts.voice))
@@ -82,7 +141,7 @@ export async function transcribeSpeech(opts: {
   provider?: VoiceProvider
 }): Promise<TranscriptResult> {
   if (!opts.audio?.length) throw new Error('audio is required')
-  const provider = resolveProvider(opts.provider)
+  const provider = resolveProvider(opts.provider, 'stt')
   const mimeType = opts.mimeType || 'audio/webm'
 
   if (provider === 'deepgram') {
