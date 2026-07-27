@@ -295,6 +295,19 @@ export async function POST(request: Request) {
                 // of whatever was happening before you spoke into the turn.
                 prefix_padding_ms: 200,
                 silence_duration_ms: vadSilenceMs,
+                // DON'T let detected audio kill a reply in progress. server_vad
+                // barges in by default: any sound crossing the threshold while
+                // she's talking cancels the response, which is why she "doesn't
+                // finish her sentence and it just drops" mid-conversation. In a
+                // quiet room that's good UX; in a shop with a TV on, the thing
+                // interrupting her is never the user. Her turns are capped at
+                // ~15 words by the instructions, so waiting for her to land the
+                // sentence costs a beat and buys a conversation that holds
+                // together. The user's audio is still captured and still gets a
+                // turn — create_response stays on — it just doesn't truncate
+                // her mid-word.
+                interrupt_response: false,
+                create_response: true,
               },
             },
             output: { voice: VOICE },
