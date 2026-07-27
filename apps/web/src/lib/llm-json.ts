@@ -86,89 +86,20 @@ export function safeJsonParse(text: string): any | null {
   return null
 }
 
+// Back-compat entry point for the React / Next.js / Astro builders.
+//
+// This USED to be a blocking messages.create() pair capped at 16k with no
+// continuation: when a multi-file project overran the cap the JSON was cut
+// mid-file, both the first pass AND the "fix your JSON" retry failed (a retry
+// can't repair truncation — it just truncates again, at double the cost), and
+// the user got "too large to generate". That's the same half-baked failure the
+// website pipeline fixed with continuation passes; multi-file targets never
+// got it. It now delegates to the streaming implementation, which continues
+// from the partial instead of restarting.
 export async function generateJson<T = any>(
   opts: GenerateJsonOptions
 ): Promise<GenerateJsonResult<T>> {
-  const validate = opts.validate ?? defaultValidate
-  // Capped at 16k on purpose: these are NON-streaming messages.create()
-  // calls, and the Anthropic SDK rejects a non-streaming request whose
-  // max_tokens is high enough to risk a >10-minute response ("Streaming is
-  // required…"). Bigger projects can still truncate — that surfaces as the
-  // clear error + template suggestion below, not a silent failure.
-  const maxTokens = opts.maxTokens ?? 16000
-
-  // Attempt 1 — clean shot
-  const first = await opts.client.messages.create({
-    model: opts.model,
-    max_tokens: maxTokens,
-    system: opts.systemPrompt,
-    messages: [{ role: 'user', content: opts.userMessage }],
-  })
-  const firstText =
-    first.content.find((b) => b.type === 'text')?.type === 'text'
-      ? (first.content.find((b) => b.type === 'text') as any).text
-      : ''
-
-  let parsed = safeJsonParse(firstText)
-  let validationError = parsed ? validate(parsed) : 'Could not parse response as JSON.'
-
-  if (!validationError && parsed) {
-    return {
-      parsed: parsed as T, rawText: firstText, attempts: 1,
-      usage: { inputTokens: first.usage.input_tokens, outputTokens: first.usage.output_tokens },
-    }
-  }
-
-  // Attempt 2 — feed the error back, ask for clean JSON.
-  // We include the previous prompt + the assistant's previous reply + a
-  // corrective user turn so Claude has full context for the fix.
-  const second = await opts.client.messages.create({
-    model: opts.model,
-    max_tokens: maxTokens,
-    system: opts.systemPrompt,
-    messages: [
-      { role: 'user', content: opts.userMessage },
-      { role: 'assistant', content: firstText },
-      {
-        role: 'user',
-        content: [
-          `Your previous response could not be processed: ${validationError}`,
-          '',
-          'Reply with ONLY the JSON object — no markdown fences, no prose, no commentary.',
-          'It must start with { and end with } and parse as strict JSON (no trailing commas, no comments, no single quotes).',
-          'All required fields from the schema must be present.',
-        ].join('\n'),
-      },
-    ],
-  })
-  const secondText =
-    second.content.find((b) => b.type === 'text')?.type === 'text'
-      ? (second.content.find((b) => b.type === 'text') as any).text
-      : ''
-
-  parsed = safeJsonParse(secondText)
-  validationError = parsed ? validate(parsed) : 'Could not parse response as JSON.'
-
-  if (!validationError && parsed) {
-    return {
-      parsed: parsed as T, rawText: secondText, attempts: 2,
-      usage: {
-        inputTokens: first.usage.input_tokens + second.usage.input_tokens,
-        outputTokens: first.usage.output_tokens + second.usage.output_tokens,
-      },
-    }
-  }
-
-  // Honest, actionable message. "Be more specific" was misleading — a
-  // bigger/more-detailed prompt makes truncation *worse*, not better.
-  const hitTokenCap = first.stop_reason === 'max_tokens' || second.stop_reason === 'max_tokens'
-  throw new GenerateJsonError(
-    hitTokenCap
-      ? 'The project was too large to generate in one pass — it got cut off mid-file. Try an app with fewer screens, or start from an app template.'
-      : "The generated project couldn't be read as valid JSON. Try rephrasing, or start from an app template.",
-    502,
-    validationError || 'parse failed',
-  )
+  return generateJsonStreaming<T>(opts)
 }
 
 // Streaming variant of generateJson.
@@ -186,7 +117,13 @@ export async function generateJsonStreaming<T = any>(
   opts: GenerateJsonOptions & { maxContinuations?: number },
 ): Promise<GenerateJsonResult<T>> {
   const validate = opts.validate ?? defaultValidate
-  const maxTokens = opts.maxTokens ?? 16000
+  // 32k, not 16k. Every pass is streamed, so there's no non-streaming SDK
+  // ceiling to respect and no HTTP timeout to dodge — and max_tokens is a
+  // ceiling, not a spend. A bigger ceiling means a multi-file project lands
+  // in ONE pass instead of paying to re-send the whole partial as input on
+  // each continuation. Still under Haiku 4.5's 64k output limit, the lowest
+  // of the models these routes select.
+  const maxTokens = opts.maxTokens ?? 32000
   const maxContinuations = opts.maxContinuations ?? 3
 
   // Summed across every pass + continuation + retry — the whole job's cost.
@@ -200,15 +137,20 @@ export async function generateJsonStreaming<T = any>(
       max_tokens: maxTokens,
       system: opts.systemPrompt,
       messages,
+      // Opus 5 / Sonnet 5 think by default, and thinking shares max_tokens
+      // with the JSON we're asking for. No-op on every other model.
+      ...claudeThinkingOff(opts.model),
     })
     const final = await stream.finalMessage()
     usage.inputTokens += final.usage?.input_tokens || 0
     usage.outputTokens += final.usage?.output_tokens || 0
-    const block = final.content.find((b) => b.type === 'text')
-    return {
-      text: block && block.type === 'text' ? block.text : '',
-      stopReason: final.stop_reason || 'end_turn',
-    }
+    // Join EVERY text block, not just the first. A response that opens with a
+    // non-text block (or splits across blocks) silently lost its tail here.
+    const text = final.content
+      .filter((b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text')
+      .map((b) => b.text)
+      .join('')
+    return { text, stopReason: final.stop_reason || 'end_turn' }
   }
 
   // Pass 1 + continuation passes while the model keeps hitting the cap.
@@ -216,18 +158,26 @@ export async function generateJsonStreaming<T = any>(
     { role: 'user', content: opts.userMessage },
   ])
   let continuations = 0
+  // `full` must be non-empty to echo back: the API rejects an empty text
+  // content block (400), so a first pass that returned nothing would turn a
+  // recoverable blip into a hard invalid_request_error. Retry the clean shot
+  // instead of trying to continue from nothing.
   while (stopReason === 'max_tokens' && continuations < maxContinuations) {
     continuations++
-    const next = await runStream([
-      { role: 'user', content: opts.userMessage },
-      { role: 'assistant', content: full },
-      {
-        role: 'user',
-        content:
-          'Continue the JSON from exactly where you left off. Output only ' +
-          'the remaining characters — no repetition, no markdown fence, no commentary.',
-      },
-    ])
+    const next = await runStream(
+      full.trim()
+        ? [
+            { role: 'user', content: opts.userMessage },
+            { role: 'assistant', content: full },
+            {
+              role: 'user',
+              content:
+                'Continue the JSON from exactly where you left off. Output only ' +
+                'the remaining characters — no repetition, no markdown fence, no commentary.',
+            },
+          ]
+        : [{ role: 'user', content: opts.userMessage }],
+    )
     full += next.text
     stopReason = next.stopReason
   }
@@ -238,21 +188,27 @@ export async function generateJsonStreaming<T = any>(
     return { parsed: parsed as T, rawText: full, attempts: 1 + continuations, usage: { ...usage } }
   }
 
-  // One corrective retry — feed the parse/validation error back.
-  const retry = await runStream([
-    { role: 'user', content: opts.userMessage },
-    { role: 'assistant', content: full },
-    {
-      role: 'user',
-      content: [
-        `Your previous response could not be processed: ${validationError}`,
-        '',
-        'Reply with ONLY the JSON object — no markdown fences, no prose, no commentary.',
-        'It must start with { and end with } and parse as strict JSON (no trailing commas, no comments, no single quotes).',
-        'All required fields from the schema must be present.',
-      ].join('\n'),
-    },
-  ])
+  // One corrective retry — feed the parse/validation error back. Same
+  // empty-content guard as the continuation loop: nothing to echo means a
+  // plain re-ask, not a 400.
+  const retry = await runStream(
+    full.trim()
+      ? [
+          { role: 'user', content: opts.userMessage },
+          { role: 'assistant', content: full },
+          {
+            role: 'user',
+            content: [
+              `Your previous response could not be processed: ${validationError}`,
+              '',
+              'Reply with ONLY the JSON object — no markdown fences, no prose, no commentary.',
+              'It must start with { and end with } and parse as strict JSON (no trailing commas, no comments, no single quotes).',
+              'All required fields from the schema must be present.',
+            ].join('\n'),
+          },
+        ]
+      : [{ role: 'user', content: opts.userMessage }],
+  )
   parsed = safeJsonParse(retry.text)
   validationError = parsed ? validate(parsed) : 'Could not parse response as JSON.'
   if (!validationError && parsed) {
@@ -267,6 +223,23 @@ export async function generateJsonStreaming<T = any>(
     502,
     validationError || 'parse failed',
   )
+}
+
+// Thinking is ON BY DEFAULT on Claude Opus 5 and Sonnet 5 — omitting the
+// parameter runs adaptive thinking, unlike Opus 4.8 / Sonnet 4.6 where
+// omitting it meant no thinking. That matters here because `max_tokens` caps
+// thinking AND response text together: a builder that sized its cap around
+// the HTML/JSON it expects would start spending part of that budget on
+// reasoning it never reads, and truncate. We generate documents, not
+// answers — there's nothing to reason about mid-stream — so turn it off.
+//
+// Only these two models need it:
+//   • Opus 4.8 / Sonnet 4.6 / Haiku 4.5 — thinking already off when omitted.
+//   • Fable 5 — thinking is ALWAYS on and `{type:'disabled'}` is a 400.
+// Disabling is accepted at effort `high` or below; we never set effort, and
+// the API default is `high`, so this is valid as sent.
+export function claudeThinkingOff(model: string): { thinking?: { type: 'disabled' } } {
+  return /^claude-(opus|sonnet)-5\b/.test(model) ? { thinking: { type: 'disabled' } } : {}
 }
 
 // Validation helpers callers can compose into custom validate fns.

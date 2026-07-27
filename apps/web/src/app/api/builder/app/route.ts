@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import Anthropic from '@anthropic-ai/sdk'
 import { generateJsonStreaming, requireFiles, GenerateJsonError, streamJsonWithHeartbeats } from '@/lib/llm-json'
 import { augmentPromptWithReference } from '@/lib/site-reference'
@@ -146,8 +144,8 @@ function makeSlug(name: string): string {
 function pickAnthropicModel(modelName: string | undefined): string {
   const lc = (modelName || '').toLowerCase()
   if (lc.includes('fable')) return 'claude-fable-5'
-  if (lc.includes('opus')) return 'claude-opus-4-8'
-  if (lc.includes('sonnet')) return 'claude-sonnet-4-6'
+  if (lc.includes('opus')) return 'claude-opus-5'
+  if (lc.includes('sonnet')) return 'claude-sonnet-5'
   // Default to Haiku 4.5 — 3-5x faster than Sonnet on a full Expo project,
   // typically lands in 25-45s vs Sonnet's 90-180s (which was tripping the
   // Cloudflare 100s timeout = HTTP 524). Sonnet still selectable explicitly.

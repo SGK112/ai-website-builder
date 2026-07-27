@@ -141,8 +141,18 @@ export async function gateBuilderRequest(model?: string): Promise<BuilderGateRes
 
 // Anthropic API price per 1M tokens (input, output) by model family.
 // Update if Anthropic changes pricing.
-const MODEL_PRICING: Record<'opus' | 'sonnet' | 'haiku', { in: number; out: number }> = {
-  opus:   { in: 15, out: 75 },
+//
+// Corrected 2026-07-26. Two of these were wrong, in opposite directions:
+//   • opus was 15/75 — that's Claude 3 Opus, retired. Opus 4.8 and Opus 5
+//     are 5/25, so every Opus build was metered at 3x its real COGS.
+//   • fable had NO entry, so modelFamily() fell through to 'haiku' and the
+//     FLAGSHIP model (10/50, our most expensive) was billed at 1/5 — a 10x
+//     UNDER-charge on the one model that can actually lose money per build.
+// This table is COGS, not price. If margin needs to move, move it with the
+// CREDIT_USD_COGS env var below (no deploy) rather than by inflating COGS.
+const MODEL_PRICING: Record<'fable' | 'opus' | 'sonnet' | 'haiku', { in: number; out: number }> = {
+  fable:  { in: 10, out: 50 },
+  opus:   { in: 5,  out: 25 },
   sonnet: { in: 3,  out: 15 },
   haiku:  { in: 1,  out: 5 },
 }
@@ -156,8 +166,12 @@ const MODEL_PRICING: Record<'opus' | 'sonnet' | 'haiku', { in: number; out: numb
 // mispriced flat).
 const USD_PER_CREDIT = Number(process.env.CREDIT_USD_COGS) || 0.02
 
-function modelFamily(model: string): 'opus' | 'sonnet' | 'haiku' {
+function modelFamily(model: string): 'fable' | 'opus' | 'sonnet' | 'haiku' {
   const m = (model || '').toLowerCase()
+  // Check fable/mythos FIRST — they're the priciest tier and used to fall
+  // through to the haiku default. Substring match keeps this working across
+  // version bumps (claude-opus-4-8 → claude-opus-5, etc.).
+  if (m.includes('fable') || m.includes('mythos')) return 'fable'
   if (m.includes('opus')) return 'opus'
   if (m.includes('sonnet')) return 'sonnet'
   return 'haiku'

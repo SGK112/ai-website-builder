@@ -18,6 +18,7 @@ import {
 } from '@ai-website-builder/database'
 import { LUXE_ECOMMERCE_TEMPLATE } from '@/lib/templates'
 import { validateGeneratedHtml, summarizeIssues } from '@/lib/html-validator'
+import { claudeThinkingOff } from '@/lib/llm-json'
 
 // Sonnet 4.6 + 16K tokens + up to 2 continuation passes can take 2-3 minutes for
 // elaborate sites. Without this Render's default request timeout cuts the stream.
@@ -989,10 +990,14 @@ function isEcommerceRequest(prompt: string): boolean {
 // always wins — this only fires when model is unset or 'auto'.
 //
 // Decision matrix (in priority order):
-//   1. Vision-heavy prompt              → grok-2-vision-1212
-//   2. Complex reasoning / architecture → claude-opus-4-8
+//   1. Vision-heavy prompt              → grok-4.3
+//   2. Complex reasoning / architecture → claude-opus-5
 //   3. Quick refinement (short prompt, has currentHtml) → claude-haiku-4-5
-//   4. Fresh full-site build            → claude-sonnet-4-6 (default)
+//   4. Fresh full-site build            → claude-sonnet-5 (default)
+//
+// Opus 5 / Sonnet 5 (2026-07): same price as the 4.8/4.6 they replace
+// ($5/$25 and $3/$15), materially better on coding. They think by default,
+// which would eat into the 64K output cap — see claudeThinkingOff().
 //
 // Returns { model, reason } so we can log why.
 export type AutoModelChoice = { model: string; reason: string }
@@ -1018,7 +1023,7 @@ function pickBestModel(prompt: string, currentHtml?: string): AutoModelChoice {
 
   // Heavy reasoning / multi-step / architecture / complex code
   if (/\b(architect|architecture|plan a (multi[- ]?page|full|complex)|design the (data|database|schema)|workflow|state machine|implement (auth|authentication|payment|stripe|webhook|api endpoint)|complex (logic|integration)|reasoning|step.by.step|chain of)\b/.test(p)) {
-    return { model: 'claude-opus-4-8', reason: 'reasoning: complex task' }
+    return { model: 'claude-opus-5', reason: 'reasoning: complex task' }
   }
 
   // Fresh-build detection — "build me a coffee shop site". The first build is
@@ -1033,8 +1038,8 @@ function pickBestModel(prompt: string, currentHtml?: string): AutoModelChoice {
   if (isFreshBuildIntent && !hasCurrentHtml) {
     const isHeavy = /\b(store|shop|storefront|e-?commerce|ecommerce|app|dashboard|portal|saas|booking|reservation|marketplace|multi[- ]?page|multiple pages)\b/.test(p)
     return isHeavy
-      ? { model: 'claude-opus-4-8', reason: 'fresh build (complex → Opus)' }
-      : { model: 'claude-sonnet-4-6', reason: 'fresh build (balanced → Sonnet)' }
+      ? { model: 'claude-opus-5', reason: 'fresh build (complex → Opus)' }
+      : { model: 'claude-sonnet-5', reason: 'fresh build (balanced → Sonnet)' }
   }
 
   // Quick edit — short prompt against an existing site. Haiku's right job:
@@ -1044,7 +1049,7 @@ function pickBestModel(prompt: string, currentHtml?: string): AutoModelChoice {
   }
 
   // Default — balanced Sonnet
-  return { model: 'claude-sonnet-4-6', reason: 'default (balanced)' }
+  return { model: 'claude-sonnet-5', reason: 'default (balanced)' }
 }
 
 // Industry detection — picks ONE primary industry from the prompt so we can
@@ -2757,11 +2762,11 @@ Rules:
       // shipped a truncated site to the user.
       const claudeModel = /^claude-(fable|haiku|sonnet|opus)-/.test(model || '') ? model! :
                           model === 'claude-fable' ? 'claude-fable-5' :
-                          model === 'claude-opus' || model === 'claude-3-opus' ? 'claude-opus-4-8' :
-                          model === 'claude-sonnet' || model === 'claude-3-sonnet' || model === 'claude-3.5-sonnet' ? 'claude-sonnet-4-6' :
+                          model === 'claude-opus' || model === 'claude-3-opus' ? 'claude-opus-5' :
+                          model === 'claude-sonnet' || model === 'claude-3-sonnet' || model === 'claude-3.5-sonnet' ? 'claude-sonnet-5' :
                           model === 'claude-haiku' || model === 'claude-3-haiku' || model === 'claude-haiku-3.5' || model === 'claude-3.5-haiku' ? 'claude-haiku-4-5-20251001' :
-                          model === 'claude' ? 'claude-sonnet-4-6' :
-                          'claude-sonnet-4-6' // Default: Sonnet 4.6 — 16K is enough for a full multi-section site in one shot
+                          model === 'claude' ? 'claude-sonnet-5' :
+                          'claude-sonnet-5' // Default: Sonnet 5 — Opus-class coding quality at Sonnet price
 
       // Set max tokens based on model capabilities. Higher caps reduce truncation
       // to a single hero section. Continuation logic below handles stop_reason='max_tokens'.
@@ -2845,6 +2850,9 @@ Rules:
               max_tokens: maxTokens,
               system: claudeSystemPrompt,
               messages,
+              // Opus 5 / Sonnet 5 think by default and thinking shares the
+              // 64K cap with the HTML. No-op on every other model.
+              ...claudeThinkingOff(claudeModel),
             })
 
             pass.on('text', (text) => {
@@ -2904,11 +2912,21 @@ Rules:
             while ((stopReason === 'max_tokens' || !htmlComplete()) && continuations < MAX_CONTINUATIONS) {
               continuations++
               console.log(`[Generate] incomplete (stop_reason=${stopReason}, complete=${htmlComplete()}), continuing (pass ${continuations + 1}/${MAX_CONTINUATIONS + 1})`)
-              stopReason = await runPass([
-                { role: 'user', content: fullUserPrompt },
-                { role: 'assistant', content: fullHtml },
-                { role: 'user', content: 'Continue generating the rest of the HTML from exactly where you left off. Output nothing but the remaining HTML — no explanation, no markdown fence, no repeated content.' },
-              ])
+              // Nothing streamed yet (socket dropped before the first token)?
+              // Re-run the clean shot. Echoing an EMPTY assistant turn is a
+              // 400 invalid_request_error — the API rejects empty text
+              // content blocks — so the old code turned a recoverable blip
+              // into a hard failure, then burned every remaining
+              // continuation slot repeating it.
+              stopReason = await runPass(
+                fullHtml.trim()
+                  ? [
+                      { role: 'user', content: fullUserPrompt },
+                      { role: 'assistant', content: fullHtml },
+                      { role: 'user', content: 'Continue generating the rest of the HTML from exactly where you left off. Output nothing but the remaining HTML — no explanation, no markdown fence, no repeated content.' },
+                    ]
+                  : [{ role: 'user', content: fullUserPrompt }],
+              )
             }
 
             const wasTruncated = stopReason === 'max_tokens' || !htmlComplete()
@@ -2952,6 +2970,7 @@ Rules:
                 const repairStream = anthropic.messages.stream({
                   model: claudeModel,
                   max_tokens: maxTokens,
+                  ...claudeThinkingOff(claudeModel),
                   system: 'You fix bugs in a single HTML document. Output ONLY the corrected, complete HTML — from <!DOCTYPE html> through </html>. No markdown fences, no commentary.',
                   messages: [{
                     role: 'user',

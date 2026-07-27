@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import Anthropic from '@anthropic-ai/sdk'
 import { generateJson, requireFiles, GenerateJsonError, streamJsonWithHeartbeats } from '@/lib/llm-json'
 import { gateBuilderRequest, trackBuilderUsage } from '@/lib/builder-gate'
@@ -118,8 +116,8 @@ function makeSlug(name: string): string {
 function pickAnthropicModel(modelName: string | undefined): string {
   const lc = (modelName || '').toLowerCase()
   if (lc.includes('fable')) return 'claude-fable-5'
-  if (lc.includes('opus')) return 'claude-opus-4-8'
-  if (lc.includes('sonnet')) return 'claude-sonnet-4-6'
+  if (lc.includes('opus')) return 'claude-opus-5'
+  if (lc.includes('sonnet')) return 'claude-sonnet-5'
   // Haiku default — faster, fits Cloudflare's 100s edge timeout. Sonnet still
   // available via explicit selection in the workspace model picker.
   return 'claude-haiku-4-5-20251001'
