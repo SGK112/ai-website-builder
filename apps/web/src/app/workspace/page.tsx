@@ -11019,6 +11019,22 @@ npx eas build --platform all
                   {page.isHome && <Home className="w-3 h-3 shrink-0" />}
                   <span className="font-medium">{page.name}</span>
                   <span className={cn("text-[10px] font-mono", isDark ? "text-zinc-600" : "text-slate-400")}>/{page.slug}</span>
+                  {/* Rename was double-click ONLY, which a phone can't do
+                      reliably — double-tap is a zoom gesture, not a dblclick.
+                      Explicit button on touch; desktop keeps the double-click
+                      and doesn't get the extra chrome. */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const name = prompt(`Rename "${page.name}"`, page.name)
+                      if (name) renamePage(page.id, name)
+                    }}
+                    className="md:hidden ml-0.5 p-1.5 rounded hover:bg-violet-500/20 text-zinc-500 hover:text-violet-400 transition"
+                    title={`Rename ${page.name}`}
+                    aria-label={`Rename ${page.name}`}
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </button>
                   {!page.isHome && (
                     <>
                       {/* Visible by default, hover-revealed only from md up:

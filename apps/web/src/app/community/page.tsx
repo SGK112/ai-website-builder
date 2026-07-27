@@ -851,10 +851,14 @@ export default function CommunityPage() {
                     <SitePreview html={project.html} thumbnail={project.thumbnail} title={project.title} />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
-                    {/* Quick Actions */}
-                    <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* Quick Actions. Save was hover-only, so on a phone —
+                        where most of this gallery gets browsed — there was no
+                        way to bookmark a community site at all. Visible on
+                        touch, hover-revealed from md up. */}
+                    <div className="absolute top-3 right-3 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => toggleSave(project.id)}
+                        aria-label={savedProjects.includes(project.id) ? `Unsave ${project.title}` : `Save ${project.title}`}
                         className={cn(
                           'p-2 rounded-lg backdrop-blur-sm transition-colors',
                           savedProjects.includes(project.id)

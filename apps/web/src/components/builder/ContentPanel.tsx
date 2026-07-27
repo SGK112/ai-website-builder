@@ -327,11 +327,14 @@ function ItemsList({ projectId, collection, isDark, onEdit, onNew }: {
                 </span>
               </div>
             </button>
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
-              <button onClick={() => onEdit(item.slug)} className={`p-1 rounded ${isDark ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-slate-200 text-slate-600'}`}>
+            {/* Edit + delete for a CMS item. Hover-only meant neither was
+                reachable on a phone — the CMS panel opens in the mobile
+                bottom sheet like every other tool. */}
+            <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition">
+              <button onClick={() => onEdit(item.slug)} className={`p-2 md:p-1 rounded ${isDark ? 'hover:bg-white/10 text-zinc-400' : 'hover:bg-slate-200 text-slate-600'}`}>
                 <Pencil className="w-3 h-3" />
               </button>
-              <button onClick={() => deleteItem(item.slug)} className={`p-1 rounded hover:bg-red-500/15 ${isDark ? 'text-zinc-400 hover:text-red-300' : 'text-slate-600 hover:text-red-600'}`}>
+              <button onClick={() => deleteItem(item.slug)} className={`p-2 md:p-1 rounded hover:bg-red-500/15 ${isDark ? 'text-zinc-400 hover:text-red-300' : 'text-slate-600 hover:text-red-600'}`}>
                 <Trash2 className="w-3 h-3" />
               </button>
             </div>
