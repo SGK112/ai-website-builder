@@ -204,7 +204,20 @@ export function useRealtimeVoice(opts: {
         return
       }
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          // AGC OFF on purpose. Auto gain normalises loudness, which means
+          // that in the gaps where nobody is talking it RAISES the room —
+          // a TV, a conversation across the shop — until it's loud enough to
+          // clear the VAD and get transcribed. That's the "picks up every
+          // distraction" symptom. With it off, quiet background stays quiet
+          // and only someone actually speaking into the phone gets through.
+          autoGainControl: false,
+          // Mono: stereo doubles the data for no benefit and some stacks feed
+          // the far channel (more room, less mouth) into the mix.
+          channelCount: 1,
+        },
       })
       streamRef.current = stream
 

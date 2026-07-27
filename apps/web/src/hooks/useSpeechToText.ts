@@ -42,7 +42,12 @@ export function useSpeechToText(onResult: (text: string) => void) {
       return
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        // `audio: true` takes the UA defaults, which on most stacks means auto
+        // gain ON — it lifts room noise in the gaps and lands as transcribed
+        // junk. Ask for the same clean capture the realtime chef uses.
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false, channelCount: 1 },
+      })
       streamRef.current = stream
       const rec = new MediaRecorder(stream)
       chunksRef.current = []

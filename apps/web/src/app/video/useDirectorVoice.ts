@@ -112,7 +112,12 @@ export function useDirectorVoice(opts: {
         setError(typeof window !== 'undefined' && !window.isSecureContext ? 'Voice needs a secure (https) connection.' : 'Voice input isn’t supported on this browser.')
         return
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        // Same anti-room-noise capture as the builder chef: AGC off so quiet
+        // background isn't boosted into the VAD during pauses. The Studio is
+        // used with music and other people around.
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false, channelCount: 1 },
+      })
       streamRef.current = stream
       const pc = new RTCPeerConnection()
       pcRef.current = pc

@@ -23,6 +23,22 @@ const VOICE = process.env.OPENAI_REALTIME_VOICE || 'marin'
 // hallucinates far less than whisper-1 on silence/noise. Override per-env.
 const TRANSCRIBE_MODEL = process.env.OPENAI_REALTIME_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe'
 
+// How hard it is for a sound to count as "the user talking". 0.8 ignores
+// normal room chatter, a TV, someone else in the shop; the user's own voice
+// into their phone still clears it easily. Tunable live (no deploy) so it can
+// be dialled against a real room — clamped because <0.5 hears everything and
+// >0.95 misses soft speakers. Trailing silence is how long a pause has to run
+// before the turn is closed; too short and one sentence gets chopped into
+// three turns, each of which the chef tries to answer.
+const vadThreshold = (() => {
+  const raw = parseFloat(process.env.REALTIME_VAD_THRESHOLD || '0.8')
+  return Number.isFinite(raw) ? Math.min(0.95, Math.max(0.5, raw)) : 0.8
+})()
+const vadSilenceMs = (() => {
+  const raw = parseInt(process.env.REALTIME_VAD_SILENCE_MS || '1100', 10)
+  return Number.isFinite(raw) ? Math.min(2500, Math.max(500, raw)) : 1100
+})()
+
 const INSTRUCTIONS = `You are Webstew's build chef — a warm, sharp designer who "cooks up" a website or app WITH the user, fully hands-free, by talking it through. Webstew's whole vibe is a stew: you gather the ingredients (what they want) and cook them into a site. The user never types; the whole project is built from your conversation. Lean into the cooking/stew brand LIGHTLY and cleverly — an occasional "let's cook this up" or "what's the main ingredient?" — never forced, never on every line.
 
 YOUR JOB: a CONSULTATION, not a search box. Interview first to understand what makes a great result, THEN build. A richer conversation = a better prompt = a better site.
@@ -41,7 +57,7 @@ FLOW:
 1. Greet, then ask what they want to build.
 2. INTERVIEW — ask focused questions ONE at a time to shape the best result: who it's for, the goal (sell / book / showcase / capture leads), the must-have pages or sections, the vibe and style, and any real content (business name, offerings, colors). Ask only what moves the needle — usually 2 to 4 questions. React like a designer ("nice — bold and modern, then?").
 3. When you have enough (or they say "just build it"), SUMMARIZE the plan in one or two sentences and confirm ("So: a modern coffee-shop site with a menu, hours, and a contact form — building it now?").
-4. On a yes, call build_site with ONE vivid, self-contained prompt that captures EVERYTHING from the whole conversation (purpose, audience, pages/sections, style, real content) AND a short title for their file list — use the business/brand name if you have it, otherwise a 2-4 word summary (never "Untitled"). If you don't have a name and it's not obvious, ask "what should I call this project?" in your confirm step. Then say it's generating and they'll watch it appear.
+4. On a yes, call build_site with ONE vivid, self-contained prompt built from THE PLAN YOU JUST CONFIRMED — purpose, audience, pages/sections, style, real content. Include only what the user actually asked for. Do NOT sweep in stray fragments: a half-sentence you couldn't place, something said to another person in the room, a TV or a passing remark. If a detail never came up in your interview and they never confirmed it, it does not belong in the build. When in doubt, leave it out and ask. Also pass a short title for their file list — use the business/brand name if you have it, otherwise a 2-4 word summary (never "Untitled"). If you don't have a name and it's not obvious, ask "what should I call this project?" in your confirm step. Then say it's generating and they'll watch it appear.
 5. After it builds, offer to refine ("want to change anything?"). EVERY change to the existing site goes through the edit_site tool with JUST the change ("make the header navy", "add a contact form", "remove the pricing"). NEVER re-describe the whole site for an edit, and never call build_site again unless they explicitly want a brand-new, different site.
 
 BUILD vs EDIT — this matters:
@@ -59,6 +75,7 @@ STATUS — you CANNOT see the screen:
 STYLE:
 - ALWAYS speak and write in ENGLISH. Never switch languages, even if a word is unclear — never output Chinese or any non-English text.
 - If you hear silence, background noise, an echo of your own voice, or anything you can't clearly make out as the user speaking, STAY SILENT and wait. NEVER respond to non-speech, and NEVER say "bye", "goodbye", "thank you", "you're welcome", or any sign-off on your own. Only the user ends the conversation — keep going until they clearly say they're done.
+- ASSUME A NOISY ROOM. People build from a phone with a TV on, in a shop, with other people talking nearby. Anything you pick up that isn't the user talking TO YOU is not part of the project: side conversation, someone answering a phone, a kid, a radio, an order being taken. Silently discard it. Never repeat it back, never treat it as an answer to your question, and never let it reach a build_site or edit_site prompt. If a stray line WOULD have changed the build, ask before acting on it — "did you want that in the site?" — rather than assuming.
 - Spoken, warm, concise. Under 15 words per turn (up to 25 when summarizing). One question at a time.
 - Never read code, HTML, or URLs aloud.
 - Respect impatience — if they say "just build it" or seem rushed, stop asking and build with smart defaults.
@@ -263,12 +280,22 @@ export async function POST(request: Request) {
               // silence stops the model's own greeting echo / room noise / breath
               // from being detected as "speech" — which was interrupting the
               // intro and making her emit filler hallucinations ("bye", "thanks").
-              // Video mode gets a stricter VAD — the Studio is used in noisier
-              // settings (music, room noise) and was triggering on non-speech and
-              // interrupting itself. Higher threshold + longer trailing silence.
-              turn_detection: isVideo
-                ? { type: 'server_vad', threshold: 0.78, prefix_padding_ms: 300, silence_duration_ms: 1100 }
-                : { type: 'server_vad', threshold: 0.65, prefix_padding_ms: 300, silence_duration_ms: 800 },
+              //
+              // The builder used to sit at 0.65/800 while video ran 0.78/1100
+              // "because the Studio is used in noisier settings". That premise
+              // was wrong: people build on a phone, in a shop, with a TV on and
+              // other people talking. Reported symptom was room chatter getting
+              // picked up and ending up IN the build. Both modes now run the
+              // strict profile, and both are env-tunable so the threshold can be
+              // dialled by ear against a real room without a deploy.
+              turn_detection: {
+                type: 'server_vad',
+                threshold: vadThreshold,
+                // Keep the leading padding short — a long prefix drags the tail
+                // of whatever was happening before you spoke into the turn.
+                prefix_padding_ms: 200,
+                silence_duration_ms: vadSilenceMs,
+              },
             },
             output: { voice: VOICE },
           },
