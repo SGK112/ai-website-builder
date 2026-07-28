@@ -99,20 +99,46 @@ export function ImageResultOverlay({ isDark, status, imageUrl, error, prompt, sa
   )
 }
 
-export function ImageMiniChip({ status, minimized, onReopen }: { status: ImageStatus; minimized: boolean; onReopen: () => void }) {
-  if (!minimized || (status !== 'generating' && status !== 'ready')) return null
+// Minimised image chip. Three things were wrong with it on a phone:
+//   • bottom-40 (160px) parked it in the middle of the canvas — the exact lane
+//     the chat bubbles occupy, so once a build finished and the rail re-showed
+//     they overlapped and fought.
+//   • No way to get rid of it. minimize() only hides the big overlay; the chip
+//     then sits at 'ready' indefinitely on top of the user's site.
+//   • It stayed up in focus mode, which is meant to be a clean preview.
+// Now: docked top-right under the notch (free space — the header's own buttons
+// are hidden in focus mode), with an explicit dismiss.
+export function ImageMiniChip({
+  status, minimized, onReopen, onDismiss, hidden,
+}: {
+  status: ImageStatus
+  minimized: boolean
+  onReopen: () => void
+  onDismiss: () => void
+  /** Focus mode = pure preview; nothing of ours floats over the site. */
+  hidden?: boolean
+}) {
+  if (hidden || !minimized || (status !== 'generating' && status !== 'ready')) return null
   const generating = status === 'generating'
   return (
-    <motion.button
+    <motion.div
       initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-      onClick={onReopen}
-      className="fixed z-[110] bottom-40 left-1/2 -translate-x-1/2 flex items-center gap-2 pl-2.5 pr-4 py-2 rounded-full bg-violet-600 text-white text-sm font-semibold shadow-xl shadow-violet-500/30 active:scale-95"
-      style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      className="fixed z-[110] right-3 md:right-4 flex items-center rounded-full bg-violet-600 text-white text-sm font-semibold shadow-xl shadow-violet-500/30"
+      style={{ top: 'calc(env(safe-area-inset-top, 0px) + 60px)' }}
     >
-      <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
-        {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
-      </span>
-      {generating ? 'Designing…' : 'View image'}
-    </motion.button>
+      <button onClick={onReopen} className="flex items-center gap-2 pl-2.5 pr-3 py-2 active:scale-95 transition">
+        <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+          {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
+        </span>
+        {generating ? 'Designing…' : 'View image'}
+      </button>
+      <button
+        onClick={onDismiss}
+        aria-label="Dismiss image"
+        className="pl-1 pr-3 py-2 self-stretch flex items-center text-white/70 hover:text-white"
+      >
+        <X className="w-4 h-4" />
+      </button>
+    </motion.div>
   )
 }

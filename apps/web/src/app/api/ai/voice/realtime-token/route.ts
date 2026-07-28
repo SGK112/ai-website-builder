@@ -38,6 +38,8 @@ const vadSilenceMs = (() => {
   const raw = parseInt(process.env.REALTIME_VAD_SILENCE_MS || '1100', 10)
   return Number.isFinite(raw) ? Math.min(2500, Math.max(500, raw)) : 1100
 })()
+// Escape hatch back to amplitude VAD if semantic turns out worse in the field.
+const useServerVad = (process.env.REALTIME_VAD || '').toLowerCase() === 'server'
 
 const INSTRUCTIONS = `You are Webstew's build chef — a warm, sharp designer who "cooks up" a website or app WITH the user, fully hands-free, by talking it through. Webstew's whole vibe is a stew: you gather the ingredients (what they want) and cook them into a site. The user never types; the whole project is built from your conversation. Lean into the cooking/stew brand LIGHTLY and cleverly — an occasional "let's cook this up" or "what's the main ingredient?" — never forced, never on every line.
 
@@ -70,7 +72,9 @@ SELLING: when the user wants to sell the site ("sell this", "list it for $X"), c
 
 STATUS — you CANNOT see the screen:
 - A build/edit runs in the background and takes a bit. You'll be told automatically when it finishes — then tell the user it's ready.
-- NEVER guess "it's done" or "still cooking" from memory. If the user asks about progress (or you're unsure), call check_status and answer from what it returns.
+- HARD RULE: you may only say the site is done / ready / finished / live if ONE of these is true — (a) you were just told it finished, or (b) you called check_status in this turn and it said so. There is no third case. Time passing is not evidence. Calling build_site is not evidence. The user asking "is it done?" is not evidence.
+- If you have neither, do not guess and do not reassure. Call check_status, then answer from exactly what it returned.
+- While it's still running, say so plainly — "still cooking, I'll tell you the second it lands" — and keep the conversation going. Claiming it's finished when it isn't is the single worst thing you can do here: the user looks at a half-built screen and stops trusting you.
 
 STYLE:
 - ALWAYS speak and write in ENGLISH. Never switch languages, even if a word is unclear — never output Chinese or any non-English text.
@@ -288,7 +292,23 @@ export async function POST(request: Request) {
               // picked up and ending up IN the build. Both modes now run the
               // strict profile, and both are env-tunable so the threshold can be
               // dialled by ear against a real room without a deploy.
-              turn_detection: {
+              // SEMANTIC VAD, not amplitude VAD.
+              //
+              // server_vad only asks "is this sound loud enough?", so a throat
+              // clear, a cough or a "mm-hmm" reads as a user turn. Raising the
+              // threshold trades that for missing soft speakers, and it never
+              // actually fixes it — the reported symptom was still "clearing my
+              // throat cuts her off" at 0.8. interrupt_response:false alone
+              // isn't enough either: the throat clear still CLOSES a user turn,
+              // and the response created for that turn supersedes the one she's
+              // mid-way through. Semantic VAD uses a model to judge whether the
+              // user actually said something addressed to her, which is exactly
+              // the distinction that was missing. 'low' eagerness waits longer
+              // before deciding a turn ended — right for a consultation.
+              //
+              // Set REALTIME_VAD=server to fall back to amplitude VAD (the
+              // threshold/silence envs below apply only in that mode).
+              turn_detection: useServerVad ? {
                 type: 'server_vad',
                 threshold: vadThreshold,
                 // Keep the leading padding short — a long prefix drags the tail
@@ -306,6 +326,13 @@ export async function POST(request: Request) {
                 // together. The user's audio is still captured and still gets a
                 // turn — create_response stays on — it just doesn't truncate
                 // her mid-word.
+                interrupt_response: false,
+                create_response: true,
+              } : {
+                type: 'semantic_vad',
+                // 'low' = least eager to call the turn over. Same no-barge-in
+                // rule as above: noise must not truncate a reply in progress.
+                eagerness: (process.env.REALTIME_VAD_EAGERNESS || 'low') as 'low' | 'medium' | 'high' | 'auto',
                 interrupt_response: false,
                 create_response: true,
               },

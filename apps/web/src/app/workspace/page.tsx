@@ -10104,7 +10104,13 @@ npx eas build --platform all
           onClose={() => { if (voiceImage.status === 'error') voiceImage.discard(); else voiceImage.minimize() }}
           onRetry={() => void voiceImage.generate(voiceImage.prompt)}
         />
-        <ImageMiniChip status={voiceImage.status} minimized={voiceImage.minimized} onReopen={voiceImage.reopen} />
+        <ImageMiniChip
+          status={voiceImage.status}
+          minimized={voiceImage.minimized}
+          onReopen={voiceImage.reopen}
+          onDismiss={voiceImage.discard}
+          hidden={isMobile && focusMode}
+        />
 
         {/* Toolbar - High z-index so dropdowns appear above preview.
             Desktop only — mobile uses the minimal header above. */}
@@ -11132,14 +11138,23 @@ npx eas build --platform all
         <div className="flex-1 flex overflow-hidden relative z-0">
           {/* Preview */}
           {(viewMode === 'preview' || viewMode === 'split') && (
-            <div className={cn(
-              'relative flex items-center justify-center',
-              // Mobile: edge-to-edge full-screen preview (app-like). Desktop:
-              // padded canvas so the device-size frame floats in the workspace.
-              isMobile ? 'p-0' : 'p-4',
-                isDark ? 'bg-zinc-950/50' : 'bg-slate-100/50',
-              viewMode === 'split' ? 'w-1/2' : 'w-full'
-            )}>
+            <div
+              className={cn(
+                'relative flex items-center justify-center',
+                // Mobile: edge-to-edge full-screen preview (app-like). Desktop:
+                // padded canvas so the device-size frame floats in the workspace.
+                isMobile ? 'p-0' : 'p-4',
+                  isDark ? 'bg-zinc-950/50' : 'bg-slate-100/50',
+                viewMode === 'split' ? 'w-1/2' : 'w-full'
+              )}
+              // In focus mode nothing of ours sits above the preview, so the
+              // generated site's OWN header (logo, hamburger) ran up under the
+              // iPhone status bar — unreadable and untappable, exactly like the
+              // trap the Done button had. Inset the canvas by the notch so the
+              // site starts below the clock. Only in focus mode: outside it our
+              // floating header already occupies that space.
+              style={isMobile && focusMode ? { paddingTop: 'env(safe-area-inset-top, 0px)' } : undefined}
+            >
               {/* Fullscreen Toggle. iOS Safari blocks requestFullscreen on
                   non-video elements (Apple restriction) so the button used
                   to silently no-op on iPhone. We try the real fullscreen

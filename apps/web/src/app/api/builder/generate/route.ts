@@ -376,8 +376,12 @@ Every generic AI site looks identical: a dark hero with a purple/indigo gradient
 Everything below is the floor for polish and structure. The personality above is what stops it looking like every other AI build.
 
 1. VISUAL HIERARCHY
-- Clear typographic scale: text-7xl for hero, text-4xl for section titles, text-xl for subtitles
-- Generous whitespace: py-24 or py-32 for sections, gap-8 or gap-12 for grids
+- Clear typographic scale, ALWAYS mobile-first — write the phone size first, then scale UP with md:/lg:. A bare text-7xl renders 72px on a 390px phone, which is 4-5 words per line and unreadable:
+    hero      text-4xl md:text-6xl lg:text-7xl
+    section   text-2xl md:text-4xl
+    subtitle  text-lg  md:text-xl
+  Never ship an unqualified text-5xl or larger on any heading.
+- Generous whitespace, also mobile-first: py-12 md:py-24 lg:py-32 for sections, gap-6 md:gap-8 lg:gap-12 for grids. Full py-32 on a phone is half a screen of nothing.
 - Consistent spacing system throughout
 
 2. COLOR PALETTE — this dark scheme is just ONE option; use it ONLY if a moody/tech brand calls for it, otherwise choose a palette that fits (light, warm, editorial, high-contrast…):
