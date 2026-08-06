@@ -49,7 +49,7 @@ export default function AdminAuditPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-2">Admin · Sign in required</h1>
-          <Link href={`/login?callbackUrl=${encodeURIComponent('/admin/audit')}`} className="text-violet-400 hover:text-violet-300">Sign in →</Link>
+          <Link href={`/login?callbackUrl=${encodeURIComponent('/admin/audit')}`} className="text-violet-700 dark:text-violet-400 hover:text-violet-900 dark:hover:text-violet-300">Sign in →</Link>
         </div>
       </div>
     )
@@ -78,7 +78,7 @@ export default function AdminAuditPage() {
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2 text-sm text-red-300">
+          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2 text-sm text-red-700 dark:text-red-300">
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {error}
           </div>
         )}

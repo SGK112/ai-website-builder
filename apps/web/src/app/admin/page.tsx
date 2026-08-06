@@ -47,13 +47,17 @@ interface AdminUser {
   lastLoginAt?: string
 }
 
+// Badge palettes MUST carry both themes. The page shell uses semantic tokens
+// (bg-background/bg-card/text-foreground) which flip with the theme, so a badge
+// pinned to dark-only values (a -300 text on a translucent tint) turns
+// light-on-light and effectively disappears in light mode.
 const PLAN_COLORS: Record<string, string> = {
-  free: 'bg-slate-500/15 text-slate-300 border-slate-500/30',
-  starter: 'bg-blue-500/15 text-blue-300 border-blue-500/30',
-  pro: 'bg-violet-500/15 text-violet-300 border-violet-500/30',
-  scale: 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30',
-  enterprise: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-  custom: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+  free: 'bg-slate-500/10 text-slate-700 border-slate-500/30 dark:bg-slate-500/15 dark:text-slate-300',
+  starter: 'bg-blue-500/10 text-blue-700 border-blue-500/30 dark:bg-blue-500/15 dark:text-blue-300',
+  pro: 'bg-violet-500/10 text-violet-700 border-violet-500/30 dark:bg-violet-500/15 dark:text-violet-300',
+  scale: 'bg-fuchsia-500/10 text-fuchsia-700 border-fuchsia-500/30 dark:bg-fuchsia-500/15 dark:text-fuchsia-300',
+  enterprise: 'bg-amber-500/10 text-amber-800 border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300',
+  custom: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300',
 }
 
 export default function AdminPage() {
@@ -171,7 +175,7 @@ export default function AdminPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-foreground p-6">
         <div className="text-center max-w-md">
-          <ShieldAlert className="w-10 h-10 text-amber-400 mx-auto mb-3" />
+          <ShieldAlert className="w-10 h-10 text-amber-600 dark:text-amber-400 mx-auto mb-3" />
           <h1 className="text-2xl font-bold mb-2">Admin · Sign in required</h1>
           <p className="text-muted-foreground mb-4">You need to be signed in as an admin to view this page.</p>
           <Link href="/login?next=/admin" className="inline-block px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-medium">
@@ -185,7 +189,7 @@ export default function AdminPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-foreground p-6">
         <div className="text-center max-w-md">
-          <ShieldAlert className="w-10 h-10 text-red-400 mx-auto mb-3" />
+          <ShieldAlert className="w-10 h-10 text-red-600 dark:text-red-400 mx-auto mb-3" />
           <h1 className="text-2xl font-bold mb-2">403 · Not an admin</h1>
           <p className="text-muted-foreground mb-1">Signed in as <span className="font-mono">{userEmail}</span>.</p>
           <p className="text-muted-foreground text-sm">Only admin emails (set in <span className="font-mono">ADMIN_EMAILS</span>) can access this page.</p>
@@ -200,7 +204,7 @@ export default function AdminPage() {
       <header className="border-b border-border bg-card/40 backdrop-blur-xl sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Crown className="w-5 h-5 text-amber-400" />
+            <Crown className="w-5 h-5 text-amber-600 dark:text-amber-400" />
             <h1 className="font-bold text-lg">Webstew Admin</h1>
             <span className="text-xs text-muted-foreground">·</span>
             <span className="text-xs text-muted-foreground font-mono">{userEmail}</span>
@@ -208,7 +212,7 @@ export default function AdminPage() {
           <div className="flex items-center gap-3">
             <Link
               href="/admin/listings"
-              className="text-xs px-2.5 py-1 rounded-lg bg-violet-500/15 border border-violet-500/30 text-violet-200 hover:bg-violet-500/25 transition"
+              className="text-xs px-2.5 py-1 rounded-lg bg-violet-500/10 border border-violet-500/30 text-violet-700 hover:bg-violet-500/20 dark:bg-violet-500/15 dark:text-violet-200 dark:hover:bg-violet-500/25 transition"
             >
               Listings queue
             </Link>
@@ -235,12 +239,12 @@ export default function AdminPage() {
         {statsError && (
           <div className="-mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center justify-between gap-2">
             <div className="flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
-              <div className="text-sm text-red-400">Couldn’t load stats: {statsError}</div>
+              <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
+              <div className="text-sm text-red-700 dark:text-red-400">Couldn’t load stats: {statsError}</div>
             </div>
             <button
               onClick={() => loadStats()}
-              className="text-xs px-2 py-1 rounded bg-red-500/15 border border-red-500/30 text-red-200 hover:bg-red-500/25 transition shrink-0"
+              className="text-xs px-2 py-1 rounded bg-red-500/10 border border-red-500/30 text-red-700 hover:bg-red-500/20 dark:bg-red-500/15 dark:text-red-200 dark:hover:bg-red-500/25 transition shrink-0"
             >
               Retry
             </button>
@@ -302,15 +306,15 @@ export default function AdminPage() {
 
           {error && (
             <div className="mb-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
-              <div className="text-sm text-red-400">{error}</div>
+              <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
+              <div className="text-sm text-red-700 dark:text-red-400">{error}</div>
             </div>
           )}
 
           {saveError && (
             <div className="mb-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
-              <div className="text-sm text-red-400">{saveError}</div>
+              <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
+              <div className="text-sm text-red-700 dark:text-red-400">{saveError}</div>
             </div>
           )}
 
@@ -385,11 +389,11 @@ export default function AdminPage() {
                       <td className="px-4 py-3 text-right">
                         {editingId === u.id ? (
                           <div className="inline-flex items-center gap-1">
-                            <button onClick={() => saveEdit(u.id)} className="p-1.5 rounded bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30" title="Save"><Save className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => saveEdit(u.id)} className="p-1.5 rounded bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 dark:bg-emerald-500/20 dark:text-emerald-300 dark:hover:bg-emerald-500/30" title="Save"><Save className="w-3.5 h-3.5" /></button>
                             <button onClick={() => { setSaveError(null); setEditingId(null) }} className="p-1.5 rounded bg-muted text-muted-foreground hover:bg-muted/80" title="Cancel"><X className="w-3.5 h-3.5" /></button>
                           </div>
                         ) : (
-                          <button onClick={() => startEdit(u)} className="text-xs text-violet-300 hover:text-violet-200 font-medium">Edit</button>
+                          <button onClick={() => startEdit(u)} className="text-xs text-violet-700 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-200 font-medium">Edit</button>
                         )}
                       </td>
                     </tr>

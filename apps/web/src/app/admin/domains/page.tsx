@@ -35,7 +35,7 @@ const STATUS_STYLE: Record<string, { label: string; cls: string; icon: typeof Cl
   register_failed: { label: 'Registration failed', cls: 'bg-red-500/15 text-red-500', icon: XCircle },
   registered:      { label: 'Registered', cls: 'bg-emerald-500/15 text-emerald-500', icon: CheckCircle2 },
   registered_mock: { label: 'Registered (mock)', cls: 'bg-zinc-500/15 text-zinc-400', icon: CheckCircle2 },
-  refunded:        { label: 'Refunded', cls: 'bg-blue-500/15 text-blue-400', icon: RotateCcw },
+  refunded:        { label: 'Refunded', cls: 'bg-blue-500/15 text-blue-700 dark:text-blue-400', icon: RotateCcw },
   pending:         { label: 'Pending', cls: 'bg-zinc-500/15 text-zinc-400', icon: Clock },
 }
 
@@ -114,7 +114,7 @@ export default function AdminDomainsPage() {
                 aria-pressed={filter === f}
                 className={cn(
                   'px-3 py-1.5 rounded-lg text-xs font-medium border transition',
-                  filter === f ? 'bg-violet-500/15 text-violet-200 border-violet-500/40' : 'border-border text-muted-foreground hover:text-foreground'
+                  filter === f ? 'bg-violet-500/15 text-violet-700 dark:text-violet-200 border-violet-500/40' : 'border-border text-muted-foreground hover:text-foreground'
                 )}
               >
                 {f === 'all' ? 'All' : (STATUS_STYLE[f]?.label || f)}
@@ -123,7 +123,7 @@ export default function AdminDomainsPage() {
             ))}
           </div>
 
-          {notice && <div className="text-xs px-3 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">{notice}</div>}
+          {notice && <div className="text-xs px-3 py-2 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">{notice}</div>}
           {error && (
             <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-red-500/10 text-red-500 border border-red-500/20">
               <AlertCircle className="w-3.5 h-3.5" /> {error}

@@ -116,7 +116,7 @@ export default function AdminListingsPage() {
       <header className="border-b border-border bg-card/40 backdrop-blur-xl sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 md:hidden">
-            <Crown className="w-5 h-5 text-amber-400" />
+            <Crown className="w-5 h-5 text-amber-600 dark:text-amber-400" />
             <h1 className="font-bold text-lg">Listings · Moderation</h1>
           </div>
           <div className="hidden md:block">
@@ -136,7 +136,7 @@ export default function AdminListingsPage() {
                   alert(`Seed failed: ${e?.message || e}`)
                 }
               }}
-              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-violet-500/15 border border-violet-500/30 text-violet-200 hover:bg-violet-500/25"
+              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-violet-500/15 border border-violet-500/30 text-violet-700 dark:text-violet-200 hover:bg-violet-500/25"
               title="Idempotent seed — safe to re-run"
             >
               <Sparkles className="w-3 h-3" /> Seed demo data
@@ -153,7 +153,7 @@ export default function AdminListingsPage() {
                   alert(`Backfill failed: ${e?.message || e}`)
                 }
               }}
-              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/25"
+              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-200 hover:bg-emerald-500/25"
               title="Stamps app:'webstew' on users with Webstew activity. Safe to re-run."
             >
               <Sparkles className="w-3 h-3" /> Backfill tenant
@@ -179,7 +179,7 @@ export default function AdminListingsPage() {
               className={cn(
                 'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm border transition',
                 status === f.key
-                  ? 'bg-violet-500/15 border-violet-500/40 text-violet-200'
+                  ? 'bg-violet-500/15 border-violet-500/40 text-violet-700 dark:text-violet-200'
                   : 'border-border text-muted-foreground hover:text-foreground'
               )}
             >
@@ -194,7 +194,7 @@ export default function AdminListingsPage() {
         </div>
 
         {error && (
-          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2 text-sm text-red-300">
+          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2 text-sm text-red-700 dark:text-red-300">
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {error}
           </div>
         )}
@@ -242,7 +242,7 @@ export default function AdminListingsPage() {
                       <button
                         disabled={busyId === p._id}
                         onClick={() => moderate(p._id, 'approved')}
-                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25 text-sm font-medium disabled:opacity-50"
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25 text-sm font-medium disabled:opacity-50"
                       >
                         <Check className="w-3.5 h-3.5" /> Approve
                       </button>
@@ -251,7 +251,7 @@ export default function AdminListingsPage() {
                       <button
                         disabled={busyId === p._id}
                         onClick={() => moderate(p._id, 'rejected')}
-                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 hover:bg-amber-500/25 text-sm font-medium disabled:opacity-50"
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 hover:bg-amber-500/25 text-sm font-medium disabled:opacity-50"
                       >
                         <X className="w-3.5 h-3.5" /> Reject
                       </button>
@@ -260,7 +260,7 @@ export default function AdminListingsPage() {
                       disabled={busyId === p._id}
                       onClick={() => remove(p._id)}
                       title="Hard delete"
-                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 hover:bg-red-500/20 text-sm disabled:opacity-50"
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 hover:bg-red-500/20 text-sm disabled:opacity-50"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
