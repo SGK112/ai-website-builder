@@ -2,14 +2,18 @@ name: Reconcile Video Credits
 
 on:
   schedule:
-    # Every 15 minutes — refund video jobs that failed but were never polled.
-    - cron: '*/15 * * * *'
+    # Hourly — refund video jobs that failed but were never polled.
+    # Was */15, but GitHub already deprioritises this schedule to ~40-60min gaps
+    # under load, and video volume doesn't justify 96 runs/day. Each extra run is
+    # another chance to fail on runner allocation and email a false alarm.
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 jobs:
   reconcile:
     name: Reconcile stranded video jobs
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Call reconcile endpoint
         env:
@@ -17,8 +21,18 @@ jobs:
           APP_URL: ${{ secrets.APP_URL || 'https://www.webstew.net' }}
         run: |
           echo "🔁 Reconciling stranded video jobs at $(date)"
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X GET "$APP_URL/api/cron/reconcile-video" \
+          # --max-time guards against a silent origin holding the connection open
+          # (route maxDuration is 60s; Cloudflare cuts around 100s).
+          set +e
+          RESPONSE=$(curl -s --max-time 120 --retry 2 --retry-delay 5 \
+            -w "\n%{http_code}" -X GET "$APP_URL/api/cron/reconcile-video" \
             -H "Authorization: Bearer $CRON_SECRET")
+          CURL_EXIT=$?
+          set -e
+          if [ $CURL_EXIT -ne 0 ]; then
+            echo "❌ Could not reach $APP_URL (curl exit $CURL_EXIT)"
+            exit 1
+          fi
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | sed '$d')
           echo "HTTP Status: $HTTP_CODE"
