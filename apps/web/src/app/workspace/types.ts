@@ -108,12 +108,6 @@ export interface EnvVar {
   isSecret: boolean
 }
 
-export interface WorkspaceSettings {
-  openaiKey: string
-  githubToken: string
-  renderKey: string
-}
-
 export interface PromptSuggestion {
   icon: React.ComponentType<{ className?: string }>
   label: string

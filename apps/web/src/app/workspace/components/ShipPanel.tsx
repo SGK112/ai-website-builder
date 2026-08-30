@@ -2,8 +2,6 @@
 
 import { motion } from 'framer-motion'
 import {
-  Key,
-  ChevronDown,
   CheckCircle2,
   AlertCircle,
   Rocket,
@@ -22,7 +20,7 @@ import {
 import { cn } from '@/lib/utils'
 import { CustomDomainCard } from '@/components/builder/CustomDomainCard'
 import { ConnectPayouts } from './ConnectPayouts'
-import type { SkillLevel, WorkspaceSettings, BuildTarget } from '../types'
+import type { SkillLevel, BuildTarget } from '../types'
 
 type ToastType = 'success' | 'error' | 'info' | 'warning'
 
@@ -51,10 +49,6 @@ interface ShipPanelProps {
   // Project + keys
   projectName: string
   onProjectNameChange: (value: string) => void
-  showAdvancedDeploy: boolean
-  onToggleAdvancedDeploy: () => void
-  settings: WorkspaceSettings
-  onSettingChange: (key: keyof WorkspaceSettings, value: string) => void
   // Build context
   html: string
   buildTarget: BuildTarget
@@ -167,8 +161,6 @@ export function ShipPanel(props: ShipPanelProps) {
   const {
     isDark, skillLevel,
     projectName, onProjectNameChange,
-    showAdvancedDeploy, onToggleAdvancedDeploy,
-    settings, onSettingChange,
     html, buildTarget, hasVfsFiles,
     isPublishing, onPublishInstant, publishUrl, publishPath,
     isDeploying, deployStatus, deployUrl, deployError,
@@ -214,48 +206,6 @@ export function ShipPanel(props: ShipPanelProps) {
           )}
         />
       </div>
-
-      {/* Advanced disclosure — BYO API keys for self-hosted (GitHub/Render)
-          deploy. full-stack only; hidden by default so the primary
-          Go-Live + custom-domain flow isn't buried under key inputs. */}
-      {showAdvanced && (<>
-      <button
-        onClick={onToggleAdvancedDeploy}
-        className={cn("w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition", isDark ? "bg-white/[0.02] border border-white/[0.06] text-zinc-400 hover:text-white" : "bg-slate-50 border border-slate-200 text-slate-500 hover:text-slate-800")}
-      >
-        <span className="flex items-center gap-1.5"><Key className="w-3 h-3" /> Advanced — API keys for self-hosted deploy</span>
-        <ChevronDown className={cn("w-4 h-4 transition-transform", showAdvancedDeploy && "rotate-180")} />
-      </button>
-      {showAdvancedDeploy && (
-      <div className="space-y-2">
-        <label className={cn("block text-xs flex items-center gap-1.5", isDark ? "text-zinc-500" : "text-slate-500")}>
-          <Key className="w-3 h-3" />
-          API Keys
-        </label>
-        {[
-          { key: 'openaiKey', label: 'OpenAI', placeholder: 'sk-...' },
-          { key: 'githubToken', label: 'GitHub', placeholder: 'ghp_...' },
-          { key: 'renderKey', label: 'Render', placeholder: 'rnd_...' },
-        ].map(({ key, label, placeholder }) => (
-          <div key={key}>
-            <label className={cn("block text-[10px] mb-0.5", isDark ? "text-zinc-500" : "text-slate-500")}>{label}</label>
-            <input
-              type="password"
-              value={settings[key as keyof WorkspaceSettings]}
-              onChange={(e) => onSettingChange(key as keyof WorkspaceSettings, e.target.value)}
-              placeholder={placeholder}
-              className={cn(
-                "w-full px-3 py-1.5 rounded-lg text-xs focus:outline-none focus:border-violet-500/50",
-                isDark
-                  ? "bg-white/[0.03] border border-white/[0.08] text-white placeholder-zinc-600"
-                  : "bg-slate-100 border border-slate-200 text-slate-900 placeholder-slate-400"
-              )}
-            />
-          </div>
-        ))}
-      </div>
-      )}
-      </>)}
 
       {/* Deploy Status */}
       {deployUrl && (

@@ -471,12 +471,6 @@ interface EnvVar {
   isSecret: boolean
 }
 
-interface WorkspaceSettings {
-  openaiKey: string
-  githubToken: string
-  renderKey: string
-}
-
 // Prompt suggestions by skill level
 // Quick Start Templates - Premium industry templates with detailed prompts.
 // Some entries are pre-made (load instantly via setHtml), others trigger AI
@@ -2089,11 +2083,6 @@ function WorkspaceContent() {
   }, [pages, activePageId])
 
   // Settings
-  const [settings, setSettings] = useState<WorkspaceSettings>({
-    openaiKey: '',
-    githubToken: '',
-    renderKey: '',
-  })
 
   // UI helpers
   const [codeCopied, setCodeCopied] = useState(false)
@@ -2334,7 +2323,6 @@ function WorkspaceContent() {
   // Ship tab: keep the primary flow (Go Live → custom domain) clean and tuck
   // the power-user stuff (BYO API keys, raw GitHub/Render deploy, export)
   // behind an "Advanced" disclosure so the panel isn't a wall of buttons.
-  const [showAdvancedDeploy, setShowAdvancedDeploy] = useState(false)
   const [publishPath, setPublishPath] = useState<string | null>(null)
   // Managed backend (one-click DB + auth) state.
   const [isProvisioningBackend, setIsProvisioningBackend] = useState(false)
@@ -2777,14 +2765,11 @@ function WorkspaceContent() {
       })
     }
 
-    const savedSettings = localStorage.getItem('workspace-settings')
-    if (savedSettings) {
-      try {
-        setSettings(JSON.parse(savedSettings))
-      } catch (e) {
-        console.error('Failed to parse saved settings')
-      }
-    }
+    // `workspace-settings` used to hold OpenAI / GitHub / Render keys typed
+    // into a Ship-panel form that nothing ever read — stored in plaintext and
+    // NOT cleared on account switch, so one user's PAT outlived their session
+    // on a shared browser. The form is gone; purge what it left behind.
+    try { localStorage.removeItem('workspace-settings') } catch { /* ignore */ }
 
     const savedSkillLevel = localStorage.getItem('workspace-skill-level')
     if (savedSkillLevel && ['no-code', 'low-code', 'full-stack'].includes(savedSkillLevel)) {
@@ -3131,14 +3116,6 @@ function WorkspaceContent() {
   }, [projects])
 
   // Save settings
-  useEffect(() => {
-    try {
-      localStorage.setItem('workspace-settings', JSON.stringify(settings))
-    } catch (e) {
-      console.warn('Failed to save settings')
-    }
-  }, [settings])
-
   useEffect(() => {
     try {
       localStorage.setItem('workspace-skill-level', skillLevel)
@@ -9483,10 +9460,6 @@ npx eas build --platform all
                 skillLevel={skillLevel}
                 projectName={projectName}
                 onProjectNameChange={setProjectName}
-                showAdvancedDeploy={showAdvancedDeploy}
-                onToggleAdvancedDeploy={() => setShowAdvancedDeploy(v => !v)}
-                settings={settings}
-                onSettingChange={(key, value) => setSettings(s => ({ ...s, [key]: value }))}
                 html={html}
                 buildTarget={buildTarget}
                 hasVfsFiles={Object.keys(vfsFiles).length > 0}
