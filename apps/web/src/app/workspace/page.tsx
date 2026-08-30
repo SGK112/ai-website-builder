@@ -13520,6 +13520,13 @@ npx eas build --platform all
         {notifPromptShown && (() => {
           const perm = notificationPermission()
           const canAsk = perm === 'default'
+          // Anon builds are never persisted server-side — /api/builder/latest
+          // is user-scoped and returns null for signed-out visitors — and a
+          // page Notification only fires while THIS tab is alive (no service
+          // worker, no push subscription). So "leave anytime" and "it keeps
+          // going even if you close this tab" are both false for anon. Don't
+          // tell someone their work is safe when it isn't.
+          const signedIn = !!session?.user
           return (
             <motion.div
               initial={{ opacity: 0, x: 140 }}
@@ -13533,14 +13540,36 @@ npx eas build --platform all
                 {canAsk
                   ? 'Cooking — get notified when it’s ready?'
                   : perm === 'granted'
-                    ? 'Cooking — leave anytime, we’ll ping you when it’s ready.'
-                    : 'Cooking — it keeps going even if you close this tab.'}
+                    ? signedIn
+                      ? 'Cooking — leave anytime, we’ll ping you when it’s ready.'
+                      : 'Cooking — keep this tab open and we’ll ping you.'
+                    : signedIn
+                      ? 'Cooking — it keeps going even if you close this tab.'
+                      : 'Cooking — keep this tab open until it’s done.'}
               </span>
               {canAsk && (
                 <button
                   onClick={async () => {
-                    await requestNotificationPermission()
+                    // This asks the BROWSER for notification permission — it
+                    // collects no email or phone. It also used to swallow every
+                    // outcome: the pill just vanished whether you granted,
+                    // denied, or (most often, in incognito) the browser quietly
+                    // suppressed the prompt behind the address-bar bell. From
+                    // the outside that is a button that does nothing. Say what
+                    // happened in every branch.
+                    const result = await requestNotificationPermission()
                     setNotifPromptShown(false)
+                    if (result === 'granted') {
+                      addToast('success', signedIn
+                        ? 'Notifications on — we’ll ping you when it’s ready.'
+                        : 'Notifications on — we’ll ping you while this tab stays open.')
+                    } else if (result === 'denied') {
+                      addToast('info', 'Notifications are blocked for this site. Turn them on in your browser’s site settings.')
+                    } else if (result === 'unsupported') {
+                      addToast('info', 'This browser can’t show notifications — keep the tab open and watch here instead.')
+                    } else {
+                      addToast('info', 'Your browser hid the permission prompt — look for the bell icon in the address bar.')
+                    }
                   }}
                   className="px-2.5 py-1 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold transition whitespace-nowrap"
                 >
