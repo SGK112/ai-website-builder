@@ -96,12 +96,12 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   )
 }
 
-// Only add GitHub provider if credentials are configured.
-// Names match the Google provider above (GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET).
-// The legacy GITHUB_ID / GITHUB_SECRET names are accepted as a fallback so
-// older Render env groups don't break during the rename.
-const ghId     = process.env.GITHUB_CLIENT_ID     || process.env.GITHUB_ID
-const ghSecret = process.env.GITHUB_CLIENT_SECRET || process.env.GITHUB_SECRET
+// Only add GitHub provider if credentials are configured. Names match the
+// Google provider above. (The legacy GITHUB_ID / GITHUB_SECRET fallback is
+// gone — the rename is finished, and keeping it alive meant a stale orphan
+// secret could sit in the environment looking load-bearing.)
+const ghId     = process.env.GITHUB_CLIENT_ID
+const ghSecret = process.env.GITHUB_CLIENT_SECRET
 if (ghId && ghSecret) {
   providers.push(
     GitHubProvider({

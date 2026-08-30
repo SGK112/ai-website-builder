@@ -183,7 +183,7 @@ export default function LoginPage() {
                 <div className="text-xs text-red-500/90 dark:text-red-400/80 mt-2 leading-relaxed">
                   Likely fix: confirm the OAuth callback URL on the provider matches{' '}
                   <code className="px-1 py-0.5 bg-red-500/10 rounded">https://&lt;your-domain&gt;/api/auth/callback/&lt;provider&gt;</code>
-                  {' '}and that GITHUB_ID / GITHUB_SECRET (or Google equivalents) are set on the server.
+                  {' '}and that GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET (or Google equivalents) are set on the server.
                 </div>
               )}
             </div>
