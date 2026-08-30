@@ -112,7 +112,13 @@ export function OnboardingTour({ isOpen, onClose, onComplete, skillLevel = 'no-c
   const { theme } = useTheme()
   const isDark = theme === 'dark'
   const activeIds = tourStepsByLevel[skillLevel] ?? tourStepsByLevel['no-code']
-  const steps = tourSteps.filter(s => activeIds.includes(s.id))
+  // Four of the seven anchors (templates, webstew, code, deploy) don't exist in
+  // the workspace at all. The tour still counted them, so it announced "3 of 7",
+  // drew a spotlight around a stale rect from the previous step — a glowing ring
+  // around nothing — and thrashed through auto-advances. Measure the DOM once on
+  // open and run only the steps that have something to point at.
+  const [presentIds, setPresentIds] = useState<string[] | null>(null)
+  const steps = tourSteps.filter(s => (presentIds ?? activeIds).includes(s.id))
   const [step, setStep] = useState(0)
   const [rect, setRect] = useState<DOMRect | null>(null)
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 })
@@ -131,6 +137,17 @@ export function OnboardingTour({ isOpen, onClose, onComplete, skillLevel = 'no-c
     if (step > steps.length - 1) setStep(steps.length - 1)
   }, [step, steps.length])
 
+  useEffect(() => {
+    if (!isOpen) { setPresentIds(null); return }
+    const ids = tourSteps
+      .filter(s => activeIds.includes(s.id))
+      .filter(s => s.position === 'center' || document.querySelector(s.target))
+      .map(s => s.id)
+    setPresentIds(ids)
+    setStep(0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, skillLevel])
+
   // Position tooltip relative to target
   useEffect(() => {
     if (!isOpen) return
@@ -147,6 +164,9 @@ export function OnboardingTour({ isOpen, onClose, onComplete, skillLevel = 'no-c
 
       const el = document.querySelector(current.target)
       if (!el) {
+        // Drop the previous step's rect, or the spotlight keeps glowing around
+        // whatever the last valid target was while the tooltip has moved on.
+        setRect(null)
         // Target not on screen — skip ahead. Functional + bounded so the
         // repeated calls (immediate + 100ms timer + resize + scroll) can't
         // over-shoot the end of the list and leave `step` pointing at nothing.
@@ -301,7 +321,15 @@ export function OnboardingTour({ isOpen, onClose, onComplete, skillLevel = 'no-c
                 left: rect.left - 6,
                 width: rect.width + 12,
                 height: rect.height + 12,
-                boxShadow: '0 0 0 4px rgba(139, 92, 246, 0.6), 0 0 0 9999px rgba(0, 0, 0, 0.5)',
+                // The old scrim was a flat rgba(0,0,0,0.5) over the whole page:
+                // in dark mode every label went to mud, and over the light theme
+                // it turned the app grey. Both read as "the page is broken".
+                // A spotlight only needs enough contrast to lead the eye — the
+                // ring does the pointing, so the scrim can stay light enough to
+                // keep text legible underneath.
+                boxShadow: isDark
+                  ? '0 0 0 3px rgba(167, 139, 250, 0.9), 0 0 0 9999px rgba(0, 0, 0, 0.28)'
+                  : '0 0 0 3px rgba(124, 58, 237, 0.9), 0 0 0 9999px rgba(15, 23, 42, 0.12)',
               }}
             >
               {/* Animated ring */}

@@ -3284,7 +3284,11 @@ function WorkspaceContent() {
           // Show the skill assessment first if they haven't chosen a level yet.
           if (!hasPickedSkill) {
             setShowSkillPicker(true)
-          } else if (!isMobile) {
+          } else if (!isMobile && sessionStatus !== 'unauthenticated') {
+            // Signed-out visitors were getting the full 7-step workspace tour
+            // in a fresh/incognito session — a tour of panels behind a signup
+            // wall, before they'd even typed anything. The other trigger for
+            // this tour already gated on session; this one didn't.
             setShowOnboarding(true)
           }
         }
@@ -3294,7 +3298,7 @@ function WorkspaceContent() {
     if (hasSeenOnboarding) {
       setHasCompletedOnboarding(true)
     }
-  }, [hasInitialized, searchParams, isGenerating, html, isMobile])
+  }, [hasInitialized, searchParams, isGenerating, html, isMobile, sessionStatus])
 
   // Save onboarding completion
   const handleOnboardingComplete = () => {
