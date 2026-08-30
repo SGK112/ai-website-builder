@@ -318,10 +318,10 @@ export default function TemplatesPage() {
           animate={{ opacity: 1, y: 0 }}
           className="max-w-3xl mx-auto"
         >
-          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3 sm:mb-4">
+          <h1 className="display-page text-white mb-3 sm:mb-4">
             Template Library
           </h1>
-          <p className="text-base sm:text-xl text-slate-400 mb-6 sm:mb-8">
+          <p className="lede text-slate-400 mb-6 sm:mb-8">
             Start with a professionally designed template and customize it with AI
           </p>
 

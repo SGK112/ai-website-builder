@@ -97,7 +97,7 @@ export default function SignupPage() {
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/15 dark:bg-emerald-500/20 flex items-center justify-center">
             <Check className="w-8 h-8 text-emerald-500 dark:text-emerald-400" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Check your email</h1>
+          <h1 className="display-card mb-2">Check your email</h1>
           <p className="text-slate-500 dark:text-zinc-400 max-w-sm mx-auto leading-relaxed">
             We sent a verification link to <span className="font-medium text-slate-700 dark:text-zinc-200">{email}</span>.
             Click it to verify your account, then sign in.
@@ -144,7 +144,7 @@ export default function SignupPage() {
               <WebstewLogo size="md" isDark={false} className="dark:hidden" />
               <WebstewLogo size="md" isDark={true} className="hidden dark:inline-flex" />
             </div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Create your account</h1>
+            <h1 className="display-card mb-2">Create your account</h1>
             <p className="text-slate-500 dark:text-zinc-400">
               Save the site you just built and keep iterating.
             </p>

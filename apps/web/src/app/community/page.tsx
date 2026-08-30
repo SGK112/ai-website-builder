@@ -411,7 +411,7 @@ export default function CommunityPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4">
+            <h1 className="display-page mb-3 sm:mb-4">
               <span className={cn(
                 'bg-clip-text text-transparent',
                 isDark
@@ -1020,7 +1020,7 @@ export default function CommunityPage() {
         isDark ? 'border-white/10' : 'border-zinc-200'
       )}>
         <div className="max-w-3xl mx-auto px-4 text-center">
-          <h2 className="text-3xl font-bold mb-4">Ready to Share Your Creation?</h2>
+          <h2 className="display-section mb-4">Ready to Share Your Creation?</h2>
           <p className={cn('text-lg mb-8', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
             Build something amazing and showcase it to the community.
           </p>

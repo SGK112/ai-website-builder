@@ -123,8 +123,8 @@ export default function LoginPage() {
               <WebstewLogo size="md" isDark={false} className="dark:hidden" />
               <WebstewLogo size="md" isDark={true} className="hidden dark:inline-flex" />
             </div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Welcome back</h1>
-            <p className="text-slate-500 dark:text-zinc-400">Sign in to keep building.</p>
+            <h1 className="display-card mb-2">Welcome back</h1>
+            <p className="lede">Sign in to keep building.</p>
           </div>
 
           {/* Error message — surface NextAuth's error code so we can debug

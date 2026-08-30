@@ -192,7 +192,7 @@ export default function UpgradePage() {
             <span className="text-violet-400 text-sm font-medium">Upgrade Your Plan</span>
           </div>
           <h1 className={cn(
-            'text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4',
+            'display-page mb-3 sm:mb-4',
             isDark ? 'text-white' : 'text-slate-900'
           )}>
             Build More, Pay Less
@@ -438,7 +438,7 @@ export default function UpgradePage() {
               <Zap className={cn('w-4 h-4', isDark ? 'text-emerald-400' : 'text-emerald-600')} />
               <span className={cn('text-sm font-medium', isDark ? 'text-emerald-400' : 'text-emerald-700')}>No subscription required</span>
             </div>
-            <h2 className={cn('text-3xl font-bold mb-2', isDark ? 'text-white' : 'text-slate-900')}>Or just buy credits</h2>
+            <h2 className={cn('display-section mb-2', isDark ? 'text-white' : 'text-slate-900')}>Or just buy credits</h2>
             <p className={cn(isDark ? 'text-slate-400' : 'text-slate-600')}>One-time purchase, never expires. Use anytime.</p>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -507,7 +507,7 @@ export default function UpgradePage() {
       {/* Credit Costs Reference */}
       <section className={cn('py-16 px-6 border-t', isDark ? 'border-white/10' : 'border-slate-200')}>
         <div className="max-w-4xl mx-auto">
-          <h2 className={cn('text-2xl font-bold text-center mb-8', isDark ? 'text-white' : 'text-slate-900')}>Credit Usage</h2>
+          <h2 className={cn('display-section text-center mb-8', isDark ? 'text-white' : 'text-slate-900')}>Credit Usage</h2>
           <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-4">
             {CREDIT_COSTS.map((item) => {
               const Icon = item.icon
@@ -529,7 +529,7 @@ export default function UpgradePage() {
       {/* FAQ */}
       <section className={cn('py-16 px-6 border-t', isDark ? 'border-white/10' : 'border-slate-200')}>
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className={cn('text-2xl font-bold mb-4', isDark ? 'text-white' : 'text-slate-900')}>Questions?</h2>
+          <h2 className={cn('display-section mb-4', isDark ? 'text-white' : 'text-slate-900')}>Questions?</h2>
           <p className={cn('mb-6', isDark ? 'text-slate-400' : 'text-slate-600')}>
             Contact us at support@webstew.net for any questions about plans or billing.
           </p>

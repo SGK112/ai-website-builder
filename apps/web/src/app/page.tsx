@@ -33,30 +33,32 @@ import { VoiceBuilderPreview } from '@/components/landing/VoiceBuilderPreview'
 
 const examplePromptsByTarget: Record<'website' | 'webapp' | 'mobile', string[]> = {
   website: [
-    "A modern SaaS landing page for a project management tool",
-    "An e-commerce store for handmade jewelry",
-    "A portfolio website for a UX designer with animations",
-    "A restaurant website with online ordering",
+    "A landing page for a cold-brew brand — hero, three-tier pricing, FAQ accordion, email capture",
+    "A jewellery store with a product grid, quick-view modal, cart drawer and Stripe checkout",
+    "A photographer's portfolio — full-bleed gallery, lightbox, filter by shoot type, contact form",
+    "A taqueria site with a menu by section, order-ahead form, hours, and an embedded map",
   ],
   webapp: [
-    "A dashboard with sidebar nav, KPI cards, sortable data table, and dark mode",
-    "A blog with markdown posts, tag filtering, and an RSS feed",
-    "A SaaS landing page with pricing tiers and a working signup form",
-    "A documentation site with versioned docs and code highlighting",
+    "An analytics dashboard — KPI row, line chart, sortable table with column filters, CSV export",
+    "A client CRM with a kanban pipeline, drag-to-stage, contact drawer and activity timeline",
+    "An invoice builder — line items, live totals, tax rate, and a print-ready PDF view",
+    "A support inbox with threaded conversations, canned replies, and status filters",
   ],
   mobile: [
-    "A fitness tracker with daily steps, workout history, and weekly charts",
-    "A recipe app with search, favorites, and step-by-step cooking timers",
-    "A habit tracker with streak counts and weekly stats",
-    "A pomodoro timer with task list and session history",
+    "A run tracker — start/stop timer, pace splits, weekly distance chart, saved routes",
+    "A recipe app with search, favourites, a shopping list, and step timers that run while you cook",
+    "A habit tracker — daily check-off grid, streaks, reminders, and a month heatmap",
+    "A budget app with accounts, categorised spending, and a monthly burn-down",
   ],
 }
 
+// One click has to produce something worth looking at, so each of these names
+// the sections it builds rather than gesturing at a category.
 const quickTemplates = [
-  { icon: Globe, label: "Landing Page", prompt: "A modern landing page with hero, features, and CTA sections" },
-  { icon: Code2, label: "SaaS", prompt: "A SaaS product website with pricing and features" },
-  { icon: Palette, label: "Portfolio", prompt: "A creative portfolio website with project gallery" },
-  { icon: Rocket, label: "Startup", prompt: "A startup landing page with waitlist signup" },
+  { icon: Globe, label: "Landing page", prompt: "A landing page with a hero, logo strip, three feature cards, testimonial, FAQ accordion and a footer CTA" },
+  { icon: Code2, label: "SaaS", prompt: "A SaaS site with a product hero, feature comparison, three pricing tiers with a monthly/annual toggle, and a signup form" },
+  { icon: Palette, label: "Portfolio", prompt: "A portfolio with a filterable project grid, case-study pages, an about section and a contact form" },
+  { icon: Rocket, label: "Storefront", prompt: "A storefront with a product grid, quick-view modal, cart drawer and a checkout page" },
 ]
 
 // Template gallery with real website screenshots and rich metadata
@@ -566,10 +568,10 @@ export default function HomePage() {
                   {/* Reimagined H1 — the assistant's voice (its workspace
                       greeting), with the input below as the answer. No rotating
                       word, no gimmick. */}
-                  <h1 className="text-4xl md:text-6xl font-bold tracking-[-0.035em] leading-[1.05] text-foreground">
+                  <h1 className="display-hero">
                     What should we cook up today?
                   </h1>
-                  <p className="mt-5 text-base md:text-lg max-w-xl mx-auto text-muted-foreground">
+                  <p className="lede mt-5 max-w-xl mx-auto">
                     Real websites and apps — built from a sentence, ready to ship.
                   </p>
                 </motion.div>
@@ -714,7 +716,7 @@ export default function HomePage() {
             <motion.section initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-100px" }} transition={{ duration: 0.7, ease: [0.22,1,0.36,1] }} className="px-6 py-24">
               <div className="max-w-5xl mx-auto">
                 <div className="text-center mb-14">
-                  <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
+                  <h2 className="display-section">
                     How it works.
                   </h2>
                 </div>
@@ -771,7 +773,7 @@ export default function HomePage() {
               <div className="max-w-6xl mx-auto">
                 <div className="flex items-end justify-between mb-6 sm:mb-10 gap-4">
                   <div>
-                    <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-2 text-foreground">
+                    <h2 className="display-section mb-2">
                       Start from a template.
                     </h2>
                     <p className="text-base md:text-lg text-muted-foreground">
@@ -885,7 +887,7 @@ export default function HomePage() {
                 )}>
                   The pantry
                 </p>
-                <h2 className="text-center text-3xl md:text-4xl font-bold tracking-tight mb-4 text-foreground">
+                <h2 className="display-section text-center mb-4">
                   The ingredients to{' '}
                   <span className={isDark ? "text-violet-300" : "text-violet-600"}>greatness.</span>
                 </h2>
@@ -993,7 +995,7 @@ export default function HomePage() {
               className="px-6 pb-24 pt-12"
             >
               <div className="max-w-2xl mx-auto text-center">
-                <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-7 text-foreground">
+                <h2 className="display-section mb-7">
                   Start cooking.
                 </h2>
 

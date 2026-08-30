@@ -1101,3 +1101,70 @@ body[data-mobile-sheet-open] { --bottom-nav-h: 0px; }
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
 }
+
+/* ============================================
+   DISPLAY TYPE SCALE
+   ============================================
+   Every main surface had invented its own heading size — the landing page ran
+   text-4xl/6xl, /templates 3xl/4xl, /upgrade 3xl/4xl/5xl, /login 2xl. Four
+   scales meant no surface felt like the same product, and the titles were
+   timid at every breakpoint.
+
+   One scale, three steps, applied everywhere:
+     .display-hero    the one headline on a marketing surface
+     .display-page    the title of a working page (templates, upgrade, auth)
+     .display-section a band heading inside a page
+
+   Set in Inter Tight — already loaded for the wordmark, and chosen precisely
+   because its tighter metrics hold up at display sizes where Inter goes loose.
+   Tracking tightens as size grows (large type needs less letter-spacing to
+   look right — the optical-sizing rule Inter can't do on its own), and
+   `text-wrap: balance` keeps multi-line headlines from leaving one orphan word
+   on the last line. */
+@layer components {
+  .display-hero,
+  .display-page,
+  .display-section,
+  .display-card {
+    font-family: var(--font-inter-tight), system-ui, -apple-system, sans-serif;
+    font-weight: 700;
+    text-wrap: balance;
+    color: hsl(var(--foreground));
+  }
+
+  .display-hero {
+    font-size: clamp(2.75rem, 7.5vw, 5.5rem);
+    line-height: 0.96;
+    letter-spacing: -0.045em;
+  }
+
+  .display-page {
+    font-size: clamp(2.25rem, 5.5vw, 3.75rem);
+    line-height: 1.02;
+    letter-spacing: -0.038em;
+  }
+
+  .display-section {
+    font-size: clamp(1.875rem, 4vw, 3rem);
+    line-height: 1.06;
+    letter-spacing: -0.032em;
+  }
+
+  /* Auth and other narrow cards: bigger than the old text-2xl, but it has to
+     sit inside a ~448px card without wrapping to three lines. */
+  .display-card {
+    font-size: clamp(1.75rem, 3.2vw, 2.25rem);
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+  }
+
+  /* The sentence under a title. Sized off the title rather than fixed, so the
+     pair keeps its proportion from phone to desktop. */
+  .lede {
+    font-size: clamp(1.0625rem, 1.6vw, 1.3125rem);
+    line-height: 1.5;
+    letter-spacing: -0.011em;
+    text-wrap: pretty;
+    color: hsl(var(--muted-foreground));
+  }
+}
