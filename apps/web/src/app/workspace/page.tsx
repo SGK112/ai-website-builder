@@ -172,6 +172,7 @@ import { ShipPanel } from './components/ShipPanel'
 import { ProjectList } from './components/ProjectList'
 import { NewProjectChooser } from './components/NewProjectChooser'
 import { GithubRepoPicker } from './components/GithubRepoPicker'
+import { StewPlannerWizard } from './components/StewPlannerWizard'
 import { GithubPullConfirm } from './components/GithubPullConfirm'
 import { useGithubRepo } from './hooks/useGithubRepo'
 import { useElementActions } from './hooks/useElementActions'
@@ -2506,6 +2507,14 @@ function WorkspaceContent() {
   // requested with a thin prompt, the planner interviews the user, forms a
   // plan, and only on "Go" hands the assembled prompt to the real builders.
   const [plannerActive, setPlannerActive] = useState(false)
+  // The interview runs as a full-screen card wizard BEFORE the workspace is
+  // usable. Kept as a separate flag from plannerActive because the same
+  // conversation can also run inline in the chat panel (planner started
+  // mid-session), and that shouldn't take over the screen.
+  const [plannerWizard, setPlannerWizard] = useState(false)
+  // Each turn snapshots the state it started from, so Back is a real rewind of
+  // the conversation rather than a re-ask with the old answer still counted.
+  const plannerUndoRef = useRef<Array<{ messages: ClarifyTurn[]; plan: Partial<StewPlan>; suggestions: string[] }>>([])
   const [plannerMessages, setPlannerMessages] = useState<ClarifyTurn[]>([])
   const [plannerPlan, setPlannerPlan] = useState<Partial<StewPlan>>({})
   const [plannerThinking, setPlannerThinking] = useState(false)
@@ -6798,6 +6807,7 @@ ${html}
     plan: Partial<StewPlan>,
   ) => {
     if (plannerThinking) return
+    plannerUndoRef.current.push({ messages: history, plan, suggestions: plannerSuggestions })
     const nextHistory: ClarifyTurn[] = [...history, { role: 'user', content: userMessage }]
     setPlannerMessages(nextHistory)
     setPlannerThinking(true)
@@ -6831,6 +6841,7 @@ ${html}
       // Graceful fallback — drop planner mode and let the user build directly.
       addToast('error', 'Planner hiccup — describe what you want and I\'ll build it.')
       setPlannerActive(false)
+      setPlannerWizard(false)
     } finally {
       setPlannerThinking(false)
     }
@@ -6842,9 +6853,22 @@ ${html}
   // the plan-review modal whose "Go" hands the assembled prompt to the builder.
   const startPlannerInterview = (firstMessage: string) => {
     setPlannerActive(true)
+    setPlannerWizard(true)
     setPlannerPlan({})
     setPlannerSuggestions([])
+    plannerUndoRef.current = []
     return handlePlannerTurn(firstMessage, [], {})
+  }
+
+  // Rewind one question. Restores the exact state the previous turn started
+  // from, so the planner re-asks from there instead of stacking a correction
+  // on top of an answer the user is trying to replace.
+  const plannerBack = () => {
+    const prev = plannerUndoRef.current.pop()
+    if (!prev) return
+    setPlannerMessages(prev.messages)
+    setPlannerPlan(prev.plan)
+    setPlannerSuggestions(prev.suggestions)
   }
 
   // "Go" from the plan-review modal — the assembled prompt feeds the existing
@@ -6853,6 +6877,8 @@ ${html}
     setShowPlanModal(false)
     setPlanModalData(null)
     setPlannerActive(false)
+    setPlannerWizard(false)
+    plannerUndoRef.current = []
     setPlannerMessages([])
     setPlannerPlan({})
     setPlannerSuggestions([])
@@ -6909,6 +6935,8 @@ ${html}
   const handlePlannerSkip = () => {
     const raw = plannerMessages.find(m => m.role === 'user')?.content || commandInput
     setPlannerActive(false)
+    setPlannerWizard(false)
+    plannerUndoRef.current = []
     setPlannerMessages([])
     setPlannerPlan({})
     setPlannerSuggestions([])
@@ -13588,6 +13616,30 @@ npx eas build --platform all
         })()}
       </AnimatePresence>
 
+      {/* Stew Planner — card-by-card interview. Covers the workspace until the
+          plan is submitted, so the questions get answered before the builder
+          appears rather than competing with it. Hidden once the plan-review
+          modal takes over as the final submit step. */}
+      {(() => {
+        const userTurns = plannerMessages.filter(m => m.role === 'user').length
+        const lastAssistant = [...plannerMessages].reverse().find(m => m.role === 'assistant')
+        return (
+          <StewPlannerWizard
+            open={plannerWizard && !showPlanModal}
+            isDark={isDark}
+            question={lastAssistant?.content ?? null}
+            answered={Math.max(0, userTurns - 1)}
+            completeness={plannerPlan.completeness ?? 0}
+            isThinking={plannerThinking}
+            suggestedReplies={plannerSuggestions}
+            canGoBack={userTurns > 1}
+            onAnswer={(text) => { void handlePlannerTurn(text, plannerMessages, plannerPlan) }}
+            onBack={plannerBack}
+            onSkip={handlePlannerSkip}
+          />
+        )
+      })()}
+
       {/* Stew Planner — plan-review modal. Shown once the clarifying agent
           has enough; "Go" hands the assembled prompt to the real builders. */}
       {planModalData && (
@@ -13597,7 +13649,7 @@ npx eas build --platform all
           assembledPrompt={planModalData.prompt}
           isDark={isDark}
           onGo={handlePlannerGo}
-          onClose={() => { setShowPlanModal(false); setPlannerActive(false); setPlanModalData(null) }}
+          onClose={() => { setShowPlanModal(false); setPlannerActive(false); setPlannerWizard(false); setPlanModalData(null) }}
         />
       )}
 
