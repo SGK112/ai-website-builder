@@ -5,6 +5,7 @@ import GitHubProvider from 'next-auth/providers/github'
 import bcrypt from 'bcryptjs'
 import { connectDB } from './db'
 import { User } from '@ai-website-builder/database'
+import { ANON_COOKIE, NEW_ACCOUNT_CREDITS, startingCreditsFor } from '@/lib/anon-credits'
 
 // A real bcrypt hash to compare against when the account doesn't exist, so a
 // missing email takes the same time as a wrong password — closes the login
@@ -152,6 +153,17 @@ export const authOptions: NextAuthOptions = {
         }
 
         if (!existingUser) {
+          // Same rule as the credentials signup: an OAuth signup claims the
+          // free allowance this browser already spent as an anon rather than
+          // granting a fresh one. No req here, so read the cookie off the
+          // request scope; if that's unavailable, fail OPEN with the full
+          // grant — better to over-credit once than to hand a brand-new user
+          // an empty account they can't build with.
+          let startingCredits = NEW_ACCOUNT_CREDITS
+          try {
+            const { cookies } = await import('next/headers')
+            startingCredits = startingCreditsFor(cookies().get(ANON_COOKIE)?.value)
+          } catch { /* outside a request scope — keep the full grant */ }
           // Truly new user — create. Email may be missing if the GitHub
           // account has no public email; that's fine, NextAuth still gives
           // us providerAccountId which is unique.
@@ -163,6 +175,7 @@ export const authOptions: NextAuthOptions = {
             githubId: account.provider === 'github' ? providerId : undefined,
             plan: 'free',
             app: 'webstew',
+            credits: startingCredits,
             firstSeenWebstewAt: new Date(),
           })
         } else {

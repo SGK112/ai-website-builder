@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { guardAnonAbuse } from '@/lib/abuse-guard'
 import { isDisposableEmail, makeVerifyToken, verifyEmailContent } from '@/lib/email-verification'
 import { sendMail } from '@/lib/mailer'
+import { ANON_COOKIE, startingCreditsFor, anonCreditsSpent } from '@/lib/anon-credits'
 
 const signupSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -63,12 +64,17 @@ export async function POST(req: NextRequest) {
     // Create new user. app:'webstew' tags this as a Webstew-side signup
     // so the shared users collection (with VoiceNow + Webstew co-tenants)
     // can be filtered cleanly in /admin queries.
+    // Signing up CLAIMS the free allowance this browser has been spending as
+    // an anon — it doesn't hand out a second one. Without this, ten free
+    // generations then a signup yielded 200 credits, repeatable by signing out.
+    const anonSpent = anonCreditsSpent(req.cookies.get(ANON_COOKIE)?.value)
     const user = await User.create({
       name,
       email: normalizedEmail,
       password,
       plan: 'free',
       app: 'webstew',
+      credits: startingCreditsFor(req.cookies.get(ANON_COOKIE)?.value),
       firstSeenWebstewAt: new Date(),
     })
 
@@ -81,7 +87,10 @@ export async function POST(req: NextRequest) {
       if (rawDb) {
         await rawDb.collection('users').updateOne(
           { _id: new mongoose.Types.ObjectId(user._id.toString()) },
-          { $set: { emailVerified: false, emailVerifySentAt: new Date() } }
+          // anonCreditsClaimed is audit only — it explains a starting balance
+          // under 100 if the user ever asks why. Written raw for the same
+          // reason as emailVerified: not in the registered schema.
+          { $set: { emailVerified: false, emailVerifySentAt: new Date(), anonCreditsClaimed: anonSpent } }
         )
       }
       // NEVER use the request Origin here — it's attacker-controlled, so a
