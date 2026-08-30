@@ -87,6 +87,22 @@ const INDUSTRY_SEARCH_TERMS: Record<string, Record<string, string[]>> = {
     gallery: ['agency work', 'campaign results', 'client projects'],
     background: ['office blur', 'creative abstract', 'brand colors'],
   },
+  trades: {
+    hero: ['welder working sparks', 'contractor job site', 'tradesman tools working'],
+    product: ['welding close up', 'plumbing repair', 'electrical work hands'],
+    team: ['tradesman portrait', 'construction worker smiling', 'contractor with truck'],
+    feature: ['power tools', 'work truck', 'safety equipment'],
+    gallery: ['finished metalwork', 'construction progress', 'repair before after'],
+    background: ['workshop blur', 'metal texture', 'industrial background'],
+  },
+  homeservice: {
+    hero: ['clean modern living room', 'housekeeper cleaning', 'tidy bright home'],
+    product: ['cleaning supplies', 'vacuum carpet', 'spotless kitchen counter'],
+    team: ['cleaner smiling uniform', 'housekeeping staff', 'service worker portrait'],
+    feature: ['folded towels', 'mopping floor', 'window cleaning'],
+    gallery: ['clean bathroom', 'organized closet', 'fresh made bed'],
+    background: ['soft clean texture', 'white minimal surface', 'sunlit room'],
+  },
   default: {
     hero: ['business professional', 'modern office', 'corporate team'],
     product: ['professional service', 'business solution', 'quality work'],
@@ -320,6 +336,16 @@ export async function quickImageSearch(
 /**
  * Industry-specific image pack
  */
+// The builder's Industry union and this file's search-term keys grew up
+// separately. Map one onto the other instead of duplicating term lists.
+const INDUSTRY_ALIASES: Record<string, string> = {
+  realtor: 'realestate',
+  wellness: 'fitness',
+  professional: 'agency',
+  blog: 'default',
+  generic: 'default',
+}
+
 export async function getIndustryImagePack(
   industry: string,
   prompt: string
@@ -327,7 +353,8 @@ export async function getIndustryImagePack(
   const pack: Record<string, string[]> = {}
 
   const specificType = detectSpecificType(prompt)
-  const searchTerms = INDUSTRY_SEARCH_TERMS[specificType || industry] || INDUSTRY_SEARCH_TERMS.default
+  const key = INDUSTRY_ALIASES[industry] || industry
+  const searchTerms = INDUSTRY_SEARCH_TERMS[specificType || key] || INDUSTRY_SEARCH_TERMS.default
 
   for (const [type, terms] of Object.entries(searchTerms)) {
     const allImages: string[] = []

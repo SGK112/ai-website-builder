@@ -7,6 +7,7 @@ import { wantsVoiceInBuild, VOICE_CAPABILITY_PROMPT } from '@/lib/voice-build-re
 import { wantsMobileApp, MOBILE_APP_PROMPT } from '@/lib/mobile-app-recipe'
 import { generateTextFree, FreeAIProvider } from '@/lib/free-ai-providers'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
+import { getIndustryImagePack } from '@/lib/smart-image-service'
 import { guardAnonAbuse } from '@/lib/abuse-guard'
 import { creditsForUsage, estimateBuildCredits } from '@/lib/builder-gate'
 import {
@@ -1062,7 +1063,7 @@ function pickBestModel(prompt: string, currentHtml?: string): AutoModelChoice {
 // actually need (restaurants want menus, photographers want portfolios, etc.).
 // Ecommerce is checked last because it has its own fully-custom system prompt
 // upstream; the rest just augment ENHANCED_SYSTEM_PROMPT with section overrides.
-export type Industry = 'ecommerce' | 'restaurant' | 'portfolio' | 'saas' | 'realtor' | 'blog' | 'generic'
+export type Industry = 'ecommerce' | 'restaurant' | 'portfolio' | 'saas' | 'realtor' | 'blog' | 'medical' | 'trades' | 'homeservice' | 'wellness' | 'professional' | 'generic'
 
 function detectIndustry(prompt: string): Industry {
   const p = (prompt || '').toLowerCase()
@@ -1074,6 +1075,14 @@ function detectIndustry(prompt: string): Industry {
   if (/\b(real estate|realtor|broker|listings|homes for sale|property listings|mls)\b/.test(p)) return 'realtor'
   if (/\b(blog|publication|newsletter|magazine|editorial|articles|writing portfolio)\b/.test(p)) return 'blog'
   if (isEcommerceRequest(prompt)) return 'ecommerce'
+  // Local service businesses — the single biggest category of real signups,
+  // and until now every one of them (welder, dentist, maid service, plumber,
+  // landscaper) fell through to 'generic' and got the same SaaS-shaped page.
+  if (/\b(dentist|dental|orthodont|chiropract|physical therapy|clinic|medical|doctor|veterinar|optometr|dermatolog)\b/.test(p)) return 'medical'
+  if (/\b(weld|plumb|electrician|hvac|roofing|contractor|construction|handyman|mechanic|auto repair|landscap|concrete|fencing|remodel|flooring|painter)\b/.test(p)) return 'trades'
+  if (/\b(maid|cleaning|housekeep|janitorial|lawn care|pest control|pool service|moving company|laundry|dog walk|pet sitting)\b/.test(p)) return 'homeservice'
+  if (/\b(salon|barber|spa|massage|nail|tattoo|gym|fitness|yoga|personal train|coach)\b/.test(p)) return 'wellness'
+  if (/\b(law firm|lawyer|attorney|accountant|cpa|bookkeep|insurance agen|consultant|agency)\b/.test(p)) return 'professional'
   return 'generic'
 }
 
@@ -1082,6 +1091,82 @@ function detectIndustry(prompt: string): Industry {
 // guidance still applies. We just override the "3+ distinct content sections"
 // list with industry-appropriate sections so output stops being interchangeable.
 const INDUSTRY_SECTION_OVERRIDES: Partial<Record<Industry, string>> = {
+  trades: `## TRADES / CONTRACTOR SECTION GRAMMAR (overrides the generic "features grid + testimonials + pricing" pattern)
+This is a hands-on trade business (welding, plumbing, HVAC, electrical, roofing, auto, landscaping). The buyer wants proof of competence and a fast way to get a quote. DO NOT use SaaS sections: no "feature grid" of icons, no pricing tiers, no logo cloud, no "sign up free".
+
+REQUIRED SECTIONS (in this order):
+1. Hero — a real photo of the WORK being done (not an office). Business name, the trade stated plainly, service area ("Serving Phoenix + East Valley"), phone number as a tappable tel: link, and "Get a free quote" as the primary CTA. Put the phone number in the header too — this buyer calls.
+2. Services — 4-6 specific jobs they actually do, each with a short plain-English description. Name real work ("mobile welding repair", "gate + railing fabrication"), never abstractions like "Quality Solutions".
+3. Recent work / Gallery — 6-8 before-and-after or on-the-job photos. This is the section that wins the job; give it real weight.
+4. Why choose us — licensed/insured, years in business, warranty, response time. Short, factual, scannable. Badges over paragraphs.
+5. Service area — the towns/neighbourhoods covered, plus a map placeholder.
+6. Reviews — 3-4 quotes with customer first name + town. Trades buyers read reviews before they call.
+7. Quote request — name, phone, job type (select), description, optional photo upload. Keep it SHORT; every extra field loses a lead.
+8. Footer — phone, email, hours, license number, service area, social.
+
+Tone: direct and competent, never corporate. Typography should be sturdy and high-contrast, not delicate.`,
+
+  medical: `## MEDICAL / DENTAL PRACTICE SECTION GRAMMAR (overrides the generic pattern)
+This is a healthcare practice (dental, medical, chiropractic, veterinary, therapy). The visitor is deciding whether to trust this practice with their body, and whether booking is easy. DO NOT use SaaS sections: no pricing tiers, no "start free trial", no feature grid.
+
+REQUIRED SECTIONS (in this order):
+1. Hero — warm, clean photo of the practice or a practitioner with a patient. Practice name, specialty, "Book an appointment" primary CTA, phone number, and "New patients welcome" if relevant.
+2. Services / Treatments — 4-8 treatments in clear patient language (not clinical jargon), each with one sentence on what it is and who it's for.
+3. Meet the team — headshots, names, credentials, and one human sentence each. Faces build more trust here than any other section.
+4. Patient experience — what a first visit is like, step by step. This removes the main barrier: anxiety about the unknown.
+5. Insurance + payment — plans accepted, financing options, transparency about cost. Patients bounce when this is hidden.
+6. Reviews — 3-4 patient quotes (first name + initial only), plus overall rating.
+7. Appointment booking — name, phone, email, preferred day/time, reason for visit, new-or-existing patient. Include a note that it is not for emergencies.
+8. Visit us — address, parking, hours table, map, phone.
+9. Footer — contact, hours, accessibility note, privacy.
+
+Tone: calm, warm, plain-spoken. Soft palette, generous whitespace, high legibility. Never hype.`,
+
+  homeservice: `## HOME SERVICE SECTION GRAMMAR (overrides the generic pattern)
+This is a recurring home service (cleaning, maid, lawn, pest, pool, moving, pet care). The visitor wants to know what it costs, how often, and whether these people can be trusted in their home. DO NOT use SaaS sections.
+
+REQUIRED SECTIONS (in this order):
+1. Hero — a clean, bright photo of a real result (a spotless room, a finished lawn), the service and area stated plainly, and "Get a free estimate" as the primary CTA.
+2. What's included — an explicit checklist of what the service covers, and what it doesn't. Ambiguity here is the number one reason these visitors bounce.
+3. Plans / frequency — weekly, bi-weekly, monthly, one-time. A simple comparison with indicative pricing ("from $X"). This is the one local-service case where a pricing table belongs.
+4. Trust — background-checked staff, insured + bonded, satisfaction guarantee, supplies included. Use badges.
+5. Before / after gallery — 4-6 pairs. Visual proof carries this category.
+6. Reviews — 3-4 quotes with first name + neighbourhood.
+7. Booking / estimate — name, phone, address or zip, home size (beds/baths or sq ft), frequency, preferred start date.
+8. Footer — service area, phone, hours, social.
+
+Tone: reassuring and specific. Bright, fresh palette. Photography of results, not of people in suits.`,
+
+  wellness: `## SALON / FITNESS / WELLNESS SECTION GRAMMAR (overrides the generic pattern)
+This is an appointment-based personal service (salon, barber, spa, gym, studio, trainer). The visitor is judging aesthetic and vibe as much as service. DO NOT use SaaS sections.
+
+REQUIRED SECTIONS (in this order):
+1. Hero — a striking photo that sets the aesthetic; the name; location; "Book now" primary CTA.
+2. Services + pricing — a real service menu with names, durations and prices. This category expects visible prices.
+3. Gallery — 6-9 images of the space and the work. The strongest section for this category.
+4. Team / stylists — photos, names, specialties, and individual booking links where relevant.
+5. Reviews — 3-4 quotes with first name.
+6. Booking — service select, practitioner select, preferred date/time, contact details.
+7. Visit — address, hours, parking, map.
+8. Footer — contact, hours, social (Instagram matters most here — feature it).
+
+Tone: match the aesthetic to the category — a barber shop and a day spa should not look alike. Strong photography, confident type.`,
+
+  professional: `## PROFESSIONAL SERVICES SECTION GRAMMAR (overrides the generic pattern)
+This is a credentialed advisory practice (law, accounting, insurance, consulting). The visitor is assessing authority and fit before making contact. DO NOT use consumer-SaaS sections: no "start free trial", no feature icon grid.
+
+REQUIRED SECTIONS (in this order):
+1. Hero — practice name, the specific practice areas, who they serve, and "Request a consultation" as the primary CTA. Restrained, credible imagery.
+2. Practice areas — 4-6 areas, each with a short description of the problem it solves for the client.
+3. Attorneys / advisors — headshots, credentials, bar admissions or certifications, and a short bio each. Authority lives here.
+4. Results / case outcomes — representative matters or outcomes, with the appropriate disclaimer for the profession.
+5. Process — what engagement looks like, step by step, including how fees work. Fee opacity is the main friction in this category.
+6. Testimonials — 2-3 client quotes, anonymised where the profession requires.
+7. Consultation request — name, email, phone, matter type, brief description, plus a confidentiality note.
+8. Footer — office address, hours, phone, required professional disclaimers.
+
+Tone: authoritative and precise. Conservative palette, serif or high-quality sans, generous spacing. Credibility over flair.`,
+
   restaurant: `## RESTAURANT-SPECIFIC SECTION GRAMMAR (overrides the generic "features grid + testimonials + pricing" pattern)
 This is a restaurant / cafe / dining site. The sections must reflect what a real restaurant patron looks for, not generic SaaS sections. DO NOT include "features grid", "pricing tiers", or "logo cloud" sections. Instead:
 
@@ -1339,7 +1424,9 @@ async function fetchTopicImages(topic: string): Promise<string[]> {
     url.searchParams.set('image_type', 'photo')
     url.searchParams.set('per_page', '20')
     url.searchParams.set('safesearch', 'true')
-    url.searchParams.set('editors_choice', 'true')
+    // editors_choice restricts results to Pixabay's small curated pool, so
+    // unrelated searches keep landing on the same handful of photos — a big
+    // part of why every generated site looked alike.
     url.searchParams.set('lang', 'en')
 
     const controller = new AbortController()
@@ -1783,12 +1870,39 @@ async function fetchStockImagesForPrompt(
   const pixabayKey = process.env.PIXABAY_API_KEY
   const pexelsKey = process.env.PEXELS_API_KEY
 
-  // Keep query focused — search engines work best on short subject phrases
-  const query = prompt.replace(/\s+/g, ' ').trim().slice(0, 80).split(/[.,!?]/)[0].trim() || 'website'
-
   type Photo = { url: string }
   let photos: Photo[] = []
   let provider = ''
+
+  // Per-slot, industry-aware image sourcing. lib/smart-image-service already
+  // owns this — INDUSTRY_SEARCH_TERMS gives a distinct search phrase per slot
+  // (hero / product / team / feature / gallery / background) per industry, plus
+  // cuisine sub-typing. It was written and never wired to anything.
+  //
+  // What ran instead: `prompt.slice(0,80).split(/[.,!?]/)[0]` — the user's first
+  // sentence thrown at Pixabay verbatim, one query reused for every slot. Photo
+  // APIs match sentences badly, misses fell through to a single generic pool,
+  // and a welder, a dentist and a maid service came out with the same pictures.
+  const industry = detectIndustry(prompt)
+  try {
+    const pack = await getIndustryImagePack(industry, prompt)
+    // Slot order mirrors the marker roles assigned below: HERO, SHOWCASE, then
+    // FEATURE_n. Deduped so two slots can't land on the same photo.
+    const ordered = [
+      ...(pack.hero || []).slice(0, 1),
+      ...(pack.gallery || []).slice(0, 1),
+      ...(pack.feature || []),
+      ...(pack.product || []),
+      ...(pack.background || []),
+    ]
+    photos = [...new Set(ordered)].slice(0, count).map(url => ({ url }))
+    if (photos.length) provider = `Pixabay (${industry} pack)`
+  } catch (e: any) {
+    console.warn('[Generate] industry image pack failed:', e?.message || e)
+  }
+
+  // Fallback subject if the pack came back empty (no Pixabay key, or a miss).
+  const query = prompt.replace(/\s+/g, ' ').trim().slice(0, 80).split(/[.,!?]/)[0].trim() || 'website'
 
   // Keyless fallback. With no Pixabay/Pexels key (or on any failure) the markers
   // MUST still resolve to real images — otherwise {{STOCK_*}} ships literally into
@@ -1800,16 +1914,25 @@ async function fetchStockImagesForPrompt(
   const VARIETY = ['', 'closeup', 'interior', 'detail', 'lifestyle', 'background', 'scene', 'wide']
   const mediaFallback = (): Photo[] =>
     Array.from({ length: count }, (_, i) => ({
-      url: `${SITE_ORIGIN}/api/media?q=${encodeURIComponent((query + ' ' + (VARIETY[i] || '')).trim())}&w=1200&h=800`,
+      // One query per slot from the plan, so the fallback is as varied as the
+      // happy path. VARIETY only kicks in if the plan ran short.
+      url: `${SITE_ORIGIN}/api/media?q=${encodeURIComponent(
+        `${query} ${VARIETY[i] || ''}`.trim(),
+      )}&w=1200&h=800`,
     }))
 
   try {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 5000)
 
-    if (pixabayKey) {
+    if (photos.length > 0) {
+      // Industry pack already filled every slot — skip the blunt single-query
+      // search entirely.
+    } else if (pixabayKey) {
       const res = await fetch(
-        `https://pixabay.com/api/?key=${pixabayKey}&q=${encodeURIComponent(query)}&per_page=${Math.max(count, 3)}&image_type=photo&orientation=horizontal&safesearch=true&editors_choice=true`,
+        // NO editors_choice: it restricts results to a small curated pool, so
+        // unrelated queries kept resolving to the same handful of photos.
+        `https://pixabay.com/api/?key=${pixabayKey}&q=${encodeURIComponent(query)}&per_page=${Math.max(count, 3)}&image_type=photo&orientation=horizontal&safesearch=true`,
         { signal: controller.signal }
       )
       clearTimeout(timeout)
