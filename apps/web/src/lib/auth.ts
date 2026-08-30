@@ -107,6 +107,11 @@ if (ghId && ghSecret) {
     GitHubProvider({
       clientId: ghId,
       clientSecret: ghSecret,
+      // `repo` is what makes "Connect GitHub" mean something: without it the
+      // token NextAuth hands back can only read a profile, so importing a
+      // private repo, creating a repo and pushing commits all 403. Signing in
+      // IS connecting — one consent screen, not a PAT scavenger hunt.
+      authorization: { params: { scope: 'read:user user:email repo' } },
     })
   )
 }
@@ -223,6 +228,18 @@ export const authOptions: NextAuthOptions = {
       // Store GitHub access token when signing in with GitHub
       if (account?.provider === 'github' && account.access_token) {
         token.githubAccessToken = account.access_token
+        // Also persist it (encrypted) as the user's `github` credential, so
+        // server work that has no session — the push webhook, a background
+        // pull — can act as them. Best-effort: a storage failure must never
+        // block a login, the JWT copy above still carries this session.
+        if (token.id) {
+          try {
+            const { upsertUserCredential } = await import('@/lib/credentials-store')
+            await upsertUserCredential(String(token.id), 'github', account.access_token, true)
+          } catch (e) {
+            console.warn('[auth] could not persist GitHub token:', (e as Error)?.message)
+          }
+        }
       }
       return token
     },

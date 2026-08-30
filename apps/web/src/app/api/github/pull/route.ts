@@ -1,4 +1,4 @@
-// POST /api/github/pull { projectId, repoUrl? } — pull the linked repo's files
+// POST /api/github/pull { projectId, repoUrl?, preview? } — pull the linked repo's files
 // back into the project (the GitHub → Webstew half of two-way sync). Owner or
 // editor may pull. Resolves the repo from the stored link, an explicit
 // repoUrl, or the project's deploy metadata.
@@ -8,8 +8,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { connectDB } from '@/lib/db'
 import { resolveProjectAccess, canEdit } from '@/lib/project-access'
-import { getUserCredential } from '@/lib/credentials-store'
-import { parseOwnerRepo, pullRepoIntoProject } from '@/lib/github-sync'
+import { resolveGithubToken } from '@/lib/github-token'
+import { parseOwnerRepo, pullRepoIntoProject, previewPull } from '@/lib/github-sync'
 import { getLink } from '@/lib/github-links'
 
 export const dynamic = 'force-dynamic'
@@ -41,12 +41,23 @@ export async function POST(req: NextRequest) {
     owner = parsed.owner; repo = parsed.repo
   }
 
-  // Token: link owner's stored credential → platform env. Public repos work
-  // unauthenticated too (lower rate limit).
-  const token = (await getUserCredential(session.user.id, 'github')) || process.env.GITHUB_ACCESS_TOKEN || null
+  // The caller's own token. Public repos still work unauthenticated (lower
+  // rate limit); private ones need GitHub connected.
+  const token = await resolveGithubToken(session.user.id, (session.user as any).githubAccessToken)
+
+  const args = { projectId, owner: owner!, repo: repo!, branch, token }
 
   try {
-    const result = await pullRepoIntoProject(db, { projectId, owner: owner!, repo: repo!, branch, token })
+    // A pull REPLACES the project's files. When the caller asks for a preview
+    // we compute the diff and write nothing, so the UI can warn about local
+    // work that's about to be overwritten or dropped instead of finding out
+    // afterwards. `confirm: true` skips straight to the write.
+    if (body?.preview) {
+      const diff = await previewPull(db, args)
+      const destructive = diff.changed.length + diff.removed.length > 0
+      return NextResponse.json({ ok: true, preview: true, repo: `${owner}/${repo}`, destructive, ...diff })
+    }
+    const result = await pullRepoIntoProject(db, args)
     return NextResponse.json({ ok: true, repo: `${owner}/${repo}`, ...result })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'Pull failed' }, { status: 502 })

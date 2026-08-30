@@ -185,3 +185,39 @@ export function buildProjectFiles(opts: {
   if (chat) files.push(chat)
   return files
 }
+
+// Map workspace state onto the paths a REPO should carry. Different from
+// buildProjectFiles (which serializes for our own storage): no `_webstew_*`
+// sidecars, and multi-page websites become real `<slug>.html` files instead of
+// a JSON blob — the same shape pagesFromHtmlFiles reads back, so a repo we
+// pushed re-imports cleanly.
+//
+// `.env*` never goes to a repo: that's how someone's API keys end up public.
+export function buildRepoFiles(opts: {
+  html: string
+  vfsFiles: Record<string, string>
+  pages: PageLike[]
+  buildTarget: string
+}): FileEntry[] {
+  const { html, vfsFiles, pages, buildTarget } = opts
+  const isMulti = buildTarget !== 'website' && Object.keys(vfsFiles).length > 0
+
+  const out: FileEntry[] = isMulti
+    ? Object.entries(vfsFiles).map(([path, content]) => ({ path, content, type: 'other' }))
+    : (() => {
+        const home = pages.find(p => p.isHome) || pages[0]
+        const files: FileEntry[] = [{ path: 'index.html', content: html || home?.html || '', type: 'html' }]
+        for (const p of pages) {
+          if (p.isHome || p.slug === 'index') continue
+          files.push({ path: `${p.slug}.html`, content: p.html, type: 'html' })
+        }
+        return files
+      })()
+
+  return out.filter(
+    f => f.path &&
+      !f.path.startsWith('_webstew_') &&
+      !/(^|\/)\.env(\.|$)/i.test(f.path) &&
+      typeof f.content === 'string',
+  )
+}

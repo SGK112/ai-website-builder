@@ -10,6 +10,9 @@ import {
   Database,
   Share2,
   Github,
+  ArrowUpFromLine,
+  ArrowDownToLine,
+  Link2,
   Globe,
   Download,
   Send,
@@ -81,6 +84,12 @@ interface ShipPanelProps {
   // GitHub two-way sync
   isPullingGit: boolean
   onPullFromGitHub: () => void
+  gitLink: { owner: string; repo: string; branch: string; fullName: string } | null
+  isPushingGit: boolean
+  onPushToGitHub: () => void
+  onConnectRepo: () => void
+  commitMessage: string
+  onCommitMessageChange: (value: string) => void
   // Domains
   domainQuery: string
   onDomainQueryChange: (value: string) => void
@@ -167,6 +176,7 @@ export function ShipPanel(props: ShipPanelProps) {
     isProvisioningBackend, onProvisionBackend, backendInfo,
     projectId, onOpenCollab, onOpenShareModal, onOpenPublishModal,
     isPullingGit, onPullFromGitHub,
+    gitLink, isPushingGit, onPushToGitHub, onConnectRepo, commitMessage, onCommitMessageChange,
     domainQuery, onDomainQueryChange, onSearchDomain, isSearchingDomain,
     domainSearched, domainResults, onBuyDomain,
     ownDomainInput, onOwnDomainInputChange, onConnectOwnedDomain, isConnectingDomain, connectedDomain,
@@ -406,22 +416,86 @@ export function ShipPanel(props: ShipPanelProps) {
           </div>
         </button>
 
-        {/* Pull from GitHub — two-way sync (edits on GitHub → here) */}
+        {/* GitHub — the round trip: clone → edit here → commit → push. */}
         {showGitPull && (
-        <button
-          onClick={onPullFromGitHub}
-          disabled={isPullingGit}
-          title="Sync changes made on GitHub back into this project"
-          className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left",
-            isPullingGit ? "opacity-60 cursor-not-allowed" : "",
-            isDark ? "bg-white/[0.02] border-white/[0.07] hover:bg-white/[0.05]" : "bg-white border-slate-200 hover:bg-slate-50")}
-        >
-          {isPullingGit ? <Loader2 className="w-5 h-5 animate-spin text-zinc-400" /> : <Github className={cn("w-5 h-5", isDark ? "text-zinc-300" : "text-slate-700")} />}
-          <div className="flex-1">
-            <div className={cn("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>Pull from GitHub</div>
-            <div className={cn("text-[10px]", isDark ? "text-zinc-500" : "text-slate-500")}>{isPullingGit ? 'Syncing…' : 'Two-way sync — bring GitHub edits back into this project'}</div>
+        <div className={cn("p-3 rounded-xl border space-y-2.5", isDark ? "bg-white/[0.02] border-white/[0.07]" : "bg-white border-slate-200")}>
+          <div className={cn("flex items-center gap-2 text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>
+            <Github className={cn("w-4 h-4", isDark ? "text-zinc-300" : "text-slate-700")} />
+            GitHub
+            {gitLink && (
+              <a
+                href={`https://github.com/${gitLink.fullName}/tree/${gitLink.branch}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn("ml-auto text-[10px] truncate max-w-[55%] hover:underline", isDark ? "text-zinc-400" : "text-slate-500")}
+                title={`${gitLink.fullName} · ${gitLink.branch}`}
+              >
+                {gitLink.fullName} · {gitLink.branch}
+              </a>
+            )}
           </div>
-        </button>
+
+          {gitLink ? (
+            <>
+              <input
+                type="text"
+                value={commitMessage}
+                onChange={(e) => onCommitMessageChange(e.target.value)}
+                placeholder="Commit message (optional)"
+                className={cn(
+                  "w-full px-2.5 py-1.5 rounded-lg text-xs focus:outline-none focus:border-violet-500/50",
+                  isDark
+                    ? "bg-black/30 border border-white/10 text-white placeholder:text-zinc-600"
+                    : "bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400"
+                )}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={onPushToGitHub}
+                  disabled={isPushingGit || isPullingGit}
+                  title={`Commit and push to ${gitLink.fullName}`}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all",
+                    isPushingGit || isPullingGit
+                      ? "opacity-60 cursor-not-allowed bg-violet-600/60 text-white"
+                      : "bg-violet-600 hover:bg-violet-500 text-white"
+                  )}
+                >
+                  {isPushingGit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowUpFromLine className="w-3.5 h-3.5" />}
+                  {isPushingGit ? 'Pushing…' : 'Commit & push'}
+                </button>
+                <button
+                  onClick={onPullFromGitHub}
+                  disabled={isPullingGit || isPushingGit}
+                  title="Bring changes made on GitHub back into this project"
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition-all",
+                    isPullingGit || isPushingGit ? "opacity-60 cursor-not-allowed" : "",
+                    isDark ? "bg-white/[0.03] border-white/[0.08] text-white hover:bg-white/[0.06]" : "bg-white border-slate-200 text-slate-800 hover:bg-slate-50"
+                  )}
+                >
+                  {isPullingGit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowDownToLine className="w-3.5 h-3.5" />}
+                  {isPullingGit ? 'Pulling…' : 'Pull'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className={cn("text-[10px]", isDark ? "text-zinc-500" : "text-slate-500")}>
+                Link a repo to push your edits back to it — and pull changes made on GitHub.
+              </p>
+              <button
+                onClick={onConnectRepo}
+                className={cn(
+                  "w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition-all",
+                  isDark ? "bg-white/[0.03] border-white/[0.08] text-white hover:bg-white/[0.06]" : "bg-white border-slate-200 text-slate-800 hover:bg-slate-50"
+                )}
+              >
+                <Link2 className="w-3.5 h-3.5" /> Connect a repository
+              </button>
+            </>
+          )}
+        </div>
         )}
 
         {/* Buy a domain — search availability, buy via Stripe, auto-DNS */}
@@ -543,10 +617,10 @@ export function ShipPanel(props: ShipPanelProps) {
         {showAdvanced && (<>
         <button
           onClick={onDeployToGitHub}
-          disabled={isDeploying || !html.trim()}
+          disabled={isDeploying || (!html.trim() && !hasVfsFiles)}
           className={cn(
             "w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left group",
-            isDeploying || !html.trim()
+            isDeploying || (!html.trim() && !hasVfsFiles)
               ? isDark ? "bg-white/[0.02] border-white/[0.05] opacity-50 cursor-not-allowed" : "bg-slate-100 border-slate-200 opacity-50 cursor-not-allowed"
               : isDark ? "bg-white/[0.03] border-white/[0.08] hover:bg-white/[0.05]" : "bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300"
           )}
@@ -557,9 +631,9 @@ export function ShipPanel(props: ShipPanelProps) {
             <Github className={cn("w-5 h-5", isDark ? "text-zinc-400 group-hover:text-white" : "text-slate-500 group-hover:text-slate-900")} />
           )}
           <div className="flex-1">
-            <div className={cn("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>Push to GitHub</div>
+            <div className={cn("text-sm font-medium", isDark ? "text-white" : "text-slate-800")}>New GitHub repository</div>
             <div className={cn("text-[10px]", isDark ? "text-zinc-600" : "text-slate-500")}>
-              {isDeploying && deployStatus === 'github' ? 'Creating repository...' : 'Create repository'}
+              {isDeploying && deployStatus === 'github' ? 'Creating repository...' : 'Create a private repo from this project and link it'}
             </div>
           </div>
         </button>

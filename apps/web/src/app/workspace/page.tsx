@@ -171,6 +171,9 @@ import { ContentPanel } from '@/components/builder/ContentPanel'
 import { ShipPanel } from './components/ShipPanel'
 import { ProjectList } from './components/ProjectList'
 import { NewProjectChooser } from './components/NewProjectChooser'
+import { GithubRepoPicker } from './components/GithubRepoPicker'
+import { GithubPullConfirm } from './components/GithubPullConfirm'
+import { useGithubRepo } from './hooks/useGithubRepo'
 import { useElementActions } from './hooks/useElementActions'
 import { MobileToolCarousel } from './components/MobileToolCarousel'
 import { MobileChatRail } from './components/MobileChatRail'
@@ -188,7 +191,7 @@ import { ImageResultOverlay, ImageMiniChip } from './components/ImageResultOverl
 import { MobileAccountMenu } from './components/MobileAccountMenu'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import type { ImportedProject } from '@/lib/import-project'
-import { buildProjectFiles, chatSidecarFile, parseStoredProjectFiles } from '@/lib/project-sidecars'
+import { buildProjectFiles, buildRepoFiles, chatSidecarFile, parseStoredProjectFiles } from '@/lib/project-sidecars'
 import { WhatsNextCoach } from './components/WhatsNextCoach'
 import { EnvPanel } from './components/EnvPanel'
 import { ConsolePanel } from './components/ConsolePanel'
@@ -2348,7 +2351,6 @@ function WorkspaceContent() {
 
   const [shareModalOpen, setShareModalOpen] = useState(false)
   const [collabModalOpen, setCollabModalOpen] = useState(false)
-  const [isPullingGit, setIsPullingGit] = useState(false)
   // Share preview state — anon-friendly /preview/<token> link (7-day TTL).
   // Skips the GitHub+Render bake; serves the snapshot from Mongo with a
   // Webstew-branded footer so every share is also a referral surface.
@@ -4277,33 +4279,22 @@ function WorkspaceContent() {
     }
   }
 
-  // Pull from GitHub — the GitHub→Webstew half of two-way sync. Fetches the
-  // linked (or deployed) repo's files back into the project and reloads the
-  // workspace from the refreshed record. Auto-sync on push is wired via
-  // /api/github/connect + the webhook; this is the manual pull.
-  const pullFromGitHub = async () => {
-    if (!currentProject?.id) { addToast('error', 'Save & deploy to GitHub first, then you can pull changes back'); return }
-    setIsPullingGit(true)
-    try {
-      addTerminalLine('info', '⬇️ Pulling latest from GitHub…')
-      const res = await fetch('/api/github/pull', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: currentProject.id }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Pull failed')
-      addTerminalLine('success', `✅ Synced ${data.count} file${data.count === 1 ? '' : 's'} from ${data.repo}`)
-      addToast('success', `Pulled ${data.count} file${data.count === 1 ? '' : 's'} from GitHub`)
-      // Reload the workspace from the freshly-pulled project (force the detail
-      // refetch by blanking the in-memory file state first).
-      await loadProject({ ...currentProject, html: '', vfsFiles: {} } as any)
-    } catch (e: any) {
-      addToast('error', e?.message || 'Pull failed')
-      addTerminalLine('error', `❌ ${e?.message || 'GitHub pull failed'}`)
-    } finally {
-      setIsPullingGit(false)
-    }
-  }
+  // GitHub round trip (clone → edit → commit → push) lives in the hook; this
+  // page only supplies the current file set and the post-pull reload.
+  const [repoPickerOpen, setRepoPickerOpen] = useState(false)
+  const github = useGithubRepo({
+    projectId: currentProject?.id || null,
+    signedIn: !!session?.user,
+    addToast,
+    addTerminalLine,
+    getRepoFiles: () => buildRepoFiles({ html, vfsFiles, pages, buildTarget }),
+    onPulled: async () => {
+      // Reload from the freshly-pulled project (force the detail refetch by
+      // blanking the in-memory file state first).
+      if (currentProject) await loadProject({ ...currentProject, html: '', vfsFiles: {} } as any)
+    },
+    onNeedsGithub: () => setSignupNudge({ show: true, reason: 'deploy-github' }),
+  })
 
   // Owl self-heal for the interactive edit path. The one-shot generate route
   // already validates+repairs server-side, but agent edits didn't — so a bad
@@ -4451,9 +4442,9 @@ ${body}
       setSignupNudge({ show: true, reason: 'deploy-github' })
       return
     }
-    if (!html.trim()) {
+    if (!html.trim() && Object.keys(vfsFiles).length === 0) {
       addTerminalLine('error', 'Nothing to deploy yet — build a site first.')
-      addConsoleLog('error', 'Deploy failed: No HTML content')
+      addConsoleLog('error', 'Deploy failed: no files in this project')
       return
     }
 
@@ -4472,13 +4463,16 @@ ${body}
       const response = await fetch('/api/deploy/github', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        // The whole project, not just index.html — a multi-page site or a
+        // framework app used to arrive at GitHub as a single file.
         body: JSON.stringify({
           files: [
-            { path: 'index.html', content: html },
-            { path: 'README.md', content: `# ${projectName}\n\nBuilt with Webstew (https://webstew.net)` }
+            ...buildRepoFiles({ html, vfsFiles, pages, buildTarget }),
+            { path: 'README.md', content: `# ${projectName}\n\nBuilt with Webstew (https://webstew.net)` },
           ],
           repoName: `${repoName}-${Date.now().toString(36)}`,
-          isPrivate: false,
+          isPrivate: true,
+          projectId: currentProject?.id || undefined,
         }),
       })
 
@@ -4490,6 +4484,8 @@ ${body}
 
       addTerminalLine('success', `✅ GitHub repo created: ${data.repoUrl}`)
       addConsoleLog('success', `Repository created: ${data.repoUrl}`)
+      // It's linked now — refresh so the panel switches to commit & push.
+      github.refreshLink()
       setDeployUrl(data.repoUrl)
       setDeployStatus('success')
     } catch (error: any) {
@@ -8796,6 +8792,29 @@ npx eas build --platform all
         onClose={() => setShowNewProjectChooser(false)}
         onStartNew={newProject}
         onImported={importProject}
+        onRepoImported={github.linkAfterImport}
+      />
+
+      {/* Link an existing repo to this project (Ship panel → Connect a repository) */}
+      <GithubRepoPicker
+        isDark={isDark}
+        open={repoPickerOpen}
+        busy={github.isLinking}
+        title="Link a repository"
+        confirmLabel="Link this repo"
+        onClose={() => setRepoPickerOpen(false)}
+        onPick={async (repoUrl, branch) => {
+          if (await github.connectRepo(repoUrl, branch)) setRepoPickerOpen(false)
+        }}
+      />
+
+      {/* "Pulling will overwrite these files" — shown only when it actually would */}
+      <GithubPullConfirm
+        isDark={isDark}
+        busy={github.isPulling}
+        diff={github.pullDiff}
+        onConfirm={github.confirmPull}
+        onCancel={github.cancelPull}
       />
 
       {/* Credit wall modal — shown when /api/builder/generate or /converse hits 402 */}
@@ -9489,8 +9508,14 @@ npx eas build --platform all
                 onOpenCollab={() => setCollabModalOpen(true)}
                 onOpenShareModal={() => setShareModalOpen(true)}
                 onOpenPublishModal={() => setShowPublishModal(true)}
-                isPullingGit={isPullingGit}
-                onPullFromGitHub={pullFromGitHub}
+                isPullingGit={github.isPulling}
+                onPullFromGitHub={github.pull}
+                gitLink={github.link}
+                isPushingGit={github.isPushing}
+                onPushToGitHub={github.push}
+                onConnectRepo={() => setRepoPickerOpen(true)}
+                commitMessage={github.commitMessage}
+                onCommitMessageChange={github.setCommitMessage}
                 domainQuery={domainQuery}
                 onDomainQueryChange={setDomainQuery}
                 onSearchDomain={searchDomain}

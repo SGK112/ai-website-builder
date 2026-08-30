@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, FilePlus2, Upload, Loader2, Github } from 'lucide-react'
+import { GithubRepoPicker } from './GithubRepoPicker'
 import { cn } from '@/lib/utils'
 import { parseProjectZip, type ImportedProject } from '@/lib/import-project'
 import { useModalA11y } from '@/hooks/useModalA11y'
@@ -13,22 +14,24 @@ interface Props {
   onClose: () => void
   onStartNew: () => void
   onImported: (project: ImportedProject) => void
+  // Called with the repo an import came from, so the new project can be linked
+  // to it (pull/push/webhook all need a link to exist).
+  onRepoImported?: (repoUrl: string, branch: string) => void
 }
 
 // The "+New" chooser: start a blank project, or import an existing one (a .zip
 // today; GitHub is wired as "coming soon" so the path is visible). Keeps the
 // import logic (unzip + map) in lib/import-project so this stays presentational.
-export function NewProjectChooser({ isDark, open, onClose, onStartNew, onImported }: Props) {
+export function NewProjectChooser({ isDark, open, onClose, onStartNew, onImported, onRepoImported }: Props) {
   const zipInputRef = useRef<HTMLInputElement>(null)
   const panelRef = useModalA11y<HTMLDivElement>(open, () => { if (!busy) onClose() })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [ghMode, setGhMode] = useState(false)
-  const [repoUrl, setRepoUrl] = useState('')
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   // Reset transient state each time the chooser closes.
   useEffect(() => {
-    if (!open) { setGhMode(false); setRepoUrl(''); setError(null); setBusy(false) }
+    if (!open) { setPickerOpen(false); setError(null); setBusy(false) }
   }, [open])
 
   const handleZip = async (file: File | undefined) => {
@@ -45,7 +48,7 @@ export function NewProjectChooser({ isDark, open, onClose, onStartNew, onImporte
     }
   }
 
-  const handleGithub = async () => {
+  const handleGithub = async (repoUrl: string, branch: string) => {
     if (!repoUrl.trim()) return
     setBusy(true)
     setError(null)
@@ -53,11 +56,14 @@ export function NewProjectChooser({ isDark, open, onClose, onStartNew, onImporte
       const res = await fetch('/api/projects/import-github', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repoUrl: repoUrl.trim() }),
+        body: JSON.stringify({ repoUrl: repoUrl.trim(), branch: branch || undefined }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || 'Import failed')
       onImported(data.project)
+      // Remember where it came from so the clone stays connected to its repo.
+      if (data.repo) onRepoImported?.(`https://github.com/${data.repo.fullName}`, data.repo.branch)
+      setPickerOpen(false)
       onClose()
     } catch (e: any) {
       setError(e?.message || 'Could not import that repo.')
@@ -125,38 +131,16 @@ export function NewProjectChooser({ isDark, open, onClose, onStartNew, onImporte
                 </div>
               </button>
 
-              <button className={optionClass} disabled={busy} onClick={() => { setGhMode(v => !v); setError(null) }}>
+              <button className={optionClass} disabled={busy} onClick={() => { setPickerOpen(true); setError(null) }}>
                 <div className={cn('mt-0.5 p-2 rounded-lg', isDark ? 'bg-white/5 text-zinc-300' : 'bg-slate-100 text-slate-700')}>
                   <Github className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className="text-sm font-medium">Import from GitHub</div>
-                  <div className={cn('text-xs mt-0.5', isDark ? 'text-zinc-400' : 'text-slate-500')}>Pull a public repo by URL. Private repos need GitHub connected.</div>
+                  <div className="text-sm font-medium">Clone from GitHub</div>
+                  <div className={cn('text-xs mt-0.5', isDark ? 'text-zinc-400' : 'text-slate-500')}>Pick one of your repos, edit it here, push your commits back.</div>
                 </div>
               </button>
 
-              {ghMode && (
-                <div className="flex gap-2 pl-1">
-                  <input
-                    autoFocus
-                    value={repoUrl}
-                    onChange={(e) => setRepoUrl(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !busy) handleGithub() }}
-                    placeholder="github.com/owner/repo"
-                    className={cn(
-                      'flex-1 min-w-0 px-3 py-2 rounded-lg text-sm border outline-none',
-                      isDark ? 'bg-black/30 border-white/10 text-white placeholder:text-zinc-500 focus:border-violet-500/50' : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-violet-400',
-                    )}
-                  />
-                  <button
-                    onClick={handleGithub}
-                    disabled={busy || !repoUrl.trim()}
-                    className="px-3 py-2 rounded-lg text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-50 shrink-0"
-                  >
-                    {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Import'}
-                  </button>
-                </div>
-              )}
             </div>
 
             {error && <p className="mt-3 text-xs text-red-500">{error}</p>}
@@ -167,6 +151,16 @@ export function NewProjectChooser({ isDark, open, onClose, onStartNew, onImporte
               accept=".zip,application/zip"
               className="hidden"
               onChange={(e) => { handleZip(e.target.files?.[0]); e.target.value = '' }}
+            />
+
+            <GithubRepoPicker
+              isDark={isDark}
+              open={pickerOpen}
+              busy={busy}
+              title="Clone a repository"
+              confirmLabel="Clone into Webstew"
+              onClose={() => setPickerOpen(false)}
+              onPick={handleGithub}
             />
           </motion.div>
         </motion.div>

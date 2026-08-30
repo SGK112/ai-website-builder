@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/db'
 import { getLinkByRepo, verifyWebhookSignature } from '@/lib/github-links'
-import { getUserCredential } from '@/lib/credentials-store'
+import { resolveGithubToken } from '@/lib/github-token'
 import { pullRepoIntoProject } from '@/lib/github-sync'
 
 export const dynamic = 'force-dynamic'
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
   const db = mongoose.connection.db
   if (!db) return NextResponse.json({ error: 'DB not connected' }, { status: 500 })
 
-  const token = (await getUserCredential(link.userId, 'github')) || process.env.GITHUB_ACCESS_TOKEN || null
+  const token = await resolveGithubToken(link.userId)
   try {
     const result = await pullRepoIntoProject(db, { projectId: link.projectId, owner, repo, branch: link.branch || branch, token })
     return NextResponse.json({ ok: true, synced: result.count })

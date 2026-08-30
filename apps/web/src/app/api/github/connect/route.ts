@@ -13,8 +13,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { connectDB } from '@/lib/db'
 import { resolveProjectAccess } from '@/lib/project-access'
-import { getUserCredential } from '@/lib/credentials-store'
-import { parseOwnerRepo } from '@/lib/github-sync'
+import { resolveGithubToken } from '@/lib/github-token'
+import { parseOwnerRepo, getDefaultBranch } from '@/lib/github-sync'
 import { getLink, upsertLink, genWebhookSecret } from '@/lib/github-links'
 
 export const dynamic = 'force-dynamic'
@@ -26,7 +26,11 @@ function callbackUrl(req: NextRequest): string | null {
   return `${base.replace(/\/$/, '')}/api/github/webhook`
 }
 
-async function ownerGate(req: NextRequest, projectId: string) {
+// `owner` gates CHANGING the link (it registers a webhook on someone's repo);
+// reading it only needs project access — an editor has to see which repo they
+// are pushing to, and returning nothing left the panel stuck on "connect a
+// repo" for every collaborator. No secret is exposed either way.
+async function projectGate(req: NextRequest, projectId: string, requireOwner: boolean) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return { err: NextResponse.json({ error: 'Authentication required' }, { status: 401 }) }
   const mongoose = await connectDB()
@@ -34,13 +38,15 @@ async function ownerGate(req: NextRequest, projectId: string) {
   if (!db) return { err: NextResponse.json({ error: 'DB not connected' }, { status: 500 }) }
   const { project, role } = await resolveProjectAccess(db, projectId, session.user.id, session.user.email)
   if (!project) return { err: NextResponse.json({ error: 'Project not found' }, { status: 404 }) }
-  if (role !== 'owner') return { err: NextResponse.json({ error: 'Only the owner can connect a repo.' }, { status: 403 }) }
+  if (requireOwner && role !== 'owner') {
+    return { err: NextResponse.json({ error: 'Only the owner can connect a repo.' }, { status: 403 }) }
+  }
   return { session, db, project }
 }
 
 export async function GET(req: NextRequest) {
   const projectId = req.nextUrl.searchParams.get('projectId') || ''
-  const g = await ownerGate(req, projectId)
+  const g = await projectGate(req, projectId, false)
   if ('err' in g) return g.err
   const link = await getLink(projectId)
   return NextResponse.json({
@@ -55,18 +61,22 @@ export async function POST(req: NextRequest) {
   const projectId = String(body?.projectId || '')
   if (!projectId) return NextResponse.json({ error: 'projectId required' }, { status: 400 })
 
-  const g = await ownerGate(req, projectId)
+  const g = await projectGate(req, projectId, true)
   if ('err' in g) return g.err
   const { session, project } = g
 
   const repoUrl = String(body?.repoUrl || project?.deployment?.repoUrl || project?.repositoryUrl || '')
   const parsed = parseOwnerRepo(repoUrl)
   if (!parsed) return NextResponse.json({ error: 'Provide a GitHub repo URL (or deploy to GitHub first).' }, { status: 400 })
-  const branch = String(body?.branch || 'main')
-
   const existing = await getLink(projectId)
   const secret = existing?.secret || genWebhookSecret()
-  const token = (await getUserCredential(session.user.id, 'github')) || process.env.GITHUB_ACCESS_TOKEN || null
+  const token = await resolveGithubToken(session.user.id, (session.user as any).githubAccessToken)
+  // Hardcoding 'main' silently linked the wrong branch on any repo that still
+  // uses master (or a default like `develop`) — pushes then went nowhere the
+  // user was looking. Ask GitHub what the default actually is.
+  const branch = String(
+    body?.branch || existing?.branch || (await getDefaultBranch(parsed.owner, parsed.repo, token)),
+  )
   const hookUrl = callbackUrl(req)
 
   let webhookId: number | null = existing?.webhookId ?? null

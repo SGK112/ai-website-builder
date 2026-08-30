@@ -3,11 +3,16 @@ import { getApiSession } from '@/lib/api-auth'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
 import { injectPublishedCms } from '@/lib/cms-publish'
 import { getUserCredential } from '@/lib/credentials-store'
+import { resolveGithubToken } from '@/lib/github-token'
 
 // Env defaults — used only when the user hasn't stored their own credentials.
 // BYO keys take precedence so multiple users can deploy to their own accounts.
 const ENV_RENDER_API_KEY = process.env.RENDER_API_KEY
-const ENV_GITHUB_TOKEN = process.env.GITHUB_ACCESS_TOKEN
+// NOTE: there is deliberately no platform GitHub-token fallback here. Falling
+// back to `process.env.GITHUB_ACCESS_TOKEN` meant every user's deploy created
+// a repo on WEBSTEW's GitHub account (and could read anything that account can
+// see). /api/deploy/github was already fixed for exactly this; this route kept
+// the hole. Users deploy as themselves or not at all.
 
 interface ProjectFile {
   path: string
@@ -72,7 +77,7 @@ export async function POST(req: NextRequest) {
     // Resolve credentials — BYO first, env fallback. This is what makes
     // multi-tenant deploys possible: each user's deploy lands in *their*
     // GitHub + Render accounts.
-    const githubToken = (await getUserCredential(session.user.id, 'github')) || ENV_GITHUB_TOKEN
+    const githubToken = await resolveGithubToken(session.user.id, (session.user as any).githubAccessToken)
     // Platform hosts in the cloud on Render by default (that's the product) —
     // BYO key just lets a user deploy into their own Render account instead.
     const userRenderKey = await getUserCredential(session.user.id, 'render')
@@ -83,8 +88,9 @@ export async function POST(req: NextRequest) {
     const usingPlatformRender = !userRenderKey && !!ENV_RENDER_API_KEY
     if (!githubToken) {
       return NextResponse.json({
-        error: 'No GitHub token. Add one in Profile → Deploy credentials, or set GITHUB_ACCESS_TOKEN in the environment.',
+        error: 'Connect your GitHub account to deploy — sign in with GitHub, or add a token in Profile → Deploy credentials.',
         needsCredential: 'github',
+        needsGithub: true,
       }, { status: 400 })
     }
     if (!renderKey) {

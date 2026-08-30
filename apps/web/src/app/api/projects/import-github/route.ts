@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getUserCredential } from '@/lib/credentials-store'
+import { resolveGithubToken } from '@/lib/github-token'
 import { parseOwnerRepo, fetchRepoFiles } from '@/lib/github-sync'
 import { buildProjectFromFiles } from '@/lib/import-project'
 
@@ -28,14 +28,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Enter a repo URL like github.com/owner/repo' }, { status: 400 })
   }
 
-  const token =
-    (await getUserCredential(session.user.id, 'github')) ||
-    (session.user as any).githubAccessToken ||
-    process.env.GITHUB_ACCESS_TOKEN ||
-    null
+  // The user's own token only — never the platform's. Null is fine here:
+  // public repos import unauthenticated.
+  const token = await resolveGithubToken(session.user.id, (session.user as any).githubAccessToken)
 
   try {
-    const { files, skipped } = await fetchRepoFiles({
+    const { files, skipped, branch } = await fetchRepoFiles({
       owner: parsed.owner,
       repo: parsed.repo,
       branch: body?.branch ? String(body.branch) : undefined,
@@ -47,7 +45,14 @@ export async function POST(req: NextRequest) {
     const map: Record<string, string> = {}
     for (const f of files) map[f.path] = f.content
     const project = buildProjectFromFiles(parsed.repo.replace(/[-_]/g, ' '), map)
-    return NextResponse.json({ project, skipped })
+    // Hand back the repo coordinates so the client can link the project to it
+    // once the import has a saved project id — otherwise a cloned repo has no
+    // link and Pull/Push both answer "no linked repo".
+    return NextResponse.json({
+      project,
+      skipped,
+      repo: { owner: parsed.owner, repo: parsed.repo, branch, fullName: `${parsed.owner}/${parsed.repo}` },
+    })
   } catch (e: any) {
     const msg = String(e?.message || 'Import failed')
     const is404 = /\b404\b/.test(msg)
@@ -55,9 +60,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error: is404
-          ? "Repo not found. Check the URL — private repos need GitHub connected (Plugins → GitHub)."
+          ? "Repo not found. Check the URL — private repos need GitHub connected (sign in with GitHub, or add a token in Profile → Deploy credentials)."
           : isAuth
-            ? "GitHub blocked the request (private repo or rate limit). Connect GitHub under Plugins and try again."
+            ? "GitHub blocked the request (private repo or rate limit). Connect GitHub and try again."
             : msg,
       },
       { status: is404 ? 404 : isAuth ? 403 : 502 },

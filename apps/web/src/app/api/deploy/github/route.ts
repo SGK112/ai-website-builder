@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { checkApiRateLimit, handleRateLimitError } from '@/lib/rate-limit-middleware'
+import { requireGithubToken } from '@/lib/github-token'
+import { upsertLink, genWebhookSecret, getLink } from '@/lib/github-links'
 
 interface ProjectFile {
   path: string
@@ -27,7 +29,7 @@ export async function POST(req: NextRequest) {
       throw error
     }
 
-    const { files, repoName, isPrivate } = await req.json()
+    const { files, repoName, isPrivate, projectId } = await req.json()
 
     if (!files || !repoName) {
       return NextResponse.json(
@@ -36,13 +38,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const githubToken = session.user.githubAccessToken
-    if (!githubToken) {
-      return NextResponse.json(
-        { error: 'Connect your GitHub account first to deploy to GitHub.', needsGithub: true },
-        { status: 401 }
-      )
-    }
+    // The user's own token: their stored credential (OAuth capture / PAT)
+    // first, then the token on this session.
+    const gate = await requireGithubToken(session.user.id, session.user.githubAccessToken)
+    if ('err' in gate) return gate.err
+    const githubToken = gate.token
 
     // Never push secret-bearing dotfiles (.env*) into a repo.
     const safeFiles: ProjectFile[] = (Array.isArray(files) ? files : []).filter(
@@ -50,11 +50,34 @@ export async function POST(req: NextRequest) {
     )
 
     // Private by default — don't publish a user's source/secrets unless they opt in.
-    const repoUrl = await createGitHubRepo(githubToken, repoName, safeFiles, isPrivate !== false)
+    const created = await createGitHubRepo(githubToken, repoName, safeFiles, isPrivate !== false)
+
+    // Link the new repo to the project so the very next edit can be PUSHED to
+    // it. Without this the user gets a repo that immediately drifts, and
+    // "Pull from GitHub" answers "no linked repo" on the repo we just made.
+    if (projectId) {
+      try {
+        const existing = await getLink(String(projectId))
+        await upsertLink({
+          projectId: String(projectId),
+          userId: session.user.id,
+          owner: created.owner,
+          repo: created.name,
+          branch: created.defaultBranch,
+          secret: existing?.secret || genWebhookSecret(),
+          webhookId: existing?.webhookId ?? null,
+        })
+      } catch (e) {
+        console.warn('[deploy/github] repo created but link failed:', (e as Error)?.message)
+      }
+    }
 
     return NextResponse.json({
       success: true,
-      repoUrl,
+      repoUrl: created.htmlUrl,
+      repo: `${created.owner}/${created.name}`,
+      branch: created.defaultBranch,
+      linked: !!projectId,
       message: 'Repository created successfully'
     })
   } catch (error: any) {
@@ -71,7 +94,7 @@ async function createGitHubRepo(
   name: string,
   files: ProjectFile[],
   isPrivate: boolean
-): Promise<string> {
+): Promise<{ htmlUrl: string; owner: string; name: string; defaultBranch: string }> {
   // Create repo
   const createRes = await fetch('https://api.github.com/user/repos', {
     method: 'POST',
@@ -98,13 +121,17 @@ async function createGitHubRepo(
 
   const repo = await createRes.json()
   const repoFullName = repo.full_name
+  // auto_init creates the branch named by the ACCOUNT's default-branch
+  // setting — 'master' for older accounts. Hardcoding 'main' 404'd the ref
+  // lookup and the whole push failed on those accounts.
+  const initialBranch = repo.default_branch || 'main'
 
   // Wait for repo to be ready
   await new Promise(r => setTimeout(r, 2000))
 
   // Get default branch SHA
   const refRes = await fetch(
-    `https://api.github.com/repos/${repoFullName}/git/ref/heads/main`,
+    `https://api.github.com/repos/${repoFullName}/git/ref/heads/${initialBranch}`,
     {
       headers: {
         Authorization: `token ${token}`,
@@ -205,7 +232,7 @@ async function createGitHubRepo(
 
   // Update ref — makes the pushed files the repo HEAD.
   const refUpdateRes = await fetch(
-    `https://api.github.com/repos/${repoFullName}/git/refs/heads/main`,
+    `https://api.github.com/repos/${repoFullName}/git/refs/heads/${initialBranch}`,
     {
       method: 'PATCH',
       headers: {
@@ -223,5 +250,10 @@ async function createGitHubRepo(
     throw new Error(`Failed to update repo HEAD (GitHub ${refUpdateRes.status}): ${err.slice(0, 200)}`)
   }
 
-  return repo.html_url
+  return {
+    htmlUrl: repo.html_url,
+    owner: repo.owner?.login || '',
+    name: repo.name,
+    defaultBranch: initialBranch,
+  }
 }
