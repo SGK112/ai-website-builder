@@ -25,6 +25,8 @@ import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { useTheme } from '@/context/ThemeContext'
 import { cn } from '@/lib/utils'
+import { TemplatePreview } from '@/components/TemplatePreview'
+import { WebstewLogo } from '@/components/brand/WebstewLogo'
 import { TECH_ICONS } from '@/lib/tech-icons'
 import { DEMO_SITES } from '@/lib/demo-sites'
 import { BuildTargetModal, type BuildTargetId } from '@/components/builder/BuildTargetModal'
@@ -62,9 +64,18 @@ const quickTemplates = [
 ]
 
 // Template gallery with real website screenshots and rich metadata
-const templateGallery = [
+// libId: an id in @/lib/templates. Present → clicking loads that pre-built
+// HTML directly, no LLM call. Absent → generate from this template's `prompt`.
+const templateGallery: Array<{
+  id: string; name: string; category: string; libId?: string
+  image: string; heroImage: string
+  colors: { primary: string; secondary: string; accent: string }
+  fonts: { heading: string; body: string }
+  sections: string[]; features: string[]; prompt: string
+}> = [
   {
     id: 'saas-modern',
+    libId: 'saas-landing',
     name: 'Modern SaaS',
     category: 'SaaS',
     image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&q=70&auto=format&fit=crop',
@@ -77,6 +88,7 @@ const templateGallery = [
   },
   {
     id: 'restaurant-elegant',
+    libId: 'restaurant-menu',
     name: 'Elegant Restaurant',
     category: 'Restaurant',
     image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&q=70&auto=format&fit=crop',
@@ -89,6 +101,7 @@ const templateGallery = [
   },
   {
     id: 'agency-creative',
+    libId: 'agency-portfolio',
     name: 'Creative Agency',
     category: 'Agency',
     image: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=600&q=70&auto=format&fit=crop',
@@ -101,6 +114,7 @@ const templateGallery = [
   },
   {
     id: 'ecommerce-luxury',
+    libId: 'luxe-ecommerce',
     name: 'Luxury Fashion',
     category: 'E-Commerce',
     image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600&q=70&auto=format&fit=crop',
@@ -228,7 +242,6 @@ export default function HomePage() {
   const [showTargetModal, setShowTargetModal] = useState(false)
   const [projectTheme, setProjectTheme] = useState<'light' | 'dark'>('dark')
   const [buildTarget, setBuildTarget] = useState<'website' | 'webapp' | 'mobile'>('website')
-  const [showAllTemplates, setShowAllTemplates] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [rotatingWordIdx, setRotatingWordIdx] = useState(0)
   // Rotates through concrete OUTPUTS — what Webstew actually ships. Each
@@ -257,7 +270,8 @@ export default function HomePage() {
     if (standalone) router.replace('/workspace?source=pwa')
   }, [router])
 
-  const visibleTemplates = showAllTemplates ? templateGallery : templateGallery.slice(0, 8)
+  // Eight on the landing page; /templates is the full gallery.
+  const visibleTemplates = templateGallery.slice(0, 8)
 
   // Headline word rotation — swaps every 2.5s. Skipped while user is typing
   // so it doesn't feel chatty over their input.
@@ -510,27 +524,10 @@ export default function HomePage() {
               isDark ? "border-white/5" : "border-slate-200"
             )}>
               <div className="max-w-5xl mx-auto flex items-center justify-between gap-4 text-sm">
-                {/* Logo — small pot + solid Webstew + tagline */}
-                <a href="/" className="flex items-center gap-2 min-w-0">
-                  <span className="text-2xl sm:text-3xl leading-none select-none shrink-0">🍲</span>
-                  <span className="inline-flex flex-col leading-none min-w-0">
-                    <span
-                      className={cn(
-                        "tracking-tight truncate bg-clip-text text-transparent bg-gradient-to-r",
-                        isDark ? "from-white via-violet-200 to-fuchsia-200" : "from-orange-600 via-pink-600 to-purple-600"
-                      )}
-                      style={{
-                        fontFamily: 'var(--font-inter-tight), system-ui, sans-serif',
-                        fontWeight: 800,
-                        fontSize: '1.3rem',
-                        letterSpacing: '-0.03em',
-                        lineHeight: 1,
-                      }}
-                    >
-                      Webstew
-                    </span>
-                  </span>
-                </a>
+                {/* Shared wordmark — this page had its own hand-rolled copy that
+                    drifted from components/brand/WebstewLogo (emoji mark, its own
+                    font stack and sizes). One mark, one place. */}
+                <WebstewLogo size="md" href="/" isDark={isDark} className="min-w-0" />
 
                 {/* Nav — understated text links */}
                 <nav className="flex items-center gap-x-5 gap-y-2">
@@ -793,68 +790,58 @@ export default function HomePage() {
                   </a>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                  {([
-                    // libId: ID in @/lib/templates if a pre-built starter
-                    // exists for this category. Click → /workspace?templateId
-                    // loads the HTML directly, no LLM call. Without libId,
-                    // we fall back to AI generation with the title/sub as
-                    // the prompt (industry-aware via detectIndustry).
-                    { title: 'Personal portfolio', sub: 'Designer/dev work showcase', img: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&q=70&auto=format&fit=crop', libId: 'agency-portfolio' },
-                    { title: 'SaaS dashboard',     sub: 'Analytics, KPIs, charts',    img: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&q=70&auto=format&fit=crop', libId: 'saas-landing' },
-                    { title: 'Restaurant site',    sub: 'Menu, hours, reservations',  img: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&q=70&auto=format&fit=crop', libId: 'restaurant-menu' },
-                    { title: 'Fitness mobile app', sub: 'Workouts, stats, streaks',   img: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600&q=70&auto=format&fit=crop', libId: null },
-                    { title: 'E-commerce store',   sub: 'Product grid, cart, checkout', img: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=600&q=70&auto=format&fit=crop', libId: 'luxe-ecommerce' },
-                    { title: 'Markdown blog',      sub: 'Posts, tags, search, RSS',   img: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=600&q=70&auto=format&fit=crop', libId: null },
-                    { title: 'Photography portfolio', sub: 'Masonry gallery, lightbox', img: 'https://images.unsplash.com/photo-1452587925148-ce544e77e70d?w=600&q=70&auto=format&fit=crop', libId: 'agency-portfolio' },
-                    { title: 'Documentation site', sub: 'Sidebar, search, code blocks', img: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&q=70&auto=format&fit=crop', libId: null },
-                  ] as Array<{ title: string; sub: string; img: string; libId: string | null }>).map((p, i) => (
+                  {/* Driven by `templateGallery` — the real dataset, carrying each
+                      template's own palette, typefaces and section list. It had sat
+                      unused at module scope while this grid rendered a parallel array
+                      of unrelated stock photos. */}
+                  {visibleTemplates.map((t, i) => (
                     <motion.button
-                      key={p.title}
+                      key={t.id}
                       onClick={() => {
                         setIsTransitioning(true)
-                        if (p.libId) {
-                          router.push(`/workspace?templateId=${encodeURIComponent(p.libId)}`)
+                        if (t.libId) {
+                          router.push(`/workspace?templateId=${encodeURIComponent(t.libId)}`)
                         } else {
-                          navigateToBuilder(`Build me a ${p.title.toLowerCase()} — ${p.sub.toLowerCase()}`, 'website')
+                          navigateToBuilder(t.prompt, 'website')
                         }
                       }}
                       initial={{ opacity: 0, y: 16 }}
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true, margin: "-50px" }}
                       transition={{ duration: 0.5, delay: i * 0.04, ease: [0.22, 1, 0.36, 1] }}
-                      whileHover={{ y: -3 }}
-                      className="group text-left"
+                      whileHover={{ y: -4 }}
+                      className={cn(
+                        'group text-left rounded-2xl border overflow-hidden transition-all',
+                        isDark
+                          ? 'bg-white/[0.02] border-white/10 hover:border-white/25 hover:bg-white/[0.04]'
+                          : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-xl hover:shadow-slate-900/5',
+                      )}
                     >
-                      <div className={cn(
-                        'aspect-[4/3] rounded-2xl overflow-hidden border mb-3 transition-shadow relative',
-                        isDark ? 'border-white/10 group-hover:border-white/20 bg-slate-800' : 'border-slate-200 group-hover:shadow-lg bg-slate-100'
-                      )}>
-                        <img
-                          src={p.img}
-                          alt={p.title}
-                          loading="lazy"
-                          decoding="async"
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                          onError={(e) => {
-                            // Unsplash CDN flake → swap to /api/media (Pexels)
-                            const el = e.currentTarget
-                            const fallback = `/api/media?q=${encodeURIComponent(p.title)}/800/600`
-                            if (el.src !== fallback) el.src = fallback
-                          }}
-                        />
+                      <div className="aspect-[4/3] overflow-hidden relative">
+                        <TemplatePreview tokens={t} isDark={isDark} className="transition-transform duration-500 group-hover:scale-[1.04]" />
+                        {t.libId && (
+                          <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[9px] font-semibold tracking-wide uppercase text-white" style={{ background: 'rgba(0,0,0,0.55)' }}>
+                            Instant
+                          </span>
+                        )}
                       </div>
-                      <h3 className={cn(
-                        "font-semibold text-base mb-0.5 transition-colors",
-                        isDark ? "text-white group-hover:text-violet-300" : "text-slate-900 group-hover:text-violet-600"
-                      )}>
-                        {p.title}
-                      </h3>
-                      <p className={cn(
-                        "text-sm",
-                        "text-muted-foreground"
-                      )}>
-                        {p.sub}
-                      </p>
+                      <div className={cn('p-3.5 border-t', isDark ? 'border-white/[0.07]' : 'border-slate-100')}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className={cn(
+                            'font-semibold text-[15px] leading-tight transition-colors',
+                            isDark ? 'text-white group-hover:text-violet-300' : 'text-slate-900 group-hover:text-violet-600',
+                          )}>
+                            {t.name}
+                          </h3>
+                          <span
+                            className="ml-auto shrink-0 w-2.5 h-2.5 rounded-full"
+                            style={{ background: t.colors.primary, boxShadow: `0 0 0 2px ${isDark ? '#0b0b0e' : '#fff'}` }}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {t.sections.length} sections · {t.category}
+                        </p>
+                      </div>
                     </motion.button>
                   ))}
                 </div>
@@ -1046,26 +1033,7 @@ export default function HomePage() {
               isDark ? "border-white/5 text-slate-400" : "border-slate-200 text-slate-500"
             )}>
               <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">🍲</span>
-                  <span className="inline-flex flex-col items-center leading-none">
-                    <span
-                      className={cn(
-                        "bg-clip-text text-transparent bg-gradient-to-r",
-                        isDark ? "from-white via-violet-200 to-fuchsia-200" : "from-orange-600 via-pink-600 to-purple-600"
-                      )}
-                      style={{
-                        fontFamily: 'var(--font-inter-tight), system-ui, sans-serif',
-                        fontWeight: 800,
-                        fontSize: '1.2rem',
-                        letterSpacing: '-0.03em',
-                        lineHeight: 1,
-                      }}
-                    >
-                      Webstew
-                    </span>
-                  </span>
-                </div>
+                <WebstewLogo size="md" isDark={isDark} showTagline />
                 <div className="flex items-center gap-x-5 gap-y-2 flex-wrap justify-center sm:justify-end">
                   <a href="/grader" className={cn("transition-colors", isDark ? "hover:text-white" : "hover:text-slate-900")}>Site Grader</a>
                   <button onClick={() => setShowTargetModal(true)} className={cn("transition-colors text-left", isDark ? "hover:text-white" : "hover:text-slate-900")}>App Builder</button>

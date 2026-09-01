@@ -78,7 +78,7 @@ function ResetForm() {
   return (
     <form onSubmit={submit} className="space-y-4">
       <label className="block">
-        <span className="text-xs font-medium text-zinc-400 mb-1.5 block">New password</span>
+        <span className="text-xs font-medium text-muted-foreground mb-1.5 block">New password</span>
         <div className="relative">
           <input
             type={showPassword ? 'text' : 'password'}
@@ -88,20 +88,20 @@ function ResetForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="At least 8 characters"
-            className="w-full px-3 py-2 pr-10 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500"
+            className="w-full px-3 py-2 pr-10 bg-muted border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500"
           />
           <button
             type="button"
             onClick={() => setShowPassword((s) => !s)}
             aria-label={showPassword ? 'Hide password' : 'Show password'}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground/80"
           >
             {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
         </div>
       </label>
       <label className="block">
-        <span className="text-xs font-medium text-zinc-400 mb-1.5 block">Confirm password</span>
+        <span className="text-xs font-medium text-muted-foreground mb-1.5 block">Confirm password</span>
         <div className="relative">
           <input
             type={showConfirm ? 'text' : 'password'}
@@ -110,13 +110,13 @@ function ResetForm() {
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             placeholder="Re-enter the new password"
-            className="w-full px-3 py-2 pr-10 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500"
+            className="w-full px-3 py-2 pr-10 bg-muted border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500"
           />
           <button
             type="button"
             onClick={() => setShowConfirm((s) => !s)}
             aria-label={showConfirm ? 'Hide password' : 'Show password'}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground/80"
           >
             {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
@@ -146,21 +146,21 @@ function ResetForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <Link
           href="/login"
-          className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 mb-6"
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground/80 mb-6"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           Back to sign in
         </Link>
-        <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 shadow-2xl">
+        <div className="bg-card border border-border rounded-2xl p-6 shadow-2xl">
           <h1 className="text-2xl font-bold mb-1">Set a new password</h1>
-          <p className="text-sm text-zinc-400 mb-6">
+          <p className="text-sm text-muted-foreground mb-6">
             Choose something you'll remember. Minimum 8 characters.
           </p>
-          <Suspense fallback={<div className="text-sm text-zinc-500">Loading…</div>}>
+          <Suspense fallback={<div className="text-sm text-muted-foreground">Loading…</div>}>
             <ResetForm />
           </Suspense>
         </div>

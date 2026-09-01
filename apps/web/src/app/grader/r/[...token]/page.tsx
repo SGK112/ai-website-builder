@@ -10,9 +10,10 @@
 // non-token character, so a garbled link still resolves to the real report.
 
 import Link from 'next/link'
-import { ArrowLeft, AlertCircle, Sparkles, Eye } from 'lucide-react'
+import { ArrowLeft, AlertCircle, Sparkles, Eye, ListChecks } from 'lucide-react'
 import type { Metadata } from 'next'
 import { NotAvailable } from '@/components/NotAvailable'
+import type { GraderResult } from '@/lib/grader'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -21,23 +22,16 @@ interface PageProps {
   params: { token: string[] }
 }
 
+// The result is whatever lib/grader.ts produced, so use THAT type rather than
+// a local guess. This page previously declared issues/recommendations as
+// Array<{title, description}> and cast the fetch response to it — but the
+// grader emits string[]. Nothing type-checked the lie, so every issue rendered
+// as the literal word "Issue" with no text, and all 8 recommendations were
+// dropped on the floor.
 interface SavedReport {
   token: string
   url: string
-  result: {
-    domain: string
-    scores: {
-      overall: number
-      overall_grade: string
-      ai_visibility: number
-      ai_visibility_grade?: string
-      business_essentials: number
-      [k: string]: any
-    }
-    issues: Array<{ title?: string; description?: string; severity?: string }>
-    recommendations: Array<{ title?: string; description?: string }>
-    [k: string]: any
-  }
+  result: GraderResult
   createdAt: string
   views: number
 }
@@ -108,7 +102,10 @@ export default async function GraderSharePage({ params }: PageProps) {
   }
 
   const { result } = report
-  const issues = Array.isArray(result?.issues) ? result.issues : []
+  // Defensive: old reports were saved before the shape was pinned down, and a
+  // string[] is what the grader emits today.
+  const issues = (Array.isArray(result?.issues) ? result.issues : []).filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
+  const recommendations = (Array.isArray(result?.recommendations) ? result.recommendations : []).filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-zinc-950 to-zinc-900 text-white">
@@ -151,25 +148,92 @@ export default async function GraderSharePage({ params }: PageProps) {
           </div>
         </div>
 
-        {/* Issues — full list, public report */}
+        {/* Sub-scores — the grader produces seo / technical / presence
+            breakdowns that this page was collecting and never showing. */}
+        {(result.scores?.seo || result.scores?.technical || result.scores?.presence) && (
+          <div className="mt-6 grid sm:grid-cols-3 gap-4">
+            {([
+              ['SEO', result.scores?.seo],
+              ['Technical', result.scores?.technical],
+              ['Presence', result.scores?.presence],
+            ] as Array<[string, Record<string, number> | undefined]>).map(([label, group]) => group && (
+              <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-3">{label}</p>
+                <ul className="space-y-2">
+                  {Object.entries(group).map(([k, v]) => (
+                    <li key={k} className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-400 capitalize flex-1">{k.replace(/_/g, ' ')}</span>
+                      <span className="h-1.5 w-16 rounded-full bg-white/10 overflow-hidden shrink-0">
+                        <span
+                          className={`block h-full rounded-full ${v >= 80 ? 'bg-emerald-400' : v >= 50 ? 'bg-amber-400' : 'bg-red-400'}`}
+                          style={{ width: `${Math.max(0, Math.min(100, v))}%` }}
+                        />
+                      </span>
+                      <span className="text-xs font-semibold tabular-nums w-8 text-right">{v}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Issues — the grader emits plain strings, one per finding. */}
         {issues.length > 0 && (
           <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-amber-400" /> Issues
+              <AlertCircle className="w-5 h-5 text-amber-400" /> {issues.length} issue{issues.length === 1 ? '' : 's'} found
             </h2>
-            <ul className="space-y-3">
+            <ul className="space-y-2.5">
               {issues.map((iss, i) => (
                 <li key={i} className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-                  <span className={`mt-0.5 shrink-0 w-2 h-2 rounded-full ${iss.severity === 'high' ? 'bg-red-400' : iss.severity === 'medium' ? 'bg-amber-400' : 'bg-zinc-500'}`} />
-                  <div>
-                    <p className="font-medium text-sm">{iss.title || 'Issue'}</p>
-                    {iss.description && (
-                      <p className="text-xs text-zinc-400 mt-1 leading-relaxed">{iss.description}</p>
-                    )}
-                  </div>
+                  <span className="mt-1.5 shrink-0 w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  <p className="text-sm leading-relaxed text-zinc-200">{iss}</p>
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {/* Recommendations — stored on every report and never rendered until now. */}
+        {recommendations.length > 0 && (
+          <div className="mt-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-6 sm:p-8">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <ListChecks className="w-5 h-5 text-emerald-400" /> How to fix it
+            </h2>
+            <ul className="space-y-2.5">
+              {recommendations.map((rec, i) => (
+                <li key={i} className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+                  <span className="shrink-0 w-5 h-5 rounded-full bg-emerald-500/15 text-emerald-300 text-[11px] font-semibold flex items-center justify-center mt-0.5">{i + 1}</span>
+                  <p className="text-sm leading-relaxed text-zinc-200">{rec}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* What we measured — the details block, also previously unused. */}
+        {result.details && (
+          <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-8">
+            <h2 className="text-lg font-semibold mb-4">What we measured</h2>
+            <dl className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+              <div>
+                <dt className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Load time</dt>
+                <dd className="font-semibold">{result.details.load_time != null ? `${(result.details.load_time / 1000).toFixed(2)}s` : '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Word count</dt>
+                <dd className="font-semibold">{result.details.word_count ?? '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Schema types</dt>
+                <dd className="font-semibold">{result.details.schema_types?.length ? result.details.schema_types.join(', ') : 'None found'}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Social profiles</dt>
+                <dd className="font-semibold">{result.details.social_platforms?.length ? result.details.social_platforms.join(', ') : 'None found'}</dd>
+              </div>
+            </dl>
           </div>
         )}
 

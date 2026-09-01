@@ -137,10 +137,30 @@
   body {
     background-color: var(--theme-bg);
     color: var(--theme-text);
+    /* Without these, the same type renders noticeably heavier and blurrier on
+       macOS than the design intends — the single cheapest legibility win on a
+       text-heavy marketing page. */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
     transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1),
                 color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     overflow-x: hidden;
     overscroll-behavior: none;
+  }
+
+  /* Keyboard focus. There was no :focus-visible rule anywhere, so tabbing
+     through the site got whatever the browser defaults to — on some elements
+     a hairline outline, on the ones with Tailwind's focus:outline-none,
+     nothing at all. This gives every focusable a single brand-consistent
+     ring, and suppresses it for mouse users so buttons don't ring on click. */
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus:not(:focus-visible) {
+    outline: none;
   }
 
   /* Theme transition overlay */
@@ -973,14 +993,16 @@
    SELECTION STYLES
    ============================================ */
 
+/* A translucent tint keeps the selected text readable instead of burying it
+   under solid violet. */
 ::selection {
-  background: var(--theme-accent);
-  color: white;
+  background: color-mix(in srgb, var(--theme-accent) 28%, transparent);
+  color: inherit;
 }
 
 ::-moz-selection {
-  background: var(--theme-accent);
-  color: white;
+  background: color-mix(in srgb, var(--theme-accent) 28%, transparent);
+  color: inherit;
 }
 
 /* ============================================

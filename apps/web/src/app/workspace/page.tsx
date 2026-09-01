@@ -172,6 +172,7 @@ import { ShipPanel } from './components/ShipPanel'
 import { ProjectList } from './components/ProjectList'
 import { NewProjectChooser } from './components/NewProjectChooser'
 import { GithubRepoPicker } from './components/GithubRepoPicker'
+import { BrandedDialog, DialogPrimary, DialogSecondary, DialogTertiary } from '@/components/BrandedDialog'
 import { StewPlannerWizard } from './components/StewPlannerWizard'
 import { GithubPullConfirm } from './components/GithubPullConfirm'
 import { useGithubRepo } from './hooks/useGithubRepo'
@@ -8571,6 +8572,13 @@ npx eas build --platform all
         {signupNudge.show && (() => {
           const r = signupNudge.reason
           const isCelebration = r === 'first-build'
+          const eyebrow = r === 'first-build' ? 'Fresh out of the pot'
+            : r === 'save'          ? 'Keep your stew'
+            : r === 'deploy-render' ? 'Serve it live'
+            : r === 'deploy-github' ? 'Take the recipe with you'
+            : r === 'export'        ? 'Take the recipe with you'
+            : r === 'refine'        ? 'Keep cooking'
+            : 'One quick step'
           const title = r === 'first-build' ? 'Your first site is ready 🎉'
             : r === 'save'                  ? 'Save your work to the cloud'
             : r === 'deploy-render'         ? 'Sign up to deploy live'
@@ -8597,87 +8605,34 @@ npx eas build --platform all
             router_.push(to)
           }
           return (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
-              onClick={() => isCelebration && setSignupNudge({ show: false, reason: null })}
-            >
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                onClick={(e) => e.stopPropagation()}
-                className={cn(
-                  "relative max-w-md w-full p-8 rounded-2xl border shadow-2xl",
-                  isDark
-                    ? "bg-zinc-950 border-violet-500/30 shadow-violet-500/20"
-                    : "bg-white border-violet-300 shadow-violet-200/40"
-                )}
-              >
-                {isCelebration && (
-                  <button
-                    onClick={() => setSignupNudge({ show: false, reason: null })}
-                    className={cn(
-                      "absolute top-4 right-4 p-1 rounded-lg transition",
-                      isDark ? "text-zinc-500 hover:text-white hover:bg-white/5" : "text-slate-400 hover:text-slate-900 hover:bg-slate-100"
-                    )}
-                    aria-label="Close"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                )}
-                <div className="w-12 h-12 mb-4 rounded-xl bg-violet-500 flex items-center justify-center">
-                  <Sparkles className="w-6 h-6 text-white" />
-                </div>
-                <h3 className={cn(
-                  "text-xl font-bold mb-2",
-                  isDark ? "text-white" : "text-slate-900"
-                )}>{title}</h3>
-                <p className={cn(
-                  "text-sm leading-relaxed mb-6",
-                  isDark ? "text-zinc-400" : "text-slate-600"
-                )}>{message}</p>
-                <div className="space-y-2">
-                  <button
-                    onClick={() => closeAndRoute(`/signup?next=${encodeURIComponent('/workspace')}`)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold transition shadow-lg shadow-violet-500/30"
-                  >
+            <BrandedDialog
+              open
+              isDark={isDark}
+              eyebrow={eyebrow}
+              title={title}
+              glyph={isCelebration ? '🎉' : '🍲'}
+              dismissible={isCelebration}
+              onClose={() => setSignupNudge({ show: false, reason: null })}
+              footnote="No credit card. Anytime cancel. Your work in this browser stays saved either way."
+              actions={
+                <>
+                  <DialogPrimary onClick={() => closeAndRoute(`/signup?next=${encodeURIComponent('/workspace')}`)}>
                     <Sparkles className="w-4 h-4" />
                     Sign up free — claim 100 credits
-                  </button>
-                  <button
-                    onClick={() => closeAndRoute(`/login?next=${encodeURIComponent('/workspace')}`)}
-                    className={cn(
-                      "w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition",
-                      isDark
-                        ? "bg-white/[0.03] border border-white/10 text-zinc-300 hover:bg-white/[0.06]"
-                        : "bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200"
-                    )}
-                  >
+                  </DialogPrimary>
+                  <DialogSecondary isDark={isDark} onClick={() => closeAndRoute(`/login?next=${encodeURIComponent('/workspace')}`)}>
                     I already have an account — sign in
-                  </button>
+                  </DialogSecondary>
                   {isCelebration && (
-                    <button
-                      onClick={() => setSignupNudge({ show: false, reason: null })}
-                      className={cn(
-                        "w-full px-4 py-2 rounded-xl text-xs font-medium transition",
-                        isDark ? "text-zinc-500 hover:text-zinc-300" : "text-slate-500 hover:text-slate-700"
-                      )}
-                    >
+                    <DialogTertiary isDark={isDark} onClick={() => setSignupNudge({ show: false, reason: null })}>
                       Maybe later
-                    </button>
+                    </DialogTertiary>
                   )}
-                </div>
-                <p className={cn(
-                  "mt-5 text-[10px] leading-relaxed",
-                  isDark ? "text-zinc-600" : "text-slate-500"
-                )}>
-                  No credit card. Anytime cancel. Your work in this browser stays saved either way.
-                </p>
-              </motion.div>
-            </motion.div>
+                </>
+              }
+            >
+              {message}
+            </BrandedDialog>
           )
         })()}
       </AnimatePresence>

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Inter, Playfair_Display, Inter_Tight } from 'next/font/google'
+import { Inter, Playfair_Display, Inter_Tight, Sora } from 'next/font/google'
 import './globals.css'
 import { Toaster } from '@/components/ui/toaster'
 import { PwaInstallPrompt } from '@/components/PwaInstallPrompt'
@@ -17,6 +17,17 @@ const interTight = Inter_Tight({
   subsets: ['latin'],
   variable: '--font-inter-tight',
   weight: ['600', '700', '800', '900'],
+})
+// Sora — the wordmark face. Inter Tight is an excellent HEADLINE face and
+// keeps that job, but as a logo it reads as "default sans in bold": nothing
+// about it is ours. Sora's wider counters and squarer terminals give the
+// wordmark a shape you can recognise at a glance, which is the whole point of
+// a logotype, while staying in the same modern-geometric family as the rest
+// of the type so the two don't fight.
+const sora = Sora({
+  subsets: ['latin'],
+  variable: '--font-sora',
+  weight: ['600', '700', '800'],
 })
 
 // Mobile-first: tell every browser to render at device width and not
@@ -122,7 +133,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${playfair.variable} ${interTight.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${playfair.variable} ${interTight.variable} ${sora.variable}`}>
       <head>
         {/* Pre-hydration theme setter. Runs synchronously BEFORE React or
             any CSS paints, so `data-theme` (and the `.dark` class) are on
@@ -136,7 +147,7 @@ export default function RootLayout({
             dark backgrounds — and headings disappear into the body. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var q=new URLSearchParams(location.search).get('theme');var t=q==='light'||q==='dark'?q:localStorage.getItem('webcraft-theme');if(t!=='light'&&t!=='dark')t='dark';if(q==='light'||q==='dark'){localStorage.setItem('webcraft-theme',t);}document.documentElement.setAttribute('data-theme',t);if(t==='dark')document.documentElement.classList.add('dark');else document.documentElement.classList.remove('dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');document.documentElement.classList.add('dark');}})();`,
+            __html: `(function(){try{var q=new URLSearchParams(location.search).get('theme');var t=q==='light'||q==='dark'?q:localStorage.getItem('webcraft-theme');if(t!=='light'&&t!=='dark')t='light';if(q==='light'||q==='dark'){localStorage.setItem('webcraft-theme',t);}document.documentElement.setAttribute('data-theme',t);if(t==='dark')document.documentElement.classList.add('dark');else document.documentElement.classList.remove('dark');}catch(e){document.documentElement.setAttribute('data-theme','light');document.documentElement.classList.remove('dark');}})();`,
           }}
         />
 

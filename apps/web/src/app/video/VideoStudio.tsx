@@ -807,7 +807,7 @@ export default function VideoStudio() {
           <div className="w-7 h-7 rounded-lg bg-violet-500/20 flex items-center justify-center"><Clapperboard className="w-4 h-4 text-violet-300" /></div>
           <div>
             <div className="text-sm font-semibold text-white">Video Studio</div>
-            <div className="hidden sm:block text-[10px] text-zinc-500">Generate clips → arrange on the timeline → stitch & export</div>
+            <div className="hidden sm:block text-[10px] text-zinc-400">Generate clips → arrange on the timeline → stitch & export</div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -858,7 +858,7 @@ export default function VideoStudio() {
                   onKeyDown={e => { if (e.key === 'Enter' && !busy) runDirector() }}
                   placeholder={orderMic.listening ? 'Listening… speak your order' : orderMic.transcribing ? 'Transcribing…' : 'Your order — type or tap the mic'}
                   disabled={orderMic.listening || orderMic.transcribing}
-                  className="flex-1 min-w-0 bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-400/60 disabled:opacity-70" />
+                  className="flex-1 min-w-0 bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-violet-400/60 disabled:opacity-70" />
                 {orderMic.supported && (
                   <button onClick={orderMic.toggle} disabled={directing || orderMic.transcribing}
                     aria-label={orderMic.listening ? 'Stop and transcribe' : 'Speak your order'}
@@ -896,12 +896,12 @@ export default function VideoStudio() {
                   </div>
                 ))}
                 {uploadedImages.length < MAX_SOURCE_IMAGES && (
-                  <button onClick={() => imageInputRef.current?.click()} className="aspect-square rounded-lg border-2 border-dashed border-white/10 hover:border-fuchsia-500/50 flex items-center justify-center text-zinc-500">
+                  <button onClick={() => imageInputRef.current?.click()} className="aspect-square rounded-lg border-2 border-dashed border-white/10 hover:border-fuchsia-500/50 flex items-center justify-center text-zinc-400">
                     {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                   </button>
                 )}
               </div>
-              <p className="text-[10px] text-zinc-600 mt-1.5 px-0.5">
+              <p className="text-[10px] text-zinc-400 mt-1.5 px-0.5">
                 Drag &amp; drop or click to add up to {MAX_SOURCE_IMAGES} images, or drop a <span className="text-zinc-400">video</span> to drop it straight onto the timeline. {uploadedImages.length >= 2 ? 'Use “Make ad” to turn each image into its own clip.' : 'Add a few images to build an ad from them.'}
               </p>
               <input ref={imageInputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleImageUpload} />
@@ -910,7 +910,7 @@ export default function VideoStudio() {
 
           <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={3}
             placeholder={mode === 'text' ? 'Describe this clip…' : 'Optional motion (e.g. slow push-in)…'}
-            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50 resize-none" />
+            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-violet-500/50 resize-none" />
           <button onClick={() => setDirectorOpen(true)} className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-violet-500/40 bg-gradient-to-r from-violet-600/15 to-fuchsia-600/15/25 text-violet-200 text-xs font-medium py-2">
             <Sparkles className="w-3.5 h-3.5" /> AI Director — craft this prompt
           </button>
@@ -918,38 +918,38 @@ export default function VideoStudio() {
           {/* Theme — the film's look. New clips (and the Director) stay
               consistent with it, so a multi-clip story holds together. */}
           <div>
-            <label className="flex items-center justify-between text-[11px] text-zinc-500 mb-1">
+            <label className="flex items-center justify-between text-[11px] text-zinc-400 mb-1">
               <span className="flex items-center gap-1"><Film className="w-3 h-3 text-fuchsia-300/70" /> Theme {seriesPrompts.length > 1 && <span className="text-fuchsia-300/70">· keeps {seriesPrompts.length} clips consistent</span>}</span>
-              {theme && <button onClick={() => setTheme('')} className="text-zinc-600 hover:text-red-300">clear</button>}
+              {theme && <button onClick={() => setTheme('')} className="text-zinc-400 hover:text-red-300">clear</button>}
             </label>
             <textarea value={theme} onChange={e => setTheme(e.target.value)} rows={2}
               placeholder="e.g. moody cinematic lighthouse, cold blue + amber, film grain, anamorphic"
-              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-fuchsia-500/40 resize-none" />
-            <p className="text-[10px] text-zinc-600 mt-0.5">New clips follow this look so they fit the rest of the film. Auto-set from your first shot — edit anytime.</p>
+              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-fuchsia-500/40 resize-none" />
+            <p className="text-[10px] text-zinc-400 mt-0.5">New clips follow this look so they fit the rest of the film. Auto-set from your first shot — edit anytime.</p>
           </div>
 
           <div>
-            <label className="block text-[11px] text-zinc-500 mb-1">Style</label>
+            <label className="block text-[11px] text-zinc-400 mb-1">Style</label>
             <div className="flex flex-wrap gap-1">
-              {STYLES.map(s => <button key={s} onClick={() => setStyle(style === s ? '' : s)} className={`px-2 py-0.5 rounded text-[11px] border ${style === s ? 'border-violet-500/50 bg-violet-500/20 text-violet-300' : 'border-white/10 text-zinc-500'}`}>{s}</button>)}
+              {STYLES.map(s => <button key={s} onClick={() => setStyle(style === s ? '' : s)} className={`px-2 py-0.5 rounded text-[11px] border ${style === s ? 'border-violet-500/50 bg-violet-500/20 text-violet-300' : 'border-white/10 text-zinc-400'}`}>{s}</button>)}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] text-zinc-500 mb-1">Format</label>
+              <label className="block text-[11px] text-zinc-400 mb-1">Format</label>
               <select value={aspectRatio} onChange={e => setAspectRatio(e.target.value)} className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white">
                 {ASPECTS.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-[11px] text-zinc-500 mb-1">Length: {duration}s</label>
+              <label className="block text-[11px] text-zinc-400 mb-1">Length: {duration}s</label>
               <input type="range" min={3} max={12} value={duration} onChange={e => setDuration(Number(e.target.value))} className="w-full accent-violet-500" />
             </div>
           </div>
 
           <div>
-            <label className="block text-[11px] text-zinc-500 mb-1">Model</label>
+            <label className="block text-[11px] text-zinc-400 mb-1">Model</label>
             <select value={model} onChange={e => setModel(e.target.value)} className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white">
               {VIDEO_MODELS.map(m => <option key={m.id} value={m.id}>{m.label} — {m.hint}</option>)}
             </select>
@@ -1034,7 +1034,7 @@ export default function VideoStudio() {
               )}
             </div>
           ) : (
-            <div className="text-center text-zinc-600">
+            <div className="text-center text-zinc-400">
               <div className="w-16 h-16 rounded-2xl bg-white/[0.03] flex items-center justify-center mx-auto mb-3"><Film className="w-7 h-7" /></div>
               <div className="text-sm text-zinc-400">Your video appears here</div>
               <div className="text-xs">Generate a clip — it drops onto the timeline below</div>
@@ -1047,9 +1047,9 @@ export default function VideoStudio() {
       <div className="shrink-0 border-t border-white/10 bg-black/30 p-3 space-y-2">
         <div className="flex items-center gap-3">
           <span className="w-16 shrink-0 text-[11px] font-semibold text-violet-300 flex items-center gap-1"><Film className="w-3.5 h-3.5" /> Video</span>
-          {clips.length > 0 && <button onClick={() => { if (confirm('Clear all clips from the timeline?')) { setClips([]); setSelectedId(null); setStitched(null) } }} disabled={busy} className="text-[10px] text-zinc-500 hover:text-red-300 disabled:opacity-30">Clear</button>}
+          {clips.length > 0 && <button onClick={() => { if (confirm('Clear all clips from the timeline?')) { setClips([]); setSelectedId(null); setStitched(null) } }} disabled={busy} className="text-[10px] text-zinc-400 hover:text-red-300 disabled:opacity-30">Clear</button>}
           <div className="flex-1 flex gap-2 overflow-x-auto pb-1">
-            {clips.length === 0 && <span className="text-xs text-zinc-600 py-4">No clips yet — generate one on the left.</span>}
+            {clips.length === 0 && <span className="text-xs text-zinc-400 py-4">No clips yet — generate one on the left.</span>}
             {clips.map((c, i) => (
               <div key={c.id} onClick={() => { if (c.url) { setStitched(null); setSelectedId(c.id) } }}
                 className={`relative shrink-0 w-32 rounded-lg border overflow-hidden cursor-pointer ${selectedId === c.id && !stitchedUrl ? 'border-violet-500' : 'border-white/10'}`}>
@@ -1070,11 +1070,11 @@ export default function VideoStudio() {
                     {/* Save + reorder are power controls — desktop only. Mobile
                         keeps just delete; the chef handles sequencing. */}
                     {c.status === 'done' && c.url && c.kind !== 'image' && (
-                      <button onClick={e => { e.stopPropagation(); saveCreation('clip', c.url!, c.prompt.slice(0, 80)) }} disabled={!!savingIds[c.url] || isSaved(c.url)} title={isSaved(c.url) ? 'Saved to your creations' : 'Save clip to your creations'} className="hidden md:block p-0.5 text-zinc-500 hover:text-violet-300 disabled:opacity-60">{savingIds[c.url] ? <Loader2 className="w-3 h-3 animate-spin" /> : isSaved(c.url) ? <BookmarkCheck className="w-3 h-3 text-violet-300" /> : <Bookmark className="w-3 h-3" />}</button>
+                      <button onClick={e => { e.stopPropagation(); saveCreation('clip', c.url!, c.prompt.slice(0, 80)) }} disabled={!!savingIds[c.url] || isSaved(c.url)} title={isSaved(c.url) ? 'Saved to your creations' : 'Save clip to your creations'} className="hidden md:block p-0.5 text-zinc-400 hover:text-violet-300 disabled:opacity-60">{savingIds[c.url] ? <Loader2 className="w-3 h-3 animate-spin" /> : isSaved(c.url) ? <BookmarkCheck className="w-3 h-3 text-violet-300" /> : <Bookmark className="w-3 h-3" />}</button>
                     )}
-                    <button onClick={e => { e.stopPropagation(); move(i, -1) }} disabled={i === 0 || busy} className="hidden md:block p-0.5 text-zinc-500 hover:text-white disabled:opacity-30"><ArrowLeft className="w-3 h-3" /></button>
-                    <button onClick={e => { e.stopPropagation(); move(i, 1) }} disabled={i === clips.length - 1 || busy} className="hidden md:block p-0.5 text-zinc-500 hover:text-white disabled:opacity-30"><ArrowRight className="w-3 h-3" /></button>
-                    <button onClick={e => { e.stopPropagation(); setClips(prev => prev.filter(x => x.id !== c.id)) }} disabled={busy} className="p-1 md:p-0.5 text-zinc-500 hover:text-red-400 disabled:opacity-30"><X className="w-3.5 h-3.5 md:w-3 md:h-3" /></button>
+                    <button onClick={e => { e.stopPropagation(); move(i, -1) }} disabled={i === 0 || busy} className="hidden md:block p-0.5 text-zinc-400 hover:text-white disabled:opacity-30"><ArrowLeft className="w-3 h-3" /></button>
+                    <button onClick={e => { e.stopPropagation(); move(i, 1) }} disabled={i === clips.length - 1 || busy} className="hidden md:block p-0.5 text-zinc-400 hover:text-white disabled:opacity-30"><ArrowRight className="w-3 h-3" /></button>
+                    <button onClick={e => { e.stopPropagation(); setClips(prev => prev.filter(x => x.id !== c.id)) }} disabled={busy} className="p-1 md:p-0.5 text-zinc-400 hover:text-red-400 disabled:opacity-30"><X className="w-3.5 h-3.5 md:w-3 md:h-3" /></button>
                   </div>
                 </div>
                 {c.status === 'error' && <button onClick={e => { e.stopPropagation(); patch(c.id, { status: 'generating' }); /* retry via regenerate not wired in v1 */ }} className="hidden" />}
@@ -1088,7 +1088,7 @@ export default function VideoStudio() {
           <span className="w-16 shrink-0 text-[11px] font-semibold text-violet-300 flex items-center gap-1"><Volume2 className="w-3.5 h-3.5" /> Voice</span>
           <input value={script || narrationText} onChange={e => (script ? setScript(e.target.value) : setNarrationText(e.target.value))}
             placeholder="Voiceover line / notes (optional)"
-            className="flex-1 bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50" />
+            className="flex-1 bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-violet-500/50" />
           <button onClick={writeScript} disabled={busy} className="flex items-center gap-1 rounded-lg border border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/20 text-violet-200 text-xs px-2.5 py-1.5 disabled:opacity-40">{writingScript ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PenLine className="w-3.5 h-3.5" />} Write</button>
           <select value={voice} onChange={e => setVoice(e.target.value)} className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white capitalize">{TTS_VOICES.map(v => <option key={v} value={v}>{v}</option>)}</select>
         </div>
@@ -1099,10 +1099,10 @@ export default function VideoStudio() {
           {hasMusic ? (
             <>
               <span className="text-xs text-zinc-300 truncate max-w-[200px] flex items-center gap-1">{musicTrackId && <Music className="w-3 h-3 text-fuchsia-300/70" />}{musicName || 'music track'}</span>
-              <button onClick={clearMusic} title="Remove music" className="text-zinc-500 hover:text-red-300"><X className="w-3.5 h-3.5" /></button>
-              <span className="text-[10px] text-zinc-500 ml-2">Volume</span>
+              <button onClick={clearMusic} title="Remove music" className="text-zinc-400 hover:text-red-300"><X className="w-3.5 h-3.5" /></button>
+              <span className="text-[10px] text-zinc-400 ml-2">Volume</span>
               <input type="range" min={0} max={1} step={0.05} value={musicVolume} onChange={e => setMusicVolume(Number(e.target.value))} className="w-28 accent-fuchsia-500" />
-              <span className="text-[10px] text-zinc-500 w-8">{Math.round(musicVolume * 100)}%</span>
+              <span className="text-[10px] text-zinc-400 w-8">{Math.round(musicVolume * 100)}%</span>
             </>
           ) : (
             <div className="flex items-center gap-2">
@@ -1134,7 +1134,7 @@ export default function VideoStudio() {
           <input value={overlayText}
             onChange={e => { setOverlayText(e.target.value); const t = e.target.value.trim(); setOverlays(t ? [{ text: t, position: 'bottom', size: 'small', box: true }] : []) }}
             placeholder="On-screen text — contact info, title (optional)"
-            className="flex-1 min-w-0 bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50" />
+            className="flex-1 min-w-0 bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500/50" />
           {overlays.length > 0 && !overlayText && <span className="text-[10px] text-emerald-300/70">{overlays.length} set by chef</span>}
         </div>
 
@@ -1146,7 +1146,7 @@ export default function VideoStudio() {
             {stitching ? <><Loader2 className="w-4 h-4 animate-spin" /> {stitchStage}{stitchProgress > 0 ? ` ${stitchProgress}%` : ''}</> : <><Wand2 className="w-4 h-4" /> Render film {doneClips.length > 1 ? `(${doneClips.length} clips)` : ''}</>}
           </button>
         </div>
-        {stitching && <p className="text-[10px] text-zinc-500">Rendering on our server — downloading clips, mixing audio, and uploading. Usually under a minute.</p>}
+        {stitching && <p className="text-[10px] text-zinc-400">Rendering on our server — downloading clips, mixing audio, and uploading. Usually under a minute.</p>}
       </div>
 
       {/* Saved Creations drawer — your library of clips + finished videos.
@@ -1161,7 +1161,7 @@ export default function VideoStudio() {
             </div>
             <div className="flex-1 overflow-y-auto p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] space-y-3">
               {creations.length === 0 ? (
-                <div className="text-center text-zinc-600 pt-16 px-4">
+                <div className="text-center text-zinc-400 pt-16 px-4">
                   <Bookmark className="w-10 h-10 mx-auto mb-3 opacity-40" />
                   <div className="text-sm text-zinc-400">No saved creations yet</div>
                   <div className="text-xs mt-1">Save a clip or a finished video and it lands here — ready to reuse, download, or sell in the community.</div>
@@ -1188,7 +1188,7 @@ export default function VideoStudio() {
                 </div>
               ))}
             </div>
-            <div className="px-4 py-2.5 border-t border-white/10 text-[10px] text-zinc-600">Saved creations are private to your account.</div>
+            <div className="px-4 py-2.5 border-t border-white/10 text-[10px] text-zinc-400">Saved creations are private to your account.</div>
           </div>
         </div>
       )}
@@ -1205,7 +1205,7 @@ export default function VideoStudio() {
             <div className="overflow-y-auto p-3 space-y-4">
               {Array.from(new Set(STUDIO_MUSIC.map(t => t.mood))).map(mood => (
                 <div key={mood}>
-                  <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1.5 px-1">{mood}</div>
+                  <div className="text-[10px] uppercase tracking-wide text-zinc-400 mb-1.5 px-1">{mood}</div>
                   <div className="space-y-1">
                     {STUDIO_MUSIC.filter(t => t.mood === mood).map(t => (
                       <div key={t.id} className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] px-2.5 py-2">
@@ -1221,7 +1221,7 @@ export default function VideoStudio() {
               ))}
             </div>
             <div className="px-4 py-2.5 border-t border-white/10 flex items-center justify-between gap-2">
-              <span className="text-[10px] text-zinc-600">Royalty-free · clear for commercial use</span>
+              <span className="text-[10px] text-zinc-400">Royalty-free · clear for commercial use</span>
               <button onClick={() => { stopPreview(); setShowMusicPicker(false); musicInputRef.current?.click() }} className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-1"><Plus className="w-3 h-3" /> Upload your own</button>
             </div>
           </div>

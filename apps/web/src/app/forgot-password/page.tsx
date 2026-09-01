@@ -43,19 +43,19 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <Link
           href={loginHref}
-          className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 mb-6"
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground/80 mb-6"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           Back to sign in
         </Link>
 
-        <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 shadow-2xl">
+        <div className="bg-card border border-border rounded-2xl p-6 shadow-2xl">
           <h1 className="text-2xl font-bold mb-1">Forgot your password?</h1>
-          <p className="text-sm text-zinc-400 mb-6">
+          <p className="text-sm text-muted-foreground mb-6">
             Enter the email you signed up with. We'll send a reset link if an account exists.
           </p>
 
@@ -72,7 +72,7 @@ export default function ForgotPasswordPage() {
               </div>
               <Link
                 href={loginHref}
-                className="block text-center px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm font-medium border border-white/10"
+                className="block text-center px-4 py-2.5 rounded-lg bg-muted hover:bg-muted/70 text-foreground text-sm font-medium border border-border"
               >
                 Return to sign in
               </Link>
@@ -80,7 +80,7 @@ export default function ForgotPasswordPage() {
           ) : (
             <form onSubmit={submit} className="space-y-4">
               <label className="block">
-                <span className="text-xs font-medium text-zinc-400 mb-1.5 block">Email</span>
+                <span className="text-xs font-medium text-muted-foreground mb-1.5 block">Email</span>
                 <input
                   type="email"
                   required
@@ -88,7 +88,7 @@ export default function ForgotPasswordPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500"
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500"
                 />
               </label>
 

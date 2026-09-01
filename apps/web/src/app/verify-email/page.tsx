@@ -38,11 +38,11 @@ function VerifyInner() {
   }, [token])
 
   return (
-    <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 shadow-2xl text-center">
+    <div className="bg-card border border-border rounded-2xl p-6 shadow-2xl text-center">
       {state === 'loading' && (
         <>
           <Loader2 className="w-8 h-8 text-violet-400 animate-spin mx-auto mb-4" />
-          <div className="text-sm text-zinc-400">Verifying your email…</div>
+          <div className="text-sm text-muted-foreground">Verifying your email…</div>
         </>
       )}
       {state === 'ok' && (
@@ -50,8 +50,8 @@ function VerifyInner() {
           <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-4">
             <Check className="w-6 h-6 text-emerald-400" />
           </div>
-          <h1 className="text-xl font-bold text-white mb-1">Email verified ✓</h1>
-          <p className="text-sm text-zinc-400 mb-6">
+          <h1 className="text-xl font-bold text-foreground mb-1">Email verified ✓</h1>
+          <p className="text-sm text-muted-foreground mb-6">
             You're all set — AI site generation is unlocked.
           </p>
           <Link
@@ -68,11 +68,11 @@ function VerifyInner() {
           <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
             <AlertCircle className="w-6 h-6 text-red-400" />
           </div>
-          <h1 className="text-xl font-bold text-white mb-1">Verification failed</h1>
-          <p className="text-sm text-zinc-400 mb-6">{message}</p>
+          <h1 className="text-xl font-bold text-foreground mb-1">Verification failed</h1>
+          <p className="text-sm text-muted-foreground mb-6">{message}</p>
           <Link
             href="/login"
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm font-medium border border-white/10"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-muted hover:bg-muted/70 text-foreground text-sm font-medium border border-border"
           >
             Back to sign in — you can resend the verification email there
           </Link>
@@ -84,9 +84,9 @@ function VerifyInner() {
 
 export default function VerifyEmailPage() {
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
-        <Suspense fallback={<div className="text-center text-sm text-zinc-500">Loading…</div>}>
+        <Suspense fallback={<div className="text-center text-sm text-muted-foreground">Loading…</div>}>
           <VerifyInner />
         </Suspense>
       </div>

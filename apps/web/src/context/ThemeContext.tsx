@@ -16,7 +16,9 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('dark')
+  // Light is the product default. Must match the inline anti-FOUC script in
+  // app/layout.tsx exactly, or the page paints one theme then flips.
+  const [theme, setThemeState] = useState<Theme>('light')
   const [hasChosenTheme, setHasChosenTheme] = useState(true)
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -37,7 +39,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setMounted(true)
     const savedTheme = localStorage.getItem('webcraft-theme') as Theme | null
-    const initial: Theme = savedTheme === 'light' || savedTheme === 'dark' ? savedTheme : 'dark'
+    // No stored choice → light. An explicit choice by the user still wins and
+    // still persists. Kept in step with the inline anti-FOUC script in
+    // app/layout.tsx, which makes the same decision before hydration.
+    const initial: Theme = savedTheme === 'light' || savedTheme === 'dark' ? savedTheme : 'light'
     setThemeState(initial)
     applyTheme(initial)
   }, [])

@@ -28,6 +28,8 @@ interface Props {
   hideIcon?: boolean
 }
 
+// Sizes bumped at every step — the mark and wordmark were sitting at roughly
+// body-text scale, so the brand never led the page.
 const SIZE_CFG: Record<Size, {
   emoji: string
   wordmark: string
@@ -36,22 +38,22 @@ const SIZE_CFG: Record<Size, {
   gap: string
 }> = {
   lg: {
-    emoji: 'text-3xl sm:text-5xl',
-    wordmark: 'text-2xl sm:text-4xl',
-    tagline: 'text-[9px] sm:text-[10px]',
-    taglineMargin: 'mt-1',
-    gap: 'gap-1.5 sm:gap-2',
+    emoji: 'text-5xl sm:text-7xl',
+    wordmark: 'text-[2rem] sm:text-[3.25rem]',
+    tagline: 'text-[9px] sm:text-[11px]',
+    taglineMargin: 'mt-1.5',
+    gap: 'gap-2.5 sm:gap-3.5',
   },
   md: {
-    emoji: 'text-2xl sm:text-3xl',
-    wordmark: 'text-lg sm:text-2xl',
+    emoji: 'text-[2rem] sm:text-[2.75rem]',
+    wordmark: 'text-[1.4rem] sm:text-[1.9rem]',
     tagline: 'text-[8px] sm:text-[9px]',
-    taglineMargin: 'mt-0.5',
-    gap: 'gap-1.5',
+    taglineMargin: 'mt-1',
+    gap: 'gap-2 sm:gap-2.5',
   },
   sm: {
-    emoji: 'text-base',
-    wordmark: 'text-base',
+    emoji: 'text-2xl',
+    wordmark: 'text-[1.15rem]',
     tagline: 'text-[8px]',
     taglineMargin: 'mt-0.5',
     gap: 'gap-1.5',
@@ -79,7 +81,7 @@ export function WebstewLogo({
           🍲
         </span>
       )}
-      <span className="inline-flex flex-col items-center leading-none min-w-0">
+      <span className="inline-flex flex-col items-start leading-none min-w-0">
         <span
           className={cn(
             cfg.wordmark,
@@ -89,10 +91,12 @@ export function WebstewLogo({
               : 'bg-gradient-to-r from-orange-600 via-pink-600 to-purple-600 bg-clip-text text-transparent'
           )}
           style={{
-            fontFamily: 'var(--font-inter-tight), system-ui, sans-serif',
-            fontWeight: 800,
-            letterSpacing: '-0.03em',
-            lineHeight: 1,
+            fontFamily: 'var(--font-sora), var(--font-inter-tight), system-ui, sans-serif',
+            fontWeight: 700,
+            // Sora sets wider than Inter Tight, so it needs more negative
+            // tracking to hold together as a single shape.
+            letterSpacing: '-0.045em',
+            lineHeight: 0.95,
           }}
         >
           Webstew
