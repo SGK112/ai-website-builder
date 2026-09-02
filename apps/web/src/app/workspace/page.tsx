@@ -2362,7 +2362,7 @@ function WorkspaceContent() {
   // The "first-build" flavor is dismissable and remembered in sessionStorage
   // so we don't pop it twice. Action attempts (save/deploy) always nudge —
   // the work itself can't proceed without an account.
-  type NudgeReason = 'first-build' | 'save' | 'deploy-render' | 'deploy-github' | 'export' | 'refine'
+  type NudgeReason = 'first-build' | 'save' | 'deploy-render' | 'deploy-github' | 'export' | 'refine' | 'domain'
   const [signupNudge, setSignupNudge] = useState<{ show: boolean; reason: NudgeReason | null }>({ show: false, reason: null })
 
   // Conversational chat state
@@ -4220,6 +4220,7 @@ function WorkspaceContent() {
   // Buy a domain — Stripe Checkout; on success the webhook registers it and
   // auto-points DNS at this project's site.
   const buyDomain = async (domain: string) => {
+    if (!session?.user) { setSignupNudge({ show: true, reason: 'domain' }); return }
     try {
       // Ensure the site is published FIRST, so there's a live published_sites
       // record for the post-payment webhook to stamp the domain onto —
@@ -4246,7 +4247,7 @@ function WorkspaceContent() {
   const connectOwnedDomain = async () => {
     const domain = ownDomainInput.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '')
     if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) { addToast('error', 'Enter a valid domain like yourbrand.com'); return }
-    if (!session?.user) { setSignupNudge({ show: true, reason: 'deploy-render' }); return }
+    if (!session?.user) { setSignupNudge({ show: true, reason: 'domain' }); return }
     // Make sure there's a published site to attach to — publish first if not.
     if (!publishUrl) {
       await publishInstant()
@@ -8578,6 +8579,7 @@ npx eas build --platform all
             : r === 'deploy-github' ? 'Take the recipe with you'
             : r === 'export'        ? 'Take the recipe with you'
             : r === 'refine'        ? 'Keep cooking'
+            : r === 'domain'        ? 'Make it yours'
             : 'One quick step'
           const title = r === 'first-build' ? 'Your first site is ready 🎉'
             : r === 'save'                  ? 'Save your work to the cloud'
@@ -8585,6 +8587,7 @@ npx eas build --platform all
             : r === 'deploy-github'         ? 'Sign up to push to GitHub'
             : r === 'export'                ? 'Sign up to export your code'
             : r === 'refine'                ? 'Sign up to keep editing'
+            : r === 'domain'                ? 'Sign up to connect a domain'
             : 'Sign up to keep going'
           const message = r === 'first-build'
             ? `Nice work. Sign up free to keep this build forever, deploy it to a live URL, and claim 100 free credits every month — that's ~10 fresh generations.`
@@ -8596,6 +8599,8 @@ npx eas build --platform all
             ? `Push to GitHub creates a real repo from your project so you can edit code, share it, or fork it. Free signup unlocks it — plus 100 credits/month.`
             : r === 'export'
             ? `Download your full source as a zip. Free signup unlocks export (and publish, deploy, and saving to your account) — plus 100 credits/month, no card.`
+            : r === 'domain'
+            ? `A custom domain needs an account to attach it to — otherwise there's nothing to point it at. Free signup, no card, and your current build comes with you.`
             : r === 'refine'
             ? `You built your first site free — nice. To keep editing and refining it with AI, sign up free: 100 credits/month (~10 generations), no card. Your current build comes with you.`
             : `Sign up free to unlock this. 100 credits/month, no card required.`
@@ -8611,7 +8616,7 @@ npx eas build --platform all
               eyebrow={eyebrow}
               title={title}
               glyph={isCelebration ? '🎉' : '🍲'}
-              dismissible={isCelebration}
+              dismissible
               onClose={() => setSignupNudge({ show: false, reason: null })}
               footnote="No credit card. Anytime cancel. Your work in this browser stays saved either way."
               actions={
