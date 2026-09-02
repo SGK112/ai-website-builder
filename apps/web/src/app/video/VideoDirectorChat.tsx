@@ -103,7 +103,7 @@ export default function VideoDirectorChat({ open, initialPrompt, context, onAppl
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-gradient-to-r from-violet-600/20 to-fuchsia-600/20">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center">
-              <Clapperboard className="w-4 h-4 text-violet-300" />
+              <Clapperboard className="w-4 h-4 text-violet-700 dark:text-violet-300" />
             </div>
             <div>
               <div className="text-sm font-semibold text-foreground">AI Director</div>
@@ -141,7 +141,7 @@ export default function VideoDirectorChat({ open, initialPrompt, context, onAppl
           {/* Crafted prompt card */}
           {crafted && !loading && (
             <div className="rounded-xl border border-fuchsia-500/40 bg-fuchsia-500/[0.07] p-3">
-              <div className="flex items-center gap-1.5 mb-1.5 text-fuchsia-300">
+              <div className="flex items-center gap-1.5 mb-1.5 text-fuchsia-700 dark:text-fuchsia-300">
                 <Sparkles className="w-3.5 h-3.5" />
                 <span className="text-xs font-semibold">Director's cut</span>
               </div>
@@ -165,7 +165,7 @@ export default function VideoDirectorChat({ open, initialPrompt, context, onAppl
               <button
                 key={i}
                 onClick={() => send(s)}
-                className="px-2.5 py-1 rounded-full border border-violet-500/40 bg-violet-500/10 text-violet-200 text-xs hover:bg-violet-500/20 transition-colors"
+                className="px-2.5 py-1 rounded-full border border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-200 text-xs hover:bg-violet-500/20 transition-colors"
               >
                 {s}
               </button>

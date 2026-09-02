@@ -32,7 +32,7 @@ export default function WorkspaceError({
           transition={{ delay: 0.2, type: 'spring' }}
           className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6"
         >
-          <AlertTriangle className="w-10 h-10 text-red-300" />
+          <AlertTriangle className="w-10 h-10 text-red-700 dark:text-red-300" />
         </motion.div>
 
         <h1 className="text-2xl font-bold text-white mb-2">
@@ -50,7 +50,7 @@ export default function WorkspaceError({
             Error details
           </summary>
           <div className="mt-2 p-3 bg-black/50 border border-white/10 rounded-lg overflow-auto max-h-48">
-            <pre className="text-xs text-red-200 whitespace-pre-wrap font-mono leading-relaxed">
+            <pre className="text-xs text-red-700 dark:text-red-200 whitespace-pre-wrap font-mono leading-relaxed">
               {error.message || '(no message)'}
               {error.digest && `\n\nDigest: ${error.digest}`}
               {error.stack && `\n\n${error.stack.split('\n').slice(0, 6).join('\n')}`}

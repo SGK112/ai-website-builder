@@ -481,7 +481,7 @@ export function ImagesPanel({
                       >
                         <Cloud className="w-8 h-8 text-violet-400 mx-auto" />
                       </motion.div>
-                      <p className="text-xs text-violet-300 mt-2">Processing...</p>
+                      <p className="text-xs text-violet-700 dark:text-violet-300 mt-2">Processing...</p>
                     </div>
                   </div>
                 )}

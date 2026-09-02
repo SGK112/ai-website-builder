@@ -68,12 +68,12 @@ export function IntegrationsManager({ qs }: { qs: string }) {
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-violet-500/20 bg-violet-500/[0.06] p-3 text-[11px] leading-relaxed text-zinc-400">
-        <div className="mb-1 flex items-center gap-1.5 font-medium text-violet-300"><Plug className="h-3.5 w-3.5" /> Let your users connect their own accounts</div>
+        <div className="mb-1 flex items-center gap-1.5 font-medium text-violet-700 dark:text-violet-300"><Plug className="h-3.5 w-3.5" /> Let your users connect their own accounts</div>
         Enable a toolkit and your app's end-users can connect <em>their own</em> Stripe, Shopify, Gmail, etc. from the published site
-        — <code className="text-violet-300">WebstewDB.integrations.connect(&apos;stripe&apos;)</code>. Your Composio key stays on Webstew&apos;s server.
+        — <code className="text-violet-700 dark:text-violet-300">WebstewDB.integrations.connect(&apos;stripe&apos;)</code>. Your Composio key stays on Webstew&apos;s server.
       </div>
 
-      {error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">{error}</div>}
+      {error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-300">{error}</div>}
 
       {Object.entries(byCategory).map(([cat, kits]) => (
         <div key={cat}>
@@ -93,7 +93,7 @@ export function IntegrationsManager({ qs }: { qs: string }) {
                 >
                   <span className="truncate">{t.label}</span>
                   {busy ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
-                    : on ? <Check className="h-3.5 w-3.5 shrink-0 text-violet-300" />
+                    : on ? <Check className="h-3.5 w-3.5 shrink-0 text-violet-700 dark:text-violet-300" />
                     : <span className="h-3.5 w-3.5 shrink-0 rounded-full border border-white/20" />}
                 </button>
               )

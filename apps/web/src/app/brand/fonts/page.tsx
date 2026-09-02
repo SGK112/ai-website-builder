@@ -121,7 +121,7 @@ export default function BrandFontsPage() {
       <link rel="stylesheet" href={GOOGLE_FONTS_HREF} />
 
       <header className="max-w-6xl mx-auto px-6 pt-12 pb-8 border-b border-white/5">
-        <div className="text-[10px] uppercase tracking-[0.3em] text-violet-300 font-semibold mb-2">
+        <div className="text-[10px] uppercase tracking-[0.3em] text-violet-700 dark:text-violet-300 font-semibold mb-2">
           Brand · Internal
         </div>
         <h1 className="text-3xl sm:text-4xl font-bold mb-2">Webstew AI wordmark — font picker</h1>

@@ -105,7 +105,7 @@ export default async function WatchPage({ params }: { params: { id: string } }) 
       </main>
 
       <footer className="px-5 py-4 text-center text-[11px] text-muted-foreground border-t border-border">
-        Made with <a href="/" className="text-violet-400 hover:text-violet-300">Webstew</a>
+        Made with <a href="/" className="text-violet-400 hover:text-violet-700 dark:text-violet-300">Webstew</a>
       </footer>
     </div>
   )

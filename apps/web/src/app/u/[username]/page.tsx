@@ -281,7 +281,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
             )}
             {isSeller && (
               <span
-                className="absolute -bottom-2 -right-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-[10px] uppercase tracking-wider font-bold text-emerald-300"
+                className="absolute -bottom-2 -right-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-[10px] uppercase tracking-wider font-bold text-emerald-700 dark:text-emerald-300"
                 title="Has shared content with the community"
               >
                 <BadgeCheck className="w-3 h-3" /> Creator
@@ -293,7 +293,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
             <h1 className="text-2xl sm:text-3xl font-bold">{data.author.name}</h1>
             <p className="text-sm text-zinc-500 mt-1">@{data.author.username}</p>
             {data.author.tagline && (
-              <p className="text-sm sm:text-base text-violet-300 mt-2 font-medium">
+              <p className="text-sm sm:text-base text-violet-700 dark:text-violet-300 mt-2 font-medium">
                 {data.author.tagline}
               </p>
             )}
@@ -382,7 +382,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
         {/* CTA — turn viewers into authors */}
         <section className="mt-12 rounded-2xl border border-violet-500/30 bg-violet-500/10 p-6 sm:p-8 text-center">
           <h3 className="text-xl font-semibold mb-2 flex items-center justify-center gap-2">
-            <Sparkles className="w-5 h-5 text-violet-300" /> Want your own creator page?
+            <Sparkles className="w-5 h-5 text-violet-700 dark:text-violet-300" /> Want your own creator page?
           </h3>
           <p className="text-sm text-zinc-400 mb-5">
             Build a site with Webstew, hit publish, your work shows up at /u/&lt;your-handle&gt;.

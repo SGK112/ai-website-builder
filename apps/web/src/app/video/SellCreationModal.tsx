@@ -59,7 +59,7 @@ export default function SellCreationModal({ target, onClose }: { target: SellTar
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
       <div className="relative w-full max-w-md max-h-[85dvh] overflow-y-auto rounded-2xl bg-zinc-950 border border-border shadow-2xl">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Tag className="w-4 h-4 text-emerald-300" /> Sell in the community</div>
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Tag className="w-4 h-4 text-emerald-700 dark:text-emerald-300" /> Sell in the community</div>
           <button onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
         </div>
 

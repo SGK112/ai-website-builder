@@ -25,7 +25,7 @@ export function NotAvailable({
     <main className="min-h-screen bg-gradient-to-b from-zinc-950 to-zinc-900 text-white flex items-center justify-center px-4">
       <div className="w-full max-w-md text-center">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-500/15 border border-violet-500/30">
-          <Compass className="h-7 w-7 text-violet-300" />
+          <Compass className="h-7 w-7 text-violet-700 dark:text-violet-300" />
         </div>
         <h1 className="mt-6 text-2xl font-bold">{title}</h1>
         <p className="mt-2 text-sm leading-relaxed text-zinc-400">{message}</p>

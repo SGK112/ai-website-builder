@@ -102,7 +102,7 @@ export default function LibraryPage() {
       <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-2">Library · Sign in required</h1>
-          <Link href={`/login?callbackUrl=${encodeURIComponent('/library')}`} className="text-violet-400 hover:text-violet-300">Sign in →</Link>
+          <Link href={`/login?callbackUrl=${encodeURIComponent('/library')}`} className="text-violet-400 hover:text-violet-700 dark:text-violet-300">Sign in →</Link>
         </div>
       </div>
     )
@@ -168,7 +168,7 @@ export default function LibraryPage() {
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2 text-sm text-red-300">
+          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2 text-sm text-red-700 dark:text-red-300">
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {error}
           </div>
         )}
@@ -214,7 +214,7 @@ export default function LibraryPage() {
                     </span>
                   )}
                   {l.status && l.status !== 'approved' && (
-                    <span className="absolute top-2 left-2 inline-flex items-center gap-1 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                    <span className="absolute top-2 left-2 inline-flex items-center gap-1 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
                       {l.status}
                     </span>
                   )}

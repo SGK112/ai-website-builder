@@ -212,12 +212,12 @@ export function ListingActions({ listingId, title, isPremium, priceCredits }: Pr
       )}
 
       {error && (
-        <div className="basis-full mt-2 flex items-start gap-2 text-sm text-red-300">
+        <div className="basis-full mt-2 flex items-start gap-2 text-sm text-red-700 dark:text-red-300">
           <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {error}
         </div>
       )}
       {flash && (
-        <div className="basis-full mt-2 flex items-start gap-2 text-sm text-emerald-300">
+        <div className="basis-full mt-2 flex items-start gap-2 text-sm text-emerald-700 dark:text-emerald-300">
           <Check className="w-4 h-4 mt-0.5 shrink-0" /> {flash}
         </div>
       )}

@@ -76,7 +76,7 @@ export default function ShowcasePage({ params }: PageProps) {
         <header className="mb-6 flex flex-col md:flex-row md:items-start md:justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded bg-violet-500/15 text-violet-300 border border-violet-500/30">
+              <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded bg-violet-500/15 text-violet-700 dark:text-violet-300 border border-violet-500/30">
                 Webstew template
               </span>
               <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest px-2 py-0.5 rounded bg-white/5 text-zinc-400">
@@ -126,7 +126,7 @@ export default function ShowcasePage({ params }: PageProps) {
 
         <section className="rounded-2xl border border-violet-500/30 bg-violet-500/10 p-6 sm:p-8 text-center">
           <h3 className="text-xl font-semibold mb-2 flex items-center justify-center gap-2">
-            <Sparkles className="w-5 h-5 text-violet-300" /> Make this yours
+            <Sparkles className="w-5 h-5 text-violet-700 dark:text-violet-300" /> Make this yours
           </h3>
           <p className="text-sm text-zinc-400 mb-5 max-w-md mx-auto">
             Webstew will generate your own version, rewritten for your brand, content, and audience. Free to try, no card required.

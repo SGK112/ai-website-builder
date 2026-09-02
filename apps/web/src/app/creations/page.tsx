@@ -82,7 +82,7 @@ export default function CreationsPage() {
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center text-center px-6">
       <div>
         <h1 className="text-2xl font-bold mb-2">Your creations</h1>
-        <Link href={`/login?callbackUrl=${encodeURIComponent('/creations')}`} className="text-violet-400 hover:text-violet-300">Sign in to see them →</Link>
+        <Link href={`/login?callbackUrl=${encodeURIComponent('/creations')}`} className="text-violet-400 hover:text-violet-700 dark:text-violet-300">Sign in to see them →</Link>
       </div>
     </div>
   )

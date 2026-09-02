@@ -250,7 +250,7 @@ export function PublishToCommunityModal({
                 <button
                   type="button"
                   onClick={() => setThumbnailUrl('')}
-                  className="text-xs text-muted-foreground hover:text-red-300"
+                  className="text-xs text-muted-foreground hover:text-red-700 dark:text-red-300"
                 >
                   Remove
                 </button>
@@ -314,18 +314,18 @@ export function PublishToCommunityModal({
 
           {!parseFloat(priceUsd) && (
             <div className="text-xs text-muted-foreground leading-relaxed bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
-              <strong className="text-blue-300">Free listing.</strong> Anyone can view, remix, and use it. Set a price above to make it a paid template.
+              <strong className="text-blue-700 dark:text-blue-300">Free listing.</strong> Anyone can view, remix, and use it. Set a price above to make it a paid template.
             </div>
           )}
 
           {error && (
-            <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-300">
+            <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-700 dark:text-red-300">
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
               <span>{error}</span>
             </div>
           )}
           {success && (
-            <div className="flex items-start gap-2 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-sm text-emerald-300">
+            <div className="flex items-start gap-2 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-sm text-emerald-700 dark:text-emerald-300">
               <Check className="w-4 h-4 mt-0.5 shrink-0" />
               <span>{success}</span>
             </div>

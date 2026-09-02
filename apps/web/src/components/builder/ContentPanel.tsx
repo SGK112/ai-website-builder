@@ -125,7 +125,7 @@ export function ContentPanel({ projectId, isDark = true }: Props) {
       {/* Body */}
       <div className="flex-1 min-h-0 overflow-y-auto">
         {error && (
-          <div className="m-3 p-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-start gap-2">
+          <div className="m-3 p-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-xs flex items-start gap-2">
             <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
@@ -298,7 +298,7 @@ function ItemsList({ projectId, collection, isDark, onEdit, onNew }: {
         </button>
       </div>
       {error && (
-        <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-xs">{error}</div>
+        <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-xs">{error}</div>
       )}
       {items.length === 0 && (
         <Empty icon={FileText} title="No items yet" body={`Click "New" to add your first ${schema?.name?.toLowerCase() || 'item'}.`} isDark={isDark} />

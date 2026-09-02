@@ -63,9 +63,9 @@ export default function ForgotPasswordPage() {
             <div className="space-y-4">
               <div className="flex items-start gap-3 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
                 <Mail className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-                <div className="text-sm text-emerald-100">
+                <div className="text-sm text-emerald-800 dark:text-emerald-100">
                   <div className="font-medium">Check your inbox</div>
-                  <div className="text-emerald-200/70 mt-1">
+                  <div className="text-emerald-700/70 dark:text-emerald-200/70 mt-1">
                     If <span className="font-mono">{email}</span> has an account, a reset link is on its way. The link expires in 1 hour.
                   </div>
                 </div>
@@ -93,7 +93,7 @@ export default function ForgotPasswordPage() {
               </label>
 
               {error && (
-                <div className="text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                <div className="text-sm text-red-700 dark:text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg p-3">
                   {error}
                 </div>
               )}

@@ -393,7 +393,7 @@ export default function CommunityPage() {
           never feel dead (replaces the old silent rollback). */}
       {actionMsg && (
         <div role="status" aria-live="polite" className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-zinc-900/95 border border-white/15 text-white text-sm shadow-xl flex items-center gap-2">
-          <Bookmark className="w-3.5 h-3.5 text-violet-300" /> {actionMsg}
+          <Bookmark className="w-3.5 h-3.5 text-violet-700 dark:text-violet-300" /> {actionMsg}
         </div>
       )}
 

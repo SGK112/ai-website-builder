@@ -531,7 +531,7 @@ export function WebContainerPreview({
               web target still get the click-out. */}
           {serverUrl && !isExpoWeb && (
             <a href={serverUrl} target="_blank" rel="noopener noreferrer"
-              className="ml-2 hidden lg:flex text-violet-300 hover:text-violet-200 items-center gap-1">
+              className="ml-2 hidden lg:flex text-violet-700 dark:text-violet-300 hover:text-violet-700 dark:text-violet-200 items-center gap-1">
               <span className="font-mono text-[10px] opacity-70">{new URL(serverUrl).host}</span>
               <ExternalLink className="w-3 h-3" />
             </a>
@@ -666,7 +666,7 @@ export function WebContainerPreview({
               no in-browser preview. Publish this build and scan the QR with your phone
               to open it live.
               <span className="block mt-2 text-zinc-500">
-                Want a preview right here? Build it as a <span className="text-violet-300">Web</span> app
+                Want a preview right here? Build it as a <span className="text-violet-700 dark:text-violet-300">Web</span> app
                 instead — it runs as an installable mobile web app (PWA) in the browser.
               </span>
             </div>
@@ -692,7 +692,7 @@ export function WebContainerPreview({
                 it because the orphan is below the JS layer. */}
             {/single (WebContainer )?instance/i.test(error || '') ? (
               <>
-                <div className="text-xs text-amber-300 max-w-md leading-relaxed">
+                <div className="text-xs text-amber-700 dark:text-amber-300 max-w-md leading-relaxed">
                   An orphaned WebContainer worker is still alive in this tab.
                   <span className="block mt-1 text-slate-400">A soft reload doesn't kill the worker — Chrome keeps it cached. You need a HARD reload.</span>
                 </div>
@@ -953,7 +953,7 @@ function PhonePreviewModal(props: PhonePreviewModalProps) {
                 <>
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   <RelativeTime ts={snackPublishedAt} />
-                  <button onClick={publishToSnack} title="Refresh now" className="text-zinc-500 hover:text-violet-300 transition ml-1">
+                  <button onClick={publishToSnack} title="Refresh now" className="text-zinc-500 hover:text-violet-700 dark:text-violet-300 transition ml-1">
                     <RefreshCw className="w-3 h-3" />
                   </button>
                 </>
@@ -1015,8 +1015,8 @@ function PhonePreviewModal(props: PhonePreviewModalProps) {
                 </button>
                 <p className="text-[10px] text-zinc-500 mt-3">
                   Don&apos;t have it yet?{' '}
-                  <a href="https://apps.apple.com/app/expo-go/id982107779" target="_blank" rel="noopener noreferrer" className="text-violet-300 underline underline-offset-2">iPhone</a>{' · '}
-                  <a href="https://play.google.com/store/apps/details?id=host.exp.exponent" target="_blank" rel="noopener noreferrer" className="text-violet-300 underline underline-offset-2">Android</a>
+                  <a href="https://apps.apple.com/app/expo-go/id982107779" target="_blank" rel="noopener noreferrer" className="text-violet-700 dark:text-violet-300 underline underline-offset-2">iPhone</a>{' · '}
+                  <a href="https://play.google.com/store/apps/details?id=host.exp.exponent" target="_blank" rel="noopener noreferrer" className="text-violet-700 dark:text-violet-300 underline underline-offset-2">Android</a>
                 </p>
               </div>
             )}
@@ -1062,7 +1062,7 @@ function PhonePreviewModal(props: PhonePreviewModalProps) {
                     </a>
                     <button
                       onClick={copySnackLink}
-                      className="mt-2 text-[11px] text-zinc-500 hover:text-violet-300 flex items-center justify-center gap-1.5 transition"
+                      className="mt-2 text-[11px] text-zinc-500 hover:text-violet-700 dark:text-violet-300 flex items-center justify-center gap-1.5 transition"
                     >
                       {linkCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                       {linkCopied ? 'Link copied' : 'Or send to someone'}
@@ -1096,8 +1096,8 @@ function PhonePreviewModal(props: PhonePreviewModalProps) {
                 <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-start gap-2.5">
                   <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <div className="text-sm text-red-300 font-medium">Something went wrong</div>
-                    <div className="text-[11px] text-red-300/70 mt-1 break-words">{snackError}</div>
+                    <div className="text-sm text-red-700 dark:text-red-300 font-medium">Something went wrong</div>
+                    <div className="text-[11px] text-red-700/70 dark:text-red-300/70 mt-1 break-words">{snackError}</div>
                   </div>
                 </div>
                 <button

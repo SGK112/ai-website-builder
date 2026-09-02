@@ -379,7 +379,7 @@ export default function UpgradePage() {
             want lead capture. */}
         <div className="max-w-6xl mx-auto mt-6">
           <div className={cn(
-            'p-6 rounded-2xl border bg-gradient-to-r from-violet-500/5/5 to-amber-500/5 flex flex-col md:flex-row items-start md:items-center gap-4 justify-between',
+            'p-6 rounded-2xl border bg-gradient-to-r from-violet-500/5 to-amber-500/5 flex flex-col md:flex-row items-start md:items-center gap-4 justify-between',
             isDark ? 'border-white/10' : 'border-slate-200'
           )}>
             <div className="flex items-start gap-3">

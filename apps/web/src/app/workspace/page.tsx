@@ -10560,7 +10560,7 @@ npx eas build --platform all
                               className="flex-1 text-left flex items-start gap-2"
                               title={`Insert into current page (${pages.find(p => p.id === activePageId)?.name || 'Home'})`}
                             >
-                              <code className="mt-0.5 px-1 py-0.5 text-[9px] font-mono shrink-0 rounded bg-emerald-500/10 text-emerald-300">
+                              <code className="mt-0.5 px-1 py-0.5 text-[9px] font-mono shrink-0 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
                                 {block.tag}
                               </code>
                               <span className="text-xs flex-1 text-zinc-300 line-clamp-2 break-words">
@@ -11263,7 +11263,7 @@ npx eas build --platform all
                       <div className="flex items-start gap-2">
                         <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
                         <div className="min-w-0 flex-1">
-                          <div className="text-[12px] font-medium text-red-300">
+                          <div className="text-[12px] font-medium text-red-700 dark:text-red-300">
                             {previewErrors.length > 1 ? `${previewErrors.length} runtime errors` : 'Runtime error'} in preview
                           </div>
                           <div className="text-[11px] text-zinc-400 truncate font-mono">{previewErrors[previewErrors.length - 1].message}</div>
@@ -11836,7 +11836,7 @@ npx eas build --platform all
                     {/* URL Input Tab */}
                     {(imageTabMode || 'url') === 'url' && (
                       <div className="p-4 rounded-xl bg-gradient-to-br from-violet-500/10 to-purple-500/10 border border-violet-500/20">
-                        <label className="block text-sm text-violet-300 mb-3 font-medium">
+                        <label className="block text-sm text-violet-700 dark:text-violet-300 mb-3 font-medium">
                           Replace with Image URL
                         </label>
                         <input
@@ -11877,7 +11877,7 @@ npx eas build --platform all
                         UI state; only the visible copy changes. */}
                     {(imageTabMode || 'url') === 'unsplash' && (
                       <div className="p-4 rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20">
-                        <label className="block text-sm text-amber-300 mb-3 font-medium">
+                        <label className="block text-sm text-amber-700 dark:text-amber-300 mb-3 font-medium">
                           Search Pexels Stock Photos
                         </label>
                         <div className="flex gap-2 mb-4">
@@ -12005,7 +12005,7 @@ npx eas build --platform all
                     {/* AI Generate Tab */}
                     {(imageTabMode || 'url') === 'ai' && (
                       <div className="p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-blue-500/20">
-                        <label className="block text-sm text-blue-300 mb-3 font-medium">
+                        <label className="block text-sm text-blue-700 dark:text-blue-300 mb-3 font-medium">
                           Generate New AI Image
                         </label>
                         <textarea
@@ -12119,7 +12119,7 @@ npx eas build --platform all
                     {/* Upload Tab */}
                     {(imageTabMode || 'url') === 'upload' && (
                       <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border border-emerald-500/20">
-                        <label className="block text-sm text-emerald-300 mb-3 font-medium">
+                        <label className="block text-sm text-emerald-700 dark:text-emerald-300 mb-3 font-medium">
                           Upload Image File
                         </label>
                         <div
@@ -12192,7 +12192,7 @@ npx eas build --platform all
                 {/* Video Tab (simplified) */}
                 {selectedMediaElement.type === 'video' && (
                   <div className="p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-blue-500/20">
-                    <label className="block text-sm text-blue-300 mb-3 font-medium">
+                    <label className="block text-sm text-blue-700 dark:text-blue-300 mb-3 font-medium">
                       Generate New AI Video
                     </label>
                     <textarea
@@ -12427,7 +12427,7 @@ npx eas build --platform all
 
                 {/* Pro Tips */}
                 <div className="p-4 rounded-xl bg-gradient-to-br from-violet-500/10 to-purple-500/10 border border-violet-500/20">
-                  <h3 className="text-sm font-semibold text-violet-300 mb-2 flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-violet-700 dark:text-violet-300 mb-2 flex items-center gap-2">
                     <Lightbulb className="w-4 h-4" />
                     Pro Tips
                   </h3>
@@ -12529,7 +12529,7 @@ npx eas build --platform all
                       href="https://console.anthropic.com/settings/keys"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-violet-400 hover:text-violet-300"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-violet-400 hover:text-violet-700 dark:text-violet-300"
                     >
                       Get key
                     </a>
@@ -12557,7 +12557,7 @@ npx eas build --platform all
                       href="https://platform.openai.com/api-keys"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-violet-400 hover:text-violet-300"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-violet-400 hover:text-violet-700 dark:text-violet-300"
                     >
                       Get key
                     </a>
@@ -12585,7 +12585,7 @@ npx eas build --platform all
                       href="https://aistudio.google.com/app/apikey"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-violet-400 hover:text-violet-300"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-violet-400 hover:text-violet-700 dark:text-violet-300"
                     >
                       Get key
                     </a>
@@ -12613,7 +12613,7 @@ npx eas build --platform all
                       href="https://console.x.ai/"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-violet-400 hover:text-violet-300"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-violet-400 hover:text-violet-700 dark:text-violet-300"
                     >
                       Get key
                     </a>
@@ -12678,7 +12678,7 @@ npx eas build --platform all
                       href="https://api.together.ai"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-purple-400 hover:text-purple-300"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-purple-400 hover:text-purple-700 dark:text-purple-300"
                     >
                       Get free credits
                     </a>
@@ -12707,7 +12707,7 @@ npx eas build --platform all
                       href="https://dash.cloudflare.com/profile/api-tokens"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-orange-400 hover:text-orange-300"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-orange-400 hover:text-orange-700 dark:text-orange-300"
                     >
                       Get token
                     </a>
@@ -12724,7 +12724,7 @@ npx eas build --platform all
                 {/* Info */}
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
                   <Info className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
-                  <p className="text-xs text-blue-300/80">
+                  <p className="text-xs text-blue-700/80 dark:text-blue-300/80">
                     Your API keys are stored locally in your browser and never sent to our servers.
                     Free providers require tokens but don't charge your credit card.
                   </p>
@@ -12737,7 +12737,7 @@ npx eas build --platform all
                   <>
                     <div className="flex items-start gap-2 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20 mb-4">
                       <Shield className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
-                      <p className="text-xs text-emerald-300/80">
+                      <p className="text-xs text-emerald-700/80 dark:text-emerald-300/80">
                         Service credentials are encrypted and stored securely on our servers.
                         The builder can use these to create working integrations.
                       </p>
@@ -12811,7 +12811,7 @@ npx eas build --platform all
                   <>
                     <div className="flex items-start gap-2 p-3 rounded-lg bg-violet-500/5 border border-violet-500/20 mb-4">
                       <Plug className="w-4 h-4 text-violet-400 mt-0.5 shrink-0" />
-                      <p className="text-xs text-violet-300/80">
+                      <p className="text-xs text-violet-700/80 dark:text-violet-300/80">
                         Add payment, email, and media services. The builder will create
                         working integrations you can test in the preview.
                       </p>
@@ -13169,7 +13169,7 @@ npx eas build --platform all
                   <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
                     <div className="flex items-start gap-2">
                       <Info className="w-3.5 h-3.5 text-blue-400 mt-0.5 shrink-0" />
-                      <div className="text-[10px] text-blue-300/80 space-y-1">
+                      <div className="text-[10px] text-blue-700/80 dark:text-blue-300/80 space-y-1">
                         <p>All images from Unsplash, Pexels, and Pixabay are free for commercial use.</p>
                         <p>Use the AI builder to describe the image you want and it will be generated automatically.</p>
                       </div>
@@ -13461,7 +13461,7 @@ npx eas build --platform all
           >
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-lg bg-violet-500/20 flex items-center justify-center shrink-0">
-                <Sparkles className="w-4 h-4 text-violet-300" />
+                <Sparkles className="w-4 h-4 text-violet-700 dark:text-violet-300" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-white mb-0.5">Your build finished while you were away</div>
@@ -13518,7 +13518,7 @@ npx eas build --platform all
               transition={{ type: 'spring', stiffness: 320, damping: 30 }}
               className="fixed bottom-20 right-4 z-[300] flex items-center gap-2 bg-zinc-900 border border-emerald-500/40 rounded-full shadow-xl shadow-emerald-500/20 pl-3 pr-1.5 py-1.5"
             >
-              <Bell className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+              <Bell className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-300 shrink-0" />
               <span className="text-xs text-zinc-300 whitespace-nowrap">
                 {canAsk
                   ? 'Cooking — get notified when it’s ready?'

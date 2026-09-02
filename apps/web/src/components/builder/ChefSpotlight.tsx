@@ -189,8 +189,8 @@ export function ChefDock({
             {/* Selected-element chip */}
             {selectedElement && (
               <div className="flex items-center gap-2 rounded-full bg-violet-500/15 backdrop-blur-2xl border border-violet-500/30 px-3 py-1.5 self-center">
-                <Sparkles className="w-3 h-3 text-violet-300 shrink-0" />
-                <span className="text-[10px] uppercase tracking-wider text-violet-300 font-semibold">
+                <Sparkles className="w-3 h-3 text-violet-700 dark:text-violet-300 shrink-0" />
+                <span className="text-[10px] uppercase tracking-wider text-violet-700 dark:text-violet-300 font-semibold">
                   Editing &lt;{selectedElement.tagName.toLowerCase()}&gt;
                 </span>
                 <span className="text-[11px] text-foreground/80 truncate max-w-[180px]">

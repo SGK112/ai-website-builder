@@ -64,7 +64,7 @@ export default function WorkspaceLoading() {
         <h2 className="text-xl font-bold text-white mb-2">
           Loading Workspace
         </h2>
-        <p className="text-purple-300 text-sm">
+        <p className="text-purple-700 dark:text-purple-300 text-sm">
           Preparing your creative environment...
         </p>
       </motion.div>

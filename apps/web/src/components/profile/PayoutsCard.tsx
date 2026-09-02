@@ -122,7 +122,7 @@ export function PayoutsCard({ isDark }: Props) {
       <p className={cn('text-sm mb-4', isDark ? 'text-zinc-400' : 'text-zinc-600')}>{helper}</p>
 
       {error && (
-        <div className="mb-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-2 text-sm text-red-300">
+        <div className="mb-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-2 text-sm text-red-700 dark:text-red-300">
           <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {error}
         </div>
       )}
@@ -181,7 +181,7 @@ export function PayoutsCard({ isDark }: Props) {
             <Check className="w-4 h-4 text-emerald-400" />
             <span className={isDark ? 'text-zinc-300' : 'text-zinc-700'}>Connected · payouts {state.payoutsEnabled ? 'on' : 'off'}</span>
           </span>
-          <button onClick={startOnboarding} disabled={linking} className="inline-flex items-center gap-1.5 text-xs text-violet-400 hover:text-violet-300 disabled:opacity-60">
+          <button onClick={startOnboarding} disabled={linking} className="inline-flex items-center gap-1.5 text-xs text-violet-400 hover:text-violet-700 dark:text-violet-300 disabled:opacity-60">
             {linking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5" />} Manage in Stripe
           </button>
         </div>

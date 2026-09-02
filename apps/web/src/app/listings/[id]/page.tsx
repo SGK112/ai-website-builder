@@ -136,7 +136,7 @@ export default async function ListingPage({ params }: PageProps) {
             <div className="flex items-center gap-2 mb-2">
               <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded bg-muted text-muted-foreground">{l.type}</span>
               {l.isPremium && (
-                <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest px-2 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
                   <Crown className="w-3 h-3" /> ${((l.priceCredits || 0) / 100).toFixed(2)}
                 </span>
               )}
@@ -192,7 +192,7 @@ export default async function ListingPage({ params }: PageProps) {
               {l.isPremium && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm">
                   <div className="text-center px-6">
-                    <Crown className="w-8 h-8 text-amber-300 mx-auto mb-3" />
+                    <Crown className="w-8 h-8 text-amber-700 dark:text-amber-300 mx-auto mb-3" />
                     <p className="text-lg font-semibold mb-1">Preview locked</p>
                     <p className="text-sm text-muted-foreground mb-4">{l.type === 'video' ? 'Buy this listing to get the full video.' : 'Buy this listing to view the full site + get the source.'}</p>
                   </div>
@@ -232,7 +232,7 @@ export default async function ListingPage({ params }: PageProps) {
         {/* Author card + remix CTA */}
         <section className="mt-8 rounded-2xl border border-violet-500/30 bg-violet-500/10 p-6 text-center">
           <h3 className="text-xl font-semibold mb-2 flex items-center justify-center gap-2">
-            <Sparkles className="w-5 h-5 text-violet-300" /> Want one like this?
+            <Sparkles className="w-5 h-5 text-violet-700 dark:text-violet-300" /> Want one like this?
           </h3>
           <p className="text-sm text-muted-foreground mb-5">
             Webstew can generate your own version with the same structure, styled to your brand. Free to try.

@@ -167,7 +167,7 @@ export function VideoPanel({
 
         <button
           onClick={() => setDirectorOpen(true)}
-          className="mb-3 w-full flex items-center justify-center gap-1.5 rounded-lg border border-violet-500/40 bg-gradient-to-r from-violet-600/15 to-fuchsia-600/15/25/25 text-violet-200 text-xs font-medium py-2 transition-colors"
+          className="mb-3 w-full flex items-center justify-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/20 text-violet-700 dark:text-violet-200 text-xs font-medium py-2 transition-colors"
         >
           <Sparkles className="w-3.5 h-3.5" />
           AI Director — help me craft this prompt
@@ -218,7 +218,7 @@ export function VideoPanel({
         {/* Status Message */}
         {videoGenerating && videoStatus && (
           <div className="mt-3 p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
-            <div className="flex items-center gap-2 text-sm text-purple-300">
+            <div className="flex items-center gap-2 text-sm text-purple-700 dark:text-purple-300">
               <Loader2 className="w-4 h-4 animate-spin" />
               {videoStatus}
             </div>

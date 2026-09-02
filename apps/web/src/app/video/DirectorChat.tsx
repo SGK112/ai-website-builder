@@ -125,7 +125,7 @@ export default function DirectorChat({ open, clips, busy, onGenerate, onAssemble
       <div className="flex-1 bg-black/50" onClick={onClose} />
       <div className="w-full max-w-md h-[100dvh] bg-zinc-950 border-l border-border flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] border-b border-border shrink-0">
-          <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Clapperboard className="w-4 h-4 text-violet-300" /> Talk to the chef</div>
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Clapperboard className="w-4 h-4 text-violet-700 dark:text-violet-300" /> Talk to the chef</div>
           <div className="flex items-center gap-1">
             <button onClick={() => setSpeak(s => !s)} title={speak ? 'Mute replies' : 'Hear replies'} className="w-10 h-10 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted">{speak ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}</button>
             <button onClick={onClose} aria-label="Close" className="w-10 h-10 rounded-xl flex items-center justify-center bg-muted text-foreground/80 hover:text-foreground hover:bg-muted/70"><X className="w-6 h-6" /></button>
@@ -140,8 +140,8 @@ export default function DirectorChat({ open, clips, busy, onGenerate, onAssemble
             <div key={`v${t.id}`} className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${t.role === 'user' ? 'ml-auto bg-violet-600 text-white' : 'bg-muted text-foreground'}`}>{t.text}</div>
           ))}
           {sending && <div className="bg-muted text-muted-foreground rounded-2xl px-3 py-2 w-14 flex justify-center"><Loader2 className="w-4 h-4 animate-spin" /></div>}
-          {busy && <div className="bg-violet-500/15 text-violet-200 rounded-2xl px-3 py-2 text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> On it — working behind the scenes. Watch the timeline.</div>}
-          {error && <div className="text-rose-300 text-xs px-1">{error}</div>}
+          {busy && <div className="bg-violet-500/15 text-violet-700 dark:text-violet-200 rounded-2xl px-3 py-2 text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> On it — working behind the scenes. Watch the timeline.</div>}
+          {error && <div className="text-rose-700 dark:text-rose-300 text-xs px-1">{error}</div>}
         </div>
 
         <div className="p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] border-t border-border shrink-0">
@@ -152,8 +152,8 @@ export default function DirectorChat({ open, clips, busy, onGenerate, onAssemble
               : voice.active ? <><Radio className="w-4 h-4 animate-pulse" /> {voice.status === 'speaking' ? 'Chef is speaking… (tap to end)' : 'Listening… (tap to end)'}</>
               : <><Mic className="w-4 h-4" /> Talk to the chef — voice</>}
           </button>
-          {voice.error && <p className="text-[10px] text-rose-300/80 mb-1">{voice.error}</p>}
-          {mic.error && <p className="text-[10px] text-rose-300/80 mb-1">{mic.error}</p>}
+          {voice.error && <p className="text-[10px] text-rose-700/80 dark:text-rose-300/80 mb-1">{voice.error}</p>}
+          {mic.error && <p className="text-[10px] text-rose-700/80 dark:text-rose-300/80 mb-1">{mic.error}</p>}
           <div className="flex items-center gap-1.5 w-full">
             <input
               value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') send() }}

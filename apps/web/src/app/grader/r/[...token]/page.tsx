@@ -204,7 +204,7 @@ export default async function GraderSharePage({ params }: PageProps) {
             <ul className="space-y-2.5">
               {recommendations.map((rec, i) => (
                 <li key={i} className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-                  <span className="shrink-0 w-5 h-5 rounded-full bg-emerald-500/15 text-emerald-300 text-[11px] font-semibold flex items-center justify-center mt-0.5">{i + 1}</span>
+                  <span className="shrink-0 w-5 h-5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[11px] font-semibold flex items-center justify-center mt-0.5">{i + 1}</span>
                   <p className="text-sm leading-relaxed text-zinc-200">{rec}</p>
                 </li>
               ))}
@@ -240,7 +240,7 @@ export default async function GraderSharePage({ params }: PageProps) {
         {/* CTA */}
         <div className="mt-8 rounded-2xl border border-violet-500/30 bg-violet-500/10 p-6 sm:p-8 text-center">
           <h3 className="text-xl font-semibold mb-2 flex items-center justify-center gap-2">
-            <Sparkles className="w-5 h-5 text-violet-300" /> Get a better score in one shot
+            <Sparkles className="w-5 h-5 text-violet-700 dark:text-violet-300" /> Get a better score in one shot
           </h3>
           <p className="text-sm text-zinc-400 mb-5">Webstew rebuilds your site with the fixes baked in — better SEO, AI-ready structure, mobile-first. Free to try.</p>
           <div className="flex flex-wrap gap-2 justify-center">

@@ -90,7 +90,7 @@ export default function DataStudioPage() {
   }
 
   if (!ready) return <Shell><p className="text-muted-foreground">Loading…</p></Shell>
-  if (error) return <Shell><div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-red-300">{error}</div></Shell>
+  if (error) return <Shell><div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-red-700 dark:text-red-300">{error}</div></Shell>
   if (!overview) return <Shell><p className="text-muted-foreground">Loading backend…</p></Shell>
 
   const columns = deriveColumns(rows)
@@ -170,7 +170,7 @@ function RowView({ row, columns, onDelete, onSave }: { row: Row; columns: string
         <td className="px-3 py-2 font-mono text-[10px] text-muted-foreground">{row.id.slice(0, 8)}…</td>
         {columns.map((c) => <td key={c} className="px-3 py-2">{renderCell(row.data?.[c])}</td>)}
         <td className="px-3 py-2 text-right whitespace-nowrap">
-          <button onClick={() => { setDraft(JSON.stringify(row.data, null, 2)); setEditing((e) => !e) }} className="text-muted-foreground hover:text-violet-300">edit</button>
+          <button onClick={() => { setDraft(JSON.stringify(row.data, null, 2)); setEditing((e) => !e) }} className="text-muted-foreground hover:text-violet-700 dark:text-violet-300">edit</button>
           <button onClick={onDelete} className="ml-3 text-muted-foreground hover:text-red-400">del</button>
         </td>
       </tr>
@@ -340,7 +340,7 @@ function ActionsSection({ appId, qs }: { appId: string; qs: () => string }) {
       <div className="space-y-1.5">
         {actions.map((a) => (
           <div key={a.name} className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
-            <span className="font-mono text-foreground/80"><span className="text-violet-300">{a.method}</span> {a.name}</span>
+            <span className="font-mono text-foreground/80"><span className="text-violet-700 dark:text-violet-300">{a.method}</span> {a.name}</span>
             <span className="flex items-center gap-3">
               <span className="max-w-[260px] truncate font-mono text-muted-foreground">{a.url}</span>
               <button onClick={() => remove(a.name)} className="text-muted-foreground hover:text-red-400">remove</button>

@@ -29,7 +29,7 @@ export function SitePreview({
             flashes a blank white rectangle (jarring on a dark feed) while the
             scaled-down site (+ its Tailwind CDN / images) loads in. */}
         {!frameLoaded && (
-          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/15/10 to-transparent animate-pulse" />
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/15 to-transparent animate-pulse" />
         )}
         {/* Render at 1280px wide then scale to fit, so the preview looks like
             a real desktop site rather than a cramped mobile reflow. */}
@@ -62,7 +62,7 @@ export function SitePreview({
   // No HTML, no usable image — a neutral branded placeholder instead of a
   // broken-image icon.
   return (
-    <div className="w-full h-full bg-gradient-to-br from-violet-500/20/10 to-transparent flex items-center justify-center">
+    <div className="w-full h-full bg-gradient-to-br from-violet-500/20 to-transparent flex items-center justify-center">
       <span className="text-3xl opacity-40">🍲</span>
     </div>
   )

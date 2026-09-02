@@ -804,7 +804,7 @@ export default function VideoStudio() {
           status bar / Dynamic Island (the page paints behind the notch). */}
       <div className="flex items-center justify-between px-4 pb-2.5 pt-[calc(env(safe-area-inset-top)+0.625rem)] border-b border-border shrink-0">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-violet-500/20 flex items-center justify-center"><Clapperboard className="w-4 h-4 text-violet-300" /></div>
+          <div className="w-7 h-7 rounded-lg bg-violet-500/20 flex items-center justify-center"><Clapperboard className="w-4 h-4 text-violet-700 dark:text-violet-300" /></div>
           <div>
             <div className="text-sm font-semibold text-foreground">Video Studio</div>
             <div className="hidden sm:block text-[10px] text-muted-foreground">Generate clips → arrange on the timeline → stitch & export</div>
@@ -851,7 +851,7 @@ export default function VideoStudio() {
               You review and hit Render. Shown once there are clips to direct. */}
           {doneClips.length >= 1 && (
             <div className="space-y-1.5 rounded-xl border border-violet-500/40 bg-gradient-to-br from-violet-600/15 to-fuchsia-600/10 p-2.5">
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-violet-100"><Clapperboard className="w-3.5 h-3.5" /> AI Director — assemble the cut</div>
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-violet-800 dark:text-violet-100"><Clapperboard className="w-3.5 h-3.5" /> AI Director — assemble the cut</div>
               <div className="flex items-center gap-1.5">
                 <input
                   value={directorOrder} onChange={e => setDirectorOrder(e.target.value)}
@@ -867,16 +867,16 @@ export default function VideoStudio() {
                   </button>
                 )}
               </div>
-              {orderMic.error && <p className="text-[10px] text-rose-300/80">{orderMic.error}</p>}
+              {orderMic.error && <p className="text-[10px] text-rose-700/80 dark:text-rose-300/80">{orderMic.error}</p>}
               <button onClick={() => runDirector()} disabled={busy || !directorOrder.trim()}
                 className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white text-xs font-semibold py-2">
                 {directing ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {genLabel || 'Directing…'}</> : <><Clapperboard className="w-3.5 h-3.5" /> Direct the whole cut ({doneClips.length})</>}
               </button>
               <button onClick={() => setDirectorChatOpen(true)} disabled={directing}
-                className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-violet-400/30 bg-muted hover:bg-muted/70 disabled:opacity-40 text-violet-100 text-xs font-medium py-2">
+                className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-violet-400/30 bg-muted hover:bg-muted/70 disabled:opacity-40 text-violet-800 dark:text-violet-100 text-xs font-medium py-2">
                 <Mic className="w-3.5 h-3.5" /> Or talk it through with the director
               </button>
-              <p className="text-[10px] text-violet-200/50">Sequences your {doneClips.length} clip{doneClips.length !== 1 ? 's' : ''}, adds B-roll, writes + voices a script, picks music. Review, then Render. Generates a few clips (credits).</p>
+              <p className="text-[10px] text-violet-700/50 dark:text-violet-200/50">Sequences your {doneClips.length} clip{doneClips.length !== 1 ? 's' : ''}, adds B-roll, writes + voices a script, picks music. Review, then Render. Generates a few clips (credits).</p>
             </div>
           )}
 
@@ -911,7 +911,7 @@ export default function VideoStudio() {
           <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={3}
             placeholder={mode === 'text' ? 'Describe this clip…' : 'Optional motion (e.g. slow push-in)…'}
             className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500/50 resize-none" />
-          <button onClick={() => setDirectorOpen(true)} className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-violet-500/40 bg-gradient-to-r from-violet-600/15 to-fuchsia-600/15/25 text-violet-200 text-xs font-medium py-2">
+          <button onClick={() => setDirectorOpen(true)} className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/20 text-violet-700 dark:text-violet-200 text-xs font-medium py-2">
             <Sparkles className="w-3.5 h-3.5" /> AI Director — craft this prompt
           </button>
 
@@ -919,8 +919,8 @@ export default function VideoStudio() {
               consistent with it, so a multi-clip story holds together. */}
           <div>
             <label className="flex items-center justify-between text-[11px] text-muted-foreground mb-1">
-              <span className="flex items-center gap-1"><Film className="w-3 h-3 text-fuchsia-300/70" /> Theme {seriesPrompts.length > 1 && <span className="text-fuchsia-300/70">· keeps {seriesPrompts.length} clips consistent</span>}</span>
-              {theme && <button onClick={() => setTheme('')} className="text-muted-foreground hover:text-red-300">clear</button>}
+              <span className="flex items-center gap-1"><Film className="w-3 h-3 text-fuchsia-700/70 dark:text-fuchsia-300/70" /> Theme {seriesPrompts.length > 1 && <span className="text-fuchsia-700/70 dark:text-fuchsia-300/70">· keeps {seriesPrompts.length} clips consistent</span>}</span>
+              {theme && <button onClick={() => setTheme('')} className="text-muted-foreground hover:text-red-700 dark:text-red-300">clear</button>}
             </label>
             <textarea value={theme} onChange={e => setTheme(e.target.value)} rows={2}
               placeholder="e.g. moody cinematic lighthouse, cold blue + amber, film grain, anamorphic"
@@ -962,7 +962,7 @@ export default function VideoStudio() {
           {/* Batch: one clip per staged image → a multi-shot ad on the timeline. */}
           {mode === 'image' && uploadedImages.length >= 2 && (
             <button onClick={generateAdFromImages} disabled={busy || uploadingImage}
-              className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-fuchsia-500/40 bg-gradient-to-r from-fuchsia-600/15 to-violet-600/15 hover:from-fuchsia-600/25 disabled:opacity-40 text-fuchsia-100 text-sm font-semibold py-2.5">
+              className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-fuchsia-500/40 bg-gradient-to-r from-fuchsia-600/15 to-violet-600/15 hover:from-fuchsia-600/25 disabled:opacity-40 text-fuchsia-800 dark:text-fuchsia-100 text-sm font-semibold py-2.5">
               <Film className="w-4 h-4" /> Make ad — AI clip per image ({uploadedImages.length})
             </button>
           )}
@@ -971,16 +971,16 @@ export default function VideoStudio() {
               stills. No model repaints your screenshots/text; no credits. */}
           {mode === 'image' && uploadedImages.length >= 1 && (
             <div className="space-y-2 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.06] p-2.5">
-              <div className="flex items-center justify-between text-[11px] text-emerald-200/90">
+              <div className="flex items-center justify-between text-[11px] text-emerald-700/90 dark:text-emerald-200/90">
                 <span className="flex items-center gap-1"><ImageIcon className="w-3.5 h-3.5" /> Real images — no AI</span>
-                <span className="text-emerald-300/70">{slideSeconds}s each</span>
+                <span className="text-emerald-700/70 dark:text-emerald-300/70">{slideSeconds}s each</span>
               </div>
               <input type="range" min={1} max={12} value={slideSeconds} onChange={e => setSlideSeconds(Number(e.target.value))} className="w-full accent-emerald-500" />
               <button onClick={addImagesAsSlides} disabled={busy}
                 className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 disabled:opacity-40 text-white text-sm font-semibold py-2">
                 <Film className="w-4 h-4" /> Add {uploadedImages.length} as slide{uploadedImages.length !== 1 ? 's' : ''} → timeline
               </button>
-              <p className="text-[10px] text-emerald-200/50">Your exact pixels, stitched by us — not AI. Then add music + a voiceover and Render.</p>
+              <p className="text-[10px] text-emerald-700/50 dark:text-emerald-200/50">Your exact pixels, stitched by us — not AI. Then add music + a voiceover and Render.</p>
             </div>
           )}
           {/* Animate the real stills on the timeline into motion B-roll, spliced
@@ -989,13 +989,13 @@ export default function VideoStudio() {
           {timelineStills.length >= 1 && (
             <div className="space-y-1.5">
               <button onClick={animateStillsToBroll} disabled={busy}
-                className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-cyan-500/40 bg-gradient-to-r from-cyan-600/15 to-blue-600/15 hover:from-cyan-600/25 disabled:opacity-40 text-cyan-100 text-sm font-semibold py-2.5">
+                className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-cyan-500/40 bg-gradient-to-r from-cyan-600/15 to-blue-600/15 hover:from-cyan-600/25 disabled:opacity-40 text-cyan-800 dark:text-cyan-100 text-sm font-semibold py-2.5">
                 <Sparkles className="w-4 h-4" /> Animate stills → B-roll ({timelineStills.length})
               </button>
-              <p className="text-[10px] text-cyan-200/50">Turns each screenshot/photo on the timeline into a moving clip beside it. {timelineStills.length} generation{timelineStills.length !== 1 ? 's' : ''} · keeps your originals.</p>
+              <p className="text-[10px] text-cyan-700/50 dark:text-cyan-200/50">Turns each screenshot/photo on the timeline into a moving clip beside it. {timelineStills.length} generation{timelineStills.length !== 1 ? 's' : ''} · keeps your originals.</p>
             </div>
           )}
-          {error && <div className="flex items-start gap-1.5 text-[11px] text-red-300 bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-1.5"><AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" /><span>{error}</span></div>}
+          {error && <div className="flex items-start gap-1.5 text-[11px] text-red-700 dark:text-red-300 bg-red-500/10 border border-red-500/20 rounded-lg px-2 py-1.5"><AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" /><span>{error}</span></div>}
           </div>
         </div>
 
@@ -1003,7 +1003,7 @@ export default function VideoStudio() {
         <div className="flex-1 flex flex-col items-center justify-center p-4 md:p-6 min-w-0 min-h-[30vh] md:min-h-0">
           {previewUrl ? (
             <div className="w-full max-w-2xl">
-              {stitchedUrl && <div className="text-[11px] text-green-300 mb-1.5 flex items-center gap-1"><Film className="w-3.5 h-3.5" /> Full cut ({doneClips.length} clip{doneClips.length !== 1 ? 's' : ''}{script.trim() ? ' + voiceover' : ''})</div>}
+              {stitchedUrl && <div className="text-[11px] text-green-700 dark:text-green-300 mb-1.5 flex items-center gap-1"><Film className="w-3.5 h-3.5" /> Full cut ({doneClips.length} clip{doneClips.length !== 1 ? 's' : ''}{script.trim() ? ' + voiceover' : ''})</div>}
               {!stitchedUrl && selectedClip?.kind === 'image'
                 ? <img key={previewUrl} src={previewUrl} alt="" className="w-full rounded-xl bg-black object-contain max-h-[60vh]" />
                 : <video key={previewUrl} src={previewUrl} controls autoPlay loop className="w-full rounded-xl bg-black" />}
@@ -1012,7 +1012,7 @@ export default function VideoStudio() {
                   {/* fl_attachment forces a real download — a bare cross-origin
                       Cloudinary URL ignores the `download` attr and just opens. */}
                   <a href={toDownloadUrl(stitchedUrl)} download="webstew-video.mp4" className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium py-2"><Download className="w-3.5 h-3.5" /> Download</a>
-                  <button onClick={() => saveCreation('video', stitchedUrl, prompt.trim() || 'Untitled video')} disabled={!!savingIds[stitchedUrl] || isSaved(stitchedUrl)} className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-muted hover:bg-muted/70 text-foreground text-xs font-medium py-2 disabled:opacity-50">{savingIds[stitchedUrl] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isSaved(stitchedUrl) ? <BookmarkCheck className="w-3.5 h-3.5 text-violet-300" /> : <Bookmark className="w-3.5 h-3.5" />} {isSaved(stitchedUrl) ? 'In your creations' : 'Save to creations'}</button>
+                  <button onClick={() => saveCreation('video', stitchedUrl, prompt.trim() || 'Untitled video')} disabled={!!savingIds[stitchedUrl] || isSaved(stitchedUrl)} className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-muted hover:bg-muted/70 text-foreground text-xs font-medium py-2 disabled:opacity-50">{savingIds[stitchedUrl] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isSaved(stitchedUrl) ? <BookmarkCheck className="w-3.5 h-3.5 text-violet-700 dark:text-violet-300" /> : <Bookmark className="w-3.5 h-3.5" />} {isSaved(stitchedUrl) ? 'In your creations' : 'Save to creations'}</button>
                 </div>
               )}
               {/* Single selected clip (not the stitched cut): same Save + Download.
@@ -1046,8 +1046,8 @@ export default function VideoStudio() {
       {/* TIMELINE */}
       <div className="shrink-0 border-t border-border bg-muted/40 p-3 space-y-2">
         <div className="flex items-center gap-3">
-          <span className="w-16 shrink-0 text-[11px] font-semibold text-violet-300 flex items-center gap-1"><Film className="w-3.5 h-3.5" /> Video</span>
-          {clips.length > 0 && <button onClick={() => { if (confirm('Clear all clips from the timeline?')) { setClips([]); setSelectedId(null); setStitched(null) } }} disabled={busy} className="text-[10px] text-muted-foreground hover:text-red-300 disabled:opacity-30">Clear</button>}
+          <span className="w-16 shrink-0 text-[11px] font-semibold text-violet-700 dark:text-violet-300 flex items-center gap-1"><Film className="w-3.5 h-3.5" /> Video</span>
+          {clips.length > 0 && <button onClick={() => { if (confirm('Clear all clips from the timeline?')) { setClips([]); setSelectedId(null); setStitched(null) } }} disabled={busy} className="text-[10px] text-muted-foreground hover:text-red-700 dark:text-red-300 disabled:opacity-30">Clear</button>}
           <div className="flex-1 flex gap-2 overflow-x-auto pb-1">
             {clips.length === 0 && <span className="text-xs text-muted-foreground py-4">No clips yet — generate one on the left.</span>}
             {clips.map((c, i) => (
@@ -1070,7 +1070,7 @@ export default function VideoStudio() {
                     {/* Save + reorder are power controls — desktop only. Mobile
                         keeps just delete; the chef handles sequencing. */}
                     {c.status === 'done' && c.url && c.kind !== 'image' && (
-                      <button onClick={e => { e.stopPropagation(); saveCreation('clip', c.url!, c.prompt.slice(0, 80)) }} disabled={!!savingIds[c.url] || isSaved(c.url)} title={isSaved(c.url) ? 'Saved to your creations' : 'Save clip to your creations'} className="hidden md:block p-0.5 text-muted-foreground hover:text-violet-300 disabled:opacity-60">{savingIds[c.url] ? <Loader2 className="w-3 h-3 animate-spin" /> : isSaved(c.url) ? <BookmarkCheck className="w-3 h-3 text-violet-300" /> : <Bookmark className="w-3 h-3" />}</button>
+                      <button onClick={e => { e.stopPropagation(); saveCreation('clip', c.url!, c.prompt.slice(0, 80)) }} disabled={!!savingIds[c.url] || isSaved(c.url)} title={isSaved(c.url) ? 'Saved to your creations' : 'Save clip to your creations'} className="hidden md:block p-0.5 text-muted-foreground hover:text-violet-700 dark:text-violet-300 disabled:opacity-60">{savingIds[c.url] ? <Loader2 className="w-3 h-3 animate-spin" /> : isSaved(c.url) ? <BookmarkCheck className="w-3 h-3 text-violet-700 dark:text-violet-300" /> : <Bookmark className="w-3 h-3" />}</button>
                     )}
                     <button onClick={e => { e.stopPropagation(); move(i, -1) }} disabled={i === 0 || busy} className="hidden md:block p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowLeft className="w-3 h-3" /></button>
                     <button onClick={e => { e.stopPropagation(); move(i, 1) }} disabled={i === clips.length - 1 || busy} className="hidden md:block p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowRight className="w-3 h-3" /></button>
@@ -1085,28 +1085,28 @@ export default function VideoStudio() {
 
         {/* VOICE track — manual; hidden on mobile (the chef sets it), shown on desktop or via Manual tools */}
         <div className={`${showManual ? 'flex' : 'hidden'} md:flex flex-wrap items-center gap-2 md:gap-3`}>
-          <span className="w-16 shrink-0 text-[11px] font-semibold text-violet-300 flex items-center gap-1"><Volume2 className="w-3.5 h-3.5" /> Voice</span>
+          <span className="w-16 shrink-0 text-[11px] font-semibold text-violet-700 dark:text-violet-300 flex items-center gap-1"><Volume2 className="w-3.5 h-3.5" /> Voice</span>
           <input value={script || narrationText} onChange={e => (script ? setScript(e.target.value) : setNarrationText(e.target.value))}
             placeholder="Voiceover line / notes (optional)"
             className="flex-1 bg-muted/50 border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500/50" />
-          <button onClick={writeScript} disabled={busy} className="flex items-center gap-1 rounded-lg border border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/20 text-violet-200 text-xs px-2.5 py-1.5 disabled:opacity-40">{writingScript ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PenLine className="w-3.5 h-3.5" />} Write</button>
+          <button onClick={writeScript} disabled={busy} className="flex items-center gap-1 rounded-lg border border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/20 text-violet-700 dark:text-violet-200 text-xs px-2.5 py-1.5 disabled:opacity-40">{writingScript ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PenLine className="w-3.5 h-3.5" />} Write</button>
           <select value={voice} onChange={e => setVoice(e.target.value)} className="bg-muted/50 border border-border rounded-lg px-2 py-1.5 text-xs text-foreground capitalize">{TTS_VOICES.map(v => <option key={v} value={v}>{v}</option>)}</select>
         </div>
 
         {/* MUSIC track — manual; hidden on mobile (the chef picks it), shown on desktop or via Manual tools */}
         <div className={`${showManual ? 'flex' : 'hidden'} md:flex flex-wrap items-center gap-2 md:gap-3`}>
-          <span className="w-16 shrink-0 text-[11px] font-semibold text-fuchsia-300 flex items-center gap-1"><Music className="w-3.5 h-3.5" /> Music</span>
+          <span className="w-16 shrink-0 text-[11px] font-semibold text-fuchsia-700 dark:text-fuchsia-300 flex items-center gap-1"><Music className="w-3.5 h-3.5" /> Music</span>
           {hasMusic ? (
             <>
-              <span className="text-xs text-foreground/80 truncate max-w-[200px] flex items-center gap-1">{musicTrackId && <Music className="w-3 h-3 text-fuchsia-300/70" />}{musicName || 'music track'}</span>
-              <button onClick={clearMusic} title="Remove music" className="text-muted-foreground hover:text-red-300"><X className="w-3.5 h-3.5" /></button>
+              <span className="text-xs text-foreground/80 truncate max-w-[200px] flex items-center gap-1">{musicTrackId && <Music className="w-3 h-3 text-fuchsia-700/70 dark:text-fuchsia-300/70" />}{musicName || 'music track'}</span>
+              <button onClick={clearMusic} title="Remove music" className="text-muted-foreground hover:text-red-700 dark:text-red-300"><X className="w-3.5 h-3.5" /></button>
               <span className="text-[10px] text-muted-foreground ml-2">Volume</span>
               <input type="range" min={0} max={1} step={0.05} value={musicVolume} onChange={e => setMusicVolume(Number(e.target.value))} className="w-28 accent-fuchsia-500" />
               <span className="text-[10px] text-muted-foreground w-8">{Math.round(musicVolume * 100)}%</span>
             </>
           ) : (
             <div className="flex items-center gap-2">
-              <button onClick={() => setShowMusicPicker(true)} className="flex items-center gap-1 rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 text-fuchsia-200 text-xs px-2.5 py-1.5">
+              <button onClick={() => setShowMusicPicker(true)} className="flex items-center gap-1 rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 text-fuchsia-700 dark:text-fuchsia-200 text-xs px-2.5 py-1.5">
                 <Music className="w-3.5 h-3.5" /> Browse music
               </button>
               <button onClick={() => musicInputRef.current?.click()} disabled={uploadingMusic} className="flex items-center gap-1 rounded-lg border border-border hover:border-fuchsia-500/50 text-foreground/80 text-xs px-2.5 py-1.5 disabled:opacity-40">
@@ -1119,7 +1119,7 @@ export default function VideoStudio() {
 
         {/* LOOK — color grade over the whole cut; manual, collapsed on mobile */}
         <div className={`${showManual ? 'flex' : 'hidden'} md:flex flex-wrap items-center gap-2 md:gap-3`}>
-          <span className="w-16 shrink-0 text-[11px] font-semibold text-amber-300 flex items-center gap-1"><Sparkles className="w-3.5 h-3.5" /> Look</span>
+          <span className="w-16 shrink-0 text-[11px] font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1"><Sparkles className="w-3.5 h-3.5" /> Look</span>
           <div className="flex-1 flex gap-1.5 overflow-x-auto pb-1">
             {LOOKS.map(l => (
               <button key={l} onClick={() => setLook(l)} className={`shrink-0 rounded-lg px-2.5 py-1.5 text-xs capitalize border ${look === l ? 'border-amber-400 bg-amber-500/15 text-amber-100' : 'border-border text-muted-foreground hover:text-foreground'}`}>{l === 'none' ? 'None' : l}</button>
@@ -1130,12 +1130,12 @@ export default function VideoStudio() {
         {/* TEXT — on-screen overlay (contact info, title bar); manual. The AI
             Director also sets overlays from your order (e.g. "add our number"). */}
         <div className={`${showManual ? 'flex' : 'hidden'} md:flex flex-wrap items-center gap-2 md:gap-3`}>
-          <span className="w-16 shrink-0 text-[11px] font-semibold text-emerald-300 flex items-center gap-1"><PenLine className="w-3.5 h-3.5" /> Text</span>
+          <span className="w-16 shrink-0 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-1"><PenLine className="w-3.5 h-3.5" /> Text</span>
           <input value={overlayText}
             onChange={e => { setOverlayText(e.target.value); const t = e.target.value.trim(); setOverlays(t ? [{ text: t, position: 'bottom', size: 'small', box: true }] : []) }}
             placeholder="On-screen text — contact info, title (optional)"
             className="flex-1 min-w-0 bg-muted/50 border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-emerald-500/50" />
-          {overlays.length > 0 && !overlayText && <span className="text-[10px] text-emerald-300/70">{overlays.length} set by chef</span>}
+          {overlays.length > 0 && !overlayText && <span className="text-[10px] text-emerald-700/70 dark:text-emerald-300/70">{overlays.length} set by chef</span>}
         </div>
 
         {/* Primary output action — always visible (even when the manual rows are
@@ -1156,7 +1156,7 @@ export default function VideoStudio() {
           <div className="flex-1 bg-black/50" onClick={() => setShowSaved(false)} />
           <div className="w-full max-w-sm h-[100dvh] bg-background border-l border-border flex flex-col">
             <div className="flex items-center justify-between px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] border-b border-border shrink-0">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Bookmark className="w-4 h-4 text-violet-300" /> Your creations{creations.length ? ` (${creations.length})` : ''}</div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Bookmark className="w-4 h-4 text-violet-700 dark:text-violet-300" /> Your creations{creations.length ? ` (${creations.length})` : ''}</div>
               <button onClick={() => setShowSaved(false)} aria-label="Close" className="w-10 h-10 rounded-xl flex items-center justify-center bg-muted text-foreground/80 hover:text-foreground hover:bg-muted/70"><X className="w-6 h-6" /></button>
             </div>
             <div className="flex-1 overflow-y-auto p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] space-y-3">
@@ -1177,11 +1177,11 @@ export default function VideoStudio() {
                     <div className="flex items-center gap-1.5">
                       <button onClick={() => addCreationToTimeline(cr)} className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-muted hover:bg-muted/70 text-foreground text-[11px] py-1.5"><Plus className="w-3 h-3" /> Add to timeline</button>
                       <a href={toDownloadUrl(cr.url)} download={`${(cr.title || 'creation').replace(/[^a-z0-9]+/gi, '-').slice(0, 40)}.mp4`} className="flex items-center justify-center rounded-lg bg-muted hover:bg-muted/70 text-foreground px-2 py-1.5" title="Download"><Download className="w-3.5 h-3.5" /></a>
-                      <button onClick={() => deleteCreation(cr.id)} className="flex items-center justify-center rounded-lg bg-muted hover:bg-red-500/20 text-muted-foreground hover:text-red-300 px-2 py-1.5" title="Remove"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => deleteCreation(cr.id)} className="flex items-center justify-center rounded-lg bg-muted hover:bg-red-500/20 text-muted-foreground hover:text-red-700 dark:text-red-300 px-2 py-1.5" title="Remove"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                     <div className="flex items-center gap-1.5 mt-1.5">
                       <button onClick={() => shareCreation(cr)} disabled={sharingId === cr.id} className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-muted hover:bg-muted/70 text-foreground text-[11px] py-1.5 disabled:opacity-50">{sharingId === cr.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Share2 className="w-3 h-3" />} {sharedLinks[cr.id] ? 'Copied link ✓' : 'Share'}</button>
-                      <button onClick={() => setSellTarget(cr)} className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-muted hover:bg-emerald-500/15 text-foreground hover:text-emerald-300 text-[11px] py-1.5"><Tag className="w-3 h-3" /> Sell</button>
+                      <button onClick={() => setSellTarget(cr)} className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-muted hover:bg-emerald-500/15 text-foreground hover:text-emerald-700 dark:text-emerald-300 text-[11px] py-1.5"><Tag className="w-3 h-3" /> Sell</button>
                     </div>
                     {sharedLinks[cr.id] && <input readOnly value={sharedLinks[cr.id]} onFocus={e => e.currentTarget.select()} className="w-full mt-1.5 bg-muted/60 border border-border rounded px-2 py-1 text-[10px] text-muted-foreground" />}
                   </div>
@@ -1199,7 +1199,7 @@ export default function VideoStudio() {
           <div className="absolute inset-0 bg-black/60" onClick={() => { stopPreview(); setShowMusicPicker(false) }} />
           <div className="relative w-full max-w-lg max-h-[80vh] flex flex-col rounded-2xl bg-background border border-border shadow-2xl">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Music className="w-4 h-4 text-fuchsia-300" /> Choose a soundtrack</div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Music className="w-4 h-4 text-fuchsia-700 dark:text-fuchsia-300" /> Choose a soundtrack</div>
               <button onClick={() => { stopPreview(); setShowMusicPicker(false) }} aria-label="Close" className="w-9 h-9 rounded-xl flex items-center justify-center bg-muted text-foreground/80 hover:text-foreground hover:bg-muted/70"><X className="w-5 h-5" /></button>
             </div>
             <div className="overflow-y-auto p-3 space-y-4">
@@ -1209,7 +1209,7 @@ export default function VideoStudio() {
                   <div className="space-y-1">
                     {STUDIO_MUSIC.filter(t => t.mood === mood).map(t => (
                       <div key={t.id} className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 hover:bg-white/[0.05] px-2.5 py-2">
-                        <button onClick={() => togglePreview(t.id)} title={previewingTrack === t.id ? 'Stop preview' : 'Preview'} className="w-7 h-7 shrink-0 rounded-full bg-fuchsia-500/15 hover:bg-fuchsia-500/30 text-fuchsia-200 flex items-center justify-center">
+                        <button onClick={() => togglePreview(t.id)} title={previewingTrack === t.id ? 'Stop preview' : 'Preview'} className="w-7 h-7 shrink-0 rounded-full bg-fuchsia-500/15 hover:bg-fuchsia-500/30 text-fuchsia-700 dark:text-fuchsia-200 flex items-center justify-center">
                           {previewingTrack === t.id ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
                         </button>
                         <span className="flex-1 text-sm text-foreground truncate">{t.title}</span>

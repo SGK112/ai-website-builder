@@ -190,7 +190,7 @@ export function FeedbackBoard({ isDark = true }: { isDark?: boolean }) {
       </button>
 
       {error && (
-        <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-sm text-red-300">{error}</div>
+        <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-sm text-red-700 dark:text-red-300">{error}</div>
       )}
       {loading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
@@ -366,7 +366,7 @@ function FeedbackCard({
             <span className="inline-flex items-center gap-1">
               <MessageSquare className="w-3 h-3" /> {f.replyCount}
             </span>
-            <button onClick={onToggle} className="ml-auto text-violet-400 hover:text-violet-300 font-semibold">
+            <button onClick={onToggle} className="ml-auto text-violet-400 hover:text-violet-700 dark:text-violet-300 font-semibold">
               {expanded ? 'Collapse' : 'Open thread'}
             </button>
           </div>
@@ -464,7 +464,7 @@ function Thread({
                     {r.author.username ? `@${r.author.username}` : r.author.name}
                   </span>
                   {r.isStaff && (
-                    <span className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-200 font-bold border border-violet-500/40">
+                    <span className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-700 dark:text-violet-200 font-bold border border-violet-500/40">
                       <ShieldCheck className="w-2.5 h-2.5" /> Webstew
                     </span>
                   )}
@@ -628,7 +628,7 @@ function ComposeModal({
         />
         <p className="text-[10px] text-muted-foreground mb-4 text-right">{body.length} / 2000</p>
 
-        {err && <div className="mb-3 p-2 rounded bg-red-500/10 border border-red-500/30 text-xs text-red-300">{err}</div>}
+        {err && <div className="mb-3 p-2 rounded bg-red-500/10 border border-red-500/30 text-xs text-red-700 dark:text-red-300">{err}</div>}
 
         <div className="flex items-center gap-2">
           <button

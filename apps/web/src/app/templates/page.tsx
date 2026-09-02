@@ -539,7 +539,7 @@ export default function TemplatesPage() {
                 </div>
                 {previewTemplate.is_premium && (
                   ownedTemplates.includes(previewTemplate.id) ? (
-                    <span className="flex items-center gap-1 px-2.5 py-1 bg-emerald-500/20 text-emerald-300 rounded-full text-xs font-bold">
+                    <span className="flex items-center gap-1 px-2.5 py-1 bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded-full text-xs font-bold">
                       <Crown className="w-3 h-3" />
                       Owned
                     </span>
@@ -651,7 +651,7 @@ export default function TemplatesPage() {
                         else img.style.display = 'none'
                       }}
                     />
-                    <p className="text-sm text-center">Live preview unavailable — click <span className="text-violet-300">Use Template</span> to open in the builder.</p>
+                    <p className="text-sm text-center">Live preview unavailable — click <span className="text-violet-700 dark:text-violet-300">Use Template</span> to open in the builder.</p>
                   </div>
                 )}
               </div>
@@ -667,7 +667,7 @@ export default function TemplatesPage() {
                       <div className="text-[11px] text-muted-foreground">
                         {previewTemplate.includes.length} section{previewTemplate.includes.length === 1 ? '' : 's'}
                         {previewTemplate.is_premium && previewTemplate.priceUsdCents && !ownedTemplates.includes(previewTemplate.id) && (
-                          <> · <span className="text-amber-300 font-medium">${(previewTemplate.priceUsdCents / 100).toFixed(0)} one-time, lifetime access</span></>
+                          <> · <span className="text-amber-700 dark:text-amber-300 font-medium">${(previewTemplate.priceUsdCents / 100).toFixed(0)} one-time, lifetime access</span></>
                         )}
                       </div>
                     </div>
@@ -733,7 +733,7 @@ export default function TemplatesPage() {
                   }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-transparent" />
-                <div className="absolute top-3 left-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-bold">
+                <div className="absolute top-3 left-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-700 dark:text-amber-300 text-xs font-bold">
                   <Crown className="w-3 h-3" /> Premium template
                 </div>
                 <button
@@ -745,7 +745,7 @@ export default function TemplatesPage() {
                 </button>
               </div>
               <div className="p-6">
-                <div className="flex items-center gap-2 mb-2 text-violet-300 text-xs uppercase tracking-[0.2em] font-semibold">
+                <div className="flex items-center gap-2 mb-2 text-violet-700 dark:text-violet-300 text-xs uppercase tracking-[0.2em] font-semibold">
                   <Lock className="w-3 h-3" /> Upgrade required
                 </div>
                 <h3 className="text-xl font-bold text-foreground mb-2">
@@ -765,7 +765,7 @@ export default function TemplatesPage() {
                   ].map((perk) => (
                     <div key={perk} className="flex items-center gap-2 text-sm text-foreground/80">
                       <div className="w-4 h-4 rounded-full bg-violet-500/20 flex items-center justify-center shrink-0">
-                        <Zap className="w-2.5 h-2.5 text-violet-300" />
+                        <Zap className="w-2.5 h-2.5 text-violet-700 dark:text-violet-300" />
                       </div>
                       {perk}
                     </div>

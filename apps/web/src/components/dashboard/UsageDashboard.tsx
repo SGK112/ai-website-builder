@@ -193,7 +193,7 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
         <p className="text-sm text-foreground/80">Sign in to view your usage.</p>
         <a
           href="/signup"
-          className="mt-2 inline-block text-xs text-purple-300 hover:text-purple-200"
+          className="mt-2 inline-block text-xs text-purple-700 dark:text-purple-300 hover:text-purple-700 dark:text-purple-200"
         >
           Sign in or create an account →
         </a>
@@ -208,7 +208,7 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
         <p className="text-sm text-red-400">{error || 'Unable to load usage'}</p>
         <button
           onClick={fetchUsage}
-          className="mt-2 text-xs text-red-400 hover:text-red-300"
+          className="mt-2 text-xs text-red-400 hover:text-red-700 dark:text-red-300"
         >
           Try again
         </button>
