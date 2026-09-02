@@ -91,7 +91,7 @@ The POST endpoint:
 ---END FILE---
 ```
 
-### Deployment Flow (`apps/web/src/app/api/projects/[id]/deploy/route.ts`)
+### Deployment Flow (`apps/web/src/app/api/deploy/route.ts`)
 Deployment pipeline:
 1. Validates project status is "ready"
 2. Creates Deployment record with logs
@@ -155,4 +155,3 @@ cd ../.. && npm install && npm run build  # From apps/web context
 - `/dashboard/projects` - Projects list with status badges
 - `/dashboard/projects/[id]` - File tree + code viewer
 - `POST /api/projects` - Creates project + generates code
-- `POST /api/projects/[id]/deploy` - GitHub deployment with logs

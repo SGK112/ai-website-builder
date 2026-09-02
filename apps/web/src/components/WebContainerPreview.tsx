@@ -498,11 +498,11 @@ export function WebContainerPreview({
 
   const phaseLabel: Record<Phase, string> = {
     idle:       'Idle',
-    booting:    'Booting WebContainer',
-    mounting:   'Mounting files',
-    installing: 'Installing dependencies',
+    booting:    'Starting sandbox',
+    mounting:   'Loading your files',
+    installing: 'Installing packages — first run takes a moment',
     starting:   'Starting dev server',
-    running:    'Live',
+    running:    'Running',
     error:      'Error',
   }
 
@@ -510,9 +510,9 @@ export function WebContainerPreview({
   const SizeIcon = sizeCfg.icon
 
   return (
-    <div className="relative flex flex-col h-full min-h-[500px] bg-zinc-950 border border-white/10 rounded-xl overflow-hidden">
+    <div className="relative flex flex-col h-full min-h-[500px] bg-card border border-border rounded-xl overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 bg-zinc-900/60">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/40">
         <div className="flex items-center gap-2 text-xs">
           <span className={`relative flex h-2 w-2 rounded-full ${
             phase === 'running' ? 'bg-emerald-400' : phase === 'error' ? 'bg-red-400' : 'bg-amber-400'
@@ -521,7 +521,9 @@ export function WebContainerPreview({
               <span className="absolute inline-flex h-full w-full rounded-full bg-amber-400 animate-ping opacity-75" />
             )}
           </span>
-          <span className="font-mono text-slate-300">{phaseLabel[phase]}</span>
+          <span className="font-semibold text-foreground/90 shrink-0">Sandbox</span>
+          <span className="text-muted-foreground shrink-0" aria-hidden="true">·</span>
+          <span className="font-mono text-muted-foreground truncate">{phaseLabel[phase]}</span>
           {/* Debug-only link to the in-browser WebContainer URL. Hidden
               on mobile/tablet (it ate the "Try on Phone" button) and on
               Expo at any width (the WC URL isn't reachable from a phone

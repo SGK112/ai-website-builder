@@ -60,7 +60,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   const { project, db } = loaded
 
   // Primary path: workspace deploy stores it directly on project.deployment.
-  // Fallback: alt deploy route (/api/projects/[id]/deploy) only writes a
+  // Fallback: an older deploy path (since removed) only wrote a
   // Deployment record and stores its id on project.deploymentId, so look the
   // service id up there if the canonical field is missing.
   let serviceId: string | undefined = project.deployment?.renderServiceId
