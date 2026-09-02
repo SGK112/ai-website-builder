@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth'
 import { connectDB } from '@/lib/db'
 import { User } from '@ai-website-builder/database'
 import { createCreditsCheckoutSession, CREDIT_PACKAGES, CREDIT_COSTS } from '@/lib/stripe'
+import { ANON_COOKIE, startingCreditsFor, anonCreditsSpent, NEW_ACCOUNT_CREDITS } from '@/lib/anon-credits'
 
 // session.user.id may be a provider account id (legacy OAuth) — try _id first
 // then fall back to email so we don't 404 on real, signed-in users.
@@ -25,10 +26,17 @@ export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
 
-    // For anonymous users, return demo credits
+    // Anonymous users. This used to answer a flat 100 no matter how much the
+    // visitor had already built — so the counter never moved, nothing ever
+    // looked spent, and there was no visible reason to sign up. The meter has
+    // existed all along in the `wsanon` cookie that /api/builder/generate
+    // increments; this endpoint just wasn't reading it.
     if (!session?.user?.id) {
+      const cookie = req.cookies.get(ANON_COOKIE)?.value
       return NextResponse.json({
-        credits: 100, // Demo credits for anonymous users
+        credits: startingCreditsFor(cookie),
+        creditsUsed: anonCreditsSpent(cookie),
+        creditsTotal: NEW_ACCOUNT_CREDITS,
         plan: 'demo',
         subscriptionStatus: 'active',
         isDemo: true,
@@ -128,7 +136,19 @@ export async function PATCH(req: NextRequest) {
     // client-supplied userId here — that let an UNAUTHENTICATED caller deduct
     // from any user's balance (drain attack).
     if (!session?.user?.id) {
-      return NextResponse.json({ success: true, credits: 100, deducted: 0, operation, isDemo: true })
+      // Anon spend is metered server-side by the `wsanon` cookie on the build
+      // route itself, not here — deducting again would double-count. But the
+      // balance we report back has to be the REAL remaining one, or the client
+      // shows a full bar to someone who has spent most of their allowance.
+      const cookie = req.cookies.get(ANON_COOKIE)?.value
+      return NextResponse.json({
+        success: true,
+        credits: startingCreditsFor(cookie),
+        creditsUsed: anonCreditsSpent(cookie),
+        deducted: 0,
+        operation,
+        isDemo: true,
+      })
     }
 
     const amt = Math.max(0, Math.floor(Number(amount) || 0))
