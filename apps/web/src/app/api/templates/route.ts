@@ -118,26 +118,48 @@ export async function GET(req: NextRequest) {
       query += `&order=created_at.desc`
     }
 
-    const response = await fetch(query, {
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
-      },
-      next: { revalidate: 60 } // Cache for 60 seconds
-    })
-
-    if (!response.ok) {
-      throw new Error(`Supabase error: ${response.status}`)
+    // Supabase is a SECONDARY source here — the curated local TEMPLATES are
+    // the ones that always work. This used to `throw` on any non-OK response,
+    // which the outer catch turned into a 500 for the whole endpoint. So when
+    // the project became unreachable (its host now NXDOMAINs), /api/templates
+    // returned 500 on every request and the working local templates went with
+    // it. There is already a graceful path for "Supabase not configured";
+    // "configured but failing" gets the same treatment.
+    let templates: Template[] = []
+    let remoteDown = false
+    try {
+      const response = await fetch(query, {
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+        },
+        next: { revalidate: 60 }, // Cache for 60 seconds
+      })
+      if (!response.ok) {
+        console.warn(`[Templates API] Supabase returned ${response.status} — serving local templates only`)
+        remoteDown = true
+      } else {
+        const json = await response.json()
+        templates = Array.isArray(json) ? json : []
+      }
+    } catch (e) {
+      console.warn('[Templates API] Supabase unreachable — serving local templates only:', (e as Error)?.message)
+      remoteDown = true
     }
 
-    const templates = await response.json()
+    // A single-by-id lookup has no local equivalent once the remote is down
+    // (local ids are `local-` prefixed and returned above), so answer empty
+    // rather than pretending.
+    if (remoteDown && id) {
+      return NextResponse.json({ templates: [], count: 0, degraded: true })
+    }
 
     // Filter out junk rows on the LIST view (vitest fixtures + stubs that
     // got persisted from local dev runs). Keeps single-by-id reads honest
     // for admins debugging a specific test row.
     const cleanedList: Template[] = id
       ? templates
-      : (Array.isArray(templates) ? templates : []).filter((t: Template) => {
+      : templates.filter((t: Template) => {
           const name = (t?.name || '').trim()
           if (!name) return false
           if (/^(no thumbnail )?test\b/i.test(name)) return false
@@ -176,6 +198,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       templates: merged,
       count: merged.length,
+      // Tells the client the catalog is local-only right now, so a future UI
+      // can say so instead of silently showing a short list.
+      ...(remoteDown ? { degraded: true } : {}),
     })
   } catch (error) {
     console.error('[Templates API] Error:', error)
