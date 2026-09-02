@@ -308,32 +308,32 @@ export default function TemplatesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen bg-background">
       {/* Nav is the global WorkspaceNav (from ClientLayout) — one app-wide nav. */}
 
       {/* Hero */}
-      <section className="py-8 sm:py-12 px-4 sm:px-6 text-center border-b border-white/10">
+      <section className="py-8 sm:py-12 px-4 sm:px-6 text-center border-b border-border">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="max-w-3xl mx-auto"
         >
-          <h1 className="display-page text-white mb-3 sm:mb-4">
+          <h1 className="display-page text-foreground mb-3 sm:mb-4">
             Template Library
           </h1>
-          <p className="lede text-slate-400 mb-6 sm:mb-8">
+          <p className="lede text-muted-foreground mb-6 sm:mb-8">
             Start with a professionally designed template and customize it with AI
           </p>
 
           {/* Search */}
           <div className="relative max-w-xl mx-auto">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <input
               type="text"
               placeholder="Search templates..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-violet-500"
+              className="w-full pl-12 pr-4 py-3 bg-muted border border-border rounded-xl text-foreground placeholder-slate-500 focus:outline-none focus:border-violet-500"
             />
           </div>
         </motion.div>
@@ -341,7 +341,7 @@ export default function TemplatesPage() {
 
       {/* Categories — horizontal scroll on mobile; the chips never wrap so
           you can swipe through them without losing screen real estate. */}
-      <section className="py-3 sm:py-6 px-4 sm:px-6 border-b border-white/10 overflow-x-auto scrollbar-hide">
+      <section className="py-3 sm:py-6 px-4 sm:px-6 border-b border-border overflow-x-auto scrollbar-hide">
         <div className="max-w-7xl mx-auto flex gap-2">
           {CATEGORIES.map((cat) => {
             const Icon = cat.icon
@@ -354,7 +354,7 @@ export default function TemplatesPage() {
                   'flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition',
                   isActive
                     ? 'bg-violet-600 text-white'
-                    : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/70 hover:text-foreground'
                 )}
               >
                 <Icon className="w-4 h-4" />
@@ -376,12 +376,12 @@ export default function TemplatesPage() {
             // spinner/skeleton.
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
               {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden animate-pulse">
-                  <div className="aspect-[4/3] bg-white/[0.04]" />
+                <div key={i} className="rounded-2xl border border-border bg-muted/40 overflow-hidden animate-pulse">
+                  <div className="aspect-[4/3] bg-muted/50" />
                   <div className="p-4 space-y-3">
                     <div className="h-4 w-2/3 rounded bg-white/[0.06]" />
-                    <div className="h-3 w-full rounded bg-white/[0.04]" />
-                    <div className="h-3 w-4/5 rounded bg-white/[0.04]" />
+                    <div className="h-3 w-full rounded bg-muted/50" />
+                    <div className="h-3 w-4/5 rounded bg-muted/50" />
                     <div className="flex gap-2 pt-1">
                       <div className="h-5 w-16 rounded-full bg-white/[0.05]" />
                       <div className="h-5 w-12 rounded-full bg-white/[0.05]" />
@@ -392,11 +392,11 @@ export default function TemplatesPage() {
             </div>
           ) : filteredTemplates.length === 0 ? (
             <div className="flex flex-col items-center text-center py-20">
-              <div className="w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center mb-4">
-                <Search className="w-6 h-6 text-slate-500" />
+              <div className="w-14 h-14 rounded-2xl bg-muted/50 border border-border flex items-center justify-center mb-4">
+                <Search className="w-6 h-6 text-muted-foreground" />
               </div>
-              <p className="text-slate-300 font-medium">No templates match your search</p>
-              <p className="text-sm text-slate-500 mt-1">Try a different keyword or category.</p>
+              <p className="text-foreground/80 font-medium">No templates match your search</p>
+              <p className="text-sm text-muted-foreground mt-1">Try a different keyword or category.</p>
               {(searchQuery || selectedCategory !== 'all') && (
                 <button
                   onClick={() => { setSearchQuery(''); setSelectedCategory('all') }}
@@ -414,7 +414,7 @@ export default function TemplatesPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className="group relative rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden hover:border-violet-500/50 transition-all"
+                  className="group relative rounded-2xl border border-border bg-muted/40 overflow-hidden hover:border-violet-500/50 transition-all"
                 >
                   {/* Thumbnail */}
                   <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900">
@@ -446,13 +446,13 @@ export default function TemplatesPage() {
                     {template.is_premium ? (
                       ownedTemplates.includes(template.id) ? (
                         <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 bg-emerald-500/90 rounded-full">
-                          <Crown className="w-3 h-3 text-white" />
-                          <span className="text-xs font-medium text-white">Owned</span>
+                          <Crown className="w-3 h-3 text-foreground" />
+                          <span className="text-xs font-medium text-foreground">Owned</span>
                         </div>
                       ) : (
                         <div className="absolute top-3 right-3 flex items-center gap-1 px-2.5 py-1 bg-amber-500/95 rounded-full shadow-lg">
-                          <Crown className="w-3 h-3 text-white" />
-                          <span className="text-xs font-bold text-white">
+                          <Crown className="w-3 h-3 text-foreground" />
+                          <span className="text-xs font-bold text-foreground">
                             {template.priceUsdCents
                               ? `$${(template.priceUsdCents / 100).toFixed(0)}`
                               : 'Pro plan'}
@@ -461,7 +461,7 @@ export default function TemplatesPage() {
                       )
                     ) : (
                       <div className="absolute top-3 right-3 px-2 py-1 bg-emerald-500/80 rounded-full">
-                        <span className="text-xs font-medium text-white">Free</span>
+                        <span className="text-xs font-medium text-foreground">Free</span>
                       </div>
                     )}
 
@@ -477,7 +477,7 @@ export default function TemplatesPage() {
                         title="Preview"
                         aria-label="Preview template"
                       >
-                        <Eye className="w-4 h-4 md:w-5 md:h-5 text-white" />
+                        <Eye className="w-4 h-4 md:w-5 md:h-5 text-foreground" />
                       </button>
                       <button
                         onClick={() => useTemplate(template)}
@@ -496,14 +496,14 @@ export default function TemplatesPage() {
 
                   {/* Info */}
                   <div className="p-4">
-                    <h3 className="font-semibold text-white mb-1">{template.name}</h3>
-                    <p className="text-sm text-slate-400 line-clamp-2">{template.description}</p>
+                    <h3 className="font-semibold text-foreground mb-1">{template.name}</h3>
+                    <p className="text-sm text-muted-foreground line-clamp-2">{template.description}</p>
                     <div className="mt-3 flex items-center gap-2 flex-wrap">
-                      <span className="text-xs px-2 py-1 bg-white/5 rounded-full text-slate-400 capitalize">
+                      <span className="text-xs px-2 py-1 bg-muted rounded-full text-muted-foreground capitalize">
                         {template.category}
                       </span>
                       {template.includes && template.includes.length > 0 && (
-                        <span className="text-xs px-2 py-1 bg-white/5 rounded-full text-slate-400">
+                        <span className="text-xs px-2 py-1 bg-muted rounded-full text-muted-foreground">
                           {template.includes.length} sections
                         </span>
                       )}
@@ -527,15 +527,15 @@ export default function TemplatesPage() {
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="relative w-full max-w-6xl max-h-[95vh] bg-slate-900 rounded-2xl overflow-hidden flex flex-col"
+            className="relative w-full max-w-6xl max-h-[95vh] bg-card rounded-2xl overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="p-4 border-b border-white/10 flex items-center justify-between shrink-0">
+            <div className="p-4 border-b border-border flex items-center justify-between shrink-0">
               <div className="flex items-center gap-4">
                 <div>
-                  <h3 className="font-semibold text-white">{previewTemplate.name}</h3>
-                  <p className="text-sm text-slate-400">{previewTemplate.description}</p>
+                  <h3 className="font-semibold text-foreground">{previewTemplate.name}</h3>
+                  <p className="text-sm text-muted-foreground">{previewTemplate.description}</p>
                 </div>
                 {previewTemplate.is_premium && (
                   ownedTemplates.includes(previewTemplate.id) ? (
@@ -555,14 +555,14 @@ export default function TemplatesPage() {
               </div>
               <div className="flex items-center gap-3">
                 {/* Device Toggle */}
-                <div className="hidden sm:flex items-center gap-1 p-1 bg-white/5 rounded-lg">
+                <div className="hidden sm:flex items-center gap-1 p-1 bg-muted rounded-lg">
                   <button
                     onClick={() => setPreviewDevice('desktop')}
                     aria-label="Desktop preview"
                     aria-pressed={previewDevice === 'desktop'}
                     className={cn(
                       'p-2 rounded-md transition',
-                      previewDevice === 'desktop' ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'
+                      previewDevice === 'desktop' ? 'bg-violet-600 text-white' : 'text-muted-foreground hover:text-foreground'
                     )}
                   >
                     <Monitor className="w-4 h-4" />
@@ -573,7 +573,7 @@ export default function TemplatesPage() {
                     aria-pressed={previewDevice === 'tablet'}
                     className={cn(
                       'p-2 rounded-md transition',
-                      previewDevice === 'tablet' ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'
+                      previewDevice === 'tablet' ? 'bg-violet-600 text-white' : 'text-muted-foreground hover:text-foreground'
                     )}
                   >
                     <Tablet className="w-4 h-4" />
@@ -584,7 +584,7 @@ export default function TemplatesPage() {
                     aria-pressed={previewDevice === 'mobile'}
                     className={cn(
                       'p-2 rounded-md transition',
-                      previewDevice === 'mobile' ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'
+                      previewDevice === 'mobile' ? 'bg-violet-600 text-white' : 'text-muted-foreground hover:text-foreground'
                     )}
                   >
                     <Smartphone className="w-4 h-4" />
@@ -603,7 +603,7 @@ export default function TemplatesPage() {
                 <button
                   onClick={() => setPreviewTemplate(null)}
                   aria-label="Close preview"
-                  className="p-2 text-slate-400 hover:text-white transition"
+                  className="p-2 text-muted-foreground hover:text-foreground transition"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -634,7 +634,7 @@ export default function TemplatesPage() {
                   />
                 ) : (
                   <div className={cn(
-                    'w-full flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-slate-800 to-slate-900 text-slate-400 px-6',
+                    'w-full flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-slate-800 to-slate-900 text-muted-foreground px-6',
                     previewDevice === 'desktop' && 'h-[800px]',
                     previewDevice === 'tablet' && 'h-[600px]',
                     previewDevice === 'mobile' && 'h-[667px]'
@@ -660,11 +660,11 @@ export default function TemplatesPage() {
                   with an `includes` list so users know exactly what's in the
                   package before they click Buy / Use. */}
               {previewTemplate.includes && previewTemplate.includes.length > 0 && (
-                <div className="px-4 py-4 border-t border-white/10 bg-slate-900/60">
+                <div className="px-4 py-4 border-t border-border bg-card/60">
                   <div className="flex items-center justify-between mb-3">
                     <div>
-                      <div className="text-sm font-semibold text-white">What's included</div>
-                      <div className="text-[11px] text-slate-400">
+                      <div className="text-sm font-semibold text-foreground">What's included</div>
+                      <div className="text-[11px] text-muted-foreground">
                         {previewTemplate.includes.length} section{previewTemplate.includes.length === 1 ? '' : 's'}
                         {previewTemplate.is_premium && previewTemplate.priceUsdCents && !ownedTemplates.includes(previewTemplate.id) && (
                           <> · <span className="text-amber-300 font-medium">${(previewTemplate.priceUsdCents / 100).toFixed(0)} one-time, lifetime access</span></>
@@ -686,7 +686,7 @@ export default function TemplatesPage() {
                   </div>
                   <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
                     {previewTemplate.includes.map((item, i) => (
-                      <li key={i} className="text-[12px] text-slate-300 flex items-center gap-2">
+                      <li key={i} className="text-[12px] text-foreground/80 flex items-center gap-2">
                         <Check className="w-3 h-3 text-emerald-400 shrink-0" />
                         {item}
                       </li>
@@ -716,10 +716,10 @@ export default function TemplatesPage() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.94, y: 10 }}
               transition={{ ease: [0.22, 1, 0.36, 1] }}
-              className="w-full max-w-md bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+              className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="relative aspect-[16/9] bg-slate-800 overflow-hidden">
+              <div className="relative aspect-[16/9] bg-muted overflow-hidden">
                 <img
                   src={paywallTemplate.thumbnail_url}
                   alt={paywallTemplate.name}
@@ -739,7 +739,7 @@ export default function TemplatesPage() {
                 <button
                   onClick={() => setPaywallTemplate(null)}
                   aria-label="Close"
-                  className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center text-white"
+                  className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center text-foreground"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -748,12 +748,12 @@ export default function TemplatesPage() {
                 <div className="flex items-center gap-2 mb-2 text-violet-300 text-xs uppercase tracking-[0.2em] font-semibold">
                   <Lock className="w-3 h-3" /> Upgrade required
                 </div>
-                <h3 className="text-xl font-bold text-white mb-2">
+                <h3 className="text-xl font-bold text-foreground mb-2">
                   {paywallTemplate.name} is a premium template
                 </h3>
-                <p className="text-sm text-slate-400 mb-5 leading-relaxed">
+                <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
                   Premium templates are deeper, more polished, and tuned by our team. They unlock on
-                  the <span className="text-white font-semibold">Starter plan</span> and above —
+                  the <span className="text-foreground font-semibold">Starter plan</span> and above —
                   along with more credits, faster models, and priority generation.
                 </p>
                 <div className="space-y-2 mb-6">
@@ -763,7 +763,7 @@ export default function TemplatesPage() {
                     'Faster premium models (Claude Opus, GPT-4)',
                     'Priority generation queue',
                   ].map((perk) => (
-                    <div key={perk} className="flex items-center gap-2 text-sm text-slate-300">
+                    <div key={perk} className="flex items-center gap-2 text-sm text-foreground/80">
                       <div className="w-4 h-4 rounded-full bg-violet-500/20 flex items-center justify-center shrink-0">
                         <Zap className="w-2.5 h-2.5 text-violet-300" />
                       </div>
@@ -774,7 +774,7 @@ export default function TemplatesPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setPaywallTemplate(null)}
-                    className="flex-1 px-4 py-2.5 rounded-lg border border-white/10 text-white text-sm font-medium hover:bg-white/5 transition"
+                    className="flex-1 px-4 py-2.5 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted transition"
                   >
                     Not now
                   </button>

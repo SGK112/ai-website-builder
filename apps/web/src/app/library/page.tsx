@@ -96,10 +96,10 @@ export default function LibraryPage() {
     return () => { alive = false }
   }, [status])
 
-  if (status === 'loading') return <div className="min-h-screen flex items-center justify-center text-zinc-500">Loading…</div>
+  if (status === 'loading') return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading…</div>
   if (status !== 'authenticated') {
     return (
-      <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-2">Library · Sign in required</h1>
           <Link href={`/login?callbackUrl=${encodeURIComponent('/library')}`} className="text-violet-400 hover:text-violet-300">Sign in →</Link>
@@ -136,9 +136,9 @@ export default function LibraryPage() {
         : savedMerged
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-zinc-950 to-zinc-900 text-white">
+    <main className="min-h-screen bg-background text-foreground">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 md:py-12">
-        <Link href="/community" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-white mb-6">
+        <Link href="/community" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6">
           <ArrowLeft className="w-4 h-4" /> Browse the community
         </Link>
 
@@ -157,7 +157,7 @@ export default function LibraryPage() {
                   'inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm border transition',
                   active
                     ? 'bg-violet-500/15 border-violet-500/40 text-violet-200'
-                    : 'border-white/10 text-zinc-400 hover:text-white hover:bg-white/5'
+                    : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'
                 )}
               >
                 <Icon className="w-4 h-4" /> {t.label}
@@ -174,7 +174,7 @@ export default function LibraryPage() {
         )}
 
         {loading ? (
-          <div className="flex items-center justify-center py-20 text-zinc-500">
+          <div className="flex items-center justify-center py-20 text-muted-foreground">
             <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…
           </div>
         ) : items.length === 0 ? (
@@ -191,7 +191,7 @@ export default function LibraryPage() {
                       ? `/listings/${l._id}`
                       : `/showcase/${l._id}` // demo bookmark → its showcase page
                 }
-                className="group rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden hover:border-violet-500/40 transition"
+                className="group rounded-2xl border border-border bg-muted/40 overflow-hidden hover:border-violet-500/40 transition"
               >
                 <div className="aspect-[16/10] bg-gradient-to-br from-slate-800 to-slate-900 overflow-hidden relative">
                   {l.thumbnail && (
@@ -222,10 +222,10 @@ export default function LibraryPage() {
                 <div className="p-4">
                   <div className="flex items-start justify-between gap-2 mb-1">
                     <h2 className="font-semibold text-sm leading-tight">{l.title}</h2>
-                    <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/5 text-zinc-500 shrink-0">{l.type}</span>
+                    <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">{l.type}</span>
                   </div>
                   {l.description && (
-                    <p className="text-xs text-zinc-500 line-clamp-2 leading-relaxed">{l.description}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{l.description}</p>
                   )}
                 </div>
               </Link>
@@ -240,10 +240,10 @@ export default function LibraryPage() {
 function EmptyState({ tab }: { tab: Tab }) {
   if (tab === 'purchased') {
     return (
-      <div className="rounded-2xl border border-dashed border-white/10 p-10 text-center">
-        <ShoppingBag className="w-8 h-8 text-zinc-600 mx-auto mb-3" />
-        <p className="text-zinc-300 mb-1">No purchases yet</p>
-        <p className="text-sm text-zinc-500 mb-4">Premium templates and apps you buy from the community appear here.</p>
+      <div className="rounded-2xl border border-dashed border-border p-10 text-center">
+        <ShoppingBag className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+        <p className="text-foreground/80 mb-1">No purchases yet</p>
+        <p className="text-sm text-muted-foreground mb-4">Premium templates and apps you buy from the community appear here.</p>
         <Link href="/community" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-sm font-medium">
           Browse the community <ExternalLink className="w-3 h-3" />
         </Link>
@@ -252,10 +252,10 @@ function EmptyState({ tab }: { tab: Tab }) {
   }
   if (tab === 'authored') {
     return (
-      <div className="rounded-2xl border border-dashed border-white/10 p-10 text-center">
-        <Package className="w-8 h-8 text-zinc-600 mx-auto mb-3" />
-        <p className="text-zinc-300 mb-1">You haven't published anything yet</p>
-        <p className="text-sm text-zinc-500 mb-4">Build a site in the workspace, then click Publish to share it with the community.</p>
+      <div className="rounded-2xl border border-dashed border-border p-10 text-center">
+        <Package className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+        <p className="text-foreground/80 mb-1">You haven't published anything yet</p>
+        <p className="text-sm text-muted-foreground mb-4">Build a site in the workspace, then click Publish to share it with the community.</p>
         <Link href="/workspace" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-sm font-medium">
           Open the workspace <ExternalLink className="w-3 h-3" />
         </Link>
@@ -263,10 +263,10 @@ function EmptyState({ tab }: { tab: Tab }) {
     )
   }
   return (
-    <div className="rounded-2xl border border-dashed border-white/10 p-10 text-center">
-      <Bookmark className="w-8 h-8 text-zinc-600 mx-auto mb-3" />
-      <p className="text-zinc-300 mb-1">Nothing saved yet</p>
-      <p className="text-sm text-zinc-500 mb-4">Bookmark listings while browsing the community — they'll show up here.</p>
+    <div className="rounded-2xl border border-dashed border-border p-10 text-center">
+      <Bookmark className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+      <p className="text-foreground/80 mb-1">Nothing saved yet</p>
+      <p className="text-sm text-muted-foreground mb-4">Bookmark listings while browsing the community — they'll show up here.</p>
       <Link href="/community" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-sm font-medium">
         Browse the community <ExternalLink className="w-3 h-3" />
       </Link>

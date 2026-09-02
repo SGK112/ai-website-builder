@@ -124,9 +124,9 @@ export default async function ListingPage({ params }: PageProps) {
   const authorHref = author.username ? `/u/${author.username}` : undefined
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-950 to-zinc-900 text-white">
+    <main className="min-h-screen bg-background text-foreground">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 md:py-12">
-        <Link href="/community" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-white mb-6">
+        <Link href="/community" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6">
           <ArrowLeft className="w-4 h-4" /> Back to community
         </Link>
 
@@ -134,14 +134,14 @@ export default async function ListingPage({ params }: PageProps) {
         <header className="mb-6 flex flex-col md:flex-row md:items-start md:justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded bg-white/5 text-zinc-400">{l.type}</span>
+              <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded bg-muted text-muted-foreground">{l.type}</span>
               {l.isPremium && (
                 <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
                   <Crown className="w-3 h-3" /> ${((l.priceCredits || 0) / 100).toFixed(2)}
                 </span>
               )}
               {l.category && (
-                <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest px-2 py-0.5 rounded bg-white/5 text-zinc-400">
+                <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest px-2 py-0.5 rounded bg-muted text-muted-foreground">
                   <Tag className="w-3 h-3" /> {l.category}
                 </span>
               )}
@@ -150,18 +150,18 @@ export default async function ListingPage({ params }: PageProps) {
             {authorHref ? (
               <Link href={authorHref} className="mt-3 inline-flex items-center gap-2 group">
                 {author.avatar && (
-                  <img src={author.avatar} alt={author.name || ''} className="w-7 h-7 rounded-full object-cover border border-white/10" />
+                  <img src={author.avatar} alt={author.name || ''} className="w-7 h-7 rounded-full object-cover border border-border" />
                 )}
-                <span className="text-sm text-zinc-300 group-hover:text-white">
+                <span className="text-sm text-foreground/80 group-hover:text-foreground">
                   by <span className="font-medium">{author.name || author.username}</span>
                 </span>
                 <BadgeCheck className="w-3.5 h-3.5 text-emerald-400" />
               </Link>
             ) : (
-              <p className="mt-3 text-sm text-zinc-400">by {author.name || 'unknown'}</p>
+              <p className="mt-3 text-sm text-muted-foreground">by {author.name || 'unknown'}</p>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-4 text-sm text-zinc-400">
+          <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1.5"><Eye className="w-4 h-4" /> {l.views?.toLocaleString()}</span>
             <span className="inline-flex items-center gap-1.5"><Heart className="w-4 h-4 text-pink-400/80" /> {l.likes?.toLocaleString()}</span>
             <span className="inline-flex items-center gap-1.5"><ShoppingBag className="w-4 h-4" /> {l.downloads?.toLocaleString()}</span>
@@ -170,7 +170,7 @@ export default async function ListingPage({ params }: PageProps) {
 
         {/* Thumbnail / preview area. Free listings get an interactive iframe.
             Premium listings get the thumbnail with a buy overlay. */}
-        <section className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden mb-6">
+        <section className="rounded-2xl border border-border bg-muted/40 overflow-hidden mb-6">
           {l.type === 'video' && l.videoUrl ? (
             // Free video listing — playable. (Premium video has no videoUrl
             // here, so it falls through to the locked poster below.)
@@ -194,24 +194,24 @@ export default async function ListingPage({ params }: PageProps) {
                   <div className="text-center px-6">
                     <Crown className="w-8 h-8 text-amber-300 mx-auto mb-3" />
                     <p className="text-lg font-semibold mb-1">Preview locked</p>
-                    <p className="text-sm text-zinc-400 mb-4">{l.type === 'video' ? 'Buy this listing to get the full video.' : 'Buy this listing to view the full site + get the source.'}</p>
+                    <p className="text-sm text-muted-foreground mb-4">{l.type === 'video' ? 'Buy this listing to get the full video.' : 'Buy this listing to view the full site + get the source.'}</p>
                   </div>
                 </div>
               )}
             </div>
           ) : (
-            <div className="h-64 flex items-center justify-center text-zinc-600 text-sm">No preview available.</div>
+            <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">No preview available.</div>
           )}
         </section>
 
         {/* Description + tags */}
         {(l.description || (l.tags && l.tags.length > 0)) && (
-          <section className="mb-6 rounded-2xl border border-white/10 bg-white/[0.02] p-6">
-            {l.description && <p className="text-zinc-300 leading-relaxed whitespace-pre-line">{l.description}</p>}
+          <section className="mb-6 rounded-2xl border border-border bg-muted/40 p-6">
+            {l.description && <p className="text-foreground/80 leading-relaxed whitespace-pre-line">{l.description}</p>}
             {l.tags && l.tags.length > 0 && (
               <div className="mt-4 flex flex-wrap gap-2">
                 {l.tags.map((t) => (
-                  <span key={t} className="text-xs px-2 py-1 rounded-full bg-white/5 text-zinc-400">
+                  <span key={t} className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">
                     #{t}
                   </span>
                 ))}
@@ -234,7 +234,7 @@ export default async function ListingPage({ params }: PageProps) {
           <h3 className="text-xl font-semibold mb-2 flex items-center justify-center gap-2">
             <Sparkles className="w-5 h-5 text-violet-300" /> Want one like this?
           </h3>
-          <p className="text-sm text-zinc-400 mb-5">
+          <p className="text-sm text-muted-foreground mb-5">
             Webstew can generate your own version with the same structure, styled to your brand. Free to try.
           </p>
           <div className="flex flex-wrap gap-2 justify-center">
@@ -242,7 +242,7 @@ export default async function ListingPage({ params }: PageProps) {
               className="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 rounded-lg font-medium text-sm">
               Make your own — free
             </Link>
-            <Link href="/community" className="inline-flex items-center gap-2 px-5 py-2.5 border border-white/10 hover:bg-white/5 rounded-lg font-medium text-sm">
+            <Link href="/community" className="inline-flex items-center gap-2 px-5 py-2.5 border border-border hover:bg-muted rounded-lg font-medium text-sm">
               Browse more <ExternalLink className="w-3 h-3" />
             </Link>
           </div>

@@ -76,35 +76,35 @@ export default async function WatchPage({ params }: { params: { id: string } }) 
   const poster = posterUrl(shared.url) || undefined
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-200 flex flex-col">
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Brand bar */}
-      <header className="flex items-center justify-between px-5 py-3 border-b border-white/10">
+      <header className="flex items-center justify-between px-5 py-3 border-b border-border">
         <a href="/" className="flex items-center gap-2">
           <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-fuchsia-500 to-violet-600 flex items-center justify-center text-white text-sm font-bold">W</span>
-          <span className="text-sm font-semibold text-white">Webstew</span>
+          <span className="text-sm font-semibold text-foreground">Webstew</span>
         </a>
-        <a href="/video" className="rounded-lg bg-white/5 hover:bg-white/10 text-xs text-zinc-200 px-3 py-1.5">Open the studio</a>
+        <a href="/video" className="rounded-lg bg-muted hover:bg-muted/70 text-xs text-foreground px-3 py-1.5">Open the studio</a>
       </header>
 
       {/* Player */}
       <main className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8">
         <div className="w-full max-w-3xl">
           <video src={shared.url} poster={poster} controls autoPlay playsInline className="w-full rounded-2xl bg-black shadow-2xl shadow-black/50" />
-          <h1 className="mt-4 text-lg font-semibold text-white">{shared.title}</h1>
-          <p className="text-sm text-zinc-500">An AI-generated video, made in Webstew Studio.</p>
+          <h1 className="mt-4 text-lg font-semibold text-foreground">{shared.title}</h1>
+          <p className="text-sm text-muted-foreground">An AI-generated video, made in Webstew Studio.</p>
 
           {/* CTA */}
-          <div className="mt-6 rounded-2xl border border-white/10 bg-gradient-to-r from-fuchsia-600/10 to-violet-600/10 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="mt-6 rounded-2xl border border-border bg-gradient-to-r from-fuchsia-600/10 to-violet-600/10 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-semibold text-white">Make your own video</div>
-              <div className="text-xs text-zinc-400">Describe a scene, generate clips, and stitch a film — no editing skills needed.</div>
+              <div className="text-sm font-semibold text-foreground">Make your own video</div>
+              <div className="text-xs text-muted-foreground">Describe a scene, generate clips, and stitch a film — no editing skills needed.</div>
             </div>
             <a href="/video" className="shrink-0 rounded-xl bg-gradient-to-r from-fuchsia-600 to-violet-600 hover:from-fuchsia-500 text-white text-sm font-semibold px-4 py-2.5">Try Webstew Studio</a>
           </div>
         </div>
       </main>
 
-      <footer className="px-5 py-4 text-center text-[11px] text-zinc-600 border-t border-white/10">
+      <footer className="px-5 py-4 text-center text-[11px] text-muted-foreground border-t border-border">
         Made with <a href="/" className="text-violet-400 hover:text-violet-300">Webstew</a>
       </footer>
     </div>

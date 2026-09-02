@@ -95,8 +95,8 @@ function WebstewBadge() {
         bg-white/90 border border-slate-200 hover:border-violet-400
         text-slate-700 hover:text-slate-900
         shadow-lg shadow-slate-900/10
-        dark:bg-zinc-950/90 dark:border-white/10 dark:hover:border-violet-400/40
-        dark:text-zinc-200 dark:hover:text-white
+        dark:bg-background/90 dark:border-border dark:hover:border-violet-400/40
+        dark:text-foreground dark:hover:text-foreground
         dark:shadow-black/40
         transition
       "
@@ -108,9 +108,9 @@ function WebstewBadge() {
         W
       </span>
       <span className="text-xs font-medium tracking-tight">
-        Made with <span className="text-slate-900 dark:text-white font-semibold">Webstew</span>
+        Made with <span className="text-slate-900 dark:text-foreground font-semibold">Webstew</span>
       </span>
-      <span className="hidden sm:inline text-[11px] text-slate-500 group-hover:text-violet-600 dark:text-zinc-400 dark:group-hover:text-violet-300 transition">
+      <span className="hidden sm:inline text-[11px] text-muted-foreground group-hover:text-violet-600 dark:text-muted-foreground dark:group-hover:text-violet-300 transition">
         · Build yours free →
       </span>
     </Link>

@@ -799,28 +799,28 @@ export default function VideoStudio() {
   // layout's pt-16). h-screen here overflowed by 64px and pushed the timeline +
   // voice tracks off the bottom of the viewport.
   return (
-    <div className="min-h-[100dvh] md:h-[100dvh] flex flex-col bg-zinc-950 text-zinc-200 md:overflow-hidden">
+    <div className="min-h-[100dvh] md:h-[100dvh] flex flex-col bg-background text-foreground md:overflow-hidden">
       {/* Header — pad the top by the iPhone safe-area inset so it clears the
           status bar / Dynamic Island (the page paints behind the notch). */}
-      <div className="flex items-center justify-between px-4 pb-2.5 pt-[calc(env(safe-area-inset-top)+0.625rem)] border-b border-white/10 shrink-0">
+      <div className="flex items-center justify-between px-4 pb-2.5 pt-[calc(env(safe-area-inset-top)+0.625rem)] border-b border-border shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-violet-500/20 flex items-center justify-center"><Clapperboard className="w-4 h-4 text-violet-300" /></div>
           <div>
-            <div className="text-sm font-semibold text-white">Video Studio</div>
-            <div className="hidden sm:block text-[10px] text-zinc-400">Generate clips → arrange on the timeline → stitch & export</div>
+            <div className="text-sm font-semibold text-foreground">Video Studio</div>
+            <div className="hidden sm:block text-[10px] text-muted-foreground">Generate clips → arrange on the timeline → stitch & export</div>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={startNew} disabled={busy} className="flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-zinc-300 hover:text-white hover:border-white/25 disabled:opacity-40"><Plus className="w-3.5 h-3.5" /> New</button>
-          <button onClick={() => setShowSaved(s => !s)} className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs ${showSaved ? 'border-violet-500 text-violet-200 bg-violet-500/10' : 'border-white/10 text-zinc-300 hover:text-white hover:border-white/25'}`}><Bookmark className="w-3.5 h-3.5" /> Saved{creations.length ? ` (${creations.length})` : ''}</button>
-          <a href="/workspace" className="flex items-center gap-1 text-xs text-zinc-400 hover:text-white"><ArrowLeft className="w-3.5 h-3.5" /> Workspace</a>
+          <button onClick={startNew} disabled={busy} className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs text-foreground/80 hover:text-foreground hover:border-white/25 disabled:opacity-40"><Plus className="w-3.5 h-3.5" /> New</button>
+          <button onClick={() => setShowSaved(s => !s)} className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs ${showSaved ? 'border-violet-500 text-violet-200 bg-violet-500/10' : 'border-border text-foreground/80 hover:text-foreground hover:border-white/25'}`}><Bookmark className="w-3.5 h-3.5" /> Saved{creations.length ? ` (${creations.length})` : ''}</button>
+          <a href="/workspace" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"><ArrowLeft className="w-3.5 h-3.5" /> Workspace</a>
         </div>
       </div>
 
       {/* Top: tools + preview — stacks vertically on mobile, side-by-side on desktop */}
       <div className="flex-1 flex flex-col md:flex-row min-h-0">
         {/* CREATE rail */}
-        <div className="w-full md:w-72 shrink-0 border-b md:border-r border-white/10 md:overflow-y-auto p-3 space-y-3">
+        <div className="w-full md:w-72 shrink-0 border-b md:border-r border-border md:overflow-y-auto p-3 space-y-3">
           {/* Mobile is chat-first: the chef drives everything (generate, B-roll,
               assemble, render). Manual tools are opt-in behind a toggle; on
               desktop they're always shown. */}
@@ -831,10 +831,10 @@ export default function VideoStudio() {
             </button>
             <div className="flex items-center gap-2">
               <button onClick={() => mobileMediaInputRef.current?.click()} disabled={uploadingImage}
-                className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 disabled:opacity-40 text-zinc-200 text-sm font-medium py-2.5">
+                className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-muted hover:bg-muted/70 disabled:opacity-40 text-foreground text-sm font-medium py-2.5">
                 {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Add your photos / video
               </button>
-              <button onClick={() => setShowManual(s => !s)} className="shrink-0 rounded-xl border border-white/10 text-[11px] text-zinc-400 hover:text-white px-3 py-2.5">
+              <button onClick={() => setShowManual(s => !s)} className="shrink-0 rounded-xl border border-border text-[11px] text-muted-foreground hover:text-foreground px-3 py-2.5">
                 {showManual ? 'Less ▲' : 'More ▾'}
               </button>
             </div>
@@ -842,8 +842,8 @@ export default function VideoStudio() {
           </div>
           <div className={`space-y-3 ${showManual ? '' : 'hidden'} md:block`}>
           <div className="flex gap-1.5">
-            <button onClick={() => setMode('text')} className={`flex-1 rounded-lg py-1.5 text-xs font-medium ${mode === 'text' ? 'bg-violet-600 text-white' : 'bg-white/5 text-zinc-400'}`}>Text → Video</button>
-            <button onClick={() => setMode('image')} className={`flex-1 rounded-lg py-1.5 text-xs font-medium ${mode === 'image' ? 'bg-violet-600 text-white' : 'bg-white/5 text-zinc-400'}`}>Image / Video</button>
+            <button onClick={() => setMode('text')} className={`flex-1 rounded-lg py-1.5 text-xs font-medium ${mode === 'text' ? 'bg-violet-600 text-white' : 'bg-muted text-muted-foreground'}`}>Text → Video</button>
+            <button onClick={() => setMode('image')} className={`flex-1 rounded-lg py-1.5 text-xs font-medium ${mode === 'image' ? 'bg-violet-600 text-white' : 'bg-muted text-muted-foreground'}`}>Image / Video</button>
           </div>
 
           {/* AI Director — drop your clips, give one order, it assembles the whole
@@ -858,11 +858,11 @@ export default function VideoStudio() {
                   onKeyDown={e => { if (e.key === 'Enter' && !busy) runDirector() }}
                   placeholder={orderMic.listening ? 'Listening… speak your order' : orderMic.transcribing ? 'Transcribing…' : 'Your order — type or tap the mic'}
                   disabled={orderMic.listening || orderMic.transcribing}
-                  className="flex-1 min-w-0 bg-black/30 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-violet-400/60 disabled:opacity-70" />
+                  className="flex-1 min-w-0 bg-muted/60 border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-400/60 disabled:opacity-70" />
                 {orderMic.supported && (
                   <button onClick={orderMic.toggle} disabled={directing || orderMic.transcribing}
                     aria-label={orderMic.listening ? 'Stop and transcribe' : 'Speak your order'}
-                    className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-white disabled:opacity-40 ${orderMic.listening ? 'bg-rose-500 animate-pulse' : 'bg-white/10 hover:bg-white/20'}`}>
+                    className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-foreground disabled:opacity-40 ${orderMic.listening ? 'bg-rose-500 animate-pulse' : 'bg-white/10 hover:bg-white/20'}`}>
                     {orderMic.transcribing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : orderMic.listening ? <Square className="w-3.5 h-3.5 fill-current" /> : <Mic className="w-3.5 h-3.5" />}
                   </button>
                 )}
@@ -873,7 +873,7 @@ export default function VideoStudio() {
                 {directing ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {genLabel || 'Directing…'}</> : <><Clapperboard className="w-3.5 h-3.5" /> Direct the whole cut ({doneClips.length})</>}
               </button>
               <button onClick={() => setDirectorChatOpen(true)} disabled={directing}
-                className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-violet-400/30 bg-white/5 hover:bg-white/10 disabled:opacity-40 text-violet-100 text-xs font-medium py-2">
+                className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-violet-400/30 bg-muted hover:bg-muted/70 disabled:opacity-40 text-violet-100 text-xs font-medium py-2">
                 <Mic className="w-3.5 h-3.5" /> Or talk it through with the director
               </button>
               <p className="text-[10px] text-violet-200/50">Sequences your {doneClips.length} clip{doneClips.length !== 1 ? 's' : ''}, adds B-roll, writes + voices a script, picks music. Review, then Render. Generates a few clips (credits).</p>
@@ -885,24 +885,24 @@ export default function VideoStudio() {
               onDragOver={e => { e.preventDefault(); if (!dragOver) setDragOver(true) }}
               onDragLeave={e => { e.preventDefault(); setDragOver(false) }}
               onDrop={handleImageDrop}
-              className={`rounded-xl border-2 border-dashed p-2 transition-colors ${dragOver ? 'border-fuchsia-500 bg-fuchsia-500/10' : 'border-white/10'}`}
+              className={`rounded-xl border-2 border-dashed p-2 transition-colors ${dragOver ? 'border-fuchsia-500 bg-fuchsia-500/10' : 'border-border'}`}
             >
               <div className="grid grid-cols-3 gap-2">
                 {uploadedImages.map((u, i) => (
-                  <div key={u + i} className="relative aspect-square rounded-lg overflow-hidden bg-zinc-900">
+                  <div key={u + i} className="relative aspect-square rounded-lg overflow-hidden bg-card">
                     <img src={u} alt="" className="w-full h-full object-cover" />
                     <span className="absolute bottom-0.5 left-0.5 text-[9px] px-1 rounded bg-black/60 text-white">{i + 1}</span>
                     <button onClick={() => setUploadedImages(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-0.5 right-0.5 p-0.5 rounded bg-black/60 text-white"><X className="w-3 h-3" /></button>
                   </div>
                 ))}
                 {uploadedImages.length < MAX_SOURCE_IMAGES && (
-                  <button onClick={() => imageInputRef.current?.click()} className="aspect-square rounded-lg border-2 border-dashed border-white/10 hover:border-fuchsia-500/50 flex items-center justify-center text-zinc-400">
+                  <button onClick={() => imageInputRef.current?.click()} className="aspect-square rounded-lg border-2 border-dashed border-border hover:border-fuchsia-500/50 flex items-center justify-center text-muted-foreground">
                     {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                   </button>
                 )}
               </div>
-              <p className="text-[10px] text-zinc-400 mt-1.5 px-0.5">
-                Drag &amp; drop or click to add up to {MAX_SOURCE_IMAGES} images, or drop a <span className="text-zinc-400">video</span> to drop it straight onto the timeline. {uploadedImages.length >= 2 ? 'Use “Make ad” to turn each image into its own clip.' : 'Add a few images to build an ad from them.'}
+              <p className="text-[10px] text-muted-foreground mt-1.5 px-0.5">
+                Drag &amp; drop or click to add up to {MAX_SOURCE_IMAGES} images, or drop a <span className="text-muted-foreground">video</span> to drop it straight onto the timeline. {uploadedImages.length >= 2 ? 'Use “Make ad” to turn each image into its own clip.' : 'Add a few images to build an ad from them.'}
               </p>
               <input ref={imageInputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleImageUpload} />
             </div>
@@ -910,7 +910,7 @@ export default function VideoStudio() {
 
           <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={3}
             placeholder={mode === 'text' ? 'Describe this clip…' : 'Optional motion (e.g. slow push-in)…'}
-            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-violet-500/50 resize-none" />
+            className="w-full bg-muted/50 border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500/50 resize-none" />
           <button onClick={() => setDirectorOpen(true)} className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-violet-500/40 bg-gradient-to-r from-violet-600/15 to-fuchsia-600/15/25 text-violet-200 text-xs font-medium py-2">
             <Sparkles className="w-3.5 h-3.5" /> AI Director — craft this prompt
           </button>
@@ -918,39 +918,39 @@ export default function VideoStudio() {
           {/* Theme — the film's look. New clips (and the Director) stay
               consistent with it, so a multi-clip story holds together. */}
           <div>
-            <label className="flex items-center justify-between text-[11px] text-zinc-400 mb-1">
+            <label className="flex items-center justify-between text-[11px] text-muted-foreground mb-1">
               <span className="flex items-center gap-1"><Film className="w-3 h-3 text-fuchsia-300/70" /> Theme {seriesPrompts.length > 1 && <span className="text-fuchsia-300/70">· keeps {seriesPrompts.length} clips consistent</span>}</span>
-              {theme && <button onClick={() => setTheme('')} className="text-zinc-400 hover:text-red-300">clear</button>}
+              {theme && <button onClick={() => setTheme('')} className="text-muted-foreground hover:text-red-300">clear</button>}
             </label>
             <textarea value={theme} onChange={e => setTheme(e.target.value)} rows={2}
               placeholder="e.g. moody cinematic lighthouse, cold blue + amber, film grain, anamorphic"
-              className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-fuchsia-500/40 resize-none" />
-            <p className="text-[10px] text-zinc-400 mt-0.5">New clips follow this look so they fit the rest of the film. Auto-set from your first shot — edit anytime.</p>
+              className="w-full bg-muted/50 border border-border rounded-lg px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-fuchsia-500/40 resize-none" />
+            <p className="text-[10px] text-muted-foreground mt-0.5">New clips follow this look so they fit the rest of the film. Auto-set from your first shot — edit anytime.</p>
           </div>
 
           <div>
-            <label className="block text-[11px] text-zinc-400 mb-1">Style</label>
+            <label className="block text-[11px] text-muted-foreground mb-1">Style</label>
             <div className="flex flex-wrap gap-1">
-              {STYLES.map(s => <button key={s} onClick={() => setStyle(style === s ? '' : s)} className={`px-2 py-0.5 rounded text-[11px] border ${style === s ? 'border-violet-500/50 bg-violet-500/20 text-violet-300' : 'border-white/10 text-zinc-400'}`}>{s}</button>)}
+              {STYLES.map(s => <button key={s} onClick={() => setStyle(style === s ? '' : s)} className={`px-2 py-0.5 rounded text-[11px] border ${style === s ? 'border-violet-500/50 bg-violet-500/20 text-violet-300' : 'border-border text-muted-foreground'}`}>{s}</button>)}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] text-zinc-400 mb-1">Format</label>
-              <select value={aspectRatio} onChange={e => setAspectRatio(e.target.value)} className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white">
+              <label className="block text-[11px] text-muted-foreground mb-1">Format</label>
+              <select value={aspectRatio} onChange={e => setAspectRatio(e.target.value)} className="w-full bg-muted/50 border border-border rounded-lg px-2 py-1.5 text-xs text-foreground">
                 {ASPECTS.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-[11px] text-zinc-400 mb-1">Length: {duration}s</label>
+              <label className="block text-[11px] text-muted-foreground mb-1">Length: {duration}s</label>
               <input type="range" min={3} max={12} value={duration} onChange={e => setDuration(Number(e.target.value))} className="w-full accent-violet-500" />
             </div>
           </div>
 
           <div>
-            <label className="block text-[11px] text-zinc-400 mb-1">Model</label>
-            <select value={model} onChange={e => setModel(e.target.value)} className="w-full bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white">
+            <label className="block text-[11px] text-muted-foreground mb-1">Model</label>
+            <select value={model} onChange={e => setModel(e.target.value)} className="w-full bg-muted/50 border border-border rounded-lg px-2 py-1.5 text-xs text-foreground">
               {VIDEO_MODELS.map(m => <option key={m.id} value={m.id}>{m.label} — {m.hint}</option>)}
             </select>
           </div>
@@ -1012,7 +1012,7 @@ export default function VideoStudio() {
                   {/* fl_attachment forces a real download — a bare cross-origin
                       Cloudinary URL ignores the `download` attr and just opens. */}
                   <a href={toDownloadUrl(stitchedUrl)} download="webstew-video.mp4" className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium py-2"><Download className="w-3.5 h-3.5" /> Download</a>
-                  <button onClick={() => saveCreation('video', stitchedUrl, prompt.trim() || 'Untitled video')} disabled={!!savingIds[stitchedUrl] || isSaved(stitchedUrl)} className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-200 text-xs font-medium py-2 disabled:opacity-50">{savingIds[stitchedUrl] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isSaved(stitchedUrl) ? <BookmarkCheck className="w-3.5 h-3.5 text-violet-300" /> : <Bookmark className="w-3.5 h-3.5" />} {isSaved(stitchedUrl) ? 'In your creations' : 'Save to creations'}</button>
+                  <button onClick={() => saveCreation('video', stitchedUrl, prompt.trim() || 'Untitled video')} disabled={!!savingIds[stitchedUrl] || isSaved(stitchedUrl)} className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-muted hover:bg-muted/70 text-foreground text-xs font-medium py-2 disabled:opacity-50">{savingIds[stitchedUrl] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isSaved(stitchedUrl) ? <BookmarkCheck className="w-3.5 h-3.5 text-violet-300" /> : <Bookmark className="w-3.5 h-3.5" />} {isSaved(stitchedUrl) ? 'In your creations' : 'Save to creations'}</button>
                 </div>
               )}
               {/* Single selected clip (not the stitched cut): same Save + Download.
@@ -1020,23 +1020,23 @@ export default function VideoStudio() {
               {!stitchedUrl && selectedClip?.url && selectedClip.kind !== 'image' && (
                 <div className="flex gap-2 mt-2">
                   <button onClick={() => saveCreation('clip', selectedClip.url!, selectedClip.prompt.slice(0, 80))} disabled={!!savingIds[selectedClip.url] || isSaved(selectedClip.url)} className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium py-2 disabled:opacity-50">{savingIds[selectedClip.url] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isSaved(selectedClip.url) ? <BookmarkCheck className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />} {isSaved(selectedClip.url) ? 'Saved to creations' : 'Save clip'}</button>
-                  <a href={toDownloadUrl(selectedClip.url)} download="webstew-clip.mp4" className="flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-200 text-xs font-medium px-3 py-2"><Download className="w-3.5 h-3.5" /> Download</a>
+                  <a href={toDownloadUrl(selectedClip.url)} download="webstew-clip.mp4" className="flex items-center justify-center gap-1.5 rounded-lg bg-muted hover:bg-muted/70 text-foreground text-xs font-medium px-3 py-2"><Download className="w-3.5 h-3.5" /> Download</a>
                 </div>
               )}
               {stitchedUrl && (
-                <button onClick={saveShareLink} disabled={saving} className="w-full mt-2 flex items-center justify-center gap-1.5 rounded-lg bg-white/[0.03] hover:bg-white/10 text-zinc-300 text-[11px] font-medium py-1.5 disabled:opacity-50">{saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link2 className="w-3 h-3" />} {shareUrl ? 'Shareable link ready ✓' : 'Get a shareable link'}</button>
+                <button onClick={saveShareLink} disabled={saving} className="w-full mt-2 flex items-center justify-center gap-1.5 rounded-lg bg-muted/50 hover:bg-muted/70 text-foreground/80 text-[11px] font-medium py-1.5 disabled:opacity-50">{saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link2 className="w-3 h-3" />} {shareUrl ? 'Shareable link ready ✓' : 'Get a shareable link'}</button>
               )}
               {shareUrl && (
                 <div className="flex gap-1.5 mt-2">
-                  <input readOnly value={shareUrl} onFocus={e => e.currentTarget.select()} className="flex-1 bg-black/30 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-zinc-300" />
-                  <a href={shareUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-200 text-[11px] px-2.5 py-1.5">Open <ArrowRight className="w-3 h-3 -rotate-45" /></a>
+                  <input readOnly value={shareUrl} onFocus={e => e.currentTarget.select()} className="flex-1 bg-muted/60 border border-border rounded-lg px-2 py-1.5 text-[11px] text-foreground/80" />
+                  <a href={shareUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 rounded-lg bg-muted hover:bg-muted/70 text-foreground text-[11px] px-2.5 py-1.5">Open <ArrowRight className="w-3 h-3 -rotate-45" /></a>
                 </div>
               )}
             </div>
           ) : (
-            <div className="text-center text-zinc-400">
-              <div className="w-16 h-16 rounded-2xl bg-white/[0.03] flex items-center justify-center mx-auto mb-3"><Film className="w-7 h-7" /></div>
-              <div className="text-sm text-zinc-400">Your video appears here</div>
+            <div className="text-center text-muted-foreground">
+              <div className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-3"><Film className="w-7 h-7" /></div>
+              <div className="text-sm text-muted-foreground">Your video appears here</div>
               <div className="text-xs">Generate a clip — it drops onto the timeline below</div>
             </div>
           )}
@@ -1044,37 +1044,37 @@ export default function VideoStudio() {
       </div>
 
       {/* TIMELINE */}
-      <div className="shrink-0 border-t border-white/10 bg-black/30 p-3 space-y-2">
+      <div className="shrink-0 border-t border-border bg-muted/40 p-3 space-y-2">
         <div className="flex items-center gap-3">
           <span className="w-16 shrink-0 text-[11px] font-semibold text-violet-300 flex items-center gap-1"><Film className="w-3.5 h-3.5" /> Video</span>
-          {clips.length > 0 && <button onClick={() => { if (confirm('Clear all clips from the timeline?')) { setClips([]); setSelectedId(null); setStitched(null) } }} disabled={busy} className="text-[10px] text-zinc-400 hover:text-red-300 disabled:opacity-30">Clear</button>}
+          {clips.length > 0 && <button onClick={() => { if (confirm('Clear all clips from the timeline?')) { setClips([]); setSelectedId(null); setStitched(null) } }} disabled={busy} className="text-[10px] text-muted-foreground hover:text-red-300 disabled:opacity-30">Clear</button>}
           <div className="flex-1 flex gap-2 overflow-x-auto pb-1">
-            {clips.length === 0 && <span className="text-xs text-zinc-400 py-4">No clips yet — generate one on the left.</span>}
+            {clips.length === 0 && <span className="text-xs text-muted-foreground py-4">No clips yet — generate one on the left.</span>}
             {clips.map((c, i) => (
               <div key={c.id} onClick={() => { if (c.url) { setStitched(null); setSelectedId(c.id) } }}
-                className={`relative shrink-0 w-32 rounded-lg border overflow-hidden cursor-pointer ${selectedId === c.id && !stitchedUrl ? 'border-violet-500' : 'border-white/10'}`}>
+                className={`relative shrink-0 w-32 rounded-lg border overflow-hidden cursor-pointer ${selectedId === c.id && !stitchedUrl ? 'border-violet-500' : 'border-border'}`}>
                 {c.status === 'done' && c.url ? (
                   c.kind === 'image'
                     ? <div className="relative"><img src={c.url} alt="" className="w-full h-16 object-cover bg-black" /><span className="absolute bottom-0.5 right-0.5 text-[8px] px-1 rounded bg-black/70 text-fuchsia-200">slide {c.seconds || 4}s</span></div>
                     : <div className="relative"><video src={`${c.url}#t=0.1`} muted playsInline preload="metadata" className="w-full h-16 object-cover bg-black" />{c.broll && <span className="absolute bottom-0.5 right-0.5 text-[8px] px-1 rounded bg-cyan-600/80 text-white">B-roll</span>}</div>
                 ) : (
-                  <div className="w-full h-16 flex flex-col items-center justify-center gap-1 bg-zinc-900 text-[9px] text-zinc-400 px-1 text-center">
+                  <div className="w-full h-16 flex flex-col items-center justify-center gap-1 bg-card text-[9px] text-muted-foreground px-1 text-center">
                     {c.status === 'generating'
                       ? <><Loader2 className="w-3.5 h-3.5 animate-spin text-violet-400" /><span className="leading-tight">{c.note || 'starting…'}</span></>
                       : <span className="text-red-400 leading-tight" title={c.error}>{c.error?.slice(0, 60) || 'failed'}</span>}
                   </div>
                 )}
                 <div className="flex items-center justify-between px-1 py-0.5 bg-black/50">
-                  <span className="text-[9px] text-zinc-400">Clip {i + 1}</span>
+                  <span className="text-[9px] text-white/80">Clip {i + 1}</span>
                   <div className="flex items-center gap-0.5">
                     {/* Save + reorder are power controls — desktop only. Mobile
                         keeps just delete; the chef handles sequencing. */}
                     {c.status === 'done' && c.url && c.kind !== 'image' && (
-                      <button onClick={e => { e.stopPropagation(); saveCreation('clip', c.url!, c.prompt.slice(0, 80)) }} disabled={!!savingIds[c.url] || isSaved(c.url)} title={isSaved(c.url) ? 'Saved to your creations' : 'Save clip to your creations'} className="hidden md:block p-0.5 text-zinc-400 hover:text-violet-300 disabled:opacity-60">{savingIds[c.url] ? <Loader2 className="w-3 h-3 animate-spin" /> : isSaved(c.url) ? <BookmarkCheck className="w-3 h-3 text-violet-300" /> : <Bookmark className="w-3 h-3" />}</button>
+                      <button onClick={e => { e.stopPropagation(); saveCreation('clip', c.url!, c.prompt.slice(0, 80)) }} disabled={!!savingIds[c.url] || isSaved(c.url)} title={isSaved(c.url) ? 'Saved to your creations' : 'Save clip to your creations'} className="hidden md:block p-0.5 text-muted-foreground hover:text-violet-300 disabled:opacity-60">{savingIds[c.url] ? <Loader2 className="w-3 h-3 animate-spin" /> : isSaved(c.url) ? <BookmarkCheck className="w-3 h-3 text-violet-300" /> : <Bookmark className="w-3 h-3" />}</button>
                     )}
-                    <button onClick={e => { e.stopPropagation(); move(i, -1) }} disabled={i === 0 || busy} className="hidden md:block p-0.5 text-zinc-400 hover:text-white disabled:opacity-30"><ArrowLeft className="w-3 h-3" /></button>
-                    <button onClick={e => { e.stopPropagation(); move(i, 1) }} disabled={i === clips.length - 1 || busy} className="hidden md:block p-0.5 text-zinc-400 hover:text-white disabled:opacity-30"><ArrowRight className="w-3 h-3" /></button>
-                    <button onClick={e => { e.stopPropagation(); setClips(prev => prev.filter(x => x.id !== c.id)) }} disabled={busy} className="p-1 md:p-0.5 text-zinc-400 hover:text-red-400 disabled:opacity-30"><X className="w-3.5 h-3.5 md:w-3 md:h-3" /></button>
+                    <button onClick={e => { e.stopPropagation(); move(i, -1) }} disabled={i === 0 || busy} className="hidden md:block p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowLeft className="w-3 h-3" /></button>
+                    <button onClick={e => { e.stopPropagation(); move(i, 1) }} disabled={i === clips.length - 1 || busy} className="hidden md:block p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowRight className="w-3 h-3" /></button>
+                    <button onClick={e => { e.stopPropagation(); setClips(prev => prev.filter(x => x.id !== c.id)) }} disabled={busy} className="p-1 md:p-0.5 text-muted-foreground hover:text-red-400 disabled:opacity-30"><X className="w-3.5 h-3.5 md:w-3 md:h-3" /></button>
                   </div>
                 </div>
                 {c.status === 'error' && <button onClick={e => { e.stopPropagation(); patch(c.id, { status: 'generating' }); /* retry via regenerate not wired in v1 */ }} className="hidden" />}
@@ -1088,9 +1088,9 @@ export default function VideoStudio() {
           <span className="w-16 shrink-0 text-[11px] font-semibold text-violet-300 flex items-center gap-1"><Volume2 className="w-3.5 h-3.5" /> Voice</span>
           <input value={script || narrationText} onChange={e => (script ? setScript(e.target.value) : setNarrationText(e.target.value))}
             placeholder="Voiceover line / notes (optional)"
-            className="flex-1 bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-violet-500/50" />
+            className="flex-1 bg-muted/50 border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500/50" />
           <button onClick={writeScript} disabled={busy} className="flex items-center gap-1 rounded-lg border border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/20 text-violet-200 text-xs px-2.5 py-1.5 disabled:opacity-40">{writingScript ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PenLine className="w-3.5 h-3.5" />} Write</button>
-          <select value={voice} onChange={e => setVoice(e.target.value)} className="bg-white/[0.04] border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white capitalize">{TTS_VOICES.map(v => <option key={v} value={v}>{v}</option>)}</select>
+          <select value={voice} onChange={e => setVoice(e.target.value)} className="bg-muted/50 border border-border rounded-lg px-2 py-1.5 text-xs text-foreground capitalize">{TTS_VOICES.map(v => <option key={v} value={v}>{v}</option>)}</select>
         </div>
 
         {/* MUSIC track — manual; hidden on mobile (the chef picks it), shown on desktop or via Manual tools */}
@@ -1098,18 +1098,18 @@ export default function VideoStudio() {
           <span className="w-16 shrink-0 text-[11px] font-semibold text-fuchsia-300 flex items-center gap-1"><Music className="w-3.5 h-3.5" /> Music</span>
           {hasMusic ? (
             <>
-              <span className="text-xs text-zinc-300 truncate max-w-[200px] flex items-center gap-1">{musicTrackId && <Music className="w-3 h-3 text-fuchsia-300/70" />}{musicName || 'music track'}</span>
-              <button onClick={clearMusic} title="Remove music" className="text-zinc-400 hover:text-red-300"><X className="w-3.5 h-3.5" /></button>
-              <span className="text-[10px] text-zinc-400 ml-2">Volume</span>
+              <span className="text-xs text-foreground/80 truncate max-w-[200px] flex items-center gap-1">{musicTrackId && <Music className="w-3 h-3 text-fuchsia-300/70" />}{musicName || 'music track'}</span>
+              <button onClick={clearMusic} title="Remove music" className="text-muted-foreground hover:text-red-300"><X className="w-3.5 h-3.5" /></button>
+              <span className="text-[10px] text-muted-foreground ml-2">Volume</span>
               <input type="range" min={0} max={1} step={0.05} value={musicVolume} onChange={e => setMusicVolume(Number(e.target.value))} className="w-28 accent-fuchsia-500" />
-              <span className="text-[10px] text-zinc-400 w-8">{Math.round(musicVolume * 100)}%</span>
+              <span className="text-[10px] text-muted-foreground w-8">{Math.round(musicVolume * 100)}%</span>
             </>
           ) : (
             <div className="flex items-center gap-2">
               <button onClick={() => setShowMusicPicker(true)} className="flex items-center gap-1 rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 text-fuchsia-200 text-xs px-2.5 py-1.5">
                 <Music className="w-3.5 h-3.5" /> Browse music
               </button>
-              <button onClick={() => musicInputRef.current?.click()} disabled={uploadingMusic} className="flex items-center gap-1 rounded-lg border border-white/10 hover:border-fuchsia-500/50 text-zinc-300 text-xs px-2.5 py-1.5 disabled:opacity-40">
+              <button onClick={() => musicInputRef.current?.click()} disabled={uploadingMusic} className="flex items-center gap-1 rounded-lg border border-border hover:border-fuchsia-500/50 text-foreground/80 text-xs px-2.5 py-1.5 disabled:opacity-40">
                 {uploadingMusic ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />} Upload
               </button>
             </div>
@@ -1122,7 +1122,7 @@ export default function VideoStudio() {
           <span className="w-16 shrink-0 text-[11px] font-semibold text-amber-300 flex items-center gap-1"><Sparkles className="w-3.5 h-3.5" /> Look</span>
           <div className="flex-1 flex gap-1.5 overflow-x-auto pb-1">
             {LOOKS.map(l => (
-              <button key={l} onClick={() => setLook(l)} className={`shrink-0 rounded-lg px-2.5 py-1.5 text-xs capitalize border ${look === l ? 'border-amber-400 bg-amber-500/15 text-amber-100' : 'border-white/10 text-zinc-400 hover:text-white'}`}>{l === 'none' ? 'None' : l}</button>
+              <button key={l} onClick={() => setLook(l)} className={`shrink-0 rounded-lg px-2.5 py-1.5 text-xs capitalize border ${look === l ? 'border-amber-400 bg-amber-500/15 text-amber-100' : 'border-border text-muted-foreground hover:text-foreground'}`}>{l === 'none' ? 'None' : l}</button>
             ))}
           </div>
         </div>
@@ -1134,7 +1134,7 @@ export default function VideoStudio() {
           <input value={overlayText}
             onChange={e => { setOverlayText(e.target.value); const t = e.target.value.trim(); setOverlays(t ? [{ text: t, position: 'bottom', size: 'small', box: true }] : []) }}
             placeholder="On-screen text — contact info, title (optional)"
-            className="flex-1 min-w-0 bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500/50" />
+            className="flex-1 min-w-0 bg-muted/50 border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-emerald-500/50" />
           {overlays.length > 0 && !overlayText && <span className="text-[10px] text-emerald-300/70">{overlays.length} set by chef</span>}
         </div>
 
@@ -1146,7 +1146,7 @@ export default function VideoStudio() {
             {stitching ? <><Loader2 className="w-4 h-4 animate-spin" /> {stitchStage}{stitchProgress > 0 ? ` ${stitchProgress}%` : ''}</> : <><Wand2 className="w-4 h-4" /> Render film {doneClips.length > 1 ? `(${doneClips.length} clips)` : ''}</>}
           </button>
         </div>
-        {stitching && <p className="text-[10px] text-zinc-400">Rendering on our server — downloading clips, mixing audio, and uploading. Usually under a minute.</p>}
+        {stitching && <p className="text-[10px] text-muted-foreground">Rendering on our server — downloading clips, mixing audio, and uploading. Usually under a minute.</p>}
       </div>
 
       {/* Saved Creations drawer — your library of clips + finished videos.
@@ -1154,41 +1154,41 @@ export default function VideoStudio() {
       {showSaved && (
         <div className="fixed inset-0 z-40 flex justify-end" role="dialog" aria-modal="true" aria-label="Saved creations">
           <div className="flex-1 bg-black/50" onClick={() => setShowSaved(false)} />
-          <div className="w-full max-w-sm h-[100dvh] bg-zinc-950 border-l border-white/10 flex flex-col">
-            <div className="flex items-center justify-between px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] border-b border-white/10 shrink-0">
-              <div className="flex items-center gap-2 text-sm font-semibold text-white"><Bookmark className="w-4 h-4 text-violet-300" /> Your creations{creations.length ? ` (${creations.length})` : ''}</div>
-              <button onClick={() => setShowSaved(false)} aria-label="Close" className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/5 text-zinc-300 hover:text-white hover:bg-white/10"><X className="w-6 h-6" /></button>
+          <div className="w-full max-w-sm h-[100dvh] bg-background border-l border-border flex flex-col">
+            <div className="flex items-center justify-between px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] border-b border-border shrink-0">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Bookmark className="w-4 h-4 text-violet-300" /> Your creations{creations.length ? ` (${creations.length})` : ''}</div>
+              <button onClick={() => setShowSaved(false)} aria-label="Close" className="w-10 h-10 rounded-xl flex items-center justify-center bg-muted text-foreground/80 hover:text-foreground hover:bg-muted/70"><X className="w-6 h-6" /></button>
             </div>
             <div className="flex-1 overflow-y-auto p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] space-y-3">
               {creations.length === 0 ? (
-                <div className="text-center text-zinc-400 pt-16 px-4">
+                <div className="text-center text-muted-foreground pt-16 px-4">
                   <Bookmark className="w-10 h-10 mx-auto mb-3 opacity-40" />
-                  <div className="text-sm text-zinc-400">No saved creations yet</div>
+                  <div className="text-sm text-muted-foreground">No saved creations yet</div>
                   <div className="text-xs mt-1">Save a clip or a finished video and it lands here — ready to reuse, download, or sell in the community.</div>
                 </div>
               ) : creations.map(cr => (
-                <div key={cr.id} className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">
+                <div key={cr.id} className="rounded-xl border border-border overflow-hidden bg-muted/40">
                   <video src={cr.url} muted className="w-full h-32 object-cover bg-black" onClick={e => { (e.currentTarget.paused ? e.currentTarget.play() : e.currentTarget.pause()) }} />
                   <div className="p-2.5">
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <span className={`text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded ${cr.kind === 'video' ? 'bg-violet-500/20 text-violet-300' : 'bg-fuchsia-500/20 text-fuchsia-300'}`}>{cr.kind}</span>
-                      <span className="text-xs text-zinc-300 truncate flex-1">{cr.title || 'Untitled'}</span>
+                      <span className="text-xs text-foreground/80 truncate flex-1">{cr.title || 'Untitled'}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <button onClick={() => addCreationToTimeline(cr)} className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-200 text-[11px] py-1.5"><Plus className="w-3 h-3" /> Add to timeline</button>
-                      <a href={toDownloadUrl(cr.url)} download={`${(cr.title || 'creation').replace(/[^a-z0-9]+/gi, '-').slice(0, 40)}.mp4`} className="flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-zinc-200 px-2 py-1.5" title="Download"><Download className="w-3.5 h-3.5" /></a>
-                      <button onClick={() => deleteCreation(cr.id)} className="flex items-center justify-center rounded-lg bg-white/5 hover:bg-red-500/20 text-zinc-400 hover:text-red-300 px-2 py-1.5" title="Remove"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => addCreationToTimeline(cr)} className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-muted hover:bg-muted/70 text-foreground text-[11px] py-1.5"><Plus className="w-3 h-3" /> Add to timeline</button>
+                      <a href={toDownloadUrl(cr.url)} download={`${(cr.title || 'creation').replace(/[^a-z0-9]+/gi, '-').slice(0, 40)}.mp4`} className="flex items-center justify-center rounded-lg bg-muted hover:bg-muted/70 text-foreground px-2 py-1.5" title="Download"><Download className="w-3.5 h-3.5" /></a>
+                      <button onClick={() => deleteCreation(cr.id)} className="flex items-center justify-center rounded-lg bg-muted hover:bg-red-500/20 text-muted-foreground hover:text-red-300 px-2 py-1.5" title="Remove"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                     <div className="flex items-center gap-1.5 mt-1.5">
-                      <button onClick={() => shareCreation(cr)} disabled={sharingId === cr.id} className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-200 text-[11px] py-1.5 disabled:opacity-50">{sharingId === cr.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Share2 className="w-3 h-3" />} {sharedLinks[cr.id] ? 'Copied link ✓' : 'Share'}</button>
-                      <button onClick={() => setSellTarget(cr)} className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-white/5 hover:bg-emerald-500/15 text-zinc-200 hover:text-emerald-300 text-[11px] py-1.5"><Tag className="w-3 h-3" /> Sell</button>
+                      <button onClick={() => shareCreation(cr)} disabled={sharingId === cr.id} className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-muted hover:bg-muted/70 text-foreground text-[11px] py-1.5 disabled:opacity-50">{sharingId === cr.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Share2 className="w-3 h-3" />} {sharedLinks[cr.id] ? 'Copied link ✓' : 'Share'}</button>
+                      <button onClick={() => setSellTarget(cr)} className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-muted hover:bg-emerald-500/15 text-foreground hover:text-emerald-300 text-[11px] py-1.5"><Tag className="w-3 h-3" /> Sell</button>
                     </div>
-                    {sharedLinks[cr.id] && <input readOnly value={sharedLinks[cr.id]} onFocus={e => e.currentTarget.select()} className="w-full mt-1.5 bg-black/30 border border-white/10 rounded px-2 py-1 text-[10px] text-zinc-400" />}
+                    {sharedLinks[cr.id] && <input readOnly value={sharedLinks[cr.id]} onFocus={e => e.currentTarget.select()} className="w-full mt-1.5 bg-muted/60 border border-border rounded px-2 py-1 text-[10px] text-muted-foreground" />}
                   </div>
                 </div>
               ))}
             </div>
-            <div className="px-4 py-2.5 border-t border-white/10 text-[10px] text-zinc-400">Saved creations are private to your account.</div>
+            <div className="px-4 py-2.5 border-t border-border text-[10px] text-muted-foreground">Saved creations are private to your account.</div>
           </div>
         </div>
       )}
@@ -1197,32 +1197,32 @@ export default function VideoStudio() {
       {showMusicPicker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Choose music">
           <div className="absolute inset-0 bg-black/60" onClick={() => { stopPreview(); setShowMusicPicker(false) }} />
-          <div className="relative w-full max-w-lg max-h-[80vh] flex flex-col rounded-2xl bg-zinc-950 border border-white/10 shadow-2xl">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-              <div className="flex items-center gap-2 text-sm font-semibold text-white"><Music className="w-4 h-4 text-fuchsia-300" /> Choose a soundtrack</div>
-              <button onClick={() => { stopPreview(); setShowMusicPicker(false) }} aria-label="Close" className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/5 text-zinc-300 hover:text-white hover:bg-white/10"><X className="w-5 h-5" /></button>
+          <div className="relative w-full max-w-lg max-h-[80vh] flex flex-col rounded-2xl bg-background border border-border shadow-2xl">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Music className="w-4 h-4 text-fuchsia-300" /> Choose a soundtrack</div>
+              <button onClick={() => { stopPreview(); setShowMusicPicker(false) }} aria-label="Close" className="w-9 h-9 rounded-xl flex items-center justify-center bg-muted text-foreground/80 hover:text-foreground hover:bg-muted/70"><X className="w-5 h-5" /></button>
             </div>
             <div className="overflow-y-auto p-3 space-y-4">
               {Array.from(new Set(STUDIO_MUSIC.map(t => t.mood))).map(mood => (
                 <div key={mood}>
-                  <div className="text-[10px] uppercase tracking-wide text-zinc-400 mb-1.5 px-1">{mood}</div>
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1.5 px-1">{mood}</div>
                   <div className="space-y-1">
                     {STUDIO_MUSIC.filter(t => t.mood === mood).map(t => (
-                      <div key={t.id} className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.02] hover:bg-white/[0.05] px-2.5 py-2">
+                      <div key={t.id} className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 hover:bg-white/[0.05] px-2.5 py-2">
                         <button onClick={() => togglePreview(t.id)} title={previewingTrack === t.id ? 'Stop preview' : 'Preview'} className="w-7 h-7 shrink-0 rounded-full bg-fuchsia-500/15 hover:bg-fuchsia-500/30 text-fuchsia-200 flex items-center justify-center">
                           {previewingTrack === t.id ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
                         </button>
-                        <span className="flex-1 text-sm text-zinc-200 truncate">{t.title}</span>
-                        <button onClick={() => selectTrack(t.id)} className="shrink-0 rounded-lg bg-white/5 hover:bg-fuchsia-500/20 text-zinc-200 text-xs px-2.5 py-1.5">Use</button>
+                        <span className="flex-1 text-sm text-foreground truncate">{t.title}</span>
+                        <button onClick={() => selectTrack(t.id)} className="shrink-0 rounded-lg bg-muted hover:bg-fuchsia-500/20 text-foreground text-xs px-2.5 py-1.5">Use</button>
                       </div>
                     ))}
                   </div>
                 </div>
               ))}
             </div>
-            <div className="px-4 py-2.5 border-t border-white/10 flex items-center justify-between gap-2">
-              <span className="text-[10px] text-zinc-400">Royalty-free · clear for commercial use</span>
-              <button onClick={() => { stopPreview(); setShowMusicPicker(false); musicInputRef.current?.click() }} className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-1"><Plus className="w-3 h-3" /> Upload your own</button>
+            <div className="px-4 py-2.5 border-t border-border flex items-center justify-between gap-2">
+              <span className="text-[10px] text-muted-foreground">Royalty-free · clear for commercial use</span>
+              <button onClick={() => { stopPreview(); setShowMusicPicker(false); musicInputRef.current?.click() }} className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"><Plus className="w-3 h-3" /> Upload your own</button>
             </div>
           </div>
         </div>
