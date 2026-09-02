@@ -7,6 +7,14 @@ import { User } from '@ai-website-builder/database'
 import { createCreditsCheckoutSession, CREDIT_PACKAGES, CREDIT_COSTS } from '@/lib/stripe'
 import { ANON_COOKIE, startingCreditsFor, anonCreditsSpent, NEW_ACCOUNT_CREDITS } from '@/lib/anon-credits'
 
+// This route had no segment config and stayed dynamic only because
+// getServerSession() and req.cookies happen to opt it out of static
+// rendering. Every other route here declares it, and a per-user BALANCE is
+// the last place to rely on that inference — a refactor that drops the
+// session read would silently make one visitor's credits cacheable.
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // session.user.id may be a provider account id (legacy OAuth) — try _id first
 // then fall back to email so we don't 404 on real, signed-in users.
 async function findSessionUser(sessionUserId: string | undefined, email: string | undefined) {
