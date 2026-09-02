@@ -179,51 +179,51 @@ export function PublishToCommunityModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="publish-community-title"
-        className="w-full sm:max-w-lg bg-zinc-900 border border-white/10 rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="w-full sm:max-w-lg bg-zinc-900 border border-border rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between p-4 border-b border-white/10">
+        <div className="flex items-center justify-between p-4 border-b border-border">
           <div>
-            <h2 id="publish-community-title" className="font-semibold text-white">Publish to community</h2>
-            <p className="text-xs text-zinc-500 mt-0.5">Anyone can view + remix. You stay the author.</p>
+            <h2 id="publish-community-title" className="font-semibold text-foreground">Publish to community</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Anyone can view + remix. You stay the author.</p>
           </div>
-          <button onClick={onClose} aria-label="Close" className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-white/5">
+          <button onClick={onClose} aria-label="Close" className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted">
             <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           <label className="block">
-            <span className="text-xs font-medium text-zinc-400 mb-1.5 block">Title <span className="text-red-400">*</span></span>
+            <span className="text-xs font-medium text-muted-foreground mb-1.5 block">Title <span className="text-red-400">*</span></span>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               maxLength={100}
               placeholder="A short, clear name"
-              className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500"
+              className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500"
             />
           </label>
 
           <label className="block">
-            <span className="text-xs font-medium text-zinc-400 mb-1.5 block">Description</span>
+            <span className="text-xs font-medium text-muted-foreground mb-1.5 block">Description</span>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               maxLength={500}
               rows={3}
               placeholder="What is it? Who's it for?"
-              className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500 resize-none"
+              className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500 resize-none"
             />
-            <span className="text-[10px] text-zinc-600">{description.length}/500</span>
+            <span className="text-[10px] text-muted-foreground">{description.length}/500</span>
           </label>
 
           <label className="block">
-            <span className="text-xs font-medium text-zinc-400 mb-1.5 block">Category</span>
+            <span className="text-xs font-medium text-muted-foreground mb-1.5 block">Category</span>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:border-violet-500"
+              className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground focus:outline-none focus:border-violet-500"
             >
               {CATEGORIES.map((c) => (
                 <option key={c.value} value={c.value} className="bg-zinc-900">{c.label}</option>
@@ -232,31 +232,31 @@ export function PublishToCommunityModal({
           </label>
 
           <label className="block">
-            <span className="text-xs font-medium text-zinc-400 mb-1.5 block">Tags <span className="text-zinc-600">(comma separated, max 8)</span></span>
+            <span className="text-xs font-medium text-muted-foreground mb-1.5 block">Tags <span className="text-muted-foreground">(comma separated, max 8)</span></span>
             <input
               type="text"
               value={tags}
               onChange={(e) => setTags(e.target.value)}
               placeholder="dark, modern, minimal"
-              className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500"
+              className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500"
             />
           </label>
 
           <div className="block">
-            <span className="text-xs font-medium text-zinc-400 mb-1.5 block">Thumbnail <span className="text-zinc-600">(optional — recommend a real screenshot)</span></span>
+            <span className="text-xs font-medium text-muted-foreground mb-1.5 block">Thumbnail <span className="text-muted-foreground">(optional — recommend a real screenshot)</span></span>
             {thumbnailUrl ? (
               <div className="flex items-center gap-3">
-                <img src={thumbnailUrl} alt="Thumbnail" className="w-24 h-16 object-cover rounded-lg border border-white/10" />
+                <img src={thumbnailUrl} alt="Thumbnail" className="w-24 h-16 object-cover rounded-lg border border-border" />
                 <button
                   type="button"
                   onClick={() => setThumbnailUrl('')}
-                  className="text-xs text-zinc-400 hover:text-red-300"
+                  className="text-xs text-muted-foreground hover:text-red-300"
                 >
                   Remove
                 </button>
               </div>
             ) : (
-              <label className={`flex items-center justify-center gap-2 px-3 py-3 rounded-lg border border-dashed border-white/15 cursor-pointer hover:border-violet-500/40 transition text-sm text-zinc-400 ${uploadingThumb ? 'opacity-60' : ''}`}>
+              <label className={`flex items-center justify-center gap-2 px-3 py-3 rounded-lg border border-dashed border-border cursor-pointer hover:border-violet-500/40 transition text-sm text-muted-foreground ${uploadingThumb ? 'opacity-60' : ''}`}>
                 {uploadingThumb ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> Uploading…</>
                 ) : (
@@ -271,15 +271,15 @@ export function PublishToCommunityModal({
                 />
               </label>
             )}
-            <span className="text-[10px] text-zinc-600">PNG/JPG/WebP up to 5MB. We'll auto-generate a placeholder if you skip.</span>
+            <span className="text-[10px] text-muted-foreground">PNG/JPG/WebP up to 5MB. We'll auto-generate a placeholder if you skip.</span>
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
+          <label className="flex items-center gap-2 text-sm text-foreground/80 cursor-pointer">
             <input
               type="checkbox"
               checked={isPublic}
               onChange={(e) => setIsPublic(e.target.checked)}
-              className="w-4 h-4 rounded border-white/20 bg-white/5"
+              className="w-4 h-4 rounded border-border bg-muted"
             />
             <span>Publish publicly — visible in the community feed</span>
           </label>
@@ -287,8 +287,8 @@ export function PublishToCommunityModal({
           {/* Pricing — leave blank for free; anything > 0 makes the listing
               paid. Buyers spend credits; you cash out USD from /seller. */}
           <label className="block">
-            <span className="text-xs font-medium text-zinc-400 mb-1.5 block flex items-center justify-between">
-              <span>Price <span className="text-zinc-600">(USD — leave blank for free)</span></span>
+            <span className="text-xs font-medium text-muted-foreground mb-1.5 block flex items-center justify-between">
+              <span>Price <span className="text-muted-foreground">(USD — leave blank for free)</span></span>
               {parseFloat(priceUsd) > 0 && (
                 <span className="text-emerald-400 text-[11px]">
                   you keep ${(parseFloat(priceUsd) * 0.97).toFixed(2)} (97%)
@@ -296,7 +296,7 @@ export function PublishToCommunityModal({
               )}
             </span>
             <div className="flex items-center gap-2">
-              <span className="text-zinc-500 text-sm">$</span>
+              <span className="text-muted-foreground text-sm">$</span>
               <input
                 type="number"
                 min={0}
@@ -304,16 +304,16 @@ export function PublishToCommunityModal({
                 value={priceUsd}
                 onChange={(e) => setPriceUsd(e.target.value)}
                 placeholder="0 = free"
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500"
+                className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500"
               />
             </div>
-            <span className="text-[10px] text-zinc-600 mt-1 block">
+            <span className="text-[10px] text-muted-foreground mt-1 block">
               Set a price in dollars. Webstew takes just 3%; you cash out USD at /seller.
             </span>
           </label>
 
           {!parseFloat(priceUsd) && (
-            <div className="text-xs text-zinc-500 leading-relaxed bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+            <div className="text-xs text-muted-foreground leading-relaxed bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
               <strong className="text-blue-300">Free listing.</strong> Anyone can view, remix, and use it. Set a price above to make it a paid template.
             </div>
           )}
@@ -332,10 +332,10 @@ export function PublishToCommunityModal({
           )}
         </div>
 
-        <div className="p-4 border-t border-white/10 flex items-center justify-end gap-2">
+        <div className="p-4 border-t border-border flex items-center justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-zinc-400 hover:text-white"
+            className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
           >
             Cancel
           </button>

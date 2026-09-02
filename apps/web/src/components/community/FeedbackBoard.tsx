@@ -60,10 +60,10 @@ const CATEGORY_META: Record<Category, { label: string; icon: any; accent: string
 }
 
 const STATUS_META: Record<Status, { label: string; cls: string }> = {
-  open: { label: 'Open', cls: 'bg-zinc-500/15 text-zinc-300 border-zinc-500/30' },
+  open: { label: 'Open', cls: 'bg-zinc-500/15 text-foreground/80 border-zinc-500/30' },
   in_progress: { label: 'In progress', cls: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
   shipped: { label: 'Shipped', cls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' },
-  wontfix: { label: "Won't fix", cls: 'bg-zinc-500/10 text-zinc-500 border-zinc-500/20' },
+  wontfix: { label: "Won't fix", cls: 'bg-zinc-500/10 text-muted-foreground border-zinc-500/20' },
 }
 
 function relTime(iso: string) {
@@ -139,7 +139,7 @@ export function FeedbackBoard({ isDark = true }: { isDark?: boolean }) {
         <h2 className={cn('text-2xl sm:text-3xl font-bold tracking-tight mb-2', isDark ? 'text-white' : 'text-zinc-900')}>
           Tell us what to build, fix, or change.
         </h2>
-        <p className={cn('text-sm max-w-2xl', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+        <p className={cn('text-sm max-w-2xl', isDark ? 'text-muted-foreground' : 'text-muted-foreground')}>
           See what's broken, what others are asking for, and what the team's shipping. Upvote anything you want prioritized.
           Replies from the Webstew team appear inline with a staff badge.
         </p>
@@ -160,7 +160,7 @@ export function FeedbackBoard({ isDark = true }: { isDark?: boolean }) {
         </div>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider font-semibold">
-            <span className={isDark ? 'text-zinc-500' : 'text-zinc-500'}>Status</span>
+            <span className={isDark ? 'text-muted-foreground' : 'text-muted-foreground'}>Status</span>
             <SmallChip active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} isDark={isDark}>All</SmallChip>
             {(Object.keys(STATUS_META) as Status[]).map((s) => (
               <SmallChip key={s} active={statusFilter === s} onClick={() => setStatusFilter(s)} isDark={isDark}>
@@ -169,7 +169,7 @@ export function FeedbackBoard({ isDark = true }: { isDark?: boolean }) {
             ))}
           </div>
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider font-semibold">
-            <span className={isDark ? 'text-zinc-500' : 'text-zinc-500'}>Sort</span>
+            <span className={isDark ? 'text-muted-foreground' : 'text-muted-foreground'}>Sort</span>
             <SmallChip active={sort === 'top'} onClick={() => setSort('top')} isDark={isDark}>Top</SmallChip>
             <SmallChip active={sort === 'recent'} onClick={() => setSort('recent')} isDark={isDark}>Recent</SmallChip>
           </div>
@@ -193,15 +193,15 @@ export function FeedbackBoard({ isDark = true }: { isDark?: boolean }) {
         <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-sm text-red-300">{error}</div>
       )}
       {loading ? (
-        <div className="flex items-center justify-center py-16 text-zinc-500">
+        <div className="flex items-center justify-center py-16 text-muted-foreground">
           <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…
         </div>
       ) : items.length === 0 ? (
         <div className={cn(
           'rounded-2xl border border-dashed p-10 text-center text-sm',
-          isDark ? 'border-white/10 text-zinc-400' : 'border-zinc-300 text-zinc-500'
+          isDark ? 'border-border text-muted-foreground' : 'border-zinc-300 text-muted-foreground'
         )}>
-          <MessageSquare className="w-8 h-8 text-zinc-500 mx-auto mb-3 opacity-60" />
+          <MessageSquare className="w-8 h-8 text-muted-foreground mx-auto mb-3 opacity-60" />
           No feedback yet matching your filters. Be the first to post.
         </div>
       ) : (
@@ -259,8 +259,8 @@ function Chip({
         active
           ? 'bg-violet-500/20 border-violet-500/40 text-violet-200'
           : isDark
-            ? 'bg-white/[0.03] border-white/10 text-zinc-400 hover:text-white hover:bg-white/[0.06]'
-            : 'bg-white border-zinc-200 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50'
+            ? 'bg-muted/50 border-border text-muted-foreground hover:text-foreground hover:bg-muted/60'
+            : 'bg-white border-zinc-200 text-muted-foreground hover:text-zinc-900 hover:bg-zinc-50'
       )}
     >
       {children}
@@ -287,11 +287,11 @@ function SmallChip({
         'px-2 py-1 rounded text-[10px] uppercase tracking-wider font-semibold transition-colors',
         active
           ? isDark
-            ? 'bg-white/10 text-white'
+            ? 'bg-muted/70 text-white'
             : 'bg-zinc-200 text-zinc-900'
           : isDark
-            ? 'text-zinc-500 hover:text-zinc-300'
-            : 'text-zinc-500 hover:text-zinc-700'
+            ? 'text-muted-foreground hover:text-foreground/80'
+            : 'text-muted-foreground hover:text-zinc-700'
       )}
     >
       {children}
@@ -322,7 +322,7 @@ function FeedbackCard({
   return (
     <li className={cn(
       'rounded-2xl border overflow-hidden',
-      isDark ? 'border-white/10 bg-white/[0.02]' : 'border-zinc-200 bg-white shadow-sm'
+      isDark ? 'border-border bg-muted/40' : 'border-zinc-200 bg-white shadow-sm'
     )}>
       <div className="flex gap-3 p-4">
         <button
@@ -334,8 +334,8 @@ function FeedbackCard({
             f.viewerUpvoted
               ? 'bg-violet-500/20 border-violet-500/50 text-violet-200'
               : isDark
-                ? 'bg-white/[0.03] border-white/10 text-zinc-400 hover:text-white hover:border-white/20'
-                : 'bg-zinc-50 border-zinc-200 text-zinc-500 hover:text-zinc-900 hover:border-zinc-300'
+                ? 'bg-muted/50 border-border text-muted-foreground hover:text-foreground hover:border-border'
+                : 'bg-zinc-50 border-zinc-200 text-muted-foreground hover:text-zinc-900 hover:border-zinc-300'
           )}
         >
           <ArrowUp className="w-4 h-4" />
@@ -350,18 +350,18 @@ function FeedbackCard({
             <span className={cn('text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border font-semibold', statusMeta.cls)}>
               {statusMeta.label}
             </span>
-            <span className="text-[10px] text-zinc-500">·</span>
-            <span className="text-[10px] text-zinc-500">{relTime(f.createdAt)}</span>
+            <span className="text-[10px] text-muted-foreground">·</span>
+            <span className="text-[10px] text-muted-foreground">{relTime(f.createdAt)}</span>
           </div>
           <button onClick={onToggle} className="block w-full text-left">
             <h3 className={cn('font-semibold text-sm sm:text-base leading-snug', isDark ? 'text-white' : 'text-zinc-900')}>{f.title}</h3>
             {!expanded && (
-              <p className={cn('text-xs sm:text-sm mt-1 line-clamp-2 whitespace-pre-line', isDark ? 'text-zinc-400' : 'text-zinc-600')}>
+              <p className={cn('text-xs sm:text-sm mt-1 line-clamp-2 whitespace-pre-line', isDark ? 'text-muted-foreground' : 'text-muted-foreground')}>
                 {f.body}
               </p>
             )}
           </button>
-          <div className="flex items-center gap-3 mt-2 text-[11px] text-zinc-500">
+          <div className="flex items-center gap-3 mt-2 text-[11px] text-muted-foreground">
             <span>by {f.author.username ? `@${f.author.username}` : f.author.name}</span>
             <span className="inline-flex items-center gap-1">
               <MessageSquare className="w-3 h-3" /> {f.replyCount}
@@ -436,17 +436,17 @@ function Thread({
   return (
     <div className={cn(
       'border-t px-4 py-3',
-      isDark ? 'border-white/5 bg-black/20' : 'border-zinc-200 bg-zinc-50'
+      isDark ? 'border-border bg-black/20' : 'border-zinc-200 bg-zinc-50'
     )}>
-      <p className={cn('text-sm whitespace-pre-line mb-4 leading-relaxed', isDark ? 'text-zinc-300' : 'text-zinc-700')}>{body}</p>
+      <p className={cn('text-sm whitespace-pre-line mb-4 leading-relaxed', isDark ? 'text-foreground/80' : 'text-zinc-700')}>{body}</p>
       {loading ? (
-        <div className="text-xs text-zinc-500 inline-flex items-center gap-2">
+        <div className="text-xs text-muted-foreground inline-flex items-center gap-2">
           <Loader2 className="w-3 h-3 animate-spin" /> Loading replies…
         </div>
       ) : (
         <ul className="space-y-3 mb-3">
           {replies.length === 0 && (
-            <li className="text-xs text-zinc-500 italic">No replies yet — be the first.</li>
+            <li className="text-xs text-muted-foreground italic">No replies yet — be the first.</li>
           )}
           {replies.map((r) => (
             <li key={r._id} className="flex gap-2.5">
@@ -460,7 +460,7 @@ function Thread({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center flex-wrap gap-2 mb-0.5">
-                  <span className={cn('text-xs font-semibold', isDark ? 'text-zinc-200' : 'text-zinc-800')}>
+                  <span className={cn('text-xs font-semibold', isDark ? 'text-foreground' : 'text-zinc-800')}>
                     {r.author.username ? `@${r.author.username}` : r.author.name}
                   </span>
                   {r.isStaff && (
@@ -468,9 +468,9 @@ function Thread({
                       <ShieldCheck className="w-2.5 h-2.5" /> Webstew
                     </span>
                   )}
-                  <span className="text-[10px] text-zinc-500">{relTime(r.createdAt)}</span>
+                  <span className="text-[10px] text-muted-foreground">{relTime(r.createdAt)}</span>
                 </div>
-                <p className={cn('text-xs sm:text-sm whitespace-pre-line leading-relaxed', isDark ? 'text-zinc-300' : 'text-zinc-700')}>{r.body}</p>
+                <p className={cn('text-xs sm:text-sm whitespace-pre-line leading-relaxed', isDark ? 'text-foreground/80' : 'text-zinc-700')}>{r.body}</p>
               </div>
             </li>
           ))}
@@ -478,7 +478,7 @@ function Thread({
       )}
       <div className={cn(
         'flex items-end gap-2 rounded-xl border p-2',
-        isDark ? 'bg-white/5 border-white/10' : 'bg-white border-zinc-200'
+        isDark ? 'bg-muted border-border' : 'bg-white border-zinc-200'
       )}>
         <textarea
           value={draft}
@@ -488,7 +488,7 @@ function Thread({
           disabled={!sessionUser || sending}
           className={cn(
             'flex-1 bg-transparent text-sm focus:outline-none px-2 py-1.5 min-h-[36px] max-h-[120px] resize-none',
-            isDark ? 'text-white placeholder:text-zinc-500' : 'text-zinc-900 placeholder:text-zinc-400'
+            isDark ? 'text-white placeholder:text-muted-foreground' : 'text-zinc-900 placeholder:text-muted-foreground'
           )}
           onInput={(e) => {
             const t = e.target as HTMLTextAreaElement
@@ -509,7 +509,7 @@ function Thread({
             'p-2 rounded-lg shrink-0 transition-colors',
             draft.trim() && sessionUser && !sending
               ? 'bg-violet-600 text-white'
-              : isDark ? 'bg-white/5 text-zinc-500' : 'bg-zinc-100 text-zinc-400'
+              : isDark ? 'bg-muted text-muted-foreground' : 'bg-zinc-100 text-muted-foreground'
           )}
           aria-label="Send reply"
         >
@@ -575,16 +575,16 @@ function ComposeModal({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 30, scale: 0.96 }}
         transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-md rounded-2xl border border-white/10 bg-zinc-950 text-white shadow-2xl p-5"
+        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-md rounded-2xl border border-border bg-zinc-950 text-foreground shadow-2xl p-5"
       >
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Post feedback</h2>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white p-1 -mr-1" aria-label="Close">
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1 -mr-1" aria-label="Close">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <label className="text-xs uppercase tracking-wider text-zinc-500 font-semibold mb-1.5 block">Category</label>
+        <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-1.5 block">Category</label>
         <div className="flex flex-wrap gap-2 mb-4">
           {(Object.keys(CATEGORY_META) as Category[]).map((c) => {
             const Icon = CATEGORY_META[c].icon
@@ -597,7 +597,7 @@ function ComposeModal({
                   'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors',
                   active
                     ? 'bg-violet-500/20 border-violet-500/40 text-violet-200'
-                    : 'bg-white/[0.03] border-white/10 text-zinc-400 hover:text-white'
+                    : 'bg-muted/50 border-border text-muted-foreground hover:text-foreground'
                 )}
               >
                 <Icon className={cn('w-3.5 h-3.5', CATEGORY_META[c].accent)} />
@@ -607,26 +607,26 @@ function ComposeModal({
           })}
         </div>
 
-        <label className="text-xs uppercase tracking-wider text-zinc-500 font-semibold mb-1.5 block">Title</label>
+        <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-1.5 block">Title</label>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value.slice(0, 120))}
           maxLength={120}
           placeholder="One sentence summary"
-          className="w-full mb-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-violet-500/50"
+          className="w-full mb-1 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500/50"
         />
-        <p className="text-[10px] text-zinc-500 mb-4 text-right">{title.length} / 120</p>
+        <p className="text-[10px] text-muted-foreground mb-4 text-right">{title.length} / 120</p>
 
-        <label className="text-xs uppercase tracking-wider text-zinc-500 font-semibold mb-1.5 block">Detail</label>
+        <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-1.5 block">Detail</label>
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value.slice(0, 2000))}
           maxLength={2000}
           rows={5}
           placeholder="What's happening, what should happen, steps to reproduce — whatever helps us understand."
-          className="w-full mb-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-violet-500/50 resize-none"
+          className="w-full mb-1 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500/50 resize-none"
         />
-        <p className="text-[10px] text-zinc-500 mb-4 text-right">{body.length} / 2000</p>
+        <p className="text-[10px] text-muted-foreground mb-4 text-right">{body.length} / 2000</p>
 
         {err && <div className="mb-3 p-2 rounded bg-red-500/10 border border-red-500/30 text-xs text-red-300">{err}</div>}
 
@@ -641,7 +641,7 @@ function ComposeModal({
           </button>
           <button
             onClick={onClose}
-            className="px-4 py-2.5 rounded-lg border border-white/10 text-zinc-300 text-sm hover:bg-white/5"
+            className="px-4 py-2.5 rounded-lg border border-border text-foreground/80 text-sm hover:bg-muted"
           >
             Cancel
           </button>

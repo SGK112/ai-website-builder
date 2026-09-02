@@ -189,8 +189,8 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
 
   if (needsAuth) {
     return (
-      <div className="p-4 bg-white/[0.03] border border-white/10 rounded-xl text-center">
-        <p className="text-sm text-slate-300">Sign in to view your usage.</p>
+      <div className="p-4 bg-muted/50 border border-border rounded-xl text-center">
+        <p className="text-sm text-foreground/80">Sign in to view your usage.</p>
         <a
           href="/signup"
           className="mt-2 inline-block text-xs text-purple-300 hover:text-purple-200"
@@ -234,18 +234,18 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
   // Compact view for sidebar/header
   if (compact) {
     return (
-      <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+      <div className="p-4 bg-muted rounded-xl border border-border">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-yellow-400" />
-            <span className="text-sm font-medium text-white">Credits</span>
+            <span className="text-sm font-medium text-foreground">Credits</span>
           </div>
-          <button onClick={fetchUsage} className="text-gray-500 hover:text-white">
+          <button onClick={fetchUsage} className="text-gray-500 hover:text-foreground">
             <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
 
-        <div className="text-2xl font-bold text-white mb-1">
+        <div className="text-2xl font-bold text-foreground mb-1">
           {formatNumber(stats.remaining.credits)}
           {stats.limits.monthlyCredits !== 'unlimited' && (
             <span className="text-sm font-normal text-gray-500">
@@ -254,7 +254,7 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
           )}
         </div>
 
-        <div className="h-1.5 bg-white/10 rounded-full overflow-hidden mb-3">
+        <div className="h-1.5 bg-muted/70 rounded-full overflow-hidden mb-3">
           <div
             className={`h-full ${getBarColor(creditPercentage)} transition-all duration-500`}
             style={{ width: `${100 - creditPercentage}%` }}
@@ -262,11 +262,11 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
         </div>
 
         <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="flex items-center gap-1.5 text-gray-400">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
             <Sparkles className="w-3 h-3" />
             <span>{stats.today.generations} today</span>
           </div>
-          <div className="flex items-center gap-1.5 text-gray-400">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
             <ImageIcon className="w-3 h-3" />
             <span>{stats.today.images} images</span>
           </div>
@@ -290,11 +290,11 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+          <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-purple-400" />
             Usage Dashboard
           </h2>
-          <p className="text-sm text-gray-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Plan: <span className="text-purple-400 capitalize">{stats.user.plan}</span>
             {stats.user.isAdmin && <span className="ml-2 text-yellow-400">(Admin)</span>}
           </p>
@@ -305,7 +305,7 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
           </span>
           <button
             onClick={fetchUsage}
-            className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -313,11 +313,11 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
       </div>
 
       {/* Credit Balance Card */}
-      <div className="p-6 bg-gradient-to-br from-purple-500/20 via-pink-500/10 to-transparent rounded-2xl border border-white/10">
+      <div className="p-6 bg-gradient-to-br from-purple-500/20 via-pink-500/10 to-transparent rounded-2xl border border-border">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-sm text-gray-400 mb-1">Available Credits</p>
-            <div className="text-4xl font-bold text-white">
+            <p className="text-sm text-muted-foreground mb-1">Available Credits</p>
+            <div className="text-4xl font-bold text-foreground">
               {formatNumber(stats.remaining.credits)}
             </div>
             {stats.limits.monthlyCredits !== 'unlimited' && (
@@ -326,20 +326,20 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
               </p>
             )}
           </div>
-          <div className="p-3 bg-white/10 rounded-xl">
+          <div className="p-3 bg-muted/70 rounded-xl">
             <Zap className="w-8 h-8 text-yellow-400" />
           </div>
         </div>
 
         {stats.limits.monthlyCredits !== 'unlimited' && (
           <div className="mt-4">
-            <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+            <div className="h-2 bg-muted/70 rounded-full overflow-hidden">
               <div
                 className={`h-full ${getBarColor(creditPercentage)} transition-all duration-500`}
                 style={{ width: `${100 - creditPercentage}%` }}
               />
             </div>
-            <div className="flex justify-between mt-2 text-xs text-gray-400">
+            <div className="flex justify-between mt-2 text-xs text-muted-foreground">
               <span>{stats.month.credits} used this month</span>
               <span className={getStatusColor(creditPercentage)}>
                 {Math.round(100 - creditPercentage)}% remaining
@@ -352,12 +352,12 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Daily Generations */}
-        <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+        <div className="p-4 bg-muted rounded-xl border border-border">
           <div className="flex items-center gap-2 mb-3">
             <Sparkles className="w-4 h-4 text-blue-400" />
-            <span className="text-sm text-gray-400">Generations</span>
+            <span className="text-sm text-muted-foreground">Generations</span>
           </div>
-          <div className="text-2xl font-bold text-white mb-1">
+          <div className="text-2xl font-bold text-foreground mb-1">
             {stats.today.generations}
             <span className="text-sm font-normal text-gray-500">
               /{formatNumber(stats.limits.dailyGenerations)}
@@ -365,7 +365,7 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
           </div>
           <div className="text-xs text-gray-500">today</div>
           {stats.limits.dailyGenerations !== 'unlimited' && (
-            <div className="mt-2 h-1.5 bg-white/10 rounded-full overflow-hidden">
+            <div className="mt-2 h-1.5 bg-muted/70 rounded-full overflow-hidden">
               <div
                 className={`h-full ${getBarColor(genPercentage)}`}
                 style={{ width: `${genPercentage}%` }}
@@ -375,12 +375,12 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
         </div>
 
         {/* Daily Images */}
-        <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+        <div className="p-4 bg-muted rounded-xl border border-border">
           <div className="flex items-center gap-2 mb-3">
             <ImageIcon className="w-4 h-4 text-green-400" />
-            <span className="text-sm text-gray-400">Images</span>
+            <span className="text-sm text-muted-foreground">Images</span>
           </div>
-          <div className="text-2xl font-bold text-white mb-1">
+          <div className="text-2xl font-bold text-foreground mb-1">
             {stats.today.images}
             <span className="text-sm font-normal text-gray-500">
               /{formatNumber(stats.limits.dailyImages)}
@@ -388,7 +388,7 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
           </div>
           <div className="text-xs text-gray-500">today</div>
           {stats.limits.dailyImages !== 'unlimited' && (
-            <div className="mt-2 h-1.5 bg-white/10 rounded-full overflow-hidden">
+            <div className="mt-2 h-1.5 bg-muted/70 rounded-full overflow-hidden">
               <div
                 className={`h-full ${getBarColor(imgPercentage)}`}
                 style={{ width: `${imgPercentage}%` }}
@@ -398,12 +398,12 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
         </div>
 
         {/* Tokens Used */}
-        <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+        <div className="p-4 bg-muted rounded-xl border border-border">
           <div className="flex items-center gap-2 mb-3">
             <Cpu className="w-4 h-4 text-purple-400" />
-            <span className="text-sm text-gray-400">Tokens</span>
+            <span className="text-sm text-muted-foreground">Tokens</span>
           </div>
-          <div className="text-2xl font-bold text-white mb-1">
+          <div className="text-2xl font-bold text-foreground mb-1">
             {formatNumber(stats.today.tokens)}
           </div>
           <div className="text-xs text-gray-500">today</div>
@@ -413,12 +413,12 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
         </div>
 
         {/* Credits Used Today */}
-        <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+        <div className="p-4 bg-muted rounded-xl border border-border">
           <div className="flex items-center gap-2 mb-3">
             <TrendingUp className="w-4 h-4 text-orange-400" />
-            <span className="text-sm text-gray-400">Spent</span>
+            <span className="text-sm text-muted-foreground">Spent</span>
           </div>
-          <div className="text-2xl font-bold text-white mb-1">
+          <div className="text-2xl font-bold text-foreground mb-1">
             {stats.today.credits}
           </div>
           <div className="text-xs text-gray-500">credits today</div>
@@ -429,16 +429,16 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
       </div>
 
       {/* Credit Costs Reference */}
-      <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+      <div className="p-4 bg-muted rounded-xl border border-border">
         <button
           onClick={() => setShowCosts(!showCosts)}
           className="w-full flex items-center justify-between"
         >
           <div className="flex items-center gap-2">
-            <Info className="w-4 h-4 text-gray-400" />
-            <span className="text-sm font-medium text-white">Credit Costs Reference</span>
+            <Info className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground">Credit Costs Reference</span>
           </div>
-          <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${showCosts ? 'rotate-90' : ''}`} />
+          <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${showCosts ? 'rotate-90' : ''}`} />
         </button>
 
         {showCosts && (
@@ -446,10 +446,10 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
             {Object.entries(CREDIT_COSTS).map(([action, cost]) => (
               <div
                 key={action}
-                className="flex items-center justify-between px-3 py-2 bg-white/5 rounded-lg"
+                className="flex items-center justify-between px-3 py-2 bg-muted rounded-lg"
               >
-                <span className="text-xs text-gray-400">{action}</span>
-                <span className={`text-xs font-medium ${cost === 0 ? 'text-green-400' : 'text-white'}`}>
+                <span className="text-xs text-muted-foreground">{action}</span>
+                <span className={`text-xs font-medium ${cost === 0 ? 'text-green-400' : 'text-foreground'}`}>
                   {cost === 0 ? 'Free' : `${cost} cr`}
                 </span>
               </div>
@@ -460,9 +460,9 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
 
       {/* Recent Activity */}
       {showHistory && stats.history && stats.history.length > 0 && (
-        <div className="p-4 bg-white/5 rounded-xl border border-white/10">
-          <h3 className="text-sm font-medium text-white mb-4 flex items-center gap-2">
-            <Clock className="w-4 h-4 text-gray-400" />
+        <div className="p-4 bg-muted rounded-xl border border-border">
+          <h3 className="text-sm font-medium text-foreground mb-4 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-muted-foreground" />
             Recent Activity
           </h3>
 
@@ -470,7 +470,7 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
             {stats.history.slice(0, 10).map((item, idx) => (
               <div
                 key={idx}
-                className="flex items-center justify-between p-3 bg-white/5 rounded-lg"
+                className="flex items-center justify-between p-3 bg-muted rounded-lg"
               >
                 <div className="flex items-center gap-3">
                   <div className={`p-1.5 rounded-lg ${
@@ -479,7 +479,7 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
                     {getTypeIcon(item.type)}
                   </div>
                   <div>
-                    <p className="text-sm text-white capitalize">
+                    <p className="text-sm text-foreground capitalize">
                       {item.type}
                       {item.aiModel && (
                         <span className="text-gray-500 ml-1">({item.aiModel})</span>
@@ -489,7 +489,7 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-medium text-white">
+                  <p className="text-sm font-medium text-foreground">
                     -{item.creditsUsed} cr
                   </p>
                   <p className="text-xs text-gray-500">{formatTime(item.createdAt)}</p>
@@ -505,8 +505,8 @@ export function UsageDashboard({ compact = false, showHistory = true, onUpgrade 
         <div className="p-6 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-xl border border-purple-500/20">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-medium text-white">Need more credits?</h3>
-              <p className="text-sm text-gray-400 mt-1">
+              <h3 className="font-medium text-foreground">Need more credits?</h3>
+              <p className="text-sm text-muted-foreground mt-1">
                 Upgrade to {stats.user.plan === 'free' ? 'Pro' : 'Enterprise'} for more generations
               </p>
             </div>
@@ -552,8 +552,8 @@ export function CreditBadge({ onClick }: { onClick?: () => void }) {
 
   if (loading) {
     return (
-      <div className="px-3 py-1.5 bg-white/5 rounded-lg animate-pulse">
-        <div className="w-12 h-4 bg-white/10 rounded" />
+      <div className="px-3 py-1.5 bg-muted rounded-lg animate-pulse">
+        <div className="w-12 h-4 bg-muted/70 rounded" />
       </div>
     )
   }
@@ -564,8 +564,8 @@ export function CreditBadge({ onClick }: { onClick?: () => void }) {
       className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500/20 rounded-lg text-sm hover:from-yellow-500/30 hover:to-orange-500/30 transition-all group"
     >
       <Zap className="w-3.5 h-3.5 text-yellow-400 group-hover:scale-110 transition-transform" />
-      <span className="font-medium text-white">{credits ?? '...'}</span>
-      <span className="text-gray-400 text-xs">credits</span>
+      <span className="font-medium text-foreground">{credits ?? '...'}</span>
+      <span className="text-muted-foreground text-xs">credits</span>
     </button>
   )
 }

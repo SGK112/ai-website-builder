@@ -123,28 +123,28 @@ export default function DirectorChat({ open, clips, busy, onGenerate, onAssemble
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label="Talk to the director">
       <div className="flex-1 bg-black/50" onClick={onClose} />
-      <div className="w-full max-w-md h-[100dvh] bg-zinc-950 border-l border-white/10 flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] border-b border-white/10 shrink-0">
-          <div className="flex items-center gap-2 text-sm font-semibold text-white"><Clapperboard className="w-4 h-4 text-violet-300" /> Talk to the chef</div>
+      <div className="w-full max-w-md h-[100dvh] bg-zinc-950 border-l border-border flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-3 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] border-b border-border shrink-0">
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Clapperboard className="w-4 h-4 text-violet-300" /> Talk to the chef</div>
           <div className="flex items-center gap-1">
-            <button onClick={() => setSpeak(s => !s)} title={speak ? 'Mute replies' : 'Hear replies'} className="w-10 h-10 rounded-xl flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/5">{speak ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}</button>
-            <button onClick={onClose} aria-label="Close" className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/5 text-zinc-300 hover:text-white hover:bg-white/10"><X className="w-6 h-6" /></button>
+            <button onClick={() => setSpeak(s => !s)} title={speak ? 'Mute replies' : 'Hear replies'} className="w-10 h-10 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted">{speak ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}</button>
+            <button onClick={onClose} aria-label="Close" className="w-10 h-10 rounded-xl flex items-center justify-center bg-muted text-foreground/80 hover:text-foreground hover:bg-muted/70"><X className="w-6 h-6" /></button>
           </div>
         </div>
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2">
           {messages.map((m, i) => (
-            <div key={i} className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${m.role === 'user' ? 'ml-auto bg-violet-600 text-white' : 'bg-white/5 text-zinc-200'}`}>{m.content}</div>
+            <div key={i} className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${m.role === 'user' ? 'ml-auto bg-violet-600 text-white' : 'bg-muted text-foreground'}`}>{m.content}</div>
           ))}
           {voice.transcript.map((t) => (
-            <div key={`v${t.id}`} className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${t.role === 'user' ? 'ml-auto bg-violet-600 text-white' : 'bg-white/5 text-zinc-200'}`}>{t.text}</div>
+            <div key={`v${t.id}`} className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${t.role === 'user' ? 'ml-auto bg-violet-600 text-white' : 'bg-muted text-foreground'}`}>{t.text}</div>
           ))}
-          {sending && <div className="bg-white/5 text-zinc-400 rounded-2xl px-3 py-2 w-14 flex justify-center"><Loader2 className="w-4 h-4 animate-spin" /></div>}
+          {sending && <div className="bg-muted text-muted-foreground rounded-2xl px-3 py-2 w-14 flex justify-center"><Loader2 className="w-4 h-4 animate-spin" /></div>}
           {busy && <div className="bg-violet-500/15 text-violet-200 rounded-2xl px-3 py-2 text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> On it — working behind the scenes. Watch the timeline.</div>}
           {error && <div className="text-rose-300 text-xs px-1">{error}</div>}
         </div>
 
-        <div className="p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] border-t border-white/10 shrink-0">
+        <div className="p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] border-t border-border shrink-0">
           {/* Realtime voice — the same continuous, hands-free chat as the workspace. */}
           <button onClick={voice.toggle} disabled={busy && !voice.active}
             className={`w-full flex items-center justify-center gap-2 rounded-xl py-2.5 mb-2 text-sm font-semibold disabled:opacity-40 ${voice.active ? 'bg-rose-500 text-white' : 'bg-violet-600 text-white'}`}>
@@ -159,10 +159,10 @@ export default function DirectorChat({ open, clips, busy, onGenerate, onAssemble
               value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') send() }}
               placeholder={mic.listening ? 'Listening…' : mic.transcribing ? 'Transcribing…' : 'Tell the director…'}
               disabled={mic.listening || mic.transcribing || busy}
-              className="flex-1 min-w-0 bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50 disabled:opacity-70" />
+              className="flex-1 min-w-0 bg-muted/50 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500/50 disabled:opacity-70" />
             {mic.supported && (
               <button onClick={mic.toggle} disabled={sending || busy || mic.transcribing} aria-label={mic.listening ? 'Stop' : 'Speak'}
-                className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-white disabled:opacity-40 ${mic.listening ? 'bg-rose-500 animate-pulse' : 'bg-white/10 hover:bg-white/20'}`}>
+                className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-white disabled:opacity-40 ${mic.listening ? 'bg-rose-500 animate-pulse' : 'bg-muted/70 hover:bg-muted/80'}`}>
                 {mic.transcribing ? <Loader2 className="w-4 h-4 animate-spin" /> : mic.listening ? <Square className="w-4 h-4 fill-current" /> : <Mic className="w-5 h-5" />}
               </button>
             )}

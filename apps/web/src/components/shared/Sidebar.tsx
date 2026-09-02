@@ -56,13 +56,13 @@ export function Sidebar({ user }: SidebarProps) {
       <div className="relative px-5 py-5 border-b border-white/[0.04]">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center shadow-lg shadow-purple-500/10">
-            <span className="text-sm font-bold text-white">
+            <span className="text-sm font-bold text-foreground">
               {user.name?.[0]?.toUpperCase() || 'U'}
             </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white truncate">{user.name || 'User'}</p>
-            <p className="text-xs text-slate-500 truncate">{user.email}</p>
+            <p className="text-sm font-semibold text-foreground truncate">{user.name || 'User'}</p>
+            <p className="text-xs text-muted-foreground truncate">{user.email}</p>
           </div>
         </div>
       </div>
@@ -71,7 +71,7 @@ export function Sidebar({ user }: SidebarProps) {
       <nav className="relative flex-1 overflow-y-auto py-4">
         {navigation.map((group, groupIndex) => (
           <div key={group.section} className={cn(groupIndex > 0 && 'mt-6')}>
-            <p className="px-5 mb-2 text-[10px] font-semibold text-slate-500 uppercase tracking-widest">
+            <p className="px-5 mb-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
               {group.section}
             </p>
             <div className="px-3 space-y-0.5">
@@ -85,14 +85,14 @@ export function Sidebar({ user }: SidebarProps) {
                       className={cn(
                         'group flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-all duration-150',
                         isActive
-                          ? 'bg-white/[0.04] text-white'
-                          : 'text-slate-400 hover:text-white hover:bg-white/[0.02]'
+                          ? 'bg-muted/50 text-white'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
                       )}
                     >
                       <div className="flex items-center gap-3">
                         <item.icon className={cn(
                           'w-[18px] h-[18px] transition-colors',
-                          isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'
+                          isActive ? 'text-white' : 'text-muted-foreground group-hover:text-foreground/80'
                         )} />
                         <span className="font-medium">{item.name}</span>
                       </div>
@@ -114,13 +114,13 @@ export function Sidebar({ user }: SidebarProps) {
           <motion.div
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
-            className="p-4 rounded-xl bg-gradient-to-br from-purple-500/5 via-blue-500/5 to-transparent border border-white/[0.04] hover:border-white/[0.08] transition-all cursor-pointer group"
+            className="p-4 rounded-xl bg-gradient-to-br from-purple-500/5 via-blue-500/5 to-transparent border border-white/[0.04] hover:border-border transition-all cursor-pointer group"
           >
             <div className="flex items-center gap-2 mb-2">
               <Sparkles className="w-4 h-4 text-purple-400" />
-              <span className="text-sm font-semibold text-white">Upgrade Plan</span>
+              <span className="text-sm font-semibold text-foreground">Upgrade Plan</span>
             </div>
-            <p className="text-xs text-slate-500 leading-relaxed mb-3">
+            <p className="text-xs text-muted-foreground leading-relaxed mb-3">
               Unlock unlimited projects and priority AI access.
             </p>
             <div className="flex items-center gap-1 text-xs text-purple-400 font-medium group-hover:gap-2 transition-all">
@@ -135,22 +135,22 @@ export function Sidebar({ user }: SidebarProps) {
       <div className="relative px-3 py-3 border-t border-white/[0.04]">
         <div className="flex items-center gap-1">
           <Link
-            href="/help"
-            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-500 hover:text-white hover:bg-white/[0.02] transition"
+            href="/community?tab=feedback"
+            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted/40 transition"
           >
             <HelpCircle className="w-3.5 h-3.5" />
             <span>Help</span>
           </Link>
           <Link
             href="/feedback"
-            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-500 hover:text-white hover:bg-white/[0.02] transition"
+            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted/40 transition"
           >
             <MessageSquare className="w-3.5 h-3.5" />
             <span>Feedback</span>
           </Link>
           <button
             onClick={() => signOut({ callbackUrl: '/' })}
-            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-500 hover:text-red-400 hover:bg-red-500/5 transition"
+            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs text-muted-foreground hover:text-red-400 hover:bg-red-500/5 transition"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Logout</span>

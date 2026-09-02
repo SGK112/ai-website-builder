@@ -198,7 +198,7 @@ export function SectionChat({
             <Sparkles className="w-4 h-4" />
             <span>Edit with AI</span>
             {selectedElement && (
-              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-white/20 text-[10px] tracking-wider uppercase">
+              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-muted/80 text-[10px] tracking-wider uppercase">
                 1
               </span>
             )}
@@ -228,13 +228,13 @@ export function SectionChat({
               style={{ top: pos.top, left: pos.left, width: `min(${CARD_W}px, calc(100vw - 24px))` }}
               className={cn(
                 'fixed z-50 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden',
-                'bg-zinc-950/98 backdrop-blur-xl border border-white/10',
+                'bg-zinc-950/98 backdrop-blur-xl border border-border',
                 'flex flex-col max-h-[min(70vh,520px)]'
               )}
             >
               {/* Header — clear close button (the panel was un-closable before) */}
-              <div className="flex items-center justify-between px-3 py-2 border-b border-white/5">
-                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                   <ChefHat className="w-4 h-4 text-orange-400" />
                   Ask the chef
                 </div>
@@ -242,7 +242,7 @@ export function SectionChat({
                   <AriaIndicator status={ariaStatus} />
                   <button
                     onClick={() => setOpen(false)}
-                    className="text-zinc-400 hover:text-white p-1 rounded-md hover:bg-white/10"
+                    className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted/70"
                     aria-label="Close chat"
                   >
                     <X className="w-4 h-4" />
@@ -259,13 +259,13 @@ export function SectionChat({
                       <div className="text-[10px] uppercase tracking-wider text-violet-300/80 font-semibold">
                         Editing &lt;{selectedElement.tagName.toLowerCase()}&gt;
                       </div>
-                      <div className="text-xs text-zinc-300 truncate">
+                      <div className="text-xs text-foreground/80 truncate">
                         {selectedElement.textSnippet || 'Selected element'}
                       </div>
                     </div>
                     <button
                       onClick={onClearSelection}
-                      className="text-zinc-500 hover:text-white shrink-0 p-1"
+                      className="text-muted-foreground hover:text-foreground shrink-0 p-1"
                       aria-label="Clear selection"
                     >
                       <X className="w-3.5 h-3.5" />
@@ -278,7 +278,7 @@ export function SectionChat({
               <div ref={scrollerRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-[140px]">
                 {visibleMessages.length === 0 && !isThinking && (
                   <div className="text-center py-6">
-                    <div className="text-sm text-zinc-400 mb-3">
+                    <div className="text-sm text-muted-foreground mb-3">
                       {selectedElement
                         ? 'Tell me what to change about this section.'
                         : selectMode
@@ -299,7 +299,7 @@ export function SectionChat({
                           'inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors mb-3',
                           selectMode
                             ? 'bg-violet-600 text-white'
-                            : 'bg-white/10 hover:bg-white/15 text-zinc-200 border border-white/10'
+                            : 'bg-muted/70 hover:bg-white/15 text-foreground border border-border'
                         )}
                       >
                         <MousePointer2 className="w-3.5 h-3.5" />
@@ -311,7 +311,7 @@ export function SectionChat({
                         <button
                           key={p}
                           onClick={() => submit(p)}
-                          className="text-xs px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/10"
+                          className="text-xs px-3 py-1.5 rounded-full bg-muted hover:bg-muted/70 text-foreground/80 border border-border"
                         >
                           {p}
                         </button>
@@ -326,14 +326,14 @@ export function SectionChat({
                       'rounded-xl px-3 py-2 text-sm leading-relaxed max-w-[88%]',
                       m.role === 'user'
                         ? 'ml-auto bg-violet-600 text-white'
-                        : 'mr-auto bg-white/5 text-zinc-200 border border-white/5'
+                        : 'mr-auto bg-muted text-foreground border border-border'
                     )}
                   >
                     {m.content}
                   </div>
                 ))}
                 {isThinking && (
-                  <div className="mr-auto flex items-center gap-2 rounded-xl px-3 py-2 bg-white/5 text-zinc-400 text-sm border border-white/5">
+                  <div className="mr-auto flex items-center gap-2 rounded-xl px-3 py-2 bg-muted text-muted-foreground text-sm border border-border">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     Thinking…
                   </div>
@@ -341,8 +341,8 @@ export function SectionChat({
               </div>
 
               {/* Input row */}
-              <div className="border-t border-white/5 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-                <div className="flex items-end gap-2 rounded-xl bg-white/5 border border-white/10 px-2 py-1.5">
+              <div className="border-t border-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                <div className="flex items-end gap-2 rounded-xl bg-muted border border-border px-2 py-1.5">
                   <textarea
                     ref={inputRef}
                     value={input}
@@ -355,7 +355,7 @@ export function SectionChat({
                     }
                     disabled={isThinking}
                     rows={1}
-                    className="flex-1 bg-transparent border-0 resize-none text-sm text-white placeholder:text-zinc-500 focus:outline-none px-2 py-1.5 min-h-[36px] max-h-[120px]"
+                    className="flex-1 bg-transparent border-0 resize-none text-sm text-foreground placeholder:text-muted-foreground focus:outline-none px-2 py-1.5 min-h-[36px] max-h-[120px]"
                     onInput={(e) => {
                       const t = e.target as HTMLTextAreaElement
                       t.style.height = 'auto'
@@ -369,7 +369,7 @@ export function SectionChat({
                       'p-2 rounded-lg shrink-0 transition-all',
                       input.trim() && !isThinking
                         ? 'bg-violet-600 text-white shadow-md shadow-violet-500/30'
-                        : 'bg-white/5 text-zinc-500'
+                        : 'bg-muted text-muted-foreground'
                     )}
                     aria-label="Send"
                   >
@@ -391,7 +391,7 @@ export function SectionChat({
 function AriaIndicator({ status }: { status: 'idle' | 'listening' | 'speaking' | null }) {
   if (!status) {
     return (
-      <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold inline-flex items-center gap-1.5">
+      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold inline-flex items-center gap-1.5">
         <Mic className="w-3 h-3 opacity-40" />
         Voice soon
       </span>
@@ -401,7 +401,7 @@ function AriaIndicator({ status }: { status: 'idle' | 'listening' | 'speaking' |
     status === 'listening' ? 'bg-emerald-400 animate-pulse' : status === 'speaking' ? 'bg-violet-400 animate-pulse' : 'bg-zinc-500'
   const label = status === 'listening' ? 'Listening' : status === 'speaking' ? 'Aria…' : 'Idle'
   return (
-    <span className="text-[10px] uppercase tracking-wider text-zinc-300 font-semibold inline-flex items-center gap-1.5">
+    <span className="text-[10px] uppercase tracking-wider text-foreground/80 font-semibold inline-flex items-center gap-1.5">
       <span className={cn('w-2 h-2 rounded-full', dot)} />
       {label}
     </span>

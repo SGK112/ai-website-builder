@@ -8846,7 +8846,7 @@ npx eas build --platform all
                     </button>
                     <button
                       onClick={() => { setCreditWall({ show: false }); setActivePanel('build') }}
-                      className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 text-white font-medium transition"
+                      className="w-full flex items-center gap-3 p-3 rounded-xl bg-muted hover:bg-muted/70 text-foreground font-medium transition"
                     >
                       <Code2 className="w-4 h-4" />
                       <span className="flex-1 text-left">Use my own API key</span>
@@ -8870,7 +8870,7 @@ npx eas build --platform all
                     </button>
                     <button
                       onClick={() => router.push('/login?next=%2Fworkspace')}
-                      className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 text-white font-medium transition"
+                      className="w-full flex items-center gap-3 p-3 rounded-xl bg-muted hover:bg-muted/70 text-foreground font-medium transition"
                     >
                       <UserPlus className="w-4 h-4" />
                       <span className="flex-1 text-left">Sign in / Sign up</span>
@@ -10796,7 +10796,7 @@ npx eas build --platform all
                     onClick={() => { if (duplicateElement(selectedElement)) setSelectedElement(null) }}
                     title="Duplicate"
                     aria-label="Duplicate element"
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-xs font-medium transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted hover:bg-muted/70 text-foreground/80 hover:text-foreground text-xs font-medium transition-colors"
                   >
                     <Copy className="w-3.5 h-3.5" />
                     Duplicate
@@ -10809,7 +10809,7 @@ npx eas build --platform all
                       setSelectedElement(null)
                     }}
                     title="Save as reusable block"
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-xs font-medium transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted hover:bg-muted/70 text-foreground/80 hover:text-foreground text-xs font-medium transition-colors"
                   >
                     <Package className="w-3.5 h-3.5" />
                     Save block
@@ -11435,7 +11435,7 @@ npx eas build --platform all
                 </div>
                 <button
                   onClick={handleCopyCode}
-                  className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-600 hover:text-white transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {codeCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
@@ -11949,7 +11949,7 @@ npx eas build --platform all
                                 ]
                                 setUnsplashResults?.(results)
                               }}
-                              className="px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 text-xs text-white capitalize transition"
+                              className="px-3 py-1 rounded-full bg-muted/70 hover:bg-muted/80 text-xs text-foreground capitalize transition"
                             >
                               {cat}
                             </button>
@@ -12523,7 +12523,7 @@ npx eas build --platform all
                       value={apiKeys.anthropic}
                       onChange={(e) => setApiKeys(prev => ({ ...prev, anthropic: e.target.value }))}
                       placeholder="sk-ant-api03-..."
-                      className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-violet-500/50 transition-colors"
+                      className="w-full px-3 py-2.5 rounded-lg bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500/50 transition-colors"
                     />
                     <a
                       href="https://console.anthropic.com/settings/keys"
@@ -12551,7 +12551,7 @@ npx eas build --platform all
                       value={apiKeys.openai}
                       onChange={(e) => setApiKeys(prev => ({ ...prev, openai: e.target.value }))}
                       placeholder="sk-proj-..."
-                      className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-violet-500/50 transition-colors"
+                      className="w-full px-3 py-2.5 rounded-lg bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500/50 transition-colors"
                     />
                     <a
                       href="https://platform.openai.com/api-keys"
@@ -12579,7 +12579,7 @@ npx eas build --platform all
                       value={apiKeys.google}
                       onChange={(e) => setApiKeys(prev => ({ ...prev, google: e.target.value }))}
                       placeholder="AIza..."
-                      className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-violet-500/50 transition-colors"
+                      className="w-full px-3 py-2.5 rounded-lg bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500/50 transition-colors"
                     />
                     <a
                       href="https://aistudio.google.com/app/apikey"
@@ -12607,7 +12607,7 @@ npx eas build --platform all
                       value={apiKeys.xai}
                       onChange={(e) => setApiKeys(prev => ({ ...prev, xai: e.target.value }))}
                       placeholder="xai-..."
-                      className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-violet-500/50 transition-colors"
+                      className="w-full px-3 py-2.5 rounded-lg bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500/50 transition-colors"
                     />
                     <a
                       href="https://console.x.ai/"
@@ -12643,7 +12643,7 @@ npx eas build --platform all
                       value={apiKeys.huggingface}
                       onChange={(e) => setApiKeys(prev => ({ ...prev, huggingface: e.target.value }))}
                       placeholder="hf_..."
-                      className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-yellow-500/50 transition-colors"
+                      className="w-full px-3 py-2.5 rounded-lg bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-yellow-500/50 transition-colors"
                     />
                     <a
                       href="https://huggingface.co/settings/tokens"
@@ -12672,7 +12672,7 @@ npx eas build --platform all
                       value={apiKeys.together}
                       onChange={(e) => setApiKeys(prev => ({ ...prev, together: e.target.value }))}
                       placeholder="..."
-                      className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500/50 transition-colors"
+                      className="w-full px-3 py-2.5 rounded-lg bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-purple-500/50 transition-colors"
                     />
                     <a
                       href="https://api.together.ai"
@@ -12701,7 +12701,7 @@ npx eas build --platform all
                       value={apiKeys.cloudflare}
                       onChange={(e) => setApiKeys(prev => ({ ...prev, cloudflare: e.target.value }))}
                       placeholder="API Token..."
-                      className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500/50 transition-colors"
+                      className="w-full px-3 py-2.5 rounded-lg bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-orange-500/50 transition-colors"
                     />
                     <a
                       href="https://dash.cloudflare.com/profile/api-tokens"
@@ -12717,7 +12717,7 @@ npx eas build --platform all
                     value={apiKeys.cloudflareAccountId}
                     onChange={(e) => setApiKeys(prev => ({ ...prev, cloudflareAccountId: e.target.value }))}
                     placeholder="Account ID (from Workers & Pages)"
-                    className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500/50 transition-colors"
+                    className="w-full px-3 py-2 rounded-lg bg-muted/50 border border-border text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-orange-500/50 transition-colors"
                   />
                 </div>
 
@@ -12757,7 +12757,7 @@ npx eas build --platform all
                         value={serviceCredentials.MONGODB_URI}
                         onChange={(e) => setServiceCredentials(prev => ({ ...prev, MONGODB_URI: e.target.value }))}
                         placeholder="mongodb+srv://user:pass@cluster..."
-                        className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-green-500/50 transition-colors"
+                        className="w-full px-3 py-2.5 rounded-lg bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-green-500/50 transition-colors"
                       />
                     </div>
 
@@ -12775,7 +12775,7 @@ npx eas build --platform all
                         value={serviceCredentials.REDIS_URL}
                         onChange={(e) => setServiceCredentials(prev => ({ ...prev, REDIS_URL: e.target.value }))}
                         placeholder="redis://user:pass@host:port"
-                        className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-red-500/50 transition-colors"
+                        className="w-full px-3 py-2.5 rounded-lg bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-red-500/50 transition-colors"
                       />
                     </div>
 
@@ -12793,14 +12793,14 @@ npx eas build --platform all
                         value={serviceCredentials.SUPABASE_URL}
                         onChange={(e) => setServiceCredentials(prev => ({ ...prev, SUPABASE_URL: e.target.value }))}
                         placeholder="https://your-project.supabase.co"
-                        className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                        className="w-full px-3 py-2 rounded-lg bg-muted/50 border border-border text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-emerald-500/50 transition-colors"
                       />
                       <input
                         type="password"
                         value={serviceCredentials.SUPABASE_ANON_KEY}
                         onChange={(e) => setServiceCredentials(prev => ({ ...prev, SUPABASE_ANON_KEY: e.target.value }))}
                         placeholder="Anon/Public Key"
-                        className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                        className="w-full px-3 py-2 rounded-lg bg-muted/50 border border-border text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-emerald-500/50 transition-colors"
                       />
                     </div>
                   </>
@@ -12831,14 +12831,14 @@ npx eas build --platform all
                         value={serviceCredentials.STRIPE_SECRET_KEY}
                         onChange={(e) => setServiceCredentials(prev => ({ ...prev, STRIPE_SECRET_KEY: e.target.value }))}
                         placeholder={`sk_${'test'}_... or sk_${'live'}_...`}
-                        className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500/50 transition-colors"
+                        className="w-full px-3 py-2 rounded-lg bg-muted/50 border border-border text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-purple-500/50 transition-colors"
                       />
                       <input
                         type="text"
                         value={serviceCredentials.STRIPE_PUBLISHABLE_KEY}
                         onChange={(e) => setServiceCredentials(prev => ({ ...prev, STRIPE_PUBLISHABLE_KEY: e.target.value }))}
                         placeholder="pk_test_... or pk_live_..."
-                        className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500/50 transition-colors"
+                        className="w-full px-3 py-2 rounded-lg bg-muted/50 border border-border text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-purple-500/50 transition-colors"
                       />
                     </div>
 
@@ -12856,7 +12856,7 @@ npx eas build --platform all
                         value={serviceCredentials.SENDGRID_API_KEY}
                         onChange={(e) => setServiceCredentials(prev => ({ ...prev, SENDGRID_API_KEY: e.target.value }))}
                         placeholder="SG.xxxx..."
-                        className="w-full px-3 py-2.5 rounded-lg bg-white/[0.03] border border-white/[0.08] text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-blue-500/50 transition-colors"
+                        className="w-full px-3 py-2.5 rounded-lg bg-muted/50 border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-blue-500/50 transition-colors"
                       />
                     </div>
 
@@ -12874,14 +12874,14 @@ npx eas build --platform all
                         value={serviceCredentials.TWILIO_ACCOUNT_SID}
                         onChange={(e) => setServiceCredentials(prev => ({ ...prev, TWILIO_ACCOUNT_SID: e.target.value }))}
                         placeholder="Account SID"
-                        className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-red-500/50 transition-colors"
+                        className="w-full px-3 py-2 rounded-lg bg-muted/50 border border-border text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-red-500/50 transition-colors"
                       />
                       <input
                         type="password"
                         value={serviceCredentials.TWILIO_AUTH_TOKEN}
                         onChange={(e) => setServiceCredentials(prev => ({ ...prev, TWILIO_AUTH_TOKEN: e.target.value }))}
                         placeholder="Auth Token"
-                        className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-red-500/50 transition-colors"
+                        className="w-full px-3 py-2 rounded-lg bg-muted/50 border border-border text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-red-500/50 transition-colors"
                       />
                     </div>
 
@@ -12899,14 +12899,14 @@ npx eas build --platform all
                         value={serviceCredentials.CLOUDINARY_API_KEY}
                         onChange={(e) => setServiceCredentials(prev => ({ ...prev, CLOUDINARY_API_KEY: e.target.value }))}
                         placeholder="API Key"
-                        className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-blue-500/50 transition-colors"
+                        className="w-full px-3 py-2 rounded-lg bg-muted/50 border border-border text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-blue-500/50 transition-colors"
                       />
                       <input
                         type="password"
                         value={serviceCredentials.CLOUDINARY_API_SECRET}
                         onChange={(e) => setServiceCredentials(prev => ({ ...prev, CLOUDINARY_API_SECRET: e.target.value }))}
                         placeholder="API Secret"
-                        className="w-full px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.08] text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-blue-500/50 transition-colors"
+                        className="w-full px-3 py-2 rounded-lg bg-muted/50 border border-border text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-blue-500/50 transition-colors"
                       />
                     </div>
                   </>
@@ -12917,7 +12917,7 @@ npx eas build --platform all
               <div className="px-6 py-4 border-t border-white/[0.08] flex items-center justify-end gap-3">
                 <button
                   onClick={() => setShowApiKeyModal(false)}
-                  className="px-4 py-2 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-white/[0.05] transition-all"
+                  className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all"
                 >
                   Cancel
                 </button>
@@ -13094,7 +13094,7 @@ npx eas build --platform all
                                 </button>
                                 <button
                                   onClick={() => copyImageUrl(imageUrl, preset.label)}
-                                  className="px-2 py-1 rounded bg-white/20 hover:bg-white/30 text-white text-[9px] font-medium transition-colors"
+                                  className="px-2 py-1 rounded bg-muted/80 hover:bg-muted/90 text-foreground text-[9px] font-medium transition-colors"
                                 >
                                   Copy
                                 </button>
@@ -13484,7 +13484,7 @@ npx eas build --platform all
               </button>
               <button
                 onClick={dismissPendingBuild}
-                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white text-xs font-medium transition"
+                className="px-3 py-1.5 rounded-lg bg-muted hover:bg-muted/70 text-muted-foreground hover:text-foreground text-xs font-medium transition"
               >
                 Dismiss
               </button>
@@ -13562,7 +13562,7 @@ npx eas build --platform all
               <button
                 onClick={() => setNotifPromptShown(false)}
                 title="Dismiss"
-                className="w-6 h-6 rounded-full flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/10 transition shrink-0"
+                className="w-6 h-6 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/70 transition shrink-0"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -13948,7 +13948,7 @@ npx eas build --platform all
                   setCreditNudge({ show: false })
                   try { localStorage.setItem('webstew-credit-nudge-dismissed', String(Date.now())) } catch {}
                 }}
-                className="absolute top-2 right-2 p-1 rounded-md text-zinc-500 hover:text-white hover:bg-white/5 transition"
+                className="absolute top-2 right-2 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition"
                 aria-label="Dismiss"
               >
                 <X className="w-3.5 h-3.5" />
@@ -13984,7 +13984,7 @@ npx eas build --platform all
                         setCreditNudge({ show: false })
                         setUpgradeModal({ open: true, trigger: 'manual' })
                       }}
-                      className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-[11px] font-medium transition"
+                      className="px-3 py-1.5 rounded-lg bg-muted hover:bg-muted/70 text-foreground/80 hover:text-foreground text-[11px] font-medium transition"
                     >
                       See plans
                     </button>

@@ -193,12 +193,12 @@ export function ChefDock({
                 <span className="text-[10px] uppercase tracking-wider text-violet-300 font-semibold">
                   Editing &lt;{selectedElement.tagName.toLowerCase()}&gt;
                 </span>
-                <span className="text-[11px] text-zinc-300 truncate max-w-[180px]">
+                <span className="text-[11px] text-foreground/80 truncate max-w-[180px]">
                   {selectedElement.textSnippet || ''}
                 </span>
                 <button
                   onClick={onClearSelection}
-                  className="text-zinc-400 hover:text-white shrink-0"
+                  className="text-muted-foreground hover:text-foreground shrink-0"
                   aria-label="Clear selection"
                 >
                   <X className="w-3 h-3" />
@@ -232,7 +232,7 @@ export function ChefDock({
                         'max-w-[82%] rounded-2xl px-3 py-2 text-[13px] leading-snug whitespace-pre-wrap break-words backdrop-blur-2xl',
                         m.role === 'user'
                           ? 'bg-gradient-to-br from-orange-500/95 to-amber-500/95 text-white rounded-br-md shadow-lg shadow-orange-500/20'
-                          : 'bg-zinc-950/70 text-zinc-100 border border-white/10 rounded-bl-md'
+                          : 'bg-zinc-950/70 text-foreground border border-border rounded-bl-md'
                       )}
                     >
                       {m.content}
@@ -248,7 +248,7 @@ export function ChefDock({
                 animate={{ opacity: 1, y: 0 }}
                 className="flex justify-start"
               >
-                <div className="rounded-2xl rounded-bl-md bg-zinc-950/70 backdrop-blur-2xl border border-white/10 px-3 py-2.5 flex items-center gap-1.5">
+                <div className="rounded-2xl rounded-bl-md bg-zinc-950/70 backdrop-blur-2xl border border-border px-3 py-2.5 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-orange-300 animate-pulse" />
                   <span className="w-1.5 h-1.5 rounded-full bg-orange-300 animate-pulse [animation-delay:120ms]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-orange-300 animate-pulse [animation-delay:240ms]" />
@@ -269,7 +269,7 @@ export function ChefDock({
         onPointerDown={maybeStartDrag}
         className={cn(
           'pointer-events-auto h-10 flex items-center select-none touch-none',
-          'bg-white/[0.07] backdrop-blur-2xl border border-white/15',
+          'bg-white/[0.07] backdrop-blur-2xl border border-border',
           'shadow-[0_8px_32px_-8px_rgba(0,0,0,0.6)] overflow-hidden',
           'transition-[width,border-radius] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]',
           expanded
@@ -283,9 +283,9 @@ export function ChefDock({
         <div className="pl-2 pr-1.5 shrink-0">
           <div className="w-6 h-6 rounded-full bg-gradient-to-br from-orange-400/90 to-amber-500/90 flex items-center justify-center shadow-inner">
             {isThinking ? (
-              <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
+              <Loader2 className="w-3.5 h-3.5 text-foreground animate-spin" />
             ) : (
-              <ChefHat className="w-3.5 h-3.5 text-white" />
+              <ChefHat className="w-3.5 h-3.5 text-foreground" />
             )}
           </div>
         </div>
@@ -293,10 +293,10 @@ export function ChefDock({
         {/* Collapsed-only label + shortcut hint */}
         {!expanded && (
           <>
-            <span className="text-xs font-medium text-white/90 tracking-tight pr-3">
+            <span className="text-xs font-medium text-foreground/90 tracking-tight pr-3">
               Chat
             </span>
-            <span className="hidden group-hover:inline-flex items-center gap-0.5 text-[10px] text-white/50 font-mono pr-3 border-l border-white/10 pl-2">
+            <span className="hidden group-hover:inline-flex items-center gap-0.5 text-[10px] text-foreground/50 font-mono pr-3 border-l border-border pl-2">
               <Command className="w-2.5 h-2.5" />J
             </span>
           </>
@@ -316,7 +316,7 @@ export function ChefDock({
               }
               disabled={isThinking}
               className={cn(
-                'flex-1 bg-transparent text-[13px] text-white placeholder:text-zinc-500',
+                'flex-1 bg-transparent text-[13px] text-white placeholder:text-muted-foreground',
                 'focus:outline-none disabled:opacity-60 min-w-0 px-1'
               )}
             />
@@ -327,7 +327,7 @@ export function ChefDock({
                 'mr-1 w-7 h-7 rounded-full flex items-center justify-center transition shrink-0',
                 input.trim() && !isThinking
                   ? 'bg-gradient-to-br from-orange-500 to-amber-500 text-white hover:brightness-110'
-                  : 'bg-white/5 text-zinc-600'
+                  : 'bg-muted text-muted-foreground'
               )}
               aria-label="Send"
             >
@@ -335,7 +335,7 @@ export function ChefDock({
             </button>
             <button
               onClick={() => onToggle(false)}
-              className="mr-1.5 p-1 rounded-full text-zinc-500 hover:text-white hover:bg-white/5 transition shrink-0"
+              className="mr-1.5 p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition shrink-0"
               aria-label="Collapse chat"
             >
               <X className="w-3.5 h-3.5" />

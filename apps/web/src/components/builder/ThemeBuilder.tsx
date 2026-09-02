@@ -711,44 +711,44 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
   return (
     <div className={cn('flex flex-col h-full bg-zinc-900 text-white', className)}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 flex items-center justify-center">
             <Palette className="w-5 h-5 text-violet-400" />
           </div>
           <div>
             <h2 className="text-sm font-semibold">Theme Builder</h2>
-            <p className="text-xs text-zinc-500">Customize your website's look</p>
+            <p className="text-xs text-muted-foreground">Customize your website's look</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={generateRandomTheme}
-            className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+            className="p-2 rounded-lg bg-muted hover:bg-muted/70 transition-colors"
             title="Generate random theme"
           >
-            <Shuffle className="w-4 h-4 text-zinc-400" />
+            <Shuffle className="w-4 h-4 text-muted-foreground" />
           </button>
           <button
             onClick={exportTheme}
-            className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+            className="p-2 rounded-lg bg-muted hover:bg-muted/70 transition-colors"
             title="Export theme"
           >
-            <Download className="w-4 h-4 text-zinc-400" />
+            <Download className="w-4 h-4 text-muted-foreground" />
           </button>
           {onClose && (
             <button
               onClick={onClose}
-              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+              className="p-2 rounded-lg bg-muted hover:bg-muted/70 transition-colors"
             >
-              <X className="w-4 h-4 text-zinc-400" />
+              <X className="w-4 h-4 text-muted-foreground" />
             </button>
           )}
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b border-white/10 overflow-x-auto">
+      <div className="flex items-center gap-1 px-4 py-2 border-b border-border overflow-x-auto">
         {[
           { id: 'presets', icon: Grid3X3, label: 'Presets' },
           { id: 'colors', icon: Palette, label: 'Colors' },
@@ -763,7 +763,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
               'flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap',
               activeTab === tab.id
                 ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
             )}
           >
             <tab.icon className="w-3.5 h-3.5" />
@@ -793,7 +793,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
                       'p-3 rounded-xl border transition-all text-left group',
                       theme.name === preset.name
                         ? 'border-violet-500 bg-violet-500/10'
-                        : 'border-white/10 hover:border-white/20 bg-white/5'
+                        : 'border-border hover:border-border bg-muted'
                     )}
                   >
                     {/* Preview gradient */}
@@ -805,15 +805,15 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
                     >
                       <div className="absolute inset-0 flex items-center justify-center gap-1">
                         <div
-                          className="w-6 h-6 rounded-full border-2 border-white/50"
+                          className="w-6 h-6 rounded-full border-2 border-border0"
                           style={{ backgroundColor: preset.colors.primary }}
                         />
                         <div
-                          className="w-4 h-4 rounded-full border-2 border-white/50"
+                          className="w-4 h-4 rounded-full border-2 border-border0"
                           style={{ backgroundColor: preset.colors.secondary }}
                         />
                         <div
-                          className="w-3 h-3 rounded-full border-2 border-white/50"
+                          className="w-3 h-3 rounded-full border-2 border-border0"
                           style={{ backgroundColor: preset.colors.accent }}
                         />
                       </div>
@@ -821,7 +821,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-medium">{preset.name}</span>
                       {preset.mode === 'dark' ? (
-                        <Moon className="w-3 h-3 text-zinc-500" />
+                        <Moon className="w-3 h-3 text-muted-foreground" />
                       ) : (
                         <Sun className="w-3 h-3 text-yellow-500" />
                       )}
@@ -844,11 +844,11 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
               {/* Color Harmony */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-zinc-400">Color Harmony</span>
+                  <span className="text-xs font-medium text-muted-foreground">Color Harmony</span>
                   <select
                     value={colorHarmony}
                     onChange={(e) => setColorHarmony(e.target.value as ColorHarmony)}
-                    className="text-xs bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-white"
+                    className="text-xs bg-muted border border-border rounded-lg px-2 py-1 text-foreground"
                   >
                     <option value="complementary">Complementary</option>
                     <option value="analogous">Analogous</option>
@@ -866,7 +866,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
                         if (idx === 1) updateColor('secondary', color)
                         else if (idx === 2) updateColor('accent', color)
                       }}
-                      className="flex-1 h-10 rounded-lg border border-white/20 transition-transform hover:scale-105"
+                      className="flex-1 h-10 rounded-lg border border-border transition-transform hover:scale-105"
                       style={{ backgroundColor: color }}
                       title={color}
                     />
@@ -877,7 +877,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
               {/* Primary Color with Scale */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-zinc-400">Primary Scale</span>
+                  <span className="text-xs font-medium text-muted-foreground">Primary Scale</span>
                   <div className="flex items-center gap-2">
                     <input
                       type="color"
@@ -885,7 +885,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
                       onChange={(e) => updateColor('primary', e.target.value)}
                       className="w-6 h-6 rounded cursor-pointer border-0"
                     />
-                    <code className="text-[10px] text-zinc-500">{theme.colors.primary}</code>
+                    <code className="text-[10px] text-muted-foreground">{theme.colors.primary}</code>
                   </div>
                 </div>
                 <div className="flex gap-0.5">
@@ -902,12 +902,12 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
 
               {/* All Colors */}
               <div className="space-y-2">
-                <span className="text-xs font-medium text-zinc-400">All Colors</span>
+                <span className="text-xs font-medium text-muted-foreground">All Colors</span>
                 <div className="grid grid-cols-2 gap-2">
                   {Object.entries(theme.colors).map(([key, value]) => (
                     <div
                       key={key}
-                      className="flex items-center gap-2 p-2 rounded-lg bg-white/5 border border-white/10"
+                      className="flex items-center gap-2 p-2 rounded-lg bg-muted border border-border"
                     >
                       <input
                         type="color"
@@ -919,7 +919,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
                         <div className="text-[10px] font-medium capitalize truncate">
                           {key.replace(/([A-Z])/g, ' $1').trim()}
                         </div>
-                        <div className="text-[9px] text-zinc-500 truncate">{value}</div>
+                        <div className="text-[9px] text-muted-foreground truncate">{value}</div>
                       </div>
                     </div>
                   ))}
@@ -944,14 +944,14 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
                 { key: 'monoFont', label: 'Mono Font', fonts: MONO_FONTS },
               ].map(({ key, label, fonts }) => (
                 <div key={key} className="space-y-2">
-                  <label className="text-xs font-medium text-zinc-400">{label}</label>
+                  <label className="text-xs font-medium text-muted-foreground">{label}</label>
                   <select
                     value={theme.typography[key as keyof ThemeTypography] as string}
                     onChange={(e) => setTheme(prev => ({
                       ...prev,
                       typography: { ...prev.typography, [key]: e.target.value },
                     }))}
-                    className="w-full text-sm bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white"
+                    className="w-full text-sm bg-muted border border-border rounded-lg px-3 py-2 text-foreground"
                     style={{ fontFamily: theme.typography[key as keyof ThemeTypography] as string }}
                   >
                     {fonts.map(font => (
@@ -961,7 +961,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
                     ))}
                   </select>
                   <div
-                    className="p-3 rounded-lg bg-white/5 text-center"
+                    className="p-3 rounded-lg bg-muted text-center"
                     style={{ fontFamily: theme.typography[key as keyof ThemeTypography] as string }}
                   >
                     The quick brown fox jumps over the lazy dog
@@ -972,7 +972,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
               {/* Type Scale */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-zinc-400">Type Scale Ratio</label>
+                  <label className="text-xs font-medium text-muted-foreground">Type Scale Ratio</label>
                   <span className="text-xs text-violet-400">{theme.typography.scaleRatio}</span>
                 </div>
                 <input
@@ -993,15 +993,15 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
                     return (
                       <div
                         key={tag}
-                        className="flex items-center gap-2 text-zinc-300"
+                        className="flex items-center gap-2 text-foreground/80"
                         style={{
                           fontSize: `${Math.min(size, 32)}px`,
                           fontFamily: idx < 4 ? theme.typography.headingFont : theme.typography.bodyFont,
                         }}
                       >
-                        <span className="text-[10px] text-zinc-500 w-8">{tag}</span>
+                        <span className="text-[10px] text-muted-foreground w-8">{tag}</span>
                         <span className="truncate">Sample Text</span>
-                        <span className="text-[10px] text-zinc-500 ml-auto">{size.toFixed(0)}px</span>
+                        <span className="text-[10px] text-muted-foreground ml-auto">{size.toFixed(0)}px</span>
                       </div>
                     )
                   })}
@@ -1022,7 +1022,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
               {/* Border Radius */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-zinc-400">Border Radius</label>
+                  <label className="text-xs font-medium text-muted-foreground">Border Radius</label>
                   <span className="text-xs text-violet-400">{theme.spacing.borderRadius}px</span>
                 </div>
                 <input
@@ -1048,7 +1048,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
                         'w-12 h-12 bg-violet-500/30 border-2 transition-all',
                         theme.spacing.borderRadius === radius
                           ? 'border-violet-500'
-                          : 'border-transparent hover:border-white/20'
+                          : 'border-transparent hover:border-border'
                       )}
                       style={{ borderRadius: `${radius}px` }}
                     />
@@ -1059,7 +1059,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
               {/* Container Width */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-zinc-400">Container Width</label>
+                  <label className="text-xs font-medium text-muted-foreground">Container Width</label>
                   <span className="text-xs text-violet-400">{theme.spacing.containerWidth}px</span>
                 </div>
                 <input
@@ -1086,7 +1086,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
                         'px-2 py-1 rounded text-[10px] transition-all',
                         theme.spacing.containerWidth === width
                           ? 'bg-violet-500 text-white'
-                          : 'bg-white/5 text-zinc-400 hover:bg-white/10'
+                          : 'bg-muted text-muted-foreground hover:bg-muted/70'
                       )}
                     >
                       {width}
@@ -1098,7 +1098,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
               {/* Base Spacing Unit */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-zinc-400">Base Spacing Unit</label>
+                  <label className="text-xs font-medium text-muted-foreground">Base Spacing Unit</label>
                   <span className="text-xs text-violet-400">{theme.spacing.baseUnit}px</span>
                 </div>
                 <div className="flex gap-2">
@@ -1113,7 +1113,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
                         'flex-1 py-2 rounded-lg text-sm transition-all',
                         theme.spacing.baseUnit === unit
                           ? 'bg-violet-500 text-white'
-                          : 'bg-white/5 text-zinc-400 hover:bg-white/10'
+                          : 'bg-muted text-muted-foreground hover:bg-muted/70'
                       )}
                     >
                       {unit}px
@@ -1146,7 +1146,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
               {/* Shadow Intensity */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-zinc-400">Shadow Intensity</label>
+                  <label className="text-xs font-medium text-muted-foreground">Shadow Intensity</label>
                   <span className="text-xs text-violet-400">{(theme.effects.shadowIntensity * 100).toFixed(0)}%</span>
                 </div>
                 <input
@@ -1172,7 +1172,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
               {/* Blur Intensity */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-zinc-400">Blur Intensity</label>
+                  <label className="text-xs font-medium text-muted-foreground">Blur Intensity</label>
                   <span className="text-xs text-violet-400">{theme.effects.blurIntensity}px</span>
                 </div>
                 <input
@@ -1190,7 +1190,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
 
               {/* Toggle Effects */}
               <div className="space-y-3">
-                <label className="text-xs font-medium text-zinc-400">Effects</label>
+                <label className="text-xs font-medium text-muted-foreground">Effects</label>
                 {[
                   { key: 'glassEffect', label: 'Glass Effect', icon: Droplets },
                   { key: 'gradientAccent', label: 'Gradient Accents', icon: Palette },
@@ -1205,12 +1205,12 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
                       'w-full flex items-center gap-3 p-3 rounded-xl border transition-all',
                       theme.effects[key as keyof ThemeEffects]
                         ? 'border-violet-500/50 bg-violet-500/10'
-                        : 'border-white/10 bg-white/5'
+                        : 'border-border bg-muted'
                     )}
                   >
                     <Icon className={cn(
                       'w-5 h-5',
-                      theme.effects[key as keyof ThemeEffects] ? 'text-violet-400' : 'text-zinc-500'
+                      theme.effects[key as keyof ThemeEffects] ? 'text-violet-400' : 'text-muted-foreground'
                     )} />
                     <span className="text-sm">{label}</span>
                     <div className={cn(
@@ -1228,7 +1228,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
 
               {/* Mode Toggle */}
               <div className="space-y-3">
-                <label className="text-xs font-medium text-zinc-400">Theme Mode</label>
+                <label className="text-xs font-medium text-muted-foreground">Theme Mode</label>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setTheme(prev => ({ ...prev, mode: 'light' }))}
@@ -1236,7 +1236,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
                       'flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border transition-all',
                       theme.mode === 'light'
                         ? 'border-yellow-500/50 bg-yellow-500/10 text-yellow-400'
-                        : 'border-white/10 bg-white/5 text-zinc-400'
+                        : 'border-border bg-muted text-muted-foreground'
                     )}
                   >
                     <Sun className="w-5 h-5" />
@@ -1248,7 +1248,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
                       'flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border transition-all',
                       theme.mode === 'dark'
                         ? 'border-violet-500/50 bg-violet-500/10 text-violet-400'
-                        : 'border-white/10 bg-white/5 text-zinc-400'
+                        : 'border-border bg-muted text-muted-foreground'
                     )}
                   >
                     <Moon className="w-5 h-5" />
@@ -1262,11 +1262,11 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
       </div>
 
       {/* Footer Actions */}
-      <div className="p-4 border-t border-white/10 space-y-2">
+      <div className="p-4 border-t border-border space-y-2">
         <div className="flex gap-2">
           <button
             onClick={copyCssVariables}
-            className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 transition-colors text-sm"
+            className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-muted hover:bg-muted/70 text-foreground/80 transition-colors text-sm"
           >
             {copied === 'css' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
             Copy CSS
@@ -1279,7 +1279,7 @@ export function ThemeBuilder({ currentHtml, onThemeApply, onClose, className }: 
                 createdAt: new Date(),
               })
             }}
-            className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 transition-colors text-sm"
+            className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-muted hover:bg-muted/70 text-foreground/80 transition-colors text-sm"
           >
             <RotateCcw className="w-4 h-4" />
           </button>

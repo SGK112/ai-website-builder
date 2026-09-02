@@ -95,8 +95,14 @@ const tourSteps: TourStep[] = [
 
 // Steps filtered by skill level — Creators get the full guided tour,
 // Builders skip the code step, Developers just get a 3-step orientation.
+// Keep these in step with the panel rail's own `levels` gating in
+// app/workspace/page.tsx. The Stew panel is low-code and up, so listing a
+// 'webstew' step for no-code users promised a tour stop whose anchor is never
+// rendered at that level — it counted toward "N of 7" and then had nothing to
+// point at. (The runtime presence check drops it anyway; this stops the count
+// being wrong before the first card is drawn.)
 const tourStepsByLevel: Record<string, string[]> = {
-  'no-code':    ['welcome', 'chat', 'templates', 'webstew', 'preview', 'styles', 'deploy'],
+  'no-code':    ['welcome', 'chat', 'templates', 'preview', 'styles', 'deploy'],
   'low-code':   ['welcome', 'chat', 'templates', 'preview', 'styles', 'deploy'],
   'full-stack': ['welcome', 'chat', 'deploy'],
 }
