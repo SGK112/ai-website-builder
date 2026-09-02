@@ -9606,7 +9606,7 @@ npx eas build --platform all
                   placeholder={currentProject?.role === 'viewer' ? 'View only — ask the owner for edit access' : isGenerating ? 'Creating...' : levelCopy[skillLevel].chatPlaceholder}
                   disabled={isGenerating || currentProject?.role === 'viewer'}
                   className={cn(
-                    "flex-1 min-w-0 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500/50 disabled:opacity-50",
+                    "flex-1 min-w-0 h-9 border rounded-lg px-3 text-sm focus:outline-none focus:border-violet-500/50 disabled:opacity-50",
                     isDark
                       ? "bg-white/5 border-white/10 text-white placeholder-zinc-500"
                       : "bg-white border-slate-200 text-slate-900 placeholder-slate-400"
@@ -9660,8 +9660,9 @@ npx eas build --platform all
                   </button>
                 )}
               </div>
-              {/* Row 2 — controls in a centered grid */}
-              <div className="grid grid-flow-col auto-cols-max gap-2 justify-center items-center">
+              {/* Row 2 — tool cluster, left-anchored on the same axis as the
+                  input above and the model chip below. */}
+              <div className="grid grid-flow-col auto-cols-max gap-1.5 justify-start items-center">
               <div className={cn(
                 'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all',
                 isGenerating
@@ -9697,7 +9698,7 @@ npx eas build --platform all
                 disabled={docIngesting || attachingImage || isGenerating || isThinking}
                 title="Attach a screenshot/image to send with your message, or a PDF to build from"
                 className={cn(
-                  'w-7 h-7 rounded-md flex items-center justify-center shrink-0 transition-all',
+                  'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all',
                   (docIngesting || attachingImage)
                     ? 'bg-violet-500/20 text-violet-400 animate-pulse'
                     : isDark
@@ -9706,8 +9707,8 @@ npx eas build --platform all
                 )}
               >
                 {(docIngesting || attachingImage)
-                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  : <Paperclip className="w-3.5 h-3.5" />
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <Paperclip className="w-4 h-4" />
                 }
               </button>
 
@@ -9719,7 +9720,7 @@ npx eas build --platform all
                 onClick={() => setShowRecipeTips((v) => !v)}
                 title="Recipe tips — prompt patterns the pros use"
                 className={cn(
-                  'w-7 h-7 rounded-md flex items-center justify-center shrink-0 transition-all',
+                  'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all',
                   showRecipeTips
                     ? isDark ? 'bg-orange-500/20 text-orange-300' : 'bg-orange-100 text-orange-700'
                     : isDark
@@ -9727,14 +9728,14 @@ npx eas build --platform all
                       : 'text-slate-400 hover:text-orange-600 hover:bg-slate-200'
                 )}
               >
-                <ChefHat className="w-3.5 h-3.5" />
+                <ChefHat className="w-4 h-4" />
               </button>
 
               </div>
             </div>
             {/* Model selector + credits — desktop only; mobile stays minimal (chat/voice/tools). */}
             {!isMobile && (
-            <div className="flex items-center justify-between gap-2 mt-3 relative">
+            <div className="flex items-center justify-between gap-2 mt-2 relative">
               <button
                 onClick={() => setShowChatModelSelector(!showChatModelSelector)}
                 className={cn(
